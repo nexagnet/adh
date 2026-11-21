@@ -47,9 +47,15 @@ public class ImportController {
     }
 
     @PostMapping
-    public String upload(@RequestParam Carrier carrier, @RequestParam("file") MultipartFile file)
+    public String upload(@RequestParam Carrier carrier, @RequestParam("file") List<MultipartFile> files)
             throws IOException {
-        long id = imports.createBatch(carrier, file.getOriginalFilename(), file.getBytes());
+        List<ImportService.UploadedFile> uploaded = new java.util.ArrayList<>();
+        for (MultipartFile file : files) {
+            if (!file.isEmpty()) {
+                uploaded.add(new ImportService.UploadedFile(file.getOriginalFilename(), file.getBytes()));
+            }
+        }
+        long id = imports.createBatch(carrier, uploaded);
         return "redirect:/imports/" + id + "/mapping";
     }
 

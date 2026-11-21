@@ -120,6 +120,102 @@ public class ImportService {
 
     // ================= tải lên & xem file =================
 
+    /** Một file người dùng tải lên (tên gốc + nội dung). */
+    public record UploadedFile(String filename, byte[] content) {
+    }
+
+    private static final Pattern EXPORT_STAMP = Pattern.compile("(\\d{2})-(\\d{2})-(\\d{4})-(\\d{2})-(\\d{2})-(\\d{2})");
+    private static final int MAX_FILES_PER_BATCH = 20;
+
+    /**
+     * Nhận nhiều file của cùng một hãng trong một lô (J&T chỉ cho xuất tối đa 500 dòng mỗi lần). Các file được gộp
+     * theo thứ tự thời điểm xuất ghi trong tên file (file không có dấu thời gian giữ thứ tự tải lên), nên cùng một
+     * vận đơn nằm ở nhiều file thì file mới hơn thắng. Mọi file phải có cùng các cột tiêu đề.
+     */
+    @Transactional
+    public long createBatch(Carrier carrier, List<UploadedFile> files) {
+        List<UploadedFile> given = files == null ? List.of() : files.stream()
+                .filter(f -> f != null && f.content() != null && f.content().length > 0).toList();
+        if (given.isEmpty()) {
+            throw new ImportException("Chưa chọn file hoặc file rỗng.");
+        }
+        if (given.size() == 1) {
+            return createBatch(carrier, given.getFirst().filename(), given.getFirst().content());
+        }
+        if (carrier == null) {
+            throw new ImportException("Hãy chọn hãng vận chuyển.");
+        }
+        if (given.size() > MAX_FILES_PER_BATCH) {
+            throw new ImportException("Mỗi lần chỉ tải tối đa " + MAX_FILES_PER_BATCH + " file. Hãy chia thành nhiều lần.");
+        }
+        List<UploadedFile> ordered = given.stream()
+                .sorted(java.util.Comparator.comparing(f -> exportStamp(f.filename()),
+                        java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())))
+                .toList();
+        List<List<String>> merged = new ArrayList<>();
+        List<String> headerKey = null;
+        for (UploadedFile file : ordered) {
+            List<List<String>> rows = TabularReader.read(file.content(), maxUncompressedBytes);
+            int headerRow = detectHeaderRow(rows);
+            List<String> headers = rows.get(headerRow - 1);
+            List<String> key = headers.stream().map(h -> StatusKey.of(h == null ? "" : h)).toList();
+            if (headerKey == null) {
+                headerKey = key;
+                merged.addAll(rows.subList(0, headerRow)); // giữ nguyên phần đầu file (nếu có) của file đầu tiên
+            } else if (!key.equals(headerKey)) {
+                throw new ImportException("File \"" + shortName(file.filename()) + "\" có các cột tiêu đề khác với "
+                        + "các file còn lại. Chỉ gộp được các file xuất cùng một kiểu từ cùng một hãng.");
+            }
+            for (int i = headerRow; i < rows.size(); i++) {
+                if (!isBlankRow(rows.get(i))) {
+                    merged.add(rows.get(i));
+                }
+            }
+        }
+        byte[] content = toCsv(merged);
+        String name = ordered.size() + " file: " + ordered.stream().map(f -> shortName(f.filename()))
+                .collect(java.util.stream.Collectors.joining(", "));
+        return createBatch(carrier, name, content);
+    }
+
+    private static String shortName(String filename) {
+        String n = filename == null || filename.isBlank() ? "file" : filename.strip();
+        return n.length() > 40 ? n.substring(0, 40) : n;
+    }
+
+    /** Thời điểm xuất lấy từ tên file kiểu "Data 21-11-2026-09-30-15 ... ĐƠN HÀNG.xlsx"; không có thì null. */
+    static LocalDateTime exportStamp(String filename) {
+        if (filename == null) {
+            return null;
+        }
+        var m = EXPORT_STAMP.matcher(filename);
+        if (!m.find()) {
+            return null;
+        }
+        try {
+            return LocalDateTime.of(Integer.parseInt(m.group(3)), Integer.parseInt(m.group(2)),
+                    Integer.parseInt(m.group(1)), Integer.parseInt(m.group(4)), Integer.parseInt(m.group(5)),
+                    Integer.parseInt(m.group(6)));
+        } catch (java.time.DateTimeException e) {
+            return null;
+        }
+    }
+
+    /** CSV nội bộ để gộp nhiều file; KHÔNG thêm dấu nháy chống công thức (khác {@code CsvOut}) vì đây không phải file xuất ra cho người dùng. */
+    private static byte[] toCsv(List<List<String>> rows) {
+        try {
+            java.io.StringWriter out = new java.io.StringWriter();
+            try (var printer = new org.apache.commons.csv.CSVPrinter(out, org.apache.commons.csv.CSVFormat.DEFAULT)) {
+                for (List<String> row : rows) {
+                    printer.printRecord(row);
+                }
+            }
+            return out.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("Không thể gộp file", e);
+        }
+    }
+
     @Transactional
     public long createBatch(Carrier carrier, String filename, byte[] content) {
         if (carrier == null) {
@@ -271,6 +367,26 @@ public class ImportService {
         return report;
     }
 
+    // ================= nhắc nhập file định kỳ =================
+
+    public record StaleImport(Carrier carrier, long daysSince) {
+    }
+
+    /**
+     * Hãng đã từng nhập file mà quá {@code days} ngày chưa có lô nhập mới. Hệ thống không tự đăng nhập cổng của hãng,
+     * nên đây là cách nhắc mẹ xuất và tải file mới (thay cho tự động hóa).
+     */
+    public List<StaleImport> staleCarriers(int days) {
+        return jdbc.sql("""
+                        SELECT carrier, floor(extract(epoch FROM (now() - max(committed_at))) / 86400)::bigint AS days
+                        FROM import_batch WHERE status = 'COMMITTED'
+                        GROUP BY carrier HAVING max(committed_at) < now() - make_interval(days => :days)
+                        ORDER BY carrier""")
+                .param("days", Math.max(1, days))
+                .query((rs, i) -> new StaleImport(Carrier.valueOf(rs.getString("carrier")), rs.getLong("days")))
+                .list();
+    }
+
     // ================= truy vấn lô nhập =================
 
     public List<BatchSummary> list() {
@@ -391,7 +507,8 @@ public class ImportService {
             ParsedRow parsed = new ParsedRow(rowNumber, tracking,
                     blankToNull(normalizeCode(cell(row, index, FieldKey.ORDER_REF))), clean(phoneRaw, 40),
                     phone.get(), blankToNull(clean(cell(row, index, FieldKey.RECEIVER_NAME), 200)),
-                    blankToNull(clean(cell(row, index, FieldKey.RECEIVER_ADDRESS), 500)),
+                    blankToNull(joinAddress(cell(row, index, FieldKey.RECEIVER_ADDRESS),
+                            cell(row, index, FieldKey.ADMIN_AREA))),
                     parseDate(cell(row, index, FieldKey.CREATED_ON)),
                     parseDate(cell(row, index, FieldKey.DELIVERED_ON)), clean(rawStatus, 200), payload);
             if (byTracking.put(tracking, parsed) != null) {
@@ -537,6 +654,27 @@ public class ImportService {
         }
         String v = value.replace("\u0000", "").strip();
         return v.length() > maxLength ? v.substring(0, maxLength) : v;
+    }
+
+    /**
+     * Ghép "Địa chỉ người nhận" với "Địa chỉ hành chính" (xã, huyện, tỉnh) của hãng có cột riêng như J&T, để tỉnh nằm
+     * cuối địa chỉ (cách đoán tỉnh ở {@code VnGeo} lấy tên tỉnh xuất hiện cuối). Không ghép lần hai nếu địa chỉ đã chứa
+     * đủ phần hành chính; nếu quá dài thì cắt phần số nhà, giữ phần hành chính.
+     */
+    static String joinAddress(String address, String adminArea) {
+        String a = clean(address, 500);
+        String area = clean(adminArea, 300);
+        if (area.isEmpty() || StatusKey.of(a).contains(StatusKey.of(area))) {
+            return a;
+        }
+        if (a.isEmpty()) {
+            return area;
+        }
+        String joined = a + ", " + area;
+        if (joined.length() <= 500) {
+            return joined;
+        }
+        return a.substring(0, Math.max(0, 500 - area.length() - 2)) + ", " + area;
     }
 
     private static String blankToNull(String value) {
