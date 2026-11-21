@@ -28,6 +28,18 @@
             <div class="big" th:text="${contact.eligible}">0</div>
             <div class="label">Đủ điều kiện mời (<span th:text="${contact.candidates}">0</span> chờ duyệt)</div>
         </a>
+        <a class="card" th:href="@{/campaigns}">
+            <div class="big" th:text="${invites.clicked}">0</div>
+            <div class="label">Lượt bấm link mời (trong <span th:text="${invites.invitations}">0</span> lời mời)</div>
+        </a>
+        <a class="card" th:href="@{/groups}">
+            <div class="big" th:text="${invites.openGroups}">0</div>
+            <div class="label">Nhóm Zalo đang nhận khách</div>
+        </a>
+        <a class="card warn" th:if="${handoffOpen > 0}" th:href="@{/handoffs}">
+            <div class="big" th:text="${handoffOpen}">0</div>
+            <div class="label">Việc bot báo mẹ xử lý</div>
+        </a>
         <a class="card warn" th:if="${privacyOpen > 0}" th:href="@{/privacy}">
             <div class="big" th:text="${privacyOpen}">0</div>
             <div class="label">Yêu cầu của khách chưa xử lý<span th:if="${privacyOverdue > 0}"

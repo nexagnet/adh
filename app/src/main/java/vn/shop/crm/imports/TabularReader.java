@@ -78,7 +78,7 @@ public final class TabularReader {
                 rows.add(row);
             }
         } catch (IOException | RuntimeException e) {
-            throw new ImportException("Không đọc được file CSV: " + e.getMessage());
+            throw new ImportException("Không đọc được file CSV. Hãy kiểm tra file có đúng định dạng, các dòng có đủ cột và dấu phân cách rồi thử lại.");
         }
         return rows;
     }
@@ -132,7 +132,7 @@ public final class TabularReader {
                 });
             }
         } catch (IOException | RuntimeException e) {
-            throw new ImportException("Không đọc được file Excel (.xlsx): " + e.getMessage());
+            throw new ImportException("Không đọc được file Excel (.xlsx). File có thể bị hỏng hoặc không đúng định dạng.");
         }
         return rows;
     }

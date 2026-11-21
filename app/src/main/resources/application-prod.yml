@@ -1,0 +1,13 @@
+# Hồ sơ chạy thật trên máy chủ (SPRING_PROFILES_ACTIVE=prod). Chỉ chạy sau HTTPS (reverse proxy).
+server:
+  servlet:
+    session:
+      cookie:
+        secure: true
+
+logging:
+  level:
+    root: INFO
+    # Không ghi chi tiết yêu cầu web vào log: đường dẫn lời mời có token riêng của khách.
+    org.springframework.web: WARN
+    org.springframework.security: WARN

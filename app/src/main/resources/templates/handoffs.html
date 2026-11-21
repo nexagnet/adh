@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Việc cần mẹ xử lý')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <h1>Việc cần mẹ xử lý</h1>
+    <p class="hint">Bot báo khi trong nhóm có khách muốn mua, khiếu nại hoặc cần người thật. Mẹ vào Zalo trả lời khách,
+        rồi bấm "Đã nhận" và "Xong" ở đây để cả nhà biết. Trích đoạn đã che số điện thoại và số dài.</p>
+
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã nhận.</div>
+    <div class="actions">
+        <a class="btn secondary" th:if="${!all}" th:href="@{/handoffs(all=true)}">Xem cả việc đã xong</a>
+        <a class="btn secondary" th:if="${all}" th:href="@{/handoffs}">Chỉ xem việc còn mở</a>
+    </div>
+
+    <div class="table-wrap">
+        <table>
+            <tr><th>Lúc</th><th>Nhóm</th><th>Lý do</th><th>Trích đoạn</th><th>Tình trạng</th><th></th></tr>
+            <tr th:each="r : ${rows}">
+                <td th:text="${#temporals.format(r.createdAt, 'dd/MM HH:mm')}">01/01 10:00</td>
+                <td th:text="${r.groupName}">Nhóm 1</td>
+                <td th:text="${r.reason.label()}">Khách muốn đặt hàng</td>
+                <td th:text="${r.excerpt}">Mình muốn mua thêm</td>
+                <td>
+                    <span class="badge bad" th:if="${r.status == 'OPEN'}">Mới</span>
+                    <span class="badge warn" th:if="${r.status == 'ACKNOWLEDGED'}">Đã nhận <span th:if="${r.ackedBy != null}" th:text="'(' + ${r.ackedBy} + ')'"></span></span>
+                    <span class="badge ok" th:if="${r.status == 'RESOLVED'}">Xong</span>
+                </td>
+                <td>
+                    <form th:if="${r.status == 'OPEN'}" th:action="@{/handoffs/{id}/ack(id=${r.id})}" method="post" class="inline">
+                        <button type="submit" class="btn">Đã nhận</button>
+                    </form>
+                    <form th:if="${r.status != 'RESOLVED'}" th:action="@{/handoffs/{id}/resolve(id=${r.id})}" method="post" class="inline">
+                        <button type="submit" class="btn secondary">Xong</button>
+                    </form>
+                </td>
+            </tr>
+            <tr th:if="${rows.isEmpty()}"><td colspan="6" class="muted">Không có việc nào đang chờ.</td></tr>
+        </table>
+    </div>
+</main>
+</body>
+</html>

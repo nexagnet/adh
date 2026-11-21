@@ -126,3 +126,36 @@ input[type=date] { width: auto; }
 .danger-zone summary { cursor: pointer; font-weight: 600; color: var(--bad); }
 .flash { margin-top: 12px; }
 .mono { font-family: Consolas, monospace; font-size: 15px; }
+
+/* Trang công khai cho khách bấm link: chữ to, một nút, dùng được trên điện thoại */
+body.landing { background: #fff; }
+.landing main { max-width: 560px; padding: 28px 18px 48px; text-align: center; }
+.landing h1 { font-size: 30px; line-height: 1.3; }
+.landing p { font-size: 20px; }
+.landing .btn { display: block; width: 100%; font-size: 24px; padding: 18px 12px; margin: 22px 0 10px; }
+.landing .small { font-size: 17px; color: var(--muted); margin-top: 30px; }
+.landing form { margin: 0; }
+.landing .linklike { background: none; border: 0; padding: 8px; font: inherit; font-size: 17px;
+    color: var(--muted); text-decoration: underline; cursor: pointer; }
+
+/* Giấy giới thiệu bỏ vào gói hàng (trang /print): xem trước trên màn hình và in */
+.keepline { white-space: pre-line; }
+.textform label { display: block; margin: 12px 0; font-weight: 600; }
+.textform textarea { display: block; width: 100%; max-width: 640px; margin-top: 4px; font: inherit; padding: 8px; }
+.sheets { overflow-x: auto; padding: 8px 0 24px; }
+.sheet { background: #fff; color: #000; box-sizing: border-box; border: 1px dashed #99a; text-align: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0 auto 16px; }
+.sheet p, .sheet h2 { margin: 0; }
+.sheet .qr { display: block; image-rendering: pixelated; }
+.sheet-title { font-weight: 800; line-height: 1.2; color: #000; }
+.sheet-scan { font-weight: 700; }
+.sheet-link { font-weight: 800; word-break: break-all; }
+@media print {
+    .noprint, .nav { display: none !important; }
+    body, body.printpage { background: #fff; margin: 0; }
+    main { max-width: none; padding: 0; margin: 0; }
+    .sheets { overflow: visible; padding: 0; }
+    .sheet { margin: 0; border-width: 0; break-after: page; }
+    .sheet:last-child { break-after: auto; }
+}
+.warn-text { color: var(--warn); font-weight: 600; }
