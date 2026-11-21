@@ -141,7 +141,7 @@ textarea, input[type=date] {
 input[type=date] { width: auto; }
 .inline-label { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-weight: 600; }
 .btn.danger, button.btn.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
-.danger-zone { margin: 16px 0; padding: 12px 16px; border: 1px solid #e59a9a; border-radius: 8px; background: #fff; }
+.danger-zone { margin: 24px 0 16px; padding: 12px 16px; border: 2px solid var(--bad); border-radius: 8px; background: #fff5f5; }
 .danger-zone summary { cursor: pointer; font-weight: 600; color: var(--bad); }
 .flash { margin-top: 12px; }
 .mono { font-family: Consolas, monospace; font-size: 16px; }
@@ -203,3 +203,28 @@ body.landing { background: #fff; }
 .todo li:first-child { border-top: 0; }
 .todo .todo-num { font-size: 26px; font-weight: 700; margin-right: 8px; }
 .todo .todo-empty { color: var(--ok); font-weight: 600; padding: 8px 0; }
+
+/* Bộ lọc dạng nút có đếm */
+.chips { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
+.chip { display: inline-block; padding: 8px 16px; border: 1px solid var(--line); border-radius: 99px; background: #fff;
+    color: var(--text); text-decoration: none; font-weight: 600; }
+.chip:hover { border-color: var(--primary); }
+.chip.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+/* Hai cột: trái việc mua bán, phải cơ sở liên hệ và quyền dữ liệu */
+.cols2 { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 28px; align-items: start; }
+.cols2 h2:first-child { margin-top: 8px; }
+@media (max-width: 1100px) { .cols2 { grid-template-columns: 1fr; } }
+.choices { margin: 10px 0 14px; padding-left: 22px; }
+.choices li { margin: 6px 0; }
+button:disabled, .btn:disabled { opacity: .55; cursor: not-allowed; }
+
+/* Thanh bốn bước khi nhập file */
+.steps { display: flex; flex-wrap: wrap; gap: 10px; list-style: none; margin: 0 0 16px; padding: 0; }
+.steps li { display: flex; align-items: center; gap: 8px; padding: 6px 14px; border: 1px solid var(--line); border-radius: 99px;
+    background: #fff; color: var(--muted); font-weight: 600; }
+.steps .n { display: inline-block; min-width: 26px; height: 26px; line-height: 26px; text-align: center; border-radius: 50%;
+    background: #e8edf3; }
+.steps li.on { border-color: var(--primary); color: var(--primary-dark); }
+.steps li.on .n { background: var(--primary); color: #fff; }
+.steps li.done .n { background: var(--ok); color: #fff; }

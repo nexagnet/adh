@@ -51,9 +51,31 @@ class EntryWebTest extends AbstractPostgresTest {
     void trangMoiCongKhaiCoNutVaKhongCanDangNhap() throws Exception {
         mvc.perform(get("/moi"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Cảm ơn bạn đã mua hàng!")))
+                .andExpect(content().string(containsString("Cảm ơn anh/chị đã mua hàng!")))
                 .andExpect(content().string(containsString("Vào nhóm Zalo")))
-                .andExpect(content().string(containsString("không bắt buộc")));
+                .andExpect(content().string(containsString("tự nguyện")));
+    }
+
+    @Test
+    void duongChungNVaBiDanhMoiCungMotTrang() throws Exception {
+        mvc.perform(get("/n"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Cảm ơn anh/chị đã mua hàng!")))
+                .andExpect(content().string(containsString("Vào nhóm Zalo")));
+        mvc.perform(get("/moi")).andExpect(status().isOk());
+    }
+
+    @Test
+    void suaDiaChiNganThiMaQrVaTrangInDungDiaChiMoi() throws Exception {
+        var admin = user("admin").roles("OWNER");
+        mvc.perform(post("/print/texts").with(csrf()).with(admin).param("link", "https://cuahang.vn/n/"))
+                .andExpect(status().is3xxRedirection());
+        mvc.perform(get("/print").with(admin))
+                .andExpect(content().string(containsString("cuahang.vn/n")))
+                .andExpect(content().string(not(containsString("Chưa nên in"))));
+        mvc.perform(post("/print/texts").with(csrf()).with(admin).param("link", "cua hàng"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(containsString("Địa chỉ ngắn")));
     }
 
     @Test
@@ -124,18 +146,23 @@ class EntryWebTest extends AbstractPostgresTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("In giấy giới thiệu")))
                 .andExpect(content().string(containsString("/print/qr.png")))
-                .andExpect(content().string(containsString("localhost:8080/moi")))
+                .andExpect(content().string(containsString("localhost:8080/n")))
                 .andExpect(content().string(containsString("Chưa nên in")))
                 .andExpect(content().string(containsString("Khách quét lúc này sẽ vào")))
-                .andExpect(content().string(containsString("/print-a6.css")))
-                .andExpect(content().string(containsString("Cảm ơn bạn đã mua hàng!")));
+                .andExpect(content().string(containsString("/print-a5.css")))
+                .andExpect(content().string(containsString("Cảm ơn anh/chị đã mua hàng!")))
+                .andExpect(content().string(containsString("trợ lý AI")))
+                .andExpect(content().string(containsString("sheet-stop")));
+
+        mvc.perform(get("/print").param("kho", "a6").with(user("admin").roles("OWNER")))
+                .andExpect(content().string(containsString("/print-a6.css")));
 
         mvc.perform(get("/print").param("kho", "a4x4").with(user("admin").roles("OWNER")))
                 .andExpect(content().string(containsString("/print-a4x4.css")));
-        // khổ lạ thì dùng A6, không lộ lỗi
+        // khổ lạ thì dùng A5, không lộ lỗi
         mvc.perform(get("/print").param("kho", "../../etc").with(user("admin").roles("OWNER")))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("/print-a6.css")));
+                .andExpect(content().string(containsString("/print-a5.css")));
     }
 
     @Test
@@ -157,7 +184,7 @@ class EntryWebTest extends AbstractPostgresTest {
 
         mvc.perform(post("/print/texts/reset").with(csrf()).with(admin).param("kho", "A6"))
                 .andExpect(status().is3xxRedirection());
-        mvc.perform(get("/moi")).andExpect(content().string(containsString("Cảm ơn bạn đã mua hàng!")));
+        mvc.perform(get("/moi")).andExpect(content().string(containsString("Cảm ơn anh/chị đã mua hàng!")));
     }
 
     @Test

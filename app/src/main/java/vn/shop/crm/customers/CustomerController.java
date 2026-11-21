@@ -41,7 +41,12 @@ public class CustomerController {
                        @RequestParam(required = false) String area,
                        @RequestParam(defaultValue = "1") int page, Model model) {
         String areaCode = validArea(area);
-        model.addAttribute("page", customers.search(segment, review, areaCode, q, page, 50));
+        var pageResult = customers.search(segment, review, areaCode, q, page, 50);
+        model.addAttribute("page", pageResult);
+        model.addAttribute("states", contacts.inviteStates(pageResult.items().stream().map(c -> c.id()).toList()));
+        var bySegment = customers.countBySegment();
+        model.addAttribute("segmentCounts", bySegment);
+        model.addAttribute("totalCustomers", bySegment.values().stream().mapToLong(Long::longValue).sum());
         model.addAttribute("area", areaCode == null ? "" : areaCode);
         var byRegion = customers.countByRegion();
         model.addAttribute("regions", java.util.Arrays.stream(vn.shop.crm.geo.Region.values())
@@ -98,6 +103,7 @@ public class CustomerController {
         model.addAttribute("canApprove", basis == null && !suppressed
                 && detail.customer().segment() == Segment.ONE_TIME && !detail.customer().needsReview());
         model.addAttribute("events", contacts.events(id));
+        model.addAttribute("inviteState", contacts.inviteStates(java.util.List.of(id)).get(id));
         model.addAttribute("note", contacts.note(id));
         model.addAttribute("today", java.time.LocalDate.now());
         return "customers-detail";

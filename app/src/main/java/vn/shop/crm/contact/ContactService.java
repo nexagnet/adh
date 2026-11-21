@@ -96,6 +96,57 @@ public class ContactService {
         return new Stats(oneTime, eligible, candidates, blocked, optedOut, erased, review);
     }
 
+    /** Trạng thái duyệt mời và lời mời của một khách, dạng chữ tiếng Việt để hiện trong danh sách khách. */
+    public record InviteState(String approval, String invitation) {
+    }
+
+    /**
+     * Gộp trạng thái duyệt mời (cơ sở liên hệ, sổ từ chối) và lời mời của nhiều khách bằng vài truy vấn, không truy vấn
+     * từng dòng. Khách không có trong kết quả thì chưa duyệt và chưa được mời.
+     */
+    public java.util.Map<Long, InviteState> inviteStates(java.util.Collection<Long> ids) {
+        java.util.Map<Long, InviteState> result = new java.util.HashMap<>();
+        if (ids.isEmpty()) {
+            return result;
+        }
+        java.util.Map<Long, String> basis = new java.util.HashMap<>();
+        jdbc.sql("SELECT customer_id, status FROM contact_basis WHERE purpose = :p AND customer_id IN (:ids)")
+                .param("p", PURPOSE).param("ids", ids)
+                .query((rs, i) -> java.util.Map.entry(rs.getLong("customer_id"), rs.getString("status")))
+                .list().forEach(e -> basis.put(e.getKey(), e.getValue()));
+        java.util.Set<Long> suppressed = new java.util.HashSet<>(jdbc.sql(
+                        "SELECT c.id FROM customer c WHERE c.id IN (:ids) AND EXISTS (SELECT 1 FROM suppression s "
+                                + "WHERE s.phone_hash = " + SUPPRESSED_HASH + ")")
+                .param("ids", ids).query(Long.class).list());
+        java.util.Map<Long, String> invites = new java.util.HashMap<>();
+        jdbc.sql("SELECT customer_id, status FROM invitation WHERE customer_id IN (:ids)").param("ids", ids)
+                .query((rs, i) -> java.util.Map.entry(rs.getLong("customer_id"), rs.getString("status")))
+                .list().forEach(e -> invites.put(e.getKey(), e.getValue()));
+        for (Long id : ids) {
+            String approval;
+            if (suppressed.contains(id)) {
+                approval = "Không được liên hệ";
+            } else if (!basis.containsKey(id)) {
+                approval = "Chưa duyệt";
+            } else {
+                approval = switch (basis.get(id)) {
+                    case "ELIGIBLE" -> "Đã duyệt";
+                    case "BLOCKED" -> "Bị chặn";
+                    default -> "Không được liên hệ";
+                };
+            }
+            String invitation = switch (invites.getOrDefault(id, "")) {
+                case "READY" -> "Chưa gửi";
+                case "SENT" -> "Đã gửi";
+                case "CLICKED" -> "Đã bấm link";
+                case "CANCELLED" -> "Đã hủy";
+                default -> "Chưa mời";
+            };
+            result.put(id, new InviteState(approval, invitation));
+        }
+        return result;
+    }
+
     private long count(String sql) {
         return jdbc.sql(sql).query(Long.class).single();
     }

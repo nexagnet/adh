@@ -22,6 +22,14 @@
             <div class="big" th:text="${unknownCount}">0</div><div class="label">Chưa rõ khu vực</div></a>
     </div>
 
+    <div class="chips" aria-label="Lọc theo phân loại">
+        <a class="chip" th:classappend="${segment == null} ? 'on'" th:href="@{/customers(area=${area}, review=${review}, q=${q})}"
+           th:text="'Tất cả (' + ${totalCustomers} + ')'">Tất cả (0)</a>
+        <a class="chip" th:each="s : ${segments}" th:classappend="${segment == s} ? 'on'"
+           th:href="@{/customers(segment=${s.name()}, area=${area}, review=${review}, q=${q})}"
+           th:text="${s.label()} + ' (' + ${segmentCounts.get(s)} + ')'">Mua 1 lần (0)</a>
+    </div>
+
     <form class="inline" th:action="@{/customers}" method="get">
         <select name="segment">
             <option value="">Tất cả phân loại</option>
@@ -38,7 +46,7 @@
         <input type="text" name="q" th:value="${q}" placeholder="Số điện thoại hoặc tên">
         <label><input type="checkbox" name="review" value="true" th:checked="${review}"> Chỉ khách cần kiểm tra</label>
         <button type="submit" class="btn">Lọc</button>
-        <a class="btn secondary" th:href="@{/customers/export.csv(segment=${segment}, review=${review}, area=${area})}">Tải CSV</a>
+        <a class="btn secondary" th:href="@{/customers/export.csv(segment=${segment}, review=${review}, area=${area})}">Tải file Excel</a>
     </form>
 
     <p><strong th:text="${page.total}">0</strong> khách</p>
@@ -46,7 +54,7 @@
         <table>
             <tr>
                 <th>Số điện thoại</th><th>Tên</th><th>Địa chỉ</th><th>Khu vực</th>
-                <th class="num">Lần mua</th><th>Gần nhất</th><th>Ghi chú</th>
+                <th class="num">Lần mua</th><th>Gần nhất</th><th>Duyệt mời</th><th>Lời mời</th><th>Ghi chú</th>
             </tr>
             <tr th:each="c : ${page.items}">
                 <td><a th:href="@{/customers/{id}(id=${c.id})}" th:text="${c.displayPhone()}">0912 345 678</a></td>
@@ -55,9 +63,12 @@
                 <td><span th:text="${c.provinceLabel()}">Hà Nội</span><div class="muted" th:if="${c.province != null}" th:text="${c.regionLabel()}">Miền Bắc</div></td>
                 <td class="num" th:text="${c.successfulPurchases}">1</td>
                 <td th:text="${c.lastOrderOn != null} ? ${#temporals.format(c.lastOrderOn, 'dd/MM/yyyy')} : ''">01/01/2026</td>
+                <td th:if="${c.segment.name() == 'ONE_TIME'}" th:text="${states.get(c.id).approval}">Chưa duyệt</td>
+                <td th:if="${c.segment.name() == 'ONE_TIME'}" th:text="${states.get(c.id).invitation}">Chưa mời</td>
+                <td th:if="${c.segment.name() != 'ONE_TIME'}" class="muted" colspan="2">Không mời</td>
                 <td><span class="badge warn" th:if="${c.needsReview}">Cần kiểm tra</span></td>
             </tr>
-            <tr th:if="${page.items.isEmpty()}"><td colspan="7" class="muted">Không có khách nào.</td></tr>
+            <tr th:if="${page.items.isEmpty()}"><td colspan="9" class="muted">Không có khách nào.</td></tr>
         </table>
     </div>
 

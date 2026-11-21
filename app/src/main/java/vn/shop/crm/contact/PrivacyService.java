@@ -18,8 +18,10 @@ import java.util.List;
  *
  * <p>Xóa = xóa khách, mọi vận đơn của khách, mọi dòng lỗi nhập có chứa SĐT đó, các lô nhập chưa xác nhận (còn giữ
  * file gốc); chỉ giữ lại BĂM của SĐT trong danh sách "đã xóa" để không nhập lại và không bao giờ liên hệ lại, cùng
- * nhật ký chỉ có 3 số cuối. Chưa có xác nhận pháp lý về thời hạn trả lời yêu cầu; số ngày mặc định có thể chỉnh
- * bằng {@code app.privacy.request-due-days}.
+ * nhật ký chỉ có 3 số cuối. Hạn phản hồi theo loại yêu cầu (theo thiết kế đã duyệt): xem, xuất, ngừng liên hệ trong
+ * {@code app.privacy.quick-due-working-days} ngày làm việc (mặc định 2, chỉ bỏ qua thứ Bảy và Chủ nhật, chưa tính
+ * ngày lễ); xóa trong {@code app.privacy.erase-due-days} ngày (mặc định 20). Các mức này là nguồn phụ, CHƯA có xác nhận
+ * pháp lý, cần đối chiếu Công báo.
  */
 @Service
 public class PrivacyService {
@@ -52,17 +54,56 @@ public class PrivacyService {
 
     private final JdbcClient jdbc;
     private final ContactService contacts;
-    private final int dueDays;
+    private final int quickWorkingDays;
+    private final int eraseDays;
 
     public PrivacyService(JdbcClient jdbc, ContactService contacts,
-                          @Value("${app.privacy.request-due-days:15}") int dueDays) {
+                          @Value("${app.privacy.quick-due-working-days:2}") int quickWorkingDays,
+                          @Value("${app.privacy.erase-due-days:20}") int eraseDays) {
         this.jdbc = jdbc;
         this.contacts = contacts;
-        this.dueDays = dueDays;
+        this.quickWorkingDays = quickWorkingDays;
+        this.eraseDays = eraseDays;
     }
 
-    public int dueDays() {
-        return dueDays;
+    public int quickWorkingDays() {
+        return quickWorkingDays;
+    }
+
+    public int eraseDays() {
+        return eraseDays;
+    }
+
+    /** Hạn phản hồi của một yêu cầu, tính từ ngày khách gửi. */
+    public LocalDate dueDate(Kind kind, LocalDate received) {
+        if (kind == Kind.ERASE) {
+            return received.plusDays(eraseDays);
+        }
+        LocalDate due = received;
+        int left = quickWorkingDays;
+        while (left > 0) {
+            due = due.plusDays(1);
+            if (due.getDayOfWeek() != java.time.DayOfWeek.SATURDAY && due.getDayOfWeek() != java.time.DayOfWeek.SUNDAY) {
+                left--;
+            }
+        }
+        return due;
+    }
+
+    /** Ghi nhận yêu cầu mới theo số điện thoại khách gửi cho cửa hàng (trang Yêu cầu của khách). */
+    @Transactional
+    public long openRequestByPhone(String phoneText, Kind kind, LocalDate receivedOn, String note) {
+        var phone = PhoneNormalizer.firstValid(phoneText == null ? "" : phoneText);
+        if (phone.isEmpty()) {
+            throw new ImportException("Số điện thoại không hợp lệ.");
+        }
+        Long id = jdbc.sql("SELECT id FROM customer WHERE phone = :p").param("p", phone.get())
+                .query(Long.class).optional().orElse(null);
+        if (id == null) {
+            throw new ImportException("Không tìm thấy khách có số điện thoại này. Có thể khách đã bị xóa dữ liệu "
+                    + "hoặc chưa từng được nhập.");
+        }
+        return openRequest(id, kind, receivedOn, note);
     }
 
     // ---------- yêu cầu & hạn phản hồi ----------
@@ -76,7 +117,7 @@ public class PrivacyService {
                         INSERT INTO data_request (kind, customer_id, phone_tail, received_on, due_on, note, recorded_by)
                         VALUES (:kind, :cid, :tail, :received, :due, :note, :by) RETURNING id""")
                 .param("kind", kind.name()).param("cid", customerId).param("tail", PhoneHash.tail(phone))
-                .param("received", received).param("due", received.plusDays(dueDays))
+                .param("received", received).param("due", dueDate(kind, received))
                 .param("note", blankToNull(note)).param("by", ContactService.actor())
                 .query(Long.class).single();
         contacts.event(customerId, phone, "REQUEST_OPENED", kind.label());
@@ -121,7 +162,7 @@ public class PrivacyService {
                                                       recorded_by)
                             VALUES (:kind, :cid, :tail, :received, :due, current_date, :note, :by)""")
                     .param("kind", kind.name()).param("cid", customerId).param("tail", PhoneHash.tail(phone))
-                    .param("received", received).param("due", received.plusDays(dueDays))
+                    .param("received", received).param("due", dueDate(kind, received))
                     .param("note", blankToNull(note)).param("by", ContactService.actor()).update();
         }
     }

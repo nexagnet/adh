@@ -5,6 +5,7 @@
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
     <h1>Kết quả nhập</h1>
+    <ol th:replace="~{fragments :: steps(4)}"></ol>
     <p class="hint">
         <span th:text="${batch.carrier.label()}">Viettel Post</span> —
         <strong th:text="${batch.filename}">file.csv</strong>
@@ -28,7 +29,7 @@
     <div class="actions">
         <a class="btn" th:href="@{/customers(segment=ONE_TIME)}">Xem khách mua 1 lần</a>
         <a class="btn secondary" th:href="@{/customers(segment=REPEAT)}">Xem khách mua từ 2 lần</a>
-        <a class="btn secondary" th:if="${!errors.isEmpty()}" th:href="@{/imports/{id}/errors.csv(id=${batch.id})}">Tải danh sách lỗi (CSV)</a>
+        <a class="btn secondary" th:if="${!errors.isEmpty()}" th:href="@{/imports/{id}/errors.csv(id=${batch.id})}">Tải danh sách lỗi (mở bằng Excel)</a>
     </div>
 
     <h2 th:if="${!errors.isEmpty()}">Dòng lỗi (đã bỏ qua)</h2>

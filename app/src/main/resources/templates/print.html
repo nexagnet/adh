@@ -12,7 +12,7 @@
 
         <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
         <div class="notice">
-            <strong>Giấy bỏ vào mọi gói hàng, kể cả khách mua từ 2 lần.</strong> Đây là <strong>ngoại lệ so với BR-06</strong>
+            <strong>Giấy bỏ vào mọi gói hàng, kể cả khách mua từ 2 lần.</strong> Đây là <strong>ngoại lệ so với quy tắc "chỉ mời khách mua 1 lần"</strong>
             (khách mua từ 2 lần thường chỉ để bố mẹ tự tư vấn): ở đây khách tự quét, hệ thống không chủ động mời ai.
             Ai quét cũng vào được nhóm còn chỗ; mỗi điện thoại chỉ được tính một lần; khách có thể xin ngừng nhận tin ngay trên trang sau khi quét.
         </div>
@@ -36,7 +36,8 @@
             <input type="hidden" name="kho" th:value="${kho}">
             <label th:each="f : ${fields}">
                 <span th:text="${f.label}">Tiêu đề</span> <small class="muted" th:text="'(' + ${f.hint} + ')'">gợi ý</small>
-                <textarea th:name="${f.name()}" th:rows="${f.rows}" th:maxlength="${f.max}" required
+                <textarea th:name="${f.name()}" th:rows="${f.rows}" th:maxlength="${f.max}" th:required="${!f.optional}"
+                          th:placeholder="${f.optional} ? ${eff[f.name()]} : null"
                           th:text="${raw[f.name()]}"></textarea>
             </label>
             <div class="actions">
@@ -50,8 +51,8 @@
 
         <h2>2. Chọn khổ giấy</h2>
         <p>
+            <a class="btn" th:classappend="${kho == 'A5'} ? '' : 'secondary'" th:href="@{/print(kho='A5')}">A5 dọc (khổ đã duyệt)</a>
             <a class="btn" th:classappend="${kho == 'A6'} ? '' : 'secondary'" th:href="@{/print(kho='A6')}">A6 (một tờ nhỏ)</a>
-            <a class="btn" th:classappend="${kho == 'A5'} ? '' : 'secondary'" th:href="@{/print(kho='A5')}">A5 (một tờ vừa)</a>
             <a class="btn" th:classappend="${kho == 'A4X4'} ? '' : 'secondary'" th:href="@{/print(kho='A4X4')}">4 tờ A6 trên một tờ A4 (in rồi cắt)</a>
         </p>
 
@@ -73,15 +74,17 @@
 
     <div th:class="'sheets sheets-' + ${#strings.toLowerCase(kho)}">
         <div class="sheet" th:each="n : ${sheets}">
-            <h2 class="sheet-title" th:text="${t['title']}">Cảm ơn bạn đã mua hàng!</h2>
-            <p class="sheet-intro keepline" th:text="${t['intro']}">Nội dung chính.</p>
-            <p class="sheet-scan keepline" th:text="${t['scan']}">Quét mã này</p>
+            <p class="sheet-shop" th:text="${t['shop']}">Tên cửa hàng</p>
+            <h2 class="sheet-title" th:text="${t['title']}">Cảm ơn anh/chị đã mua hàng!</h2>
+            <p class="sheet-intro keepline" th:text="${t['intro']}">Lời giới thiệu.</p>
+            <p class="sheet-step keepline" th:text="${t['step1']}">1. Mở Zalo, quét mã vuông bên dưới.</p>
             <img class="qr" th:src="@{/print/qr.png}" alt="Mã QR vào nhóm Zalo">
-            <p class="sheet-type keepline" th:text="${t['type']}">Không quét được? Gõ:</p>
-            <p class="sheet-link" th:text="${shortLink}">cuahang.vn/moi</p>
-            <p class="sheet-note keepline" th:text="${t['note']}">Không bắt buộc.</p>
-            <p class="sheet-footer keepline" th:text="${t['footer']}">Chúc bạn vui vẻ!</p>
-            <p class="sheet-phone" th:if="${!shopPhone.isEmpty()}">Điện thoại: <span th:text="${shopPhone}">0900000000</span></p>
+            <p class="sheet-link" th:text="${t['link']}">cuahang.vn/n</p>
+            <p class="sheet-step keepline" th:text="${t['step2']}">2. Bấm nút «Vào nhóm Zalo».</p>
+            <p class="sheet-nocode keepline" th:text="${t['nocode']}">Không cần nhập mã xác nhận.</p>
+            <p class="sheet-voluntary keepline" th:text="${t['voluntary']}">Vào nhóm là tự nguyện.</p>
+            <p class="sheet-phone" th:if="${!t['phone'].isEmpty()}" th:text="${t['phone']}">0900000000</p>
+            <p class="sheet-stop keepline" th:text="${t['stop']}">Không muốn nhận tin nữa?</p>
         </div>
     </div>
 </main>

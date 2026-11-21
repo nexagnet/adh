@@ -21,7 +21,7 @@ import java.net.URI;
 import java.time.Duration;
 
 /**
- * Trang công khai của mã QR/link chung ({@code /moi}). Chữ to, một nút, dùng được trên điện thoại. Dùng POST cho nút
+ * Trang công khai của mã QR/link chung ({@code /n}, giữ {@code /moi} làm bí danh). Chữ to, một nút, dùng được trên điện thoại. Dùng POST cho nút
  * "Vào nhóm" để trình xem trước link không vô tình tính thành lượt vào.
  */
 @Controller
@@ -65,7 +65,7 @@ public class EntryController {
         model.addAttribute("t", texts.rendered(shopName));
     }
 
-    @GetMapping("/moi")
+    @GetMapping({"/n", "/moi"})
     public String page(Model model) {
         common(model);
         model.addAttribute("regions", regionOptions());

@@ -19,7 +19,7 @@ public class HandoffService {
         ORDER("Khách muốn đặt hàng / hỏi giá"),
         COMPLAINT("Khiếu nại, hàng lỗi, đổi trả"),
         HUMAN("Khách muốn gặp người thật"),
-        UNSURE("Bot chưa chắc câu trả lời");
+        UNSURE("Trợ lý AI chưa chắc câu trả lời");
 
         private final String label;
 

@@ -245,13 +245,13 @@ class ContactAcceptanceTest extends AbstractPostgresTest {
         seed();
         long id = idOf(ONE);
 
-        privacy.openRequest(id, PrivacyService.Kind.ERASE, LocalDate.now().minusDays(20), "nhắn Zalo");
+        privacy.openRequest(id, PrivacyService.Kind.ERASE, LocalDate.now().minusDays(25), "nhắn Zalo");
         privacy.openRequest(id, PrivacyService.Kind.EXPORT, LocalDate.now(), null);
 
         var rows = privacy.requests(true);
         assertThat(rows).hasSize(2);
         var erase = rows.stream().filter(r -> r.kind() == PrivacyService.Kind.ERASE).findFirst().orElseThrow();
-        assertThat(erase.dueOn()).isEqualTo(LocalDate.now().minusDays(20).plusDays(privacy.dueDays()));
+        assertThat(erase.dueOn()).isEqualTo(LocalDate.now().minusDays(25).plusDays(privacy.eraseDays()));
         assertThat(erase.overdue()).isTrue();
         assertThat(privacy.overdueCount()).isEqualTo(1);
         assertThat(privacy.openCount()).isEqualTo(2);
@@ -273,5 +273,26 @@ class ContactAcceptanceTest extends AbstractPostgresTest {
         assertThat(contacts.note(id)).isEqualTo("khách quen, đã gọi điện");
         contacts.saveNote(id, "  ");
         assertThat(contacts.note(id)).isEmpty();
+    }
+
+    @Test
+    void hanTheoLoaiXoaHaiMuoiNgayCacLoaiKhacHaiNgayLamViecBoQuaCuoiTuan() {
+        LocalDate friday = LocalDate.of(2026, 11, 20); // thứ Sáu
+        assertThat(friday.getDayOfWeek()).isEqualTo(java.time.DayOfWeek.FRIDAY);
+        assertThat(privacy.dueDate(PrivacyService.Kind.ERASE, friday)).isEqualTo(friday.plusDays(20));
+        assertThat(privacy.dueDate(PrivacyService.Kind.STOP_CONTACT, friday)).isEqualTo(LocalDate.of(2026, 11, 24));
+        assertThat(privacy.dueDate(PrivacyService.Kind.EXPORT, LocalDate.of(2026, 11, 18)))
+                .isEqualTo(LocalDate.of(2026, 11, 20));
+    }
+
+    @Test
+    void ghiNhanYeuCauMoiTheoSoDienThoai() {
+        seed();
+        privacy.openRequestByPhone("0912 345 678", PrivacyService.Kind.STOP_CONTACT, LocalDate.now(), null);
+        assertThat(privacy.openCount()).isEqualTo(1);
+        assertThatThrownBy(() -> privacy.openRequestByPhone("0999999999", PrivacyService.Kind.ERASE, null, null))
+                .isInstanceOf(vn.shop.crm.common.ImportException.class);
+        assertThatThrownBy(() -> privacy.openRequestByPhone("abc", PrivacyService.Kind.ERASE, null, null))
+                .isInstanceOf(vn.shop.crm.common.ImportException.class);
     }
 }

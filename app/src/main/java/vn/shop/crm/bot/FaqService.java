@@ -80,7 +80,7 @@ public class FaqService {
             throw new ImportException("Hãy đặt tiêu đề cho câu hỏi (tối đa 100 ký tự).");
         }
         if (keywords == null || keywords.isBlank() || keywords.length() > 300) {
-            throw new ImportException("Hãy nhập từ khóa để bot nhận ra câu hỏi, cách nhau bằng dấu phẩy.");
+            throw new ImportException("Hãy nhập từ khóa để trợ lý AI nhận ra câu hỏi, cách nhau bằng dấu phẩy.");
         }
         if (answer == null || answer.isBlank() || answer.strip().length() > 800) {
             throw new ImportException("Câu trả lời không được để trống (tối đa 800 ký tự).");

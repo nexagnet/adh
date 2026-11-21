@@ -28,9 +28,9 @@ public class Labels {
 
     private static final Map<String, String> BOT_RESULT = Map.of(
             "RECEIVED", "Vừa nhận",
-            "SELF", "Tin của chính bot",
-            "HUMAN_ACTIVE", "Mẹ đang trả lời, bot im lặng",
-            "BOT_OFF", "Bot đang tắt",
+            "SELF", "Tin của chính trợ lý AI",
+            "HUMAN_ACTIVE", "Mẹ đang trả lời, trợ lý AI im lặng",
+            "BOT_OFF", "Trợ lý AI đang tắt",
             "RATE_LIMITED", "Trả lời quá dày, bỏ qua",
             "IGNORED", "Không hướng tới cửa hàng, bỏ qua",
             "ANSWERED", "Đã trả lời bằng câu hỏi thường gặp",
@@ -41,7 +41,7 @@ public class Labels {
     private static final Map<String, String> SENDER = Map.of(
             "CUSTOMER", "Khách",
             "OWNER", "Mẹ (chủ cửa hàng)",
-            "BOT", "Bot");
+            "BOT", "Trợ lý AI");
 
     private static String pick(Map<String, String> map, String code) {
         if (code == null) {
@@ -68,6 +68,21 @@ public class Labels {
 
     public String sender(String code) {
         return pick(SENDER, code);
+    }
+
+    /**
+     * Người thao tác hiển thị cho bố mẹ: hiện chỉ có một tài khoản đăng nhập nên "admin" là Bố/Mẹ.
+     * Khi có hai tài khoản riêng (câu hỏi Đ1) chỉ cần thêm tên vào đây.
+     */
+    public String person(String username) {
+        if (username == null || username.isBlank()) {
+            return "";
+        }
+        return switch (username) {
+            case "admin" -> "Bố/Mẹ";
+            case "system" -> "Hệ thống";
+            default -> username;
+        };
     }
 
     /** Tên ý định bằng tiếng Việt; mã lạ thì trả về rỗng. */

@@ -1,28 +1,27 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="vi">
-<head th:replace="~{fragments :: head('Bot trợ lý')}"></head>
+<head th:replace="~{fragments :: head('Tài khoản trợ lý AI')}"></head>
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
-    <h1>Bot trợ lý trong nhóm</h1>
-    <p class="hint">Bot là tài khoản <strong>riêng, công khai là "Trợ lý cửa hàng"</strong>, không phải tài khoản của mẹ.
-        Bot chỉ trả lời bằng các câu hỏi thường gặp dưới đây (do cửa hàng soạn). Khi khách muốn mua, khiếu nại hoặc cần
-        người thật, bot chỉ <strong>báo mẹ</strong>, không bao giờ tự nhận đã chốt đơn, không hỏi địa chỉ hay số điện thoại.
-        Mẹ vẫn trả lời khách trên Zalo như bình thường, bot tắt hay hỏng cũng không ảnh hưởng.</p>
+    <h1>Tài khoản trợ lý AI</h1>
+    <p class="hint">Trợ lý AI là tài khoản <strong>riêng, công khai là "Trợ lý cửa hàng"</strong>, không phải tài khoản của mẹ.
+        Trợ lý AI chỉ trả lời bằng các câu hỏi thường gặp dưới đây (do cửa hàng soạn). Khi khách muốn mua, khiếu nại hoặc cần
+        người thật, trợ lý AI chỉ <strong>báo mẹ</strong>, không bao giờ tự nhận đã chốt đơn, không hỏi địa chỉ hay số điện thoại.
+        Mẹ vẫn trả lời khách trên Zalo như bình thường, trợ lý AI tắt hay hỏng cũng không ảnh hưởng.</p>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
-    <div class="notice">Hiện <strong>chưa có kênh kết nối Zalo nào được cài</strong> (cần chạy thử để chọn phương án, xem tài liệu
-        <strong>ADR-0001 chọn kênh bot</strong> trong thư mục tài liệu). Vì vậy bot chưa đọc hay gửi tin trong nhóm thật; bạn có thể soạn câu hỏi thường gặp
-        và thử bot ngay ở dưới.</div>
+    <div class="notice">Hiện <strong>chưa có kênh kết nối Zalo nào được cài</strong> (cần chạy thử để chọn phương án, xem tài liệu <strong>ADR-0001</strong> của dự án). Vì vậy trợ lý AI chưa đọc hay gửi tin trong nhóm thật; bạn có thể soạn câu hỏi thường gặp
+        và thử trợ lý AI ngay ở dưới.</div>
 
     <div class="cards">
         <div class="card" th:classappend="${botEnabled} ? '' : 'warn'">
             <div class="big" th:text="${botEnabled} ? 'BẬT' : 'TẮT'">TẮT</div>
-            <div class="label">Bot toàn hệ thống (công tắc tắt khẩn cấp)</div>
+            <div class="label">Trợ lý AI toàn hệ thống (công tắc tắt ngay)</div>
             <form th:action="@{/bot/enable}" method="post" class="inline">
                 <input type="hidden" name="on" th:value="${!botEnabled}">
                 <button type="submit" class="btn" th:classappend="${botEnabled} ? 'danger' : ''"
-                        th:text="${botEnabled} ? 'TẮT bot ngay' : 'Bật bot'">Bật bot</button>
+                        th:text="${botEnabled} ? 'TẮT trợ lý AI ngay' : 'Bật trợ lý AI'">Bật trợ lý AI</button>
             </form>
         </div>
         <div class="card">
@@ -35,10 +34,23 @@
         </div>
     </div>
 
-    <h2>Bật bot theo từng nhóm</h2>
+    <h2>Cách kết nối với Zalo</h2>
+    <div class="notice">
+        <strong>Chưa chọn cách kết nối.</strong> Cần chạy thử từng cách rồi chủ cửa hàng chọn (tài liệu ADR-0001).
+        Khi chưa chọn, trợ lý AI không đọc và không gửi tin trong nhóm thật.
+    </div>
+    <ul class="choices">
+        <li><strong>Zalo Bot chính thức</strong> — an toàn về chính sách, nhưng chưa biết có vào được nhóm Zalo cá nhân không.</li>
+        <li><strong>Zalo OA (nhóm do OA sở hữu)</strong> — chính thức, nhưng nhóm do OA sở hữu chứ không phải mẹ, và có phí theo nhóm.</li>
+        <li><strong>Tài khoản Zalo cá nhân riêng</strong> — <span class="warn-text">trái chính sách của Zalo, có thể bị khóa
+            bất kỳ lúc nào</span>. Không bao giờ dùng tài khoản của mẹ.</li>
+    </ul>
+    <button type="button" class="btn" disabled title="Chọn cách kết nối trước">Kết nối (đang khóa)</button>
+
+    <h2>Bật trợ lý AI theo từng nhóm</h2>
     <div class="table-wrap" th:if="${!groups.isEmpty()}">
         <table>
-            <tr><th>Nhóm</th><th>Bot</th><th></th></tr>
+            <tr><th>Nhóm</th><th>Trợ lý AI</th><th></th></tr>
             <tr th:each="g : ${groups}">
                 <td th:text="${g.name}">Nhóm 1</td>
                 <td><span class="badge ok" th:if="${g.botEnabled}">Bật</span><span class="badge" th:unless="${g.botEnabled}">Tắt</span></td>
@@ -53,23 +65,23 @@
     </div>
     <p class="muted" th:if="${groups.isEmpty()}">Chưa có nhóm nào. Hãy thêm nhóm ở mục Nhóm Zalo.</p>
 
-    <h2>Thử bot với một câu</h2>
+    <h2>Thử trợ lý AI với một câu</h2>
     <form th:action="@{/bot/simulate}" method="post">
         <label>Khách nhắn: <input type="text" name="text" th:value="${sample}" maxlength="300" required
                                    placeholder="Ví dụ: Áo này giặt máy được không?"></label>
-        <div class="actions"><button type="submit" class="btn">Xem bot sẽ làm gì</button></div>
+        <div class="actions"><button type="submit" class="btn">Xem trợ lý AI sẽ làm gì</button></div>
     </form>
     <div class="notice" th:if="${decision != null}">
         <div>Nhận diện: <strong th:text="${decision.intent != null ? decision.intent.label() : 'Trao đổi bình thường'}">Câu hỏi</strong></div>
         <div th:switch="${decision.type.name()}">
-            <div th:case="'ANSWERED'">Bot sẽ trả lời bằng câu hỏi thường gặp: <strong th:text="${decision.reply}">...</strong></div>
-            <div th:case="'HANDOFF'">Bot sẽ <strong>báo mẹ</strong> và nhắn khách: <strong th:text="${decision.reply}">...</strong></div>
-            <div th:case="*">Bot sẽ <strong>không trả lời</strong> (không phải câu hỏi hướng tới cửa hàng).</div>
+            <div th:case="'ANSWERED'">Trợ lý AI sẽ trả lời bằng câu hỏi thường gặp: <strong th:text="${decision.reply}">...</strong></div>
+            <div th:case="'HANDOFF'">Trợ lý AI sẽ <strong>báo mẹ</strong> và nhắn khách: <strong th:text="${decision.reply}">...</strong></div>
+            <div th:case="*">Trợ lý AI sẽ <strong>không trả lời</strong> (không phải câu hỏi hướng tới cửa hàng).</div>
         </div>
         <div class="muted">Thử như thế này không ghi gì, không tạo việc, không gửi gì.</div>
     </div>
 
-    <h2>Câu hỏi thường gặp (bot chỉ trả lời bằng các câu này)</h2>
+    <h2>Câu hỏi thường gặp (trợ lý AI chỉ trả lời bằng các câu này)</h2>
     <p class="hint">Từ khóa viết cách nhau bằng dấu phẩy, không cần dấu tiếng Việt. Ví dụ: <code>giặt, giặt máy, vệ sinh</code>.
         Không điền giá, tồn kho hay bảo hành nếu chưa chắc chắn.</p>
     <form class="inline" th:action="@{/bot/faq}" method="post">
@@ -104,12 +116,12 @@
             </tr>
         </table>
     </div>
-    <p class="muted" th:if="${faqs.isEmpty()}">Chưa có câu nào. Khi chưa có câu hỏi thường gặp, bot chỉ báo mẹ chứ không trả lời nội dung.</p>
+    <p class="muted" th:if="${faqs.isEmpty()}">Chưa có câu nào. Khi chưa có câu hỏi thường gặp, trợ lý AI chỉ báo mẹ chứ không trả lời nội dung.</p>
 
-    <h2>Bot xử lý gần đây</h2>
+    <h2>Trợ lý AI xử lý gần đây</h2>
     <div class="table-wrap">
         <table>
-            <tr><th>Lúc</th><th>Nhóm</th><th>Người nhắn</th><th>Kết quả</th><th>Bot muốn trả lời</th></tr>
+            <tr><th>Lúc</th><th>Nhóm</th><th>Người nhắn</th><th>Kết quả</th><th>Trợ lý AI muốn trả lời</th></tr>
             <tr th:each="e : ${events}">
                 <td th:text="${#temporals.format(e.at, 'dd/MM HH:mm')}">01/01 10:00</td>
                 <td th:text="${e.group}">Nhóm 1</td>
@@ -119,7 +131,7 @@
                     <span class="badge" th:if="${e.reply != null and !e.sent}">chưa gửi</span>
                     <span class="badge ok" th:if="${e.sent}">đã gửi</span></td>
             </tr>
-            <tr th:if="${events.isEmpty()}"><td colspan="5" class="muted">Chưa có tin nào được bot xử lý.</td></tr>
+            <tr th:if="${events.isEmpty()}"><td colspan="5" class="muted">Chưa có tin nào được trợ lý AI xử lý.</td></tr>
         </table>
     </div>
 </main>

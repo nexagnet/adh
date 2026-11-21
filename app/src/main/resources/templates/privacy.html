@@ -5,12 +5,25 @@
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
     <h1>Yêu cầu của khách về dữ liệu</h1>
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã ghi nhận.</div>
     <p class="hint">
-        Khi khách nhắn muốn xem, tải, ngừng liên hệ hoặc xóa dữ liệu, mở trang khách đó rồi ghi nhận yêu cầu để bộ đếm
-        chạy. Hạn phản hồi đang đặt <strong th:text="${dueDays}">15</strong> ngày kể từ ngày khách gửi.
-        Đây là mức tạm đặt, <strong>chưa có xác nhận pháp lý</strong> về thời hạn đúng; người cài đặt hệ thống có thể chỉnh trong phần cấu hình hạn phản hồi.
+        Khi khách nhắn muốn xem, tải, ngừng liên hệ hoặc xóa dữ liệu, ghi nhận yêu cầu để bộ đếm hạn chạy.
+        Hạn phản hồi theo loại yêu cầu: <strong>xem, tải, ngừng liên hệ trong <span th:text="${quickDays}">2</span>
+        ngày làm việc</strong>; <strong>xóa dữ liệu trong <span th:text="${eraseDays}">20</span> ngày</strong>, tính từ
+        ngày khách gửi. Đây là mức tạm đặt, <strong>chưa có xác nhận pháp lý</strong> về thời hạn đúng.
     </p>
 
+    <h2>Ghi nhận yêu cầu mới</h2>
+    <form class="inline" th:action="@{/privacy/new}" method="post">
+        <input type="text" name="phone" placeholder="Số điện thoại của khách" required>
+        <select name="kind">
+            <option th:each="k : ${kinds}" th:value="${k.name()}" th:text="${k.label()}">Xóa dữ liệu</option>
+        </select>
+        <label class="inline-label">Ngày khách gửi <input type="date" name="receivedOn" th:value="${today}"></label>
+        <button type="submit" class="btn">Ghi nhận yêu cầu mới</button>
+    </form>
+
+    <h2>Các yêu cầu</h2>
     <div class="table-wrap">
         <table>
             <tr><th>Việc khách yêu cầu</th><th>Số (3 số cuối)</th><th>Khách gửi</th><th>Hạn</th><th>Tình trạng</th><th>Ghi chú</th></tr>

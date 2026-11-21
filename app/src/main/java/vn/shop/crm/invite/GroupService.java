@@ -144,7 +144,7 @@ public class GroupService {
     @Transactional
     public void recount(long id, Integer actual) {
         if (actual == null || actual < 0 || actual > 1000) {
-            throw new ImportException("Số khách phải từ 0 đến 1000 (không tính tài khoản mẹ và bot).");
+            throw new ImportException("Số khách phải từ 0 đến 1000 (không tính tài khoản mẹ và trợ lý AI).");
         }
         int n = jdbc.sql("UPDATE zalo_group SET actual_customers = :a, counted_at = now() WHERE id = :id")
                 .param("a", actual).param("id", id).update();
