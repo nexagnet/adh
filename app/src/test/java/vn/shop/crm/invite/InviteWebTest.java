@@ -76,7 +76,7 @@ class InviteWebTest extends AbstractPostgresTest {
                 .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/groups"));
         mvc.perform(get("/groups").with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Nhóm X")))
-                .andExpect(content().string(containsString("không tính tài khoản mẹ và tài khoản trợ lý AI")));
+                .andExpect(content().string(containsString("không tính tài khoản của mẹ và trợ lý AI")));
         mvc.perform(get("/campaigns").with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("chưa gửi tin cho ai")));
     }
@@ -109,7 +109,7 @@ class InviteWebTest extends AbstractPostgresTest {
                 .andExpect(status().isOk())
                 .andExpect(header().string("Referrer-Policy", "no-referrer"))
                 .andExpect(content().string(containsString("Vào nhóm Zalo")))
-                .andExpect(content().string(containsString("không bắt buộc")))
+                .andExpect(content().string(containsString("Không vào nhóm cũng không sao")))
                 .andExpect(content().string(not(containsString("0912345678"))))
                 .andExpect(content().string(not(containsString("Nguyen"))))
                 .andExpect(content().string(not(containsString("Duong A"))));
@@ -137,7 +137,7 @@ class InviteWebTest extends AbstractPostgresTest {
 
         for (String t : new String[]{token, "khong-co-token"}) {
             mvc.perform(get("/i/" + t)).andExpect(status().isNotFound())
-                    .andExpect(content().string(containsString("không còn dùng được")));
+                    .andExpect(content().string(containsString("Link này đã hết hạn")));
             mvc.perform(post("/i/" + t + "/go")).andExpect(status().isNotFound());
         }
     }
@@ -150,7 +150,7 @@ class InviteWebTest extends AbstractPostgresTest {
         mvc.perform(post("/i/" + token + "/go"))
                 .andExpect(status().isOk())
                 .andExpect(header().doesNotExist("Location"))
-                .andExpect(content().string(containsString("liên hệ cửa hàng")));
+                .andExpect(content().string(containsString("đã đủ người")));
     }
 
     @Test
@@ -159,7 +159,7 @@ class InviteWebTest extends AbstractPostgresTest {
 
         mvc.perform(post("/i/" + token + "/stop"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("sẽ không nhắn mời bạn nữa")));
+                .andExpect(content().string(containsString("sẽ không nhắn tin cho anh/chị nữa")));
 
         assertThat(contacts.isSuppressed("+84912345678")).isTrue();
     }

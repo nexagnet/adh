@@ -74,16 +74,31 @@
 
     <div th:class="'sheets sheets-' + ${#strings.toLowerCase(kho)}">
         <div class="sheet" th:each="n : ${sheets}">
-            <p class="sheet-shop" th:text="${t['shop']}">Tên cửa hàng</p>
+            <div class="sheet-head">
+                <p class="sheet-shop" th:text="${t['shop']}">Tên cửa hàng</p>
+                <div class="sheet-rule"></div>
+            </div>
             <h2 class="sheet-title" th:text="${t['title']}">Cảm ơn anh/chị đã mua hàng!</h2>
             <p class="sheet-intro keepline" th:text="${t['intro']}">Lời giới thiệu.</p>
-            <p class="sheet-step keepline" th:text="${t['step1']}">1. Mở Zalo, quét mã vuông bên dưới.</p>
-            <img class="qr" th:src="@{/print/qr.png}" alt="Mã QR vào nhóm Zalo">
-            <p class="sheet-link" th:text="${t['link']}">cuahang.vn/n</p>
-            <p class="sheet-step keepline" th:text="${t['step2']}">2. Bấm nút «Vào nhóm Zalo».</p>
-            <p class="sheet-nocode keepline" th:text="${t['nocode']}">Không cần nhập mã xác nhận.</p>
-            <p class="sheet-voluntary keepline" th:text="${t['voluntary']}">Vào nhóm là tự nguyện.</p>
-            <p class="sheet-phone" th:if="${!t['phone'].isEmpty()}" th:text="${t['phone']}">0900000000</p>
+            <div class="sheet-main">
+                <div class="sheet-qrbox"><img class="qr" th:src="@{/print/qr.png}" alt="Mã QR vào nhóm Zalo"></div>
+                <div class="sheet-steps">
+                    <p class="sheet-step keepline" th:text="${t['step1']}">1. Mở Zalo, quét mã vuông bên cạnh.</p>
+                    <p class="sheet-step keepline" th:text="${t['step2']}">2. Bấm nút «Vào nhóm Zalo».</p>
+                    <p class="sheet-nocode keepline" th:text="${t['nocode']}">Không cần nhập mã xác nhận.</p>
+                    <div class="sheet-addr">
+                        <p class="sheet-linklead">Hoặc gõ địa chỉ:</p>
+                        <p class="sheet-link" th:text="${t['link']}">cuahang.vn/n</p>
+                    </div>
+                </div>
+            </div>
+            <div class="sheet-box">
+                <p class="sheet-voluntary keepline" th:text="${t['voluntary']}">Vào nhóm là tự nguyện.</p>
+                <div class="sheet-tel" th:if="${!t['phone'].isEmpty()}">
+                    <span>Điện thoại cửa hàng:</span>
+                    <p class="sheet-phone" th:text="${t['phone']}">09xx xxx xxx</p>
+                </div>
+            </div>
             <p class="sheet-stop keepline" th:text="${t['stop']}">Không muốn nhận tin nữa?</p>
         </div>
     </div>
