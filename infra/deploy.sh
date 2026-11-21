@@ -15,7 +15,8 @@ export COMPOSE_FILE=docker-compose.shared.yml
 
 if docker info >/dev/null 2>&1; then SUDO=""; else SUDO="sudo "; fi
 export DOCKER_SUDO="$SUDO"
-dc() { $SUDO docker compose -f "$COMPOSE_FILE" --env-file .env "$@"; }
+# sudo xóa biến môi trường, nên truyền ADH_TAG qua env để thẻ ảnh không bị mất.
+dc() { $SUDO env "ADH_TAG=${ADH_TAG:-}" docker compose -f "$COMPOSE_FILE" --env-file .env "$@"; }
 
 HOST_PORT="$(grep -E '^ADH_HOST_PORT=' .env | cut -d= -f2- || true)"; HOST_PORT="${HOST_PORT:-8081}"
 MIN_FREE_MB="${MIN_FREE_MB:-250}"
