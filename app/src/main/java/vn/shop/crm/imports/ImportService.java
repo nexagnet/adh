@@ -171,6 +171,10 @@ public class ImportService {
                     merged.add(rows.get(i));
                 }
             }
+            if (merged.size() > maxRows + headerRow + 1) {
+                throw new ImportException("Các file gộp lại có quá nhiều dòng (tối đa " + maxRows
+                        + " dòng dữ liệu). Hãy nhập thành nhiều lần.");
+            }
         }
         byte[] content = toCsv(merged);
         String name = ordered.size() + " file: " + ordered.stream().map(f -> shortName(f.filename()))

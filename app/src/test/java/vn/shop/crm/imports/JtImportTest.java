@@ -150,4 +150,18 @@ class JtImportTest extends AbstractPostgresTest {
         String joined = ImportService.joinAddress(longAddress, "Xã B, Nghệ An");
         assertThat(joined).hasSizeLessThanOrEqualTo(500).endsWith("Xã B, Nghệ An");
     }
+
+    @Test
+    void ganQuaNhieuDongBiTuChoiBangThongBaoTiengViet() {
+        StringBuilder many = new StringBuilder();
+        for (int i = 0; i < 3; i++) {
+            many.append(line("86100000" + (1000 + i), "Giao thành công", "0912345678", "1 A", "Hà Nội"));
+        }
+        // dùng ImportService với giới hạn nhỏ để kiểm tra mà không cần tạo hàng chục nghìn dòng
+        var small = new ImportService(jdbc, null, null, 2, 104857600L);
+        assertThatThrownBy(() -> small.createBatch(Carrier.JT_EXPRESS, List.of(
+                file("Data 20-11-2026-08-00-00 1.xlsx", many.toString()),
+                file("Data 21-11-2026-08-00-00 1.xlsx", many.toString()))))
+                .isInstanceOf(ImportException.class).hasMessageContaining("quá nhiều dòng");
+    }
 }
