@@ -14,6 +14,41 @@
         <strong>J&amp;T Express chỉ cho xuất tối đa 500 đơn mỗi lần.</strong> Hãy chọn nhiều file cùng lúc (giữ phím Ctrl
         khi bấm chọn). Hệ thống gộp theo mã vận đơn; đơn nằm ở nhiều file thì lấy file xuất sau cùng.
     </p>
+    <h2>Cần xuất Excel từ ngày nào?</h2>
+    <p class="hint">Hệ thống không tự đăng nhập vào trang của hãng, nên mẹ xuất file bằng tay rồi tải lên đây. Mục này cho biết nên xuất từ ngày nào.</p>
+    <div class="card" th:each="a : ${advice}">
+        <h3 th:text="${a.carrier.label()}">J&amp;T Express</h3>
+        <p th:if="${!a.hasData}">Chưa nhập đơn nào của hãng này. Lần đầu, hãy xuất từ ngày cửa hàng bắt đầu gửi hàng qua hãng,
+            chia thành nhiều file theo từng khoảng ngày ngắn nếu cần.</p>
+        <th:block th:if="${a.hasData}">
+            <p class="muted">Đơn mới nhất đã nhập được tạo ngày <strong th:text="${#temporals.format(a.latestOrder, 'dd/MM/yyyy')}">01/01/2026</strong>.
+                Lần nhập file gần nhất: <span th:if="${a.lastImport != null}"><strong th:text="${#temporals.format(a.lastImport, 'dd/MM/yyyy')}">01/01/2026</strong>
+                (<span th:text="${a.daysSince}">0</span> ngày trước)</span><span th:if="${a.lastImport == null}">chưa có</span>.
+                <span class="badge warn" th:if="${a.overdue}">Đã quá hạn nhắc</span></p>
+            <p><strong>Xuất từ ngày <span th:text="${#temporals.format(a.from, 'dd/MM/yyyy')}">01/01/2026</span>
+                đến ngày <span th:text="${#temporals.format(a.to, 'dd/MM/yyyy')}">02/01/2026</span> (hôm nay)</strong>,
+                lọc theo <em>thời gian tạo đơn</em>.</p>
+            <p class="hint">Mốc bắt đầu lùi lại vài ngày so với đơn mới nhất, vì trạng thái đơn còn đổi sau khi tạo
+                (ví dụ từ "Đang giao" thành "Giao thành công"). Đơn đã có sẵn trong hệ thống sẽ chỉ được cập nhật, không bị tính thêm lần mua.</p>
+            <p class="hint" th:if="${a.estimated > 0}">Ước chừng khoảng <span th:text="${a.estimated}">0</span> đơn trong khoảng này.</p>
+            <div th:if="${a.split()}">
+                <p>Khoảng này dài hơn một lần xuất
+                    <span th:if="${a.carrier.name() == 'JT_EXPRESS'}">(J&amp;T chỉ cho lọc tối đa 1 tháng và 500 đơn mỗi file)</span>,
+                    nên xuất thành nhiều file, mỗi file một khoảng:</p>
+                <ol>
+                    <li th:each="r : ${a.ranges}"><span th:text="${#temporals.format(r.from, 'dd/MM/yyyy')}">01/01/2026</span>
+                        đến <span th:text="${#temporals.format(r.to, 'dd/MM/yyyy')}">31/01/2026</span></li>
+                </ol>
+                <p class="hint">Rồi chọn tất cả các file cùng lúc ở khung bên dưới.</p>
+            </div>
+            <p class="hint" th:if="${a.stuckOpen > 0}"><span th:text="${a.stuckOpen}">0</span> đơn cũ vẫn chưa có kết quả cuối
+                (ví dụ "Đã lấy hàng" từ hơn 1 tháng trước, hãng không còn cập nhật). Các đơn này không kéo mốc xuất lùi mãi và không bao giờ được tính là mua thành công.</p>
+        </th:block>
+        <p class="hint" th:if="${a.carrier.name() == 'JT_EXPRESS'}">Trên trang J&amp;T: chọn khoảng ngày theo <em>Thời gian tạo</em>,
+            chọn hiển thị 500 đơn mỗi trang rồi bấm Xuất.</p>
+    </div>
+
+    <h2>Tải file lên</h2>
     <form th:action="@{/imports(_csrf=${_csrf.token})}" method="post" enctype="multipart/form-data">
         <label for="carrier">Hãng vận chuyển</label>
         <select id="carrier" name="carrier" required>

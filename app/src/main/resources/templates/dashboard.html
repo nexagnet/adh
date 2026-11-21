@@ -45,13 +45,14 @@
                 <span><span class="todo-num" th:text="${groupsNeedRecount}">0</span>nhóm Zalo chưa đếm lại thành viên trong 7 ngày</span>
                 <a class="btn secondary" th:href="@{/groups}">Đếm lại nhóm</a>
             </li>
-            <li th:each="st : ${staleImports}">
-                <span>Đã <span class="todo-num" th:text="${st.daysSince}">0</span>ngày chưa nhập file đơn mới của
-                    <strong th:text="${st.carrier.label()}">J&amp;T Express</strong></span>
+            <li th:each="a : ${exportDue}">
+                <span>Đã <span class="todo-num" th:text="${a.daysSince}">0</span>ngày chưa nhập file đơn mới của
+                    <strong th:text="${a.carrier.label()}">J&amp;T Express</strong>.
+                    Xuất Excel từ ngày <strong th:text="${#temporals.format(a.from, 'dd/MM/yyyy')}">01/01/2026</strong> đến hôm nay.</span>
                 <a class="btn secondary" th:href="@{/imports/new}">Nhập file mới</a>
             </li>
             <li class="todo-empty"
-                th:if="${contact.candidates == 0 and privacyOpen == 0 and handoffOpen == 0 and unmapped == 0 and review == 0 and groupsNeedRecount == 0 and staleImports.isEmpty()}">
+                th:if="${contact.candidates == 0 and privacyOpen == 0 and handoffOpen == 0 and unmapped == 0 and review == 0 and groupsNeedRecount == 0 and exportDue.isEmpty()}">
                 Hôm nay chưa có việc nào cần làm.
             </li>
         </ul>

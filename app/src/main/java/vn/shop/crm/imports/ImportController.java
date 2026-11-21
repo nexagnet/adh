@@ -29,9 +29,11 @@ public class ImportController {
     private static final String COLUMN_PREFIX = "col_";
 
     private final ImportService imports;
+    private final ExportWindowService exportWindow;
 
-    public ImportController(ImportService imports) {
+    public ImportController(ImportService imports, ExportWindowService exportWindow) {
         this.imports = imports;
+        this.exportWindow = exportWindow;
     }
 
     @GetMapping
@@ -43,6 +45,7 @@ public class ImportController {
     @GetMapping("/new")
     public String form(Model model) {
         model.addAttribute("carriers", Carrier.values());
+        model.addAttribute("advice", exportWindow.all());
         return "imports-new";
     }
 
