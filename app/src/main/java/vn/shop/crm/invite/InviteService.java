@@ -247,16 +247,16 @@ public class InviteService {
 
     // ---------- đường nhắn bằng tài khoản Zalo phụ (D13): người gửi tay đánh dấu từng bước ----------
 
-    private record StepRow(long customerId, String phone, String status, Long groupId, String province) {
+    private record StepRow(long customerId, String phone, String status, Long groupId, String province, boolean clicked) {
     }
 
     private StepRow stepRow(long invitationId) {
         return jdbc.sql("""
-                        SELECT i.customer_id, c.phone, i.status, i.group_id, c.province
+                        SELECT i.customer_id, c.phone, i.status, i.group_id, c.province, i.first_clicked_at IS NOT NULL AS clicked
                         FROM invitation i JOIN customer c ON c.id = i.customer_id WHERE i.id = :id""")
                 .param("id", invitationId)
                 .query((rs, n) -> new StepRow(rs.getLong("customer_id"), rs.getString("phone"), rs.getString("status"),
-                        (Long) rs.getObject("group_id"), rs.getString("province")))
+                        (Long) rs.getObject("group_id"), rs.getString("province"), rs.getBoolean("clicked")))
                 .optional().orElseThrow(() -> new ImportException("Không tìm thấy lời mời."));
     }
 
@@ -299,8 +299,9 @@ public class InviteService {
                         UPDATE invitation SET status = 'JOINED', group_id = :g, joined_at = now(),
                                friended_at = coalesce(friended_at, now())
                         WHERE id = :id""").param("g", group.id()).param("id", invitationId).update();
-        if (!"CLICKED".equals(r.status())) {
-            groups.addMember(group.id()); // khách bấm link đã được tính ở "lượt bấm chờ", không tính hai lần
+        if (!r.clicked()) {
+            // khách đã từng bấm link thì đã được tính ở "lượt bấm chờ" của nhóm (dù trạng thái giờ là đã kết bạn), không tính hai lần
+            groups.addMember(group.id());
         }
         contacts.event(r.customerId(), r.phone(), "JOINED_GROUP", "Đã thêm vào nhóm: " + group.name() + " (đánh dấu tay)");
     }
@@ -309,6 +310,10 @@ public class InviteService {
     @Transactional
     public void markDeclined(long invitationId) {
         StepRow r = stepRow(invitationId);
+        if (!List.of("SENT", "CLICKED", "FRIENDED", "JOINED").contains(r.status())) {
+            throw new ImportException("Chỉ ghi \"khách từ chối\" cho khách đã được nhắn. Muốn chặn khách chưa nhắn, dùng nút chặn ở trang khách.");
+        }
+        // Khách đã vào nhóm mà xin ngừng: ghi vào danh sách từ chối; lời mời giữ nguyên "đã vào nhóm", người gửi tự mời họ ra khỏi nhóm.
         contacts.suppressAs(r.customerId(), "Khách từ chối khi được nhắn bằng tài khoản Zalo phụ", ContactService.actor());
     }
 

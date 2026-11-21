@@ -123,6 +123,36 @@ class FriendFlowTest extends AbstractPostgresTest {
     }
 
     @Test
+    void khachDaBamLinkRoiKetBanRoiVaoNhomKhongBiTinhHaiLanVaoNhom() {
+        long inv = invitationOf("0900000001");
+        markSent(inv);
+        // khách bấm link: lời mời gắn nhóm và được tính ở "lượt bấm chờ" của nhóm
+        jdbc.sql("UPDATE invitation SET status = 'CLICKED', first_clicked_at = now(), click_count = 1, group_id = :g WHERE id = :id")
+                .param("g", north).param("id", inv).update();
+        assertThat(groups.find(north).orElseThrow().pendingClicks()).isEqualTo(1);
+
+        invites.markFriended(inv);
+        invites.markJoined(inv);
+
+        assertThat(statusOf(inv)).isEqualTo("JOINED");
+        assertThat(groups.find(north).orElseThrow().actual()).isZero(); // vẫn nằm trong "lượt bấm chờ", không cộng thêm
+        assertThat(groups.find(north).orElseThrow().pendingClicks()).isEqualTo(1);
+    }
+
+    @Test
+    void khachChuaDuocNhanKhongGhiTuChoiDuocKhachDaVaoNhomThiGhiDuoc() {
+        long inv = invitationOf("0900000001");
+        assertThatThrownBy(() -> invites.markDeclined(inv)).isInstanceOf(ImportException.class).hasMessageContaining("đã được nhắn");
+        assertThat(statusOf(inv)).isEqualTo("READY");
+
+        markSent(inv);
+        invites.markJoined(inv);
+        invites.markDeclined(inv);
+        assertThat(contacts.isSuppressed("+84900000001")).isTrue();
+        assertThat(statusOf(inv)).isEqualTo("JOINED");
+    }
+
+    @Test
     void vaoNhomThangKhongCanKetBanDanhDauTruocVaBaoLoiKhiKhongConNhom() {
         long inv = invitationOf("0900000002");
         markSent(inv);
