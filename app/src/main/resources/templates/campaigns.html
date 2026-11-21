@@ -5,9 +5,19 @@
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
     <h1>Chiến dịch mời vào nhóm</h1>
-    <p class="hint">Mỗi chiến dịch là một lô nhỏ khách đã được duyệt (mục Danh sách mời), mỗi khách chỉ được mời một lần.
-        Tin nhằm kết nối và chăm sóc khách đã mua, không phải quảng cáo sản phẩm. Hiện ở <strong>chế độ thử</strong>:
-        hệ thống chỉ tạo link riêng và đếm lượt bấm, chưa gửi tin cho ai.</p>
+    <p class="hint">Mỗi chiến dịch là một lô nhỏ khách mua 1 lần đã được duyệt (mục Danh sách mời). <strong>Mỗi khách chỉ được nhắn một lần duy nhất.</strong>
+        Hệ thống <strong>không tự gửi tin</strong> và không đăng nhập Zalo: bấm "Xuất danh sách", rồi người gửi nhắn tay bằng tài khoản Zalo phụ của cửa hàng.</p>
+    <div class="notice">
+        <strong>Cách làm hiện nay (tài khoản Zalo phụ):</strong>
+        <ol>
+            <li>Tạo chiến dịch, xuất danh sách, nhắn tin tư vấn cho từng khách bằng tài khoản Zalo phụ (lô nhỏ, theo hạn mức ngày).</li>
+            <li>Khách nào đồng ý kết bạn thì vào chiến dịch bấm <em>Đã kết bạn</em>.</li>
+            <li>Thêm khách vào nhóm Zalo cùng khu vực (hệ thống gợi ý nhóm) rồi bấm <em>Đã vào nhóm</em>.</li>
+            <li>Khách từ chối hoặc nhắn xin ngừng nhận tin thì bấm <em>Khách từ chối</em>: số này không bao giờ được nhắn lại.</li>
+        </ol>
+        Gửi tin tư vấn cho khách chưa đồng ý nhận tin có thể bị Zalo hạn chế tài khoản và có rủi ro pháp lý; chủ cửa hàng đã nhận rủi ro này,
+        nên giữ lô nhỏ, một lần duy nhất, và tôn trọng ngay mọi lời xin ngừng nhận tin.
+    </div>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã tạo.</div>
 
@@ -32,21 +42,32 @@
         <label>Số khách trong lô (tối đa <span th:text="${maxBatch}">20</span>)
             <input type="number" name="count" value="10" min="1" th:max="${maxBatch}" required></label>
         <label>Link có hiệu lực (ngày) <input type="number" name="expiresDays" value="14" min="1" max="90" required></label>
-        <label>Nội dung tin (phải có {link}; có thể dùng {ten} và {cua_hang})
-            <textarea name="template" rows="4" maxlength="500" th:text="${defaultTemplate}"></textarea></label>
-        <div class="actions"><button type="submit" class="btn">Tạo lô thử</button></div>
+        <label>Nội dung tin (có thể dùng {ten} và {cua_hang}; {link} chỉ cần khi gửi link mời riêng)
+            <textarea name="template" rows="5" maxlength="800" th:text="${defaultTemplate}"></textarea></label>
+        <div class="actions"><button type="submit" class="btn">Tạo chiến dịch</button></div>
+    </form>
+
+    <h2>Nội dung tin mặc định</h2>
+    <form th:action="@{/campaigns/default-template}" method="post">
+        <p class="hint">Soạn một lần ở đây, các chiến dịch mới sẽ điền sẵn nội dung này (vẫn sửa được cho từng chiến dịch).
+            Để trống rồi lưu thì dùng lại nội dung có sẵn.</p>
+        <label>Nội dung
+            <textarea name="template" rows="5" maxlength="800" th:text="${defaultTemplate}"></textarea></label>
+        <div class="actions"><button type="submit" class="btn secondary">Lưu nội dung mặc định</button></div>
     </form>
 
     <h2>Các chiến dịch</h2>
     <div class="table-wrap" th:if="${!campaigns.isEmpty()}">
         <table>
-            <tr><th>Tên</th><th>Tạo lúc</th><th class="num">Lời mời</th><th class="num">Chưa gửi</th><th class="num">Đã gửi</th><th class="num">Đã bấm</th></tr>
+            <tr><th>Tên</th><th>Tạo lúc</th><th class="num">Lời mời</th><th class="num">Chưa gửi</th><th class="num">Đã nhắn</th><th class="num">Đã kết bạn</th><th class="num">Đã vào nhóm</th><th class="num">Đã bấm link</th></tr>
             <tr th:each="c : ${campaigns}">
                 <td><a th:href="@{/campaigns/{id}(id=${c.id})}" th:text="${c.name}">Đợt 1</a></td>
                 <td th:text="${#temporals.format(c.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
                 <td class="num" th:text="${c.total}">0</td>
                 <td class="num" th:text="${c.ready}">0</td>
                 <td class="num" th:text="${c.sent}">0</td>
+                <td class="num" th:text="${c.friended}">0</td>
+                <td class="num" th:text="${c.joined}">0</td>
                 <td class="num" th:text="${c.clicked}">0</td>
             </tr>
         </table>

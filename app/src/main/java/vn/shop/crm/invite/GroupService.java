@@ -80,6 +80,12 @@ public class GroupService {
         return jdbc.sql(SELECT + " ORDER BY g.id").query((rs, i) -> map(rs)).list();
     }
 
+    /** Người gửi vừa thêm một khách vào nhóm bằng tay: tăng số khách thật thêm 1. */
+    @Transactional
+    public void addMember(long groupId) {
+        jdbc.sql("UPDATE zalo_group SET actual_customers = actual_customers + 1 WHERE id = :id").param("id", groupId).update();
+    }
+
     public Optional<Group> find(long id) {
         return jdbc.sql(SELECT + " WHERE g.id = :id").param("id", id).query((rs, i) -> map(rs)).optional();
     }
