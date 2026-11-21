@@ -1,0 +1,56 @@
+# Chạy CHUNG máy chủ với dự án khác đã dùng Caddy của máy (cổng 80/443). Khác docker-compose.prod.yml:
+#   - Không có Caddy riêng, không công bố cổng ra Internet.
+#   - Ứng dụng chỉ nghe ở 127.0.0.1:${ADH_HOST_PORT:-8081}; muốn mở ra ngoài thì thêm MỘT khối tên miền vào Caddy của máy (docs/RUNBOOK.md, mục B.2b).
+#   - Dùng ảnh dựng sẵn từ GitHub (ghcr.io/nexagnet/adh-app:<thẻ>), không build trên máy chủ.
+# Dùng qua infra/deploy.sh; không gọi trực tiếp trừ khi cần gỡ lỗi.
+name: adh
+
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: crm
+      POSTGRES_USER: crm
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Hãy đặt DB_PASSWORD trong file .env}
+    # Cấu hình nhỏ: máy 2 GB RAM còn phải chạy dự án khác.
+    command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=20", "-c", "work_mem=4MB"]
+    volumes:
+      - pgdata:/var/lib/postgresql
+    networks: [internal]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm -d crm"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    image: ghcr.io/nexagnet/adh-app:${ADH_TAG:-chua-dat}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://postgres:5432/crm
+      DB_USER: crm
+      DB_PASSWORD: ${DB_PASSWORD:?Hãy đặt DB_PASSWORD trong file .env}
+      APP_ADMIN_USERNAME: ${APP_ADMIN_USERNAME:-admin}
+      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:?Hãy đặt APP_ADMIN_PASSWORD trong file .env}
+      APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-https://adh.invalid}
+      APP_SHOP_NAME: ${APP_SHOP_NAME:-Cửa hàng}
+      APP_SHOP_PHONE: ${APP_SHOP_PHONE:-}
+      APP_SENDING_ENABLED: ${APP_SENDING_ENABLED:-false}
+      # Trần Java thấp hơn bản mặc định (512m) vì máy dùng chung; ghi đè được bằng ADH_JAVA_OPTS.
+      JAVA_TOOL_OPTIONS: ${ADH_JAVA_OPTS:--Xms96m -Xmx320m -XX:+ExitOnOutOfMemoryError}
+    ports:
+      - "127.0.0.1:${ADH_HOST_PORT:-8081}:8080"
+    networks: [internal]
+    mem_limit: 512m
+
+volumes:
+  pgdata:
+
+networks:
+  internal:

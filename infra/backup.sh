@@ -9,7 +9,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/adh}"
 KEEP_DAYS="${KEEP_DAYS:-14}"
-PG_DUMP_CMD="${PG_DUMP_CMD:-docker compose -f $HERE/docker-compose.prod.yml --env-file $HERE/.env exec -T postgres pg_dump -U crm -d crm}"
+PG_DUMP_CMD="${PG_DUMP_CMD:-${DOCKER_SUDO:-}docker compose -f $HERE/${COMPOSE_FILE:-docker-compose.prod.yml} --env-file $HERE/.env exec -T postgres pg_dump -U crm -d crm}"
 
 umask 077
 mkdir -p "$BACKUP_DIR"

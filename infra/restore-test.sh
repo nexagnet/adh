@@ -8,7 +8,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [ -f "$HERE/.env" ] && set -a && . "$HERE/.env" && set +a
 
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/adh}"
-PSQL_CMD="${PSQL_CMD:-docker compose -f $HERE/docker-compose.prod.yml --env-file $HERE/.env exec -T postgres psql -U crm}"
+PSQL_CMD="${PSQL_CMD:-${DOCKER_SUDO:-}docker compose -f $HERE/${COMPOSE_FILE:-docker-compose.prod.yml} --env-file $HERE/.env exec -T postgres psql -U crm}"
 SCRATCH="crm_restore_test"
 
 latest="$(find "$BACKUP_DIR" -maxdepth 1 -name 'adh-*.sql.gz*' -printf '%T@ %p\n' | sort -n | tail -1 | cut -d' ' -f2-)"
