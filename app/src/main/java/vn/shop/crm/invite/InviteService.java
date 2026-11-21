@@ -203,6 +203,7 @@ public class InviteService {
     }
 
     public List<InvitationRow> invitations(long campaignId, String template) {
+        List<GroupService.Group> allGroups = groups.list();
         return jdbc.sql("""
                         SELECT i.id, i.customer_id, c.name, c.phone, c.province, i.status, i.token, i.group_id,
                                g.name AS group_name, g.invite_link AS group_link,
@@ -221,7 +222,7 @@ public class InviteService {
                     boolean suggested = false;
                     if (groupName == null && !"CANCELLED".equals(status) && !"FAILED".equals(status)) {
                         // chưa có nhóm: gợi ý nhóm cùng khu vực (chỉ đọc, chưa giữ chỗ)
-                        var g = groups.pickGroup(vn.shop.crm.geo.VnGeo.byCode(rs.getString("province")).orElse(null)).orElse(null);
+                        var g = groups.pickGroup(allGroups, vn.shop.crm.geo.VnGeo.byCode(rs.getString("province")).orElse(null)).orElse(null);
                         if (g != null) {
                             groupName = g.name();
                             groupLink = g.inviteLink();
@@ -286,8 +287,10 @@ public class InviteService {
                 .query(Integer.class).single();
         GroupService.Group group = null;
         if (r.groupId() != null) {
-            group = groups.find(r.groupId()).filter(g -> g.hasLink() && g.status() != GroupStatus.CLOSED
-                    && g.status() != GroupStatus.PREPARING).orElse(null);
+            // nhóm đã cấp phải còn nhận khách (đang mở, có link); khách chưa từng bấm link còn cần nhóm chưa đầy
+            boolean clicked = r.clicked();
+            group = groups.find(r.groupId()).filter(g -> g.hasLink() && g.status() == GroupStatus.OPEN
+                    && (clicked || !g.full())).orElse(null);
         }
         if (group == null) {
             group = groups.pickGroup(vn.shop.crm.geo.VnGeo.byCode(r.province()).orElse(null)).orElse(null);
@@ -374,6 +377,10 @@ public class InviteService {
         }
         if (group == null) {
             return new GoResult(Outcome.NO_GROUP, null);
+        }
+        if ("FRIENDED".equals(row.status()) || "JOINED".equals(row.status())) {
+            // đã được xử lý tay: chỉ cho vào nhóm, không đổi trạng thái và không ghi thêm lượt bấm (tránh đếm hai lần)
+            return new GoResult(Outcome.REDIRECT, group.inviteLink());
         }
         jdbc.sql("""
                         UPDATE invitation SET status = 'CLICKED', group_id = :g, click_count = click_count + 1,

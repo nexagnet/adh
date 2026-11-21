@@ -183,7 +183,12 @@ public class GroupService {
      * phù hợp thì trả rỗng (landing page báo "chưa có chỗ", không chuyển hướng sai).
      */
     public Optional<Group> pickGroup(Province province) {
-        return list().stream()
+        return pickGroup(list(), province);
+    }
+
+    /** Như {@link #pickGroup(Province)} nhưng dùng danh sách nhóm đã tải sẵn (tránh tải lại cho từng khách). */
+    public Optional<Group> pickGroup(List<Group> all, Province province) {
+        return all.stream()
                 .filter(g -> g.status() == GroupStatus.OPEN && g.hasLink() && !g.full())
                 .filter(g -> rank(g, province) >= 0)
                 .min(java.util.Comparator.comparingInt((Group g) -> rank(g, province)).thenComparingDouble(Group::score)

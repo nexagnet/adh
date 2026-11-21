@@ -153,6 +153,41 @@ class FriendFlowTest extends AbstractPostgresTest {
     }
 
     @Test
+    void khachMoLinkRiengSauKhiDaKetBanHoacVaoNhomThiTrangThaiVaSoDemKhongDoi() {
+        long inv = invitationOf("0900000001");
+        String token = jdbc.sql("SELECT token FROM invitation WHERE id = :id").param("id", inv).query(String.class).single();
+        markSent(inv);
+        invites.markFriended(inv);
+        assertThat(invites.go(token).outcome()).isEqualTo(InviteService.Outcome.REDIRECT);
+        assertThat(statusOf(inv)).isEqualTo("FRIENDED");
+
+        invites.markJoined(inv);
+        assertThat(invites.go(token).outcome()).isEqualTo(InviteService.Outcome.REDIRECT);
+        assertThat(statusOf(inv)).isEqualTo("JOINED");
+        assertThat(jdbc.sql("SELECT first_clicked_at IS NULL FROM invitation WHERE id = :id").param("id", inv)
+                .query(Boolean.class).single()).isTrue();
+        assertThat(groups.find(north).orElseThrow().actual()).isEqualTo(1);
+        assertThat(groups.find(north).orElseThrow().pendingClicks()).isZero();
+    }
+
+    @Test
+    void nhomDaCapDaTamDungThiVaoNhomDoiSangNhomKhacCungKhuVuc() {
+        long inv = invitationOf("0900000001");
+        markSent(inv);
+        jdbc.sql("UPDATE invitation SET group_id = :g WHERE id = :id").param("g", north).param("id", inv).update();
+        long north2 = groups.create("Nhóm miền Bắc 2", "https://zalo.me/g/bac2", 5, "R:BAC");
+        groups.setStatus(north2, GroupStatus.OPEN);
+        groups.setStatus(north, GroupStatus.PAUSED);
+
+        invites.markJoined(inv);
+
+        assertThat(jdbc.sql("SELECT group_id FROM invitation WHERE id = :id").param("id", inv).query(Long.class).single())
+                .isEqualTo(north2);
+        assertThat(groups.find(north).orElseThrow().actual()).isZero();
+        assertThat(groups.find(north2).orElseThrow().actual()).isEqualTo(1);
+    }
+
+    @Test
     void vaoNhomThangKhongCanKetBanDanhDauTruocVaBaoLoiKhiKhongConNhom() {
         long inv = invitationOf("0900000002");
         markSent(inv);
