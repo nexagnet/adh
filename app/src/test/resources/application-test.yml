@@ -1,0 +1,8 @@
+app:
+  admin:
+    username: admin
+    password: test-password-only
+
+spring:
+  thymeleaf:
+    cache: false

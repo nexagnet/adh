@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Chi tiết khách')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <h1 th:text="${detail.customer.displayPhone()}">0912 345 678</h1>
+    <p>
+        <span th:text="${detail.customer.name}">Nguyen Van A</span><br>
+        <span class="muted" th:text="${detail.customer.address}">Địa chỉ</span>
+    </p>
+
+    <div class="cards">
+        <div class="card">
+            <div class="big" th:text="${detail.customer.successfulPurchases}">1</div>
+            <div class="label">Lần mua thành công</div>
+        </div>
+        <div class="card">
+            <div class="big" th:text="${detail.customer.segment.label()}">Mua 1 lần</div>
+            <div class="label">Phân loại</div>
+        </div>
+    </div>
+
+    <div class="notice" th:if="${detail.customer.needsReview}">
+        <strong>Cần kiểm tra:</strong>
+        <ul><li th:each="r : ${detail.customer.reviewReasonLabels()}" th:text="${r}">Lý do</li></ul>
+    </div>
+
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
+
+    <h2>Cơ sở liên hệ (mời vào nhóm sau bán hàng)</h2>
+    <div th:if="${suppressed}" class="notice bad">
+        <strong>Số này nằm trong danh sách từ chối hoặc đã xóa.</strong> Không bao giờ được liên hệ.
+    </div>
+    <div th:if="${basis != null and !suppressed}"
+         th:class="${basis.status.name() == 'ELIGIBLE'} ? 'notice ok' : 'notice bad'">
+        <strong th:text="${basis.status.label()}">Đã duyệt</strong>
+        <div th:if="${basis.evidenceRef != null}">Bằng chứng: đơn giao thành công
+            <span class="mono" th:text="${basis.evidenceRef}">VIETTEL_POST:123</span></div>
+        <div class="muted" th:text="${basis.statement}">Chủ cửa hàng chịu trách nhiệm</div>
+        <div class="muted">Ghi bởi <span th:text="${basis.recordedBy}">admin</span> lúc
+            <span th:text="${#temporals.format(basis.recordedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026 10:00</span></div>
+    </div>
+    <div th:if="${basis == null and !suppressed}" class="notice">
+        <strong>Chưa duyệt: hệ thống KHÔNG được liên hệ khách này.</strong>
+        <span th:if="${!canApprove}"> Chỉ khách mua 1 lần và không cần kiểm tra mới duyệt được.</span>
+    </div>
+    <div class="actions">
+        <form th:if="${canApprove}" th:action="@{/customers/{id}/approve(id=${detail.customer.id})}" method="post">
+            <button type="submit" class="btn">Duyệt: được mời vào nhóm</button>
+        </form>
+        <form th:if="${basis != null and basis.status.name() == 'ELIGIBLE' and !suppressed}"
+              th:action="@{/customers/{id}/block(id=${detail.customer.id})}" method="post" class="inline">
+            <input type="text" name="note" placeholder="Lý do chặn (không bắt buộc)">
+            <button type="submit" class="btn secondary">Chặn khách này</button>
+        </form>
+        <form th:if="${basis != null and basis.status.name() == 'BLOCKED' and !suppressed}"
+              th:action="@{/customers/{id}/unblock(id=${detail.customer.id})}" method="post">
+            <button type="submit" class="btn secondary">Bỏ chặn (phải duyệt lại)</button>
+        </form>
+    </div>
+
+    <h2>Ghi chú của bố mẹ</h2>
+    <form th:action="@{/customers/{id}/note(id=${detail.customer.id})}" method="post">
+        <textarea name="note" rows="3" maxlength="2000" th:text="${note}"
+                  placeholder="Ví dụ: khách quen, đã gọi điện hỏi thăm ngày ..."></textarea>
+        <div class="actions"><button type="submit" class="btn secondary">Lưu ghi chú</button></div>
+    </form>
+
+    <h2>Yêu cầu của khách về dữ liệu của họ</h2>
+    <p class="hint">Khi khách nhắn yêu cầu, ghi nhận ngay để bộ đếm hạn phản hồi chạy. Hạn mặc định
+        15 ngày kể từ ngày khách gửi (chưa có xác nhận pháp lý, xem /privacy).</p>
+    <form th:action="@{/customers/{id}/privacy/open(id=${detail.customer.id})}" method="post" class="inline">
+        <select name="kind">
+            <option value="ACCESS">Xem dữ liệu</option>
+            <option value="EXPORT">Xuất dữ liệu</option>
+            <option value="STOP_CONTACT">Ngừng liên hệ</option>
+            <option value="ERASE">Xóa dữ liệu</option>
+        </select>
+        <label class="inline-label">Ngày khách gửi
+            <input type="date" name="receivedOn" th:value="${today}"></label>
+        <button type="submit" class="btn secondary">Ghi nhận yêu cầu</button>
+    </form>
+    <div class="actions">
+        <form th:action="@{/customers/{id}/privacy/export.csv(id=${detail.customer.id})}" method="post">
+            <button type="submit" class="btn secondary">Tải toàn bộ dữ liệu của khách (CSV)</button>
+        </form>
+        <form th:if="${!suppressed}" th:action="@{/customers/{id}/privacy/stop-contact(id=${detail.customer.id})}"
+              method="post">
+            <button type="submit" class="btn secondary">Khách yêu cầu ngừng liên hệ</button>
+        </form>
+    </div>
+    <details class="danger-zone">
+        <summary>Xóa dữ liệu của khách này (không hoàn tác)</summary>
+        <p>Xóa khách và toàn bộ vận đơn của khách. Số điện thoại chỉ còn dạng mã băm để không nhập lại và không
+            bao giờ liên hệ lại.</p>
+        <form th:action="@{/customers/{id}/privacy/erase(id=${detail.customer.id})}" method="post" class="inline">
+            <input type="text" name="confirm" placeholder="Gõ XOA để xác nhận" autocomplete="off">
+            <button type="submit" class="btn danger">Xóa vĩnh viễn</button>
+        </form>
+    </details>
+
+    <h2 th:if="${!events.isEmpty()}">Nhật ký</h2>
+    <div class="table-wrap" th:if="${!events.isEmpty()}">
+        <table>
+            <tr><th>Lúc</th><th>Việc</th><th>Chi tiết</th><th>Ai</th></tr>
+            <tr th:each="e : ${events}">
+                <td th:text="${#temporals.format(e.recordedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
+                <td th:text="${e.event}">BASIS_APPROVED</td>
+                <td th:text="${e.detail}">chi tiết</td>
+                <td th:text="${e.recordedBy}">admin</td>
+            </tr>
+        </table>
+    </div>
+
+    <h2>Các lần mua và vận đơn tạo ra kết quả này</h2>
+    <div class="table-wrap">
+        <table>
+            <tr>
+                <th>Lần mua</th><th>Hãng</th><th>Mã vận đơn</th><th>Trạng thái gốc</th>
+                <th>Trạng thái chuẩn</th><th>Ngày tạo</th><th>Tính?</th>
+            </tr>
+            <th:block th:each="p, st : ${detail.classification.purchases}">
+                <tr th:each="s : ${p.shipments}">
+                    <td th:text="'#' + ${st.count} + (${p.hasOrderRef} ? ' (mã đơn ' + ${detail.shipments[s.id()].orderRef} + ')' : ' (không có mã đơn)')">#1</td>
+                    <td th:text="${detail.shipments[s.id()].carrier.label()}">Viettel Post</td>
+                    <td class="mono" th:text="${detail.shipments[s.id()].trackingNo}">VTP001</td>
+                    <td th:text="${detail.shipments[s.id()].rawStatus}">Giao thành công</td>
+                    <td th:text="${detail.shipments[s.id()].status.label()}">Giao thành công</td>
+                    <td th:text="${detail.shipments[s.id()].createdOn != null} ? ${#temporals.format(detail.shipments[s.id()].createdOn, 'dd/MM/yyyy')} : ''">01/01/2026</td>
+                    <td>
+                        <span class="badge ok" th:if="${p.successful}">Có</span>
+                        <span class="badge" th:unless="${p.successful}">Không</span>
+                    </td>
+                </tr>
+            </th:block>
+        </table>
+    </div>
+    <div class="actions">
+        <a class="btn secondary" th:href="@{/customers}">Quay lại danh sách</a>
+    </div>
+</main>
+</body>
+</html>

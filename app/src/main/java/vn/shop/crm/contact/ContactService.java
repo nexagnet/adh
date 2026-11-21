@@ -1,0 +1,294 @@
+package vn.shop.crm.contact;
+
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import vn.shop.crm.common.ImportException;
+import vn.shop.crm.common.PhoneHash;
+
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * Sổ cơ sở liên hệ và danh sách từ chối (mục 3.2 file 03).
+ *
+ * <p>Quy tắc nền: không có dòng cơ sở liên hệ thì KHÔNG được liên hệ. Một khách chỉ nằm trong danh sách mời khi
+ * đồng thời: phân loại {@code ONE_TIME}, không bị gắn "cần kiểm tra", có cơ sở liên hệ {@code ELIGIBLE}, và SĐT
+ * không nằm trong danh sách từ chối. Khách {@code REPEAT} không bao giờ vào danh sách này, kể cả khi có dòng
+ * {@code ELIGIBLE} (điều kiện nằm ngay trong truy vấn, không dựa vào việc "đừng duyệt").
+ */
+@Service
+public class ContactService {
+
+    public static final String PURPOSE = "GROUP_INVITE_POSTSALE";
+    /** D3: chủ cửa hàng tự chấp nhận trách nhiệm; ghi rõ vào từng bản ghi để có thể xem lại. */
+    public static final String STATEMENT = "Chủ cửa hàng chịu trách nhiệm: khách đã mua và nhận hàng; liên hệ chăm sóc "
+            + "sau bán hàng, không phải quảng cáo sản phẩm. Chưa có xác nhận pháp lý riêng.";
+
+    private static final String SUPPRESSED_HASH = "encode(sha256(convert_to(c.phone, 'UTF8')), 'hex')";
+    /** Điều kiện của "ứng viên": một lần mua, không cần kiểm tra, chưa từ chối, chưa có dòng cơ sở liên hệ nào. */
+    private static final String CANDIDATE_WHERE = """
+            c.segment = 'ONE_TIME' AND c.needs_review = FALSE
+            AND NOT EXISTS (SELECT 1 FROM suppression s WHERE s.phone_hash = %s)
+            AND NOT EXISTS (SELECT 1 FROM contact_basis b WHERE b.customer_id = c.id AND b.purpose = '%s')
+            """.formatted(SUPPRESSED_HASH, PURPOSE);
+
+    public record Stats(long oneTime, long eligible, long candidates, long blocked, long optedOut, long erased,
+                        long oneTimeNeedsReview) {
+    }
+
+    public record InviteRow(long id, String phone, String name, String address, LocalDateTime lastOrderOn,
+                            String evidenceRef, LocalDateTime approvedAt) {
+    }
+
+    public record Basis(String basis, ContactStatus status, String evidenceRef, String statement, String note,
+                        String recordedBy, LocalDateTime recordedAt) {
+    }
+
+    public record Event(String event, String detail, String recordedBy, LocalDateTime recordedAt) {
+    }
+
+    public record InvitePage(List<InviteRow> items, long total, int page, int size) {
+        public int totalPages() {
+            return (int) Math.max(1, Math.ceil(total / (double) size));
+        }
+
+        public boolean hasPrevious() {
+            return page > 1;
+        }
+
+        public boolean hasNext() {
+            return page < totalPages();
+        }
+    }
+
+    private final JdbcClient jdbc;
+
+    public ContactService(JdbcClient jdbc) {
+        this.jdbc = jdbc;
+    }
+
+    /** Tên người đang đăng nhập, để ghi "ai làm". */
+    public static String actor() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth == null || auth.getName() == null ? "system" : auth.getName();
+    }
+
+    // ---------- thống kê & danh sách ----------
+
+    public Stats stats() {
+        long oneTime = count("SELECT count(*) FROM customer c WHERE c.segment = 'ONE_TIME'");
+        long eligible = count(inviteCountSql());
+        long candidates = count("SELECT count(*) FROM customer c WHERE " + CANDIDATE_WHERE);
+        long blocked = count("SELECT count(*) FROM contact_basis WHERE purpose = '" + PURPOSE
+                + "' AND status = 'BLOCKED'");
+        long optedOut = count("SELECT count(*) FROM suppression WHERE reason = 'OPT_OUT'");
+        long erased = count("SELECT count(*) FROM suppression WHERE reason = 'ERASED'");
+        long review = count("SELECT count(*) FROM customer c WHERE c.segment = 'ONE_TIME' AND c.needs_review");
+        return new Stats(oneTime, eligible, candidates, blocked, optedOut, erased, review);
+    }
+
+    private long count(String sql) {
+        return jdbc.sql(sql).query(Long.class).single();
+    }
+
+    private static String inviteFrom() {
+        return """
+                FROM customer c
+                JOIN contact_basis b ON b.customer_id = c.id AND b.purpose = '%s' AND b.status = 'ELIGIBLE'
+                WHERE c.segment = 'ONE_TIME' AND c.needs_review = FALSE
+                  AND NOT EXISTS (SELECT 1 FROM suppression s WHERE s.phone_hash = %s)
+                """.formatted(PURPOSE, SUPPRESSED_HASH);
+    }
+
+    private static String inviteCountSql() {
+        return "SELECT count(*) " + inviteFrom();
+    }
+
+    /** Danh sách "đủ điều kiện mời". Đây là nguồn DUY NHẤT cho mọi chiến dịch mời (mốc 1C trở đi). */
+    public InvitePage inviteList(int page, int size) {
+        int p = Math.max(1, page);
+        long total = count(inviteCountSql());
+        List<InviteRow> items = jdbc.sql("""
+                        SELECT c.id, c.phone, c.name, c.address, c.last_order_on, b.evidence_ref, b.recorded_at
+                        """ + inviteFrom() + " ORDER BY b.recorded_at, c.id LIMIT :limit OFFSET :offset")
+                .param("limit", size).param("offset", (long) (p - 1) * size)
+                .query((rs, i) -> new InviteRow(rs.getLong("id"), rs.getString("phone"), rs.getString("name"),
+                        rs.getString("address"), rs.getObject("last_order_on", LocalDateTime.class),
+                        rs.getString("evidence_ref"), local(rs.getObject("recorded_at", OffsetDateTime.class))))
+                .list();
+        return new InvitePage(items, total, p, size);
+    }
+
+    // ---------- duyệt / chặn / từ chối ----------
+
+    /** Duyệt MỘT lần cho mọi khách "ứng viên". Trả số khách vừa được duyệt. */
+    @Transactional
+    public int approveAllCandidates() {
+        return jdbc.sql(approveSql("")).param("statement", STATEMENT).param("by", actor()).update();
+    }
+
+    /** Duyệt một khách; báo lỗi rõ ràng nếu khách không đủ điều kiện. */
+    @Transactional
+    public void approve(long customerId) {
+        int n = jdbc.sql(approveSql(" AND c.id = :id")).param("id", customerId)
+                .param("statement", STATEMENT).param("by", actor()).update();
+        if (n == 0) {
+            throw new ImportException("Khách này chưa đủ điều kiện để duyệt: chỉ khách mua 1 lần, không cần kiểm tra, "
+                    + "chưa từ chối và chưa được duyệt/chặn trước đó.");
+        }
+    }
+
+    private static String approveSql(String extraWhere) {
+        return """
+                WITH ins AS (
+                    INSERT INTO contact_basis (customer_id, purpose, basis, status, evidence_ref, statement, recorded_by)
+                    SELECT c.id, '%s', 'TRANSACTION_POSTSALE', 'ELIGIBLE',
+                           (SELECT sh.carrier || ':' || sh.tracking_no FROM shipment sh
+                             WHERE sh.receiver_phone = c.phone AND sh.canonical_status = 'DELIVERED'
+                             ORDER BY sh.created_on DESC NULLS LAST, sh.id DESC LIMIT 1),
+                           :statement, :by
+                    FROM customer c WHERE %s %s
+                    ON CONFLICT (customer_id, purpose) DO NOTHING
+                    RETURNING customer_id)
+                INSERT INTO contact_event (customer_id, phone_tail, event, detail, recorded_by)
+                SELECT ins.customer_id, '***' || right(c.phone, 3), 'BASIS_APPROVED', 'Duyệt cơ sở liên hệ sau bán hàng', :by
+                FROM ins JOIN customer c ON c.id = ins.customer_id
+                """.formatted(PURPOSE, CANDIDATE_WHERE, extraWhere);
+    }
+
+    /** Chặn thủ công một khách (ví dụ khách phàn nàn). Khách đã từ chối thì giữ nguyên. */
+    @Transactional
+    public void block(long customerId, String note) {
+        String phone = phoneOf(customerId);
+        jdbc.sql("""
+                        INSERT INTO contact_basis (customer_id, purpose, basis, status, statement, note, recorded_by)
+                        VALUES (:id, :purpose, 'NONE', 'BLOCKED', :statement, :note, :by)
+                        ON CONFLICT (customer_id, purpose) DO UPDATE
+                           SET status = 'BLOCKED', note = EXCLUDED.note, recorded_by = EXCLUDED.recorded_by,
+                               recorded_at = now()
+                           WHERE contact_basis.status <> 'OPTED_OUT'""")
+                .param("id", customerId).param("purpose", PURPOSE).param("statement", "Chặn thủ công")
+                .param("note", blankToNull(note)).param("by", actor()).update();
+        event(customerId, phone, "BLOCKED", blankToNull(note));
+    }
+
+    /** Bỏ chặn: xóa dòng chặn, khách quay về trạng thái "chưa duyệt" (phải duyệt lại). Không đụng tới từ chối. */
+    @Transactional
+    public void unblock(long customerId) {
+        String phone = phoneOf(customerId);
+        int n = jdbc.sql("DELETE FROM contact_basis WHERE customer_id = :id AND purpose = :p AND status = 'BLOCKED'")
+                .param("id", customerId).param("p", PURPOSE).update();
+        if (n > 0) {
+            event(customerId, phone, "UNBLOCKED", "Về trạng thái chưa duyệt");
+        }
+    }
+
+    /**
+     * Khách yêu cầu ngừng liên hệ: ghi vào danh sách từ chối (vĩnh viễn, chặn cả sau khi nhập lại file) và đặt
+     * cơ sở liên hệ thành {@code OPTED_OUT}. Không có đường nào trong ứng dụng để gỡ từ chối.
+     */
+    @Transactional
+    public void suppress(long customerId, String source) {
+        String phone = phoneOf(customerId);
+        suppressPhone(phone, "OPT_OUT", source);
+        jdbc.sql("""
+                        INSERT INTO contact_basis (customer_id, purpose, basis, status, statement, note, recorded_by)
+                        VALUES (:id, :purpose, 'NONE', 'OPTED_OUT', :statement, :note, :by)
+                        ON CONFLICT (customer_id, purpose) DO UPDATE
+                           SET basis = 'NONE', status = 'OPTED_OUT', note = EXCLUDED.note,
+                               recorded_by = EXCLUDED.recorded_by, recorded_at = now()""")
+                .param("id", customerId).param("purpose", PURPOSE).param("statement", "Khách yêu cầu ngừng liên hệ")
+                .param("note", blankToNull(source)).param("by", actor()).update();
+        event(customerId, phone, "OPTED_OUT", blankToNull(source));
+    }
+
+    /** Ghi SĐT vào danh sách từ chối (chỉ lưu băm). Gọi lặp lại không sao. */
+    void suppressPhone(String phone, String reason, String source) {
+        jdbc.sql("""
+                        INSERT INTO suppression (phone_hash, reason, source, recorded_by)
+                        VALUES (:hash, :reason, :source, :by)
+                        ON CONFLICT (phone_hash) DO NOTHING""")
+                .param("hash", PhoneHash.of(phone)).param("reason", reason)
+                .param("source", blankToNull(source)).param("by", actor()).update();
+    }
+
+    public boolean isSuppressed(String phone) {
+        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM suppression WHERE phone_hash = :h)")
+                .param("h", PhoneHash.of(phone)).query(Boolean.class).single();
+    }
+
+    // ---------- xem ----------
+
+    public Optional<Basis> basisOf(long customerId) {
+        return jdbc.sql("""
+                        SELECT basis, status, evidence_ref, statement, note, recorded_by, recorded_at
+                        FROM contact_basis WHERE customer_id = :id AND purpose = :p""")
+                .param("id", customerId).param("p", PURPOSE)
+                .query((rs, i) -> new Basis(rs.getString("basis"), ContactStatus.valueOf(rs.getString("status")),
+                        rs.getString("evidence_ref"), rs.getString("statement"), rs.getString("note"),
+                        rs.getString("recorded_by"), local(rs.getObject("recorded_at", OffsetDateTime.class))))
+                .optional();
+    }
+
+    public List<Event> events(long customerId) {
+        return jdbc.sql("""
+                        SELECT event, detail, recorded_by, recorded_at FROM contact_event
+                        WHERE customer_id = :id ORDER BY recorded_at DESC, id DESC""")
+                .param("id", customerId)
+                .query((rs, i) -> new Event(rs.getString("event"), rs.getString("detail"), rs.getString("recorded_by"),
+                        local(rs.getObject("recorded_at", OffsetDateTime.class))))
+                .list();
+    }
+
+    public String note(long customerId) {
+        return jdbc.sql("SELECT note FROM customer_note WHERE customer_id = :id").param("id", customerId)
+                .query(String.class).optional().orElse("");
+    }
+
+    @Transactional
+    public void saveNote(long customerId, String note) {
+        phoneOf(customerId); // báo lỗi nếu khách không tồn tại
+        String text = note == null ? "" : note.strip();
+        if (text.length() > 2000) {
+            throw new ImportException("Ghi chú quá dài (tối đa 2000 ký tự).");
+        }
+        if (text.isEmpty()) {
+            jdbc.sql("DELETE FROM customer_note WHERE customer_id = :id").param("id", customerId).update();
+        } else {
+            jdbc.sql("""
+                            INSERT INTO customer_note (customer_id, note) VALUES (:id, :note)
+                            ON CONFLICT (customer_id) DO UPDATE SET note = EXCLUDED.note, updated_at = now()""")
+                    .param("id", customerId).param("note", text).update();
+        }
+    }
+
+    // ---------- nội bộ ----------
+
+    String phoneOf(long customerId) {
+        return jdbc.sql("SELECT phone FROM customer WHERE id = :id").param("id", customerId)
+                .query(String.class).optional()
+                .orElseThrow(() -> new ImportException("Không tìm thấy khách."));
+    }
+
+    void event(Long customerId, String phone, String event, String detail) {
+        jdbc.sql("""
+                        INSERT INTO contact_event (customer_id, phone_tail, event, detail, recorded_by)
+                        VALUES (:id, :tail, :event, :detail, :by)""")
+                .param("id", customerId).param("tail", PhoneHash.tail(phone)).param("event", event)
+                .param("detail", detail).param("by", actor()).update();
+    }
+
+    private static String blankToNull(String s) {
+        return s == null || s.isBlank() ? null : s.strip();
+    }
+
+    private static LocalDateTime local(OffsetDateTime t) {
+        return t == null ? null : t.atZoneSameInstant(ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDateTime();
+    }
+}

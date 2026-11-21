@@ -1,0 +1,8 @@
+/data_product/
+*.xls
+*.xlsx
+*.xlsm
+*.xlsb
+.env
+.env.*
+!.env.example

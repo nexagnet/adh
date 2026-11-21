@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Nhập đơn')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <h1>Các lần nhập đơn</h1>
+    <div class="actions">
+        <a class="btn" th:href="@{/imports/new}">Nhập file mới</a>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <tr>
+                <th>Thời gian</th><th>Hãng</th><th>File</th><th class="num">Dòng</th>
+                <th class="num">Mới</th><th class="num">Cập nhật</th><th class="num">Lỗi</th><th>Tình trạng</th>
+            </tr>
+            <tr th:each="b : ${batches}">
+                <td th:text="${#temporals.format(b.uploadedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
+                <td th:text="${b.carrier.label()}">Viettel Post</td>
+                <td><a th:href="${b.committed()} ? @{/imports/{id}(id=${b.id})} : @{/imports/{id}/mapping(id=${b.id})}" th:text="${b.filename}">file.csv</a></td>
+                <td class="num" th:text="${b.totalRows}">-</td>
+                <td class="num" th:text="${b.newShipments}">-</td>
+                <td class="num" th:text="${b.updatedShipments}">-</td>
+                <td class="num" th:text="${b.errorRows}">-</td>
+                <td>
+                    <span class="badge ok" th:if="${b.committed()}">Đã nhập</span>
+                    <span class="badge warn" th:unless="${b.committed()}">Chưa xác nhận</span>
+                </td>
+            </tr>
+            <tr th:if="${batches.isEmpty()}"><td colspan="8" class="muted">Chưa có lần nhập nào.</td></tr>
+        </table>
+    </div>
+</main>
+</body>
+</html>

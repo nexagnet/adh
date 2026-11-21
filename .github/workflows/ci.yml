@@ -1,0 +1,57 @@
+name: ci
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          persist-credentials: false
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+          cache-dependency-path: app/pom.xml
+      - name: Build and test with embedded PostgreSQL
+        working-directory: app
+        run: ./mvnw --batch-mode --no-transfer-progress verify
+
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          persist-credentials: false
+      - name: Reject local data and configuration in Git
+        shell: bash
+        run: |
+          forbidden=$(git ls-files -- data_product/ app/target/ \
+            ':(icase)*.xls' ':(icase)*.xlsx' ':(icase)*.xlsm' ':(icase)*.xlsb' \
+            ':(glob)**/.env' ':(glob)**/.env.*' ':(exclude,glob)**/.env.example')
+          if [[ -n "$forbidden" ]]; then
+            echo '::error::Remove tracked customer data, build output, or local environment files.'
+            exit 1
+          fi
+      - name: Validate GitHub Actions workflows
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -color

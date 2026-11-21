@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Nhập file mới')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <h1>Nhập file đơn hàng</h1>
+    <p class="hint">
+        Dùng file Excel (.xlsx) hoặc CSV UTF-8 xuất từ trang quản lý của hãng vận chuyển.
+        Nhập lại cùng một file không làm tăng số lần mua.
+    </p>
+    <form th:action="@{/imports(_csrf=${_csrf.token})}" method="post" enctype="multipart/form-data">
+        <label for="carrier">Hãng vận chuyển</label>
+        <select id="carrier" name="carrier" required>
+            <option th:each="c : ${carriers}" th:value="${c.name()}" th:text="${c.label()}">Viettel Post</option>
+        </select>
+        <label for="file">File (tối đa 10 MB)</label>
+        <input type="file" id="file" name="file" accept=".xlsx,.csv,.txt" required>
+        <div class="actions">
+            <button type="submit" class="btn">Tiếp tục</button>
+            <a class="btn secondary" th:href="@{/imports}">Quay lại</a>
+        </div>
+    </form>
+</main>
+</body>
+</html>

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Danh sách khách')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <h1>
+        <span th:if="${segment == null and !review}">Tất cả khách</span>
+        <span th:if="${segment != null}" th:text="${segment.label()}">Mua 1 lần</span>
+        <span th:if="${review}" th:text="${segment == null} ? 'Khách cần kiểm tra' : '— cần kiểm tra'">Khách cần kiểm tra</span>
+    </h1>
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã xóa.</div>
+    <p class="hint" th:if="${segment != null and segment.name() == 'REPEAT'}">
+        Danh sách này dành cho bố mẹ chủ động tư vấn riêng. Không đưa vào chiến dịch mời nhóm.
+    </p>
+
+    <form class="inline" th:action="@{/customers}" method="get">
+        <select name="segment">
+            <option value="">Tất cả phân loại</option>
+            <option th:each="s : ${segments}" th:value="${s.name()}" th:text="${s.label()}"
+                    th:selected="${segment == s}">Mua 1 lần</option>
+        </select>
+        <input type="text" name="q" th:value="${q}" placeholder="Số điện thoại hoặc tên">
+        <label><input type="checkbox" name="review" value="true" th:checked="${review}"> Chỉ khách cần kiểm tra</label>
+        <button type="submit" class="btn">Lọc</button>
+        <a class="btn secondary" th:href="@{/customers/export.csv(segment=${segment}, review=${review})}">Tải CSV</a>
+    </form>
+
+    <p><strong th:text="${page.total}">0</strong> khách</p>
+    <div class="table-wrap">
+        <table>
+            <tr>
+                <th>Số điện thoại</th><th>Tên</th><th>Địa chỉ</th>
+                <th class="num">Lần mua</th><th>Gần nhất</th><th>Ghi chú</th>
+            </tr>
+            <tr th:each="c : ${page.items}">
+                <td><a th:href="@{/customers/{id}(id=${c.id})}" th:text="${c.displayPhone()}">0912 345 678</a></td>
+                <td th:text="${c.name}">Nguyen Van A</td>
+                <td th:text="${c.address}">Địa chỉ</td>
+                <td class="num" th:text="${c.successfulPurchases}">1</td>
+                <td th:text="${c.lastOrderOn != null} ? ${#temporals.format(c.lastOrderOn, 'dd/MM/yyyy')} : ''">01/01/2026</td>
+                <td><span class="badge warn" th:if="${c.needsReview}">Cần kiểm tra</span></td>
+            </tr>
+            <tr th:if="${page.items.isEmpty()}"><td colspan="6" class="muted">Không có khách nào.</td></tr>
+        </table>
+    </div>
+
+    <div class="pager">
+        <a class="btn secondary" th:if="${page.hasPrevious()}"
+           th:href="@{/customers(segment=${segment}, review=${review}, q=${q}, page=${page.page - 1})}">‹ Trước</a>
+        <span>Trang <span th:text="${page.page}">1</span>/<span th:text="${page.totalPages()}">1</span></span>
+        <a class="btn secondary" th:if="${page.hasNext()}"
+           th:href="@{/customers(segment=${segment}, review=${review}, q=${q}, page=${page.page + 1})}">Sau ›</a>
+    </div>
+
+    <form th:action="@{/customers/recalculate}" method="post">
+        <button type="submit" class="btn secondary">Tính lại phân loại tất cả khách</button>
+    </form>
+</main>
+</body>
+</html>

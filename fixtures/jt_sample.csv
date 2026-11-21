@@ -1,0 +1,4 @@
+Mã vận đơn,Mã đơn hàng,Thời gian tạo,Người nhận,Số điện thoại người nhận,Địa chỉ nhận,Trạng thái
+JT0001,DH101,20/01/2026 10:00:00,Tran Thi B,0987654321,"34 Duong B, Ha Noi",Đã ký nhận
+JT0002,DH102,21/01/2026 10:00:00,Cao Van M,0966777888,"66 Duong M, Hai Duong",Đang giao hàng
+JT0003,DH103,22/01/2026 10:00:00,Mai Thi N,0977888999,"77 Duong N, Thanh Hoa",Đã ký nhận

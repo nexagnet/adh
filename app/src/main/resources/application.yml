@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: crm
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/crm}
+    username: ${DB_USER:crm}
+    password: ${DB_PASSWORD:}
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
+  thymeleaf:
+    cache: true
+
+server:
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: lax
+  error:
+    include-message: never
+    include-stacktrace: never
+
+app:
+  admin:
+    username: ${APP_ADMIN_USERNAME:admin}
+    # Bắt buộc đặt qua biến môi trường APP_ADMIN_PASSWORD; ứng dụng không khởi động nếu để trống.
+    password: ${APP_ADMIN_PASSWORD:}
+  imports:
+    max-rows: 50000
+    max-uncompressed-bytes: 104857600

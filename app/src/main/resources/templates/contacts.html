@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Danh sách mời')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <h1>Danh sách đủ điều kiện mời vào nhóm</h1>
+    <p class="hint">Chỉ khách mua 1 lần, đã được duyệt, không cần kiểm tra và không từ chối mới nằm ở đây.
+        Khách mua từ 2 lần không bao giờ vào danh sách này (họ có danh sách tư vấn riêng).
+        Mặc định mọi khách là KHÔNG được liên hệ cho đến khi được duyệt.</p>
+
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã duyệt.</div>
+
+    <div class="cards">
+        <div class="card">
+            <div class="big" th:text="${stats.eligible}">0</div>
+            <div class="label">Đủ điều kiện mời</div>
+        </div>
+        <div class="card">
+            <div class="big" th:text="${stats.candidates}">0</div>
+            <div class="label">Mua 1 lần, chờ duyệt</div>
+        </div>
+        <a class="card warn" th:if="${stats.oneTimeNeedsReview > 0}" th:href="@{/customers(segment=ONE_TIME, review=true)}">
+            <div class="big" th:text="${stats.oneTimeNeedsReview}">0</div>
+            <div class="label">Mua 1 lần nhưng cần kiểm tra (chưa duyệt được)</div>
+        </a>
+        <div class="card">
+            <div class="big" th:text="${stats.blocked}">0</div>
+            <div class="label">Bị chặn thủ công</div>
+        </div>
+        <div class="card">
+            <div class="big" th:text="${stats.optedOut}">0</div>
+            <div class="label">Từ chối nhận liên hệ</div>
+        </div>
+        <div class="card">
+            <div class="big" th:text="${stats.erased}">0</div>
+            <div class="label">Đã xóa theo yêu cầu</div>
+        </div>
+    </div>
+
+    <h2 th:if="${stats.candidates > 0}">Duyệt hàng loạt</h2>
+    <form th:if="${stats.candidates > 0}" th:action="@{/contacts/approve-all}" method="post">
+        <div class="notice">
+            <label class="check">
+                <input type="checkbox" name="confirm" value="true">
+                <span th:text="'Tôi xác nhận: ' + ${statement}">Chủ cửa hàng chịu trách nhiệm</span>
+            </label>
+        </div>
+        <div class="actions">
+            <button type="submit" class="btn">
+                Duyệt <span th:text="${stats.candidates}">0</span> khách mua 1 lần
+            </button>
+        </div>
+        <p class="hint">Việc duyệt chưa gửi tin cho ai. Hệ thống chỉ ghi nhận khách được phép nằm trong danh sách mời;
+            mỗi lần duyệt được ghi vào nhật ký của từng khách.</p>
+    </form>
+
+    <h2>Danh sách (<span th:text="${page.total}">0</span> khách)</h2>
+    <div class="table-wrap">
+        <table>
+            <tr><th>Số điện thoại</th><th>Tên</th><th>Địa chỉ</th><th>Bằng chứng</th><th>Duyệt lúc</th></tr>
+            <tr th:each="c : ${page.items}">
+                <td><a th:href="@{/customers/{id}(id=${c.id})}" th:text="${c.phone}">+84912345678</a></td>
+                <td th:text="${c.name}">Nguyen Van A</td>
+                <td th:text="${c.address}">Địa chỉ</td>
+                <td class="mono" th:text="${c.evidenceRef}">VIETTEL_POST:123</td>
+                <td th:text="${#temporals.format(c.approvedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026 10:00</td>
+            </tr>
+            <tr th:if="${page.items.isEmpty()}"><td colspan="5" class="muted">Chưa có khách nào được duyệt.</td></tr>
+        </table>
+    </div>
+    <div class="pager">
+        <a class="btn secondary" th:if="${page.hasPrevious()}" th:href="@{/contacts(page=${page.page - 1})}">‹ Trước</a>
+        <span>Trang <span th:text="${page.page}">1</span>/<span th:text="${page.totalPages()}">1</span></span>
+        <a class="btn secondary" th:if="${page.hasNext()}" th:href="@{/contacts(page=${page.page + 1})}">Sau ›</a>
+    </div>
+</main>
+</body>
+</html>

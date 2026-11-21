@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:fragment="head(title)">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${title} + ' - Chăm sóc khách'">Chăm sóc khách</title>
+    <link rel="stylesheet" th:href="@{/app.css}">
+</head>
+<body>
+<nav th:fragment="nav" class="nav">
+    <a th:href="@{/}">Tổng quan</a>
+    <a th:href="@{/imports}">Nhập đơn</a>
+    <a th:href="@{/contacts}">Danh sách mời</a>
+    <a th:href="@{/customers(segment=ONE_TIME)}">Khách mua 1 lần</a>
+    <a th:href="@{/customers(segment=REPEAT)}">Khách mua từ 2 lần</a>
+    <a th:href="@{/status-mappings}">Trạng thái đơn</a>
+    <a th:href="@{/privacy}">Yêu cầu của khách</a>
+    <span class="spacer"></span>
+    <form th:action="@{/logout}" method="post">
+        <button type="submit">Đăng xuất</button>
+    </form>
+</nav>
+</body>
+</html>

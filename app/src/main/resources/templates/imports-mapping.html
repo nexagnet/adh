@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Chọn cột')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <h1>Chọn cột dữ liệu</h1>
+    <p class="hint">
+        File <strong th:text="${view.batch.filename}">file.csv</strong> —
+        <span th:text="${view.batch.carrier.label()}">Viettel Post</span>.
+        Hệ thống đã đoán sẵn các cột, hãy kiểm tra lại cho đúng.
+    </p>
+
+    <div class="notice" th:if="${view.sameFileAlreadyImported}">
+        File giống hệt đã được nhập trước đây. Nhập lại vẫn an toàn, số lần mua sẽ không tăng.
+    </div>
+
+    <form class="inline" th:action="@{/imports/{id}/mapping(id=${view.batch.id})}" method="get">
+        <label for="headerRowPick">Dòng tiêu đề là dòng số</label>
+        <input type="number" id="headerRowPick" name="headerRow" min="1" th:value="${headerRow}">
+        <button type="submit" class="btn secondary">Đọc lại</button>
+    </form>
+
+    <h2>Vài dòng đầu của file</h2>
+    <div class="table-wrap">
+        <table>
+            <tr><th th:each="h : ${view.headers}" th:text="${h}">Cột</th></tr>
+            <tr th:each="row : ${view.sampleRows}">
+                <td th:each="cell : ${row}" th:text="${cell}">-</td>
+            </tr>
+        </table>
+    </div>
+
+    <form th:action="@{/imports/{id}/preview(id=${view.batch.id})}" method="post">
+        <input type="hidden" name="headerRow" th:value="${headerRow}">
+        <h2>Cột nào là gì?</h2>
+        <div th:each="f : ${fields}">
+            <label th:for="${'col_' + f.name()}">
+                <span th:text="${f.label()}">Mã vận đơn</span>
+                <span class="badge bad" th:if="${f.required()}">bắt buộc</span>
+            </label>
+            <select th:id="${'col_' + f.name()}" th:name="${'col_' + f.name()}">
+                <option value="">(không dùng)</option>
+                <option th:each="h : ${view.headers}" th:value="${h}" th:text="${h}"
+                        th:selected="${selected.get(f) != null and selected.get(f) == h}">Cột</option>
+            </select>
+        </div>
+        <div class="actions">
+            <button type="submit" class="btn">Xem trước kết quả</button>
+            <a class="btn secondary" th:href="@{/imports}">Hủy</a>
+        </div>
+    </form>
+</main>
+</body>
+</html>

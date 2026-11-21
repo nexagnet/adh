@@ -1,0 +1,18 @@
+# Cơ sở dữ liệu PostgreSQL cho môi trường chạy thật hoặc thử trên máy.
+# Dùng:  docker compose --env-file .env up -d
+# Chỉ lắng nghe trên 127.0.0.1, không mở ra Internet.
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: crm
+      POSTGRES_USER: crm
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Hãy đặt DB_PASSWORD trong file .env}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - crm-pgdata:/var/lib/postgresql
+
+volumes:
+  crm-pgdata:

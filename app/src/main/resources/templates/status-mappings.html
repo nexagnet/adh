@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Trạng thái đơn')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <h1>Trạng thái đơn của hãng vận chuyển</h1>
+    <p class="hint">
+        Mỗi hãng dùng chữ khác nhau. Chỉ trạng thái được gán "Giao thành công" mới được tính là một lần mua.
+        Trạng thái chưa gán luôn bị coi là chưa xác định, không bao giờ được tính là thành công.
+    </p>
+
+    <h2>Chưa rõ nghĩa</h2>
+    <p class="muted" th:if="${unmapped.isEmpty()}">Không có trạng thái nào cần gán.</p>
+    <div class="table-wrap" th:if="${!unmapped.isEmpty()}">
+        <table>
+            <tr><th>Hãng</th><th>Trạng thái trong file</th><th class="num">Số vận đơn</th><th>Chọn nghĩa</th></tr>
+            <tr th:each="u : ${unmapped}">
+                <td th:text="${u.carrier.label()}">J&amp;T Express</td>
+                <td th:text="${u.sampleText}">Đã ký nhận</td>
+                <td class="num" th:text="${u.shipments}">1</td>
+                <td>
+                    <form class="inline" th:action="@{/status-mappings}" method="post">
+                        <input type="hidden" name="carrier" th:value="${u.carrier.name()}">
+                        <input type="hidden" name="sample" th:value="${u.sampleText}">
+                        <select name="status">
+                            <option th:each="o : ${options}" th:if="${o.name() != 'UNKNOWN'}"
+                                    th:value="${o.name()}" th:text="${o.label()}">Giao thành công</option>
+                        </select>
+                        <button type="submit" class="btn">Lưu</button>
+                    </form>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <h2>Đã gán</h2>
+    <div class="table-wrap">
+        <table>
+            <tr><th>Hãng</th><th>Trạng thái trong file</th><th>Nghĩa</th><th>Đổi</th></tr>
+            <tr th:each="m : ${mappings}">
+                <td th:text="${m.carrier.label()}">Viettel Post</td>
+                <td th:text="${m.sampleText}">Giao thành công</td>
+                <td th:text="${m.status.label()}">Giao thành công</td>
+                <td>
+                    <form class="inline" th:action="@{/status-mappings}" method="post">
+                        <input type="hidden" name="carrier" th:value="${m.carrier.name()}">
+                        <input type="hidden" name="sample" th:value="${m.sampleText}">
+                        <select name="status">
+                            <option th:each="o : ${options}" th:value="${o.name()}"
+                                    th:text="${o.name() == 'UNKNOWN'} ? 'Bỏ gán (chưa xác định)' : ${o.label()}"
+                                    th:selected="${o == m.status}">Giao thành công</option>
+                        </select>
+                        <button type="submit" class="btn secondary">Lưu</button>
+                    </form>
+                </td>
+            </tr>
+        </table>
+    </div>
+</main>
+</body>
+</html>

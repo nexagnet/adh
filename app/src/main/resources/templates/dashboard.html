@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Tổng quan')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <h1>Tổng quan</h1>
+    <p class="hint">Khách được gộp theo số điện thoại nhận hàng, chỉ tính đơn giao thành công.</p>
+
+    <div class="notice" th:if="${totalShipments == 0}">
+        Chưa có dữ liệu. Hãy bắt đầu bằng <a th:href="@{/imports/new}">nhập file đơn hàng</a> của Viettel Post hoặc J&amp;T.
+    </div>
+
+    <div class="cards">
+        <a class="card" th:href="@{/customers(segment=ONE_TIME)}">
+            <div class="big" th:text="${oneTime}">0</div>
+            <div class="label">Khách mua 1 lần</div>
+        </a>
+        <a class="card" th:href="@{/customers(segment=REPEAT)}">
+            <div class="big" th:text="${repeat}">0</div>
+            <div class="label">Khách mua từ 2 lần</div>
+        </a>
+        <a class="card" th:href="@{/customers(segment=NO_SUCCESSFUL_PURCHASE)}">
+            <div class="big" th:text="${none}">0</div>
+            <div class="label">Chưa có đơn giao thành công</div>
+        </a>
+        <a class="card" th:href="@{/contacts}">
+            <div class="big" th:text="${contact.eligible}">0</div>
+            <div class="label">Đủ điều kiện mời (<span th:text="${contact.candidates}">0</span> chờ duyệt)</div>
+        </a>
+        <a class="card warn" th:if="${privacyOpen > 0}" th:href="@{/privacy}">
+            <div class="big" th:text="${privacyOpen}">0</div>
+            <div class="label">Yêu cầu của khách chưa xử lý<span th:if="${privacyOverdue > 0}"
+                th:text="' (' + ${privacyOverdue} + ' quá hạn)'"></span></div>
+        </a>
+        <a class="card warn" th:if="${review > 0}" th:href="@{/customers(review=true)}">
+            <div class="big" th:text="${review}">0</div>
+            <div class="label">Khách cần kiểm tra</div>
+        </a>
+        <a class="card warn" th:if="${unmapped > 0}" th:href="@{/status-mappings}">
+            <div class="big" th:text="${unmapped}">0</div>
+            <div class="label">Trạng thái đơn chưa rõ nghĩa</div>
+        </a>
+    </div>
+
+    <div class="actions">
+        <a class="btn" th:href="@{/imports/new}">Nhập file đơn hàng</a>
+        <a class="btn secondary" th:href="@{/customers/export.csv(segment=ONE_TIME)}">Tải danh sách mua 1 lần (CSV)</a>
+        <a class="btn secondary" th:href="@{/customers/export.csv(segment=REPEAT)}">Tải danh sách mua từ 2 lần (CSV)</a>
+    </div>
+
+    <h2>Đơn hàng theo hãng và trạng thái</h2>
+    <div class="table-wrap" th:if="${!shipments.isEmpty()}">
+        <table>
+            <tr><th>Hãng</th><th>Trạng thái</th><th class="num">Số vận đơn</th></tr>
+            <tr th:each="s : ${shipments}">
+                <td th:text="${s.carrier}">Viettel Post</td>
+                <td th:text="${s.status}">Giao thành công</td>
+                <td class="num" th:text="${s.count}">0</td>
+            </tr>
+        </table>
+    </div>
+
+    <h2>Các lần nhập gần đây</h2>
+    <div class="table-wrap" th:if="${!batches.isEmpty()}">
+        <table>
+            <tr><th>Thời gian</th><th>Hãng</th><th>File</th><th>Tình trạng</th></tr>
+            <tr th:each="b : ${batches}">
+                <td th:text="${#temporals.format(b.uploadedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
+                <td th:text="${b.carrier.label()}">Viettel Post</td>
+                <td><a th:href="${b.committed()} ? @{/imports/{id}(id=${b.id})} : @{/imports/{id}/mapping(id=${b.id})}" th:text="${b.filename}">file.csv</a></td>
+                <td>
+                    <span class="badge ok" th:if="${b.committed()}">Đã nhập</span>
+                    <span class="badge warn" th:unless="${b.committed()}">Chưa xác nhận</span>
+                </td>
+            </tr>
+        </table>
+    </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Xem trước')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <h1>Xem trước kết quả nhập</h1>
+    <p class="hint">Chưa lưu gì. Hãy kiểm tra các con số rồi bấm xác nhận.</p>
+
+    <div class="cards">
+        <div class="card"><div class="big" th:text="${report.totalRows}">0</div><div class="label">Dòng dữ liệu</div></div>
+        <div class="card"><div class="big" th:text="${report.newShipments}">0</div><div class="label">Vận đơn mới</div></div>
+        <div class="card"><div class="big" th:text="${report.existingShipments}">0</div><div class="label">Vận đơn đã có (sẽ cập nhật)</div></div>
+        <div class="card" th:classappend="${report.statusChanges > 0} ? 'warn'"><div class="big" th:text="${report.statusChanges}">0</div><div class="label">Đổi trạng thái</div></div>
+        <div class="card" th:classappend="${report.errorRows > 0} ? 'warn'"><div class="big" th:text="${report.errorRows}">0</div><div class="label">Dòng lỗi (bỏ qua)</div></div>
+    </div>
+
+    <div class="notice" th:if="${report.duplicatesInFile > 0}">
+        Có <strong th:text="${report.duplicatesInFile}">0</strong> dòng trùng mã vận đơn trong file; dòng sau cùng được giữ lại.
+    </div>
+
+    <div class="notice" th:if="${report.statusChanges > 0}">
+        Có <strong th:text="${report.statusChanges}">0</strong> vận đơn sẽ đổi trạng thái so với lần nhập trước.
+        Nếu đây là một file cũ hơn, hãy cân nhắc không xác nhận để tránh ghi đè trạng thái mới bằng trạng thái cũ.
+    </div>
+
+    <div class="notice" th:if="${!report.unmappedStatuses.isEmpty()}">
+        <strong>Có trạng thái chưa rõ nghĩa</strong> — các đơn này sẽ <em>không</em> được tính là giao thành công cho tới khi bạn chọn nghĩa ở mục
+        <a th:href="@{/status-mappings}">Trạng thái đơn</a> (có thể làm sau khi nhập):
+        <ul>
+            <li th:each="u : ${report.unmappedStatuses}"><span th:text="${u.key}">Chờ xử lý</span>
+                — <span th:text="${u.value}">3</span> đơn</li>
+        </ul>
+    </div>
+
+    <h2 th:if="${!report.sampleErrors.isEmpty()}">Dòng lỗi (tối đa 50 dòng đầu)</h2>
+    <div class="table-wrap" th:if="${!report.sampleErrors.isEmpty()}">
+        <table>
+            <tr><th class="num">Dòng</th><th>Lỗi</th><th>Dữ liệu</th></tr>
+            <tr th:each="e : ${report.sampleErrors}">
+                <td class="num" th:text="${e.rowNumber}">2</td>
+                <td th:text="${e.message}">Lỗi</td>
+                <td class="mono" th:text="${e.rawRow}">...</td>
+            </tr>
+        </table>
+    </div>
+
+    <form th:action="@{/imports/{id}/commit(id=${batch.id})}" method="post">
+        <input type="hidden" name="headerRow" th:value="${headerRow}">
+        <input type="hidden" th:each="f : ${fields}" th:if="${selected.get(f) != null}"
+               th:name="${'col_' + f.name()}" th:value="${selected.get(f)}">
+        <div class="actions">
+            <button type="submit" class="btn" th:disabled="${report.validRows == 0}">Xác nhận nhập</button>
+            <a class="btn secondary" th:href="@{/imports/{id}/mapping(id=${batch.id})}">Sửa cột</a>
+            <a class="btn secondary" th:href="@{/imports}">Hủy</a>
+        </div>
+    </form>
+</main>
+</body>
+</html>

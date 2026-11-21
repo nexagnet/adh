@@ -1,0 +1,643 @@
+package vn.shop.crm.imports;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import vn.shop.crm.common.ImportException;
+import vn.shop.crm.common.PhoneHash;
+import vn.shop.crm.common.PhoneNormalizer;
+import vn.shop.crm.customers.CustomerService;
+import vn.shop.crm.shipping.CanonicalStatus;
+import vn.shop.crm.shipping.Carrier;
+import vn.shop.crm.shipping.StatusKey;
+import vn.shop.crm.shipping.StatusMappingService;
+
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.EnumMap;
+import java.util.HexFormat;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
+
+/**
+ * Nhập file Excel/CSV của hãng vận chuyển: tải lên -> ánh xạ cột -> xem trước -> xác nhận.
+ * Nhập lại cùng một file không làm tăng số lần mua (khóa duy nhất: hãng + mã vận đơn).
+ */
+@Service
+public class ImportService {
+
+    public record Mapping(int headerRow, Map<FieldKey, String> columns) {
+    }
+
+    public record BatchSummary(long id, Carrier carrier, String filename, String status,
+                               LocalDateTime uploadedAt, LocalDateTime committedAt, Integer totalRows,
+                               Integer validRows, Integer newShipments, Integer updatedShipments,
+                               Integer statusChanges, Integer errorRows, Integer unmappedStatuses) {
+        public boolean committed() {
+            return "COMMITTED".equals(status);
+        }
+    }
+
+    public record FileView(BatchSummary batch, int headerRow, List<String> headers,
+                           List<List<String>> sampleRows, Map<FieldKey, String> suggested,
+                           boolean sameFileAlreadyImported) {
+    }
+
+    public record RowError(int rowNumber, String code, String message, String rawRow) {
+    }
+
+    public record Report(int totalRows, int validRows, int errorRows, int duplicatesInFile, int newShipments,
+                         int existingShipments, int unchangedShipments, int statusChanges,
+                         Map<String, Long> unmappedStatuses, List<RowError> sampleErrors) {
+    }
+
+    private record ParsedRow(int rowNumber, String trackingNo, String orderRef, String phoneRaw, String phone,
+                             String name, String address, LocalDateTime createdOn, LocalDateTime deliveredOn,
+                             String rawStatus, Map<String, String> payload) {
+    }
+
+    private record ParseResult(List<ParsedRow> rows, List<RowError> errors, int totalRows, int duplicatesInFile) {
+    }
+
+    private record Existing(long id, String statusKey, String phone) {
+    }
+
+    private record BatchData(long id, Carrier carrier, String filename, String status, byte[] content) {
+    }
+
+    private static final ZoneId ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final Pattern TRAILING_ZERO_DECIMAL = Pattern.compile("^(\\d+)\\.0+$");
+    private static final int SAMPLE_ROWS = 5;
+    private static final int SAMPLE_ERRORS = 50;
+    private static final int CHUNK = 1000;
+    private static final List<DateTimeFormatter> DATE_TIME_FORMATS = List.of(
+            DateTimeFormatter.ofPattern("dd/MM/uuuu HH:mm:ss"),
+            DateTimeFormatter.ofPattern("dd/MM/uuuu HH:mm"),
+            DateTimeFormatter.ofPattern("d/M/uuuu H:mm:ss"),
+            DateTimeFormatter.ofPattern("d/M/uuuu H:mm"),
+            DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss"),
+            DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm"),
+            DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss"),
+            DateTimeFormatter.ofPattern("dd-MM-uuuu HH:mm:ss"));
+    private static final List<DateTimeFormatter> DATE_FORMATS = List.of(
+            DateTimeFormatter.ofPattern("dd/MM/uuuu"),
+            DateTimeFormatter.ofPattern("d/M/uuuu"),
+            DateTimeFormatter.ofPattern("uuuu-MM-dd"),
+            DateTimeFormatter.ofPattern("dd-MM-uuuu"));
+
+    private final JdbcClient jdbc;
+    private final StatusMappingService statuses;
+    private final CustomerService customers;
+    private final int maxRows;
+    private final long maxUncompressedBytes;
+
+    public ImportService(JdbcClient jdbc, StatusMappingService statuses, CustomerService customers,
+                         @Value("${app.imports.max-rows:50000}") int maxRows,
+                         @Value("${app.imports.max-uncompressed-bytes:104857600}") long maxUncompressedBytes) {
+        this.jdbc = jdbc;
+        this.statuses = statuses;
+        this.customers = customers;
+        this.maxRows = maxRows;
+        this.maxUncompressedBytes = maxUncompressedBytes;
+    }
+
+    // ================= tải lên & xem file =================
+
+    @Transactional
+    public long createBatch(Carrier carrier, String filename, byte[] content) {
+        if (carrier == null) {
+            throw new ImportException("Hãy chọn hãng vận chuyển.");
+        }
+        if (content == null || content.length == 0) {
+            throw new ImportException("Chưa chọn file hoặc file rỗng.");
+        }
+        TabularReader.read(content, maxUncompressedBytes); // báo lỗi sớm nếu không đọc được
+        String safeName = filename == null || filename.isBlank() ? "file" : filename.strip();
+        if (safeName.length() > 200) {
+            safeName = safeName.substring(safeName.length() - 200);
+        }
+        return jdbc.sql("""
+                        INSERT INTO import_batch (carrier, filename, sha256, file_content)
+                        VALUES (:carrier, :filename, :sha, :content) RETURNING id""")
+                .param("carrier", carrier.name())
+                .param("filename", safeName)
+                .param("sha", sha256(content))
+                .param("content", content)
+                .query(Long.class).single();
+    }
+
+    public FileView open(long batchId, Integer headerRowOverride) {
+        BatchData batch = loadBatch(batchId);
+        List<List<String>> all = TabularReader.read(batch.content(), maxUncompressedBytes);
+        int headerRow = headerRowOverride != null ? headerRowOverride
+                : savedHeaderRow(batch.carrier()).orElseGet(() -> detectHeaderRow(all));
+        if (headerRow < 1 || headerRow > all.size()) {
+            throw new ImportException("Dòng tiêu đề không hợp lệ (file có " + all.size() + " dòng).");
+        }
+        List<String> headers = all.get(headerRow - 1).stream().map(String::strip)
+                .filter(h -> !h.isEmpty()).toList();
+        List<List<String>> sample = new ArrayList<>();
+        for (int i = headerRow; i < all.size() && sample.size() < SAMPLE_ROWS; i++) {
+            if (!isBlankRow(all.get(i))) {
+                sample.add(all.get(i));
+            }
+        }
+        Map<FieldKey, String> suggested = new EnumMap<>(FieldKey.class);
+        Map<FieldKey, String> guessed = FieldKey.guess(headers);
+        Map<FieldKey, String> saved = savedMapping(batch.carrier());
+        for (FieldKey field : FieldKey.values()) {
+            String savedHeader = saved.get(field);
+            if (savedHeader != null && containsHeader(headers, savedHeader)) {
+                suggested.put(field, savedHeader);
+            } else if (guessed.containsKey(field)) {
+                suggested.put(field, guessed.get(field));
+            }
+        }
+        boolean same = jdbc.sql("SELECT count(*) FROM import_batch WHERE sha256 = :sha AND status = 'COMMITTED' "
+                        + "AND id <> :id")
+                .param("sha", sha256(batch.content())).param("id", batchId).query(Long.class).single() > 0;
+        return new FileView(summary(batchId), headerRow, headers, sample, suggested, same);
+    }
+
+    // ================= xem trước & xác nhận =================
+
+    public Report preview(long batchId, Mapping mapping) {
+        BatchData batch = loadBatch(batchId);
+        ParseResult parsed = parse(batch, mapping);
+        Map<String, Existing> existing = loadExisting(batch.carrier(), parsed.rows());
+        return buildReport(batch.carrier(), parsed, existing);
+    }
+
+    @Transactional
+    public Report commit(long batchId, Mapping mapping) {
+        BatchData batch = loadBatch(batchId);
+        if ("COMMITTED".equals(batch.status())) {
+            throw new ImportException("Lô nhập này đã được xác nhận trước đó. Hãy tải file lên lại nếu muốn nhập tiếp.");
+        }
+        ParseResult parsed = parse(batch, mapping);
+        Map<String, Existing> existing = loadExisting(batch.carrier(), parsed.rows());
+        Report report = buildReport(batch.carrier(), parsed, existing);
+        Map<String, CanonicalStatus> statusMap = statuses.mappingsFor(batch.carrier());
+
+        Set<String> touchedPhones = new HashSet<>();
+        for (RowError error : parsed.errors()) {
+            jdbc.sql("""
+                            INSERT INTO import_error (batch_id, row_number, code, message, raw_row)
+                            VALUES (:batch, :row, :code, :message, :raw)""")
+                    .param("batch", batchId).param("row", error.rowNumber()).param("code", error.code())
+                    .param("message", error.message()).param("raw", clean(error.rawRow(), 2000))
+                    .update();
+        }
+        for (ParsedRow row : parsed.rows()) {
+            String statusKey = StatusKey.of(row.rawStatus());
+            CanonicalStatus canonical = statusMap.getOrDefault(statusKey, CanonicalStatus.UNKNOWN);
+            Existing old = existing.get(row.trackingNo());
+            Map<String, Object> p = params(row, batch, statusKey, canonical);
+            long shipmentId;
+            boolean writeHistory;
+            if (old == null) {
+                shipmentId = jdbc.sql("""
+                                INSERT INTO shipment (carrier, tracking_no, order_ref, receiver_phone_raw, receiver_phone,
+                                    receiver_name, receiver_address, created_on, delivered_on, raw_status, status_key,
+                                    canonical_status, raw_payload, first_batch_id, last_batch_id)
+                                VALUES (:carrier, :tracking, :orderRef, :phoneRaw, :phone, :name, :address, :createdOn,
+                                    :deliveredOn, :rawStatus, :statusKey, :canonical, CAST(:payload AS jsonb),
+                                    :batch, :batch)
+                                RETURNING id""")
+                        .paramSource(p).query(Long.class).single();
+                writeHistory = true;
+            } else {
+                p.put("id", old.id());
+                jdbc.sql("""
+                                UPDATE shipment SET
+                                    order_ref = COALESCE(:orderRef, order_ref),
+                                    receiver_phone_raw = :phoneRaw, receiver_phone = :phone,
+                                    receiver_name = COALESCE(:name, receiver_name),
+                                    receiver_address = COALESCE(:address, receiver_address),
+                                    created_on = COALESCE(:createdOn, created_on),
+                                    delivered_on = COALESCE(:deliveredOn, delivered_on),
+                                    raw_status = :rawStatus, status_key = :statusKey, canonical_status = :canonical,
+                                    raw_payload = CAST(:payload AS jsonb), last_batch_id = :batch, updated_at = now()
+                                WHERE id = :id""")
+                        .paramSource(p).update();
+                shipmentId = old.id();
+                writeHistory = !old.statusKey().equals(statusKey);
+                touchedPhones.add(old.phone());
+            }
+            if (writeHistory) {
+                jdbc.sql("""
+                                INSERT INTO shipment_status_history (shipment_id, batch_id, raw_status, canonical_status)
+                                VALUES (:shipment, :batch, :rawStatus, :canonical)""")
+                        .param("shipment", shipmentId).param("batch", batchId)
+                        .param("rawStatus", clean(row.rawStatus(), 200)).param("canonical", canonical.name())
+                        .update();
+            }
+            touchedPhones.add(row.phone());
+        }
+
+        saveMapping(batch.carrier(), mapping);
+        jdbc.sql("""
+                        UPDATE import_batch SET status = 'COMMITTED', committed_at = now(),
+                            total_rows = :total, valid_rows = :valid, new_shipments = :newCount,
+                            updated_shipments = :existing, unchanged_shipments = :unchanged,
+                            status_changes = :changes, error_rows = :errors, duplicate_in_file = :dups,
+                            unmapped_statuses = :unmapped,
+                            file_content = decode('', 'hex')   -- đã nhập xong: không giữ file gốc (chứa SĐT/địa chỉ khách)
+                        WHERE id = :id""")
+                .param("total", report.totalRows()).param("valid", report.validRows())
+                .param("newCount", report.newShipments()).param("existing", report.existingShipments())
+                .param("unchanged", report.unchangedShipments()).param("changes", report.statusChanges())
+                .param("errors", report.errorRows()).param("dups", report.duplicatesInFile())
+                .param("unmapped", report.unmappedStatuses().size()).param("id", batchId).update();
+
+        customers.recalculate(touchedPhones);
+        return report;
+    }
+
+    // ================= truy vấn lô nhập =================
+
+    public List<BatchSummary> list() {
+        return jdbc.sql(SUMMARY_SQL + " ORDER BY id DESC LIMIT 200")
+                .query(ImportService::mapSummary).list();
+    }
+
+    public BatchSummary summary(long id) {
+        return jdbc.sql(SUMMARY_SQL + " WHERE id = :id").param("id", id)
+                .query(ImportService::mapSummary).optional()
+                .orElseThrow(() -> new ImportException("Không tìm thấy lô nhập."));
+    }
+
+    public List<RowError> errors(long batchId, int limit) {
+        return jdbc.sql("SELECT row_number, code, message, raw_row FROM import_error WHERE batch_id = :id "
+                        + "ORDER BY row_number LIMIT " + Math.max(1, limit))
+                .param("id", batchId)
+                .query((rs, i) -> new RowError(rs.getInt("row_number"), rs.getString("code"),
+                        rs.getString("message"), rs.getString("raw_row")))
+                .list();
+    }
+
+    private static final String SUMMARY_SQL = """
+            SELECT id, carrier, filename, status, uploaded_at, committed_at, total_rows, valid_rows,
+                   new_shipments, updated_shipments, status_changes, error_rows, unmapped_statuses
+            FROM import_batch""";
+
+    private static BatchSummary mapSummary(ResultSet rs, int i) throws SQLException {
+        return new BatchSummary(rs.getLong("id"), Carrier.valueOf(rs.getString("carrier")),
+                rs.getString("filename"), rs.getString("status"),
+                toLocal(rs.getObject("uploaded_at", OffsetDateTime.class)),
+                toLocal(rs.getObject("committed_at", OffsetDateTime.class)),
+                rs.getObject("total_rows", Integer.class), rs.getObject("valid_rows", Integer.class),
+                rs.getObject("new_shipments", Integer.class), rs.getObject("updated_shipments", Integer.class),
+                rs.getObject("status_changes", Integer.class), rs.getObject("error_rows", Integer.class),
+                rs.getObject("unmapped_statuses", Integer.class));
+    }
+
+    // ================= phân tích file =================
+
+    private ParseResult parse(BatchData batch, Mapping mapping) {
+        List<List<String>> all = TabularReader.read(batch.content(), maxUncompressedBytes);
+        int headerRow = mapping.headerRow();
+        if (headerRow < 1 || headerRow > all.size()) {
+            throw new ImportException("Dòng tiêu đề không hợp lệ (file có " + all.size() + " dòng).");
+        }
+        if (all.size() - headerRow > maxRows) {
+            throw new ImportException("File có quá nhiều dòng (tối đa " + maxRows + " dòng dữ liệu).");
+        }
+        List<String> headers = all.get(headerRow - 1);
+        Map<FieldKey, Integer> index = new EnumMap<>(FieldKey.class);
+        for (FieldKey field : FieldKey.values()) {
+            String header = mapping.columns().get(field);
+            if (header == null || header.isBlank()) {
+                if (field.required()) {
+                    throw new ImportException("Chưa chọn cột cho \"" + field.label() + "\".");
+                }
+                continue;
+            }
+            int i = indexOfHeader(headers, header);
+            if (i < 0) {
+                throw new ImportException("Không tìm thấy cột \"" + header + "\" trong file.");
+            }
+            index.put(field, i);
+        }
+
+        Map<String, ParsedRow> byTracking = new LinkedHashMap<>();
+        List<RowError> errors = new ArrayList<>();
+        Set<String> erased = new HashSet<>(jdbc.sql("SELECT phone_hash FROM suppression WHERE reason = 'ERASED'")
+                .query(String.class).list());
+        int total = 0;
+        int duplicates = 0;
+        for (int r = headerRow; r < all.size(); r++) {
+            List<String> row = all.get(r);
+            if (isBlankRow(row)) {
+                continue;
+            }
+            total++;
+            int rowNumber = r + 1;
+            String tracking = normalizeCode(cell(row, index, FieldKey.TRACKING_NO));
+            String phoneRaw = cell(row, index, FieldKey.RECEIVER_PHONE);
+            String rawStatus = cell(row, index, FieldKey.STATUS);
+            String rawRow = String.join(" | ", row);
+            if (tracking.isEmpty()) {
+                errors.add(new RowError(rowNumber, "MISSING_TRACKING", "Thiếu mã vận đơn.", rawRow));
+                continue;
+            }
+            if (tracking.length() > 100) {
+                errors.add(new RowError(rowNumber, "INVALID_TRACKING", "Mã vận đơn quá dài.", rawRow));
+                continue;
+            }
+            if (phoneRaw.isEmpty()) {
+                errors.add(new RowError(rowNumber, "MISSING_PHONE", "Thiếu số điện thoại người nhận.", rawRow));
+                continue;
+            }
+            var phone = PhoneNormalizer.firstValid(phoneRaw);
+            if (phone.isEmpty()) {
+                errors.add(new RowError(rowNumber, "INVALID_PHONE",
+                        "Số điện thoại không hợp lệ: \"" + clean(phoneRaw, 40) + "\".", rawRow));
+                continue;
+            }
+            if (erased.contains(PhoneHash.of(phone.get()))) {
+                // khách đã yêu cầu xóa dữ liệu: không nhập lại, và không lưu dòng gốc vào danh sách lỗi
+                errors.add(new RowError(rowNumber, "ERASED", "Khách đã yêu cầu xóa dữ liệu, bỏ qua dòng này.", ""));
+                continue;
+            }
+            if (rawStatus.isEmpty()) {
+                errors.add(new RowError(rowNumber, "MISSING_STATUS", "Thiếu trạng thái đơn.", rawRow));
+                continue;
+            }
+            Map<String, String> payload = new LinkedHashMap<>();
+            for (int c = 0; c < row.size() && c < headers.size(); c++) {
+                String header = headers.get(c).strip();
+                if (!header.isEmpty() && !row.get(c).isBlank()) {
+                    payload.put(header, row.get(c).strip());
+                }
+            }
+            ParsedRow parsed = new ParsedRow(rowNumber, tracking,
+                    blankToNull(normalizeCode(cell(row, index, FieldKey.ORDER_REF))), clean(phoneRaw, 40),
+                    phone.get(), blankToNull(clean(cell(row, index, FieldKey.RECEIVER_NAME), 200)),
+                    blankToNull(clean(cell(row, index, FieldKey.RECEIVER_ADDRESS), 500)),
+                    parseDate(cell(row, index, FieldKey.CREATED_ON)),
+                    parseDate(cell(row, index, FieldKey.DELIVERED_ON)), clean(rawStatus, 200), payload);
+            if (byTracking.put(tracking, parsed) != null) {
+                duplicates++;
+            }
+        }
+        return new ParseResult(new ArrayList<>(byTracking.values()), errors, total, duplicates);
+    }
+
+    private Report buildReport(Carrier carrier, ParseResult parsed, Map<String, Existing> existing) {
+        Map<String, CanonicalStatus> statusMap = statuses.mappingsFor(carrier);
+        int newCount = 0;
+        int changes = 0;
+        int existingCount = 0;
+        Map<String, Long> unmappedByKey = new LinkedHashMap<>();
+        Map<String, String> sampleByKey = new HashMap<>();
+        for (ParsedRow row : parsed.rows()) {
+            String key = StatusKey.of(row.rawStatus());
+            Existing old = existing.get(row.trackingNo());
+            if (old == null) {
+                newCount++;
+            } else {
+                existingCount++;
+                if (!old.statusKey().equals(key)) {
+                    changes++;
+                }
+            }
+            if (!statusMap.containsKey(key)) {
+                unmappedByKey.merge(key, 1L, Long::sum);
+                sampleByKey.putIfAbsent(key, row.rawStatus());
+            }
+        }
+        Map<String, Long> unmapped = new LinkedHashMap<>();
+        unmappedByKey.forEach((key, count) -> unmapped.put(sampleByKey.get(key), count));
+        List<RowError> sample = parsed.errors().size() > SAMPLE_ERRORS
+                ? parsed.errors().subList(0, SAMPLE_ERRORS) : parsed.errors();
+        return new Report(parsed.totalRows(), parsed.rows().size(), parsed.errors().size(),
+                parsed.duplicatesInFile(), newCount, existingCount, existingCount - changes, changes,
+                unmapped, List.copyOf(sample));
+    }
+
+    private Map<String, Existing> loadExisting(Carrier carrier, Collection<ParsedRow> rows) {
+        List<String> trackings = rows.stream().map(ParsedRow::trackingNo).toList();
+        Map<String, Existing> result = new HashMap<>();
+        for (int from = 0; from < trackings.size(); from += CHUNK) {
+            List<String> chunk = trackings.subList(from, Math.min(from + CHUNK, trackings.size()));
+            jdbc.sql("SELECT id, tracking_no, status_key, receiver_phone FROM shipment "
+                            + "WHERE carrier = :carrier AND tracking_no IN (:list)")
+                    .param("carrier", carrier.name()).param("list", chunk)
+                    .query((rs, i) -> Map.entry(rs.getString("tracking_no"),
+                            new Existing(rs.getLong("id"), rs.getString("status_key"),
+                                    rs.getString("receiver_phone"))))
+                    .list().forEach(e -> result.put(e.getKey(), e.getValue()));
+        }
+        return result;
+    }
+
+    private static Map<String, Object> params(ParsedRow row, BatchData batch, String statusKey,
+                                              CanonicalStatus canonical) {
+        Map<String, Object> p = new HashMap<>();
+        p.put("carrier", batch.carrier().name());
+        p.put("tracking", row.trackingNo());
+        p.put("orderRef", row.orderRef());
+        p.put("phoneRaw", row.phoneRaw());
+        p.put("phone", row.phone());
+        p.put("name", row.name());
+        p.put("address", row.address());
+        p.put("createdOn", row.createdOn() == null ? null : Timestamp.valueOf(row.createdOn()));
+        p.put("deliveredOn", row.deliveredOn() == null ? null : Timestamp.valueOf(row.deliveredOn()));
+        p.put("rawStatus", row.rawStatus());
+        p.put("statusKey", statusKey);
+        p.put("canonical", canonical.name());
+        p.put("payload", toJson(row.payload()));
+        p.put("batch", batch.id());
+        return p;
+    }
+
+    // ================= mapping đã lưu =================
+
+    private java.util.Optional<Integer> savedHeaderRow(Carrier carrier) {
+        return jdbc.sql("SELECT header_row FROM import_setting WHERE carrier = :c")
+                .param("c", carrier.name()).query(Integer.class).optional();
+    }
+
+    private Map<FieldKey, String> savedMapping(Carrier carrier) {
+        Map<FieldKey, String> result = new EnumMap<>(FieldKey.class);
+        jdbc.sql("SELECT field, header FROM column_mapping WHERE carrier = :c").param("c", carrier.name())
+                .query((rs, i) -> Map.entry(rs.getString("field"), rs.getString("header")))
+                .list().forEach(e -> {
+                    try {
+                        result.put(FieldKey.valueOf(e.getKey()), e.getValue());
+                    } catch (IllegalArgumentException ignored) {
+                        // trường đã bị bỏ khỏi phiên bản mới
+                    }
+                });
+        return result;
+    }
+
+    private void saveMapping(Carrier carrier, Mapping mapping) {
+        jdbc.sql("DELETE FROM column_mapping WHERE carrier = :c").param("c", carrier.name()).update();
+        mapping.columns().forEach((field, header) -> {
+            if (header != null && !header.isBlank()) {
+                jdbc.sql("INSERT INTO column_mapping (carrier, field, header) VALUES (:c, :f, :h)")
+                        .param("c", carrier.name()).param("f", field.name()).param("h", header.strip()).update();
+            }
+        });
+        jdbc.sql("""
+                        INSERT INTO import_setting (carrier, header_row) VALUES (:c, :r)
+                        ON CONFLICT (carrier) DO UPDATE SET header_row = EXCLUDED.header_row""")
+                .param("c", carrier.name()).param("r", mapping.headerRow()).update();
+    }
+
+    private BatchData loadBatch(long id) {
+        return jdbc.sql("SELECT id, carrier, filename, status, file_content FROM import_batch WHERE id = :id")
+                .param("id", id)
+                .query((rs, i) -> new BatchData(rs.getLong("id"), Carrier.valueOf(rs.getString("carrier")),
+                        rs.getString("filename"), rs.getString("status"), rs.getBytes("file_content")))
+                .optional().orElseThrow(() -> new ImportException("Không tìm thấy lô nhập."));
+    }
+
+    // ================= tiện ích =================
+
+    private static String cell(List<String> row, Map<FieldKey, Integer> index, FieldKey field) {
+        Integer i = index.get(field);
+        if (i == null || i >= row.size() || row.get(i) == null) {
+            return "";
+        }
+        return row.get(i).strip();
+    }
+
+    private static String normalizeCode(String value) {
+        String v = value == null ? "" : value.strip();
+        var m = TRAILING_ZERO_DECIMAL.matcher(v);
+        if (m.matches()) {
+            v = m.group(1);
+        }
+        return clean(v, 200).toUpperCase(java.util.Locale.ROOT);
+    }
+
+    private static String clean(String value, int maxLength) {
+        if (value == null) {
+            return "";
+        }
+        String v = value.replace("\u0000", "").strip();
+        return v.length() > maxLength ? v.substring(0, maxLength) : v;
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
+    }
+
+    private static boolean isBlankRow(List<String> row) {
+        return row.stream().allMatch(c -> c == null || c.isBlank());
+    }
+
+    private static int indexOfHeader(List<String> headers, String wanted) {
+        String key = StatusKey.of(wanted);
+        for (int i = 0; i < headers.size(); i++) {
+            if (StatusKey.of(headers.get(i)).equals(key)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static boolean containsHeader(List<String> headers, String wanted) {
+        return indexOfHeader(headers, wanted) >= 0;
+    }
+
+    /** Nếu dòng 1 ít cột có chữ (tiêu đề báo cáo), tìm dòng đầu tiên có từ 3 ô trở lên trong 20 dòng đầu. */
+    private static int detectHeaderRow(List<List<String>> all) {
+        for (int i = 0; i < Math.min(all.size(), 20); i++) {
+            long filled = all.get(i).stream().filter(c -> c != null && !c.isBlank()).count();
+            if (filled >= 3) {
+                return i + 1;
+            }
+        }
+        return 1;
+    }
+
+    private static LocalDateTime parseDate(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        String t = text.strip();
+        for (DateTimeFormatter f : DATE_TIME_FORMATS) {
+            try {
+                return LocalDateTime.parse(t, f);
+            } catch (DateTimeParseException ignored) {
+                // thử định dạng kế tiếp
+            }
+        }
+        for (DateTimeFormatter f : DATE_FORMATS) {
+            try {
+                return LocalDate.parse(t, f).atStartOfDay();
+            } catch (DateTimeParseException ignored) {
+                // thử định dạng kế tiếp
+            }
+        }
+        return null; // ngày chỉ để tham khảo, không làm hỏng dòng dữ liệu
+    }
+
+    private static LocalDateTime toLocal(OffsetDateTime t) {
+        return t == null ? null : t.atZoneSameInstant(ZONE).toLocalDateTime();
+    }
+
+    private static String sha256(byte[] content) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** JSON tối giản cho cột jsonb (khóa/giá trị đều là chuỗi). */
+    static String toJson(Map<String, String> map) {
+        StringBuilder sb = new StringBuilder("{");
+        boolean first = true;
+        for (Map.Entry<String, String> e : map.entrySet()) {
+            if (!first) {
+                sb.append(',');
+            }
+            first = false;
+            sb.append('"').append(escape(e.getKey())).append("\":\"").append(escape(e.getValue())).append('"');
+        }
+        return sb.append('}').toString();
+    }
+
+    private static String escape(String s) {
+        StringBuilder sb = new StringBuilder(s.length() + 8);
+        for (char c : s.replace("\u0000", "").toCharArray()) {
+            switch (c) {
+                case '"' -> sb.append("\\\"");
+                case '\\' -> sb.append("\\\\");
+                case '\n' -> sb.append("\\n");
+                case '\r' -> sb.append("\\r");
+                case '\t' -> sb.append("\\t");
+                default -> {
+                    if (c < 0x20) {
+                        sb.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        sb.append(c);
+                    }
+                }
+            }
+        }
+        return sb.toString();
+    }
+}
