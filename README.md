@@ -74,6 +74,9 @@ GitHub Actions chạy `test` và `lint` trên pull request và mỗi lần push 
 80% qua JaCoCo. `lint` kiểm tra workflow và chặn file Excel, dữ liệu trong
 `data_product/`, file `.env` thật và build output.
 
+Để chạy cùng bước Maven với job `test` trên máy, vào thư mục `app/` và chạy
+`./mvnw --batch-mode --no-transfer-progress verify`.
+
 Khi hai job đều xanh trên pull request nội bộ đã sẵn sàng, workflow gọi Reviewer
 của `nexagnet/.github` theo commit đã ghim, dùng Actions secret
 `CLAUDE_CODE_OAUTH_TOKEN` của tổ chức. Các thay đổi CI và đường dẫn nhạy cảm cần
