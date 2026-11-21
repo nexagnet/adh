@@ -136,7 +136,7 @@ Công tắc trên giao diện: **Tạm dừng tất cả chiến dịch** (`/cam
 ## 7. Việc tiếp theo, theo thứ tự ưu tiên
 
 1. **Làm giao diện theo Penpot đã duyệt** (mục 9). Đây là việc người dùng đã bảo "code luôn". Chia PR nhỏ: (a) thanh bên trái + số việc cần làm + "Việc cần làm hôm nay"; (b) thuật ngữ 100% tiếng Việt ("bot"→"trợ lý AI", "CSV"→"Excel", bỏ mã nội bộ, `admin`→"Bố/Mẹ"); (c) chi tiết khách 2 cột + khung xóa dữ liệu màu đỏ; (d) trang khách + 3 trạng thái phụ + chiến dịch + cài đặt gửi tin; (e) giấy in A5 + đường `/n`.
-2. **J&T**: nhận kết quả xác nhận từ hãng (mục 8), rồi làm cổng nạp chung và nhập tăng dần.
+2. **Bộ nhập J&T** (mục 8): đọc theo tên cột, tải nhiều file cùng lúc (mỗi lần xuất tối đa 500 dòng), gộp theo mã vận đơn, tách tỉnh từ "Địa chỉ hành chính"; cổng nạp chung `ShipmentIngest`; nhắc nhập file định kỳ. Không làm đăng nhập tự động hay đọc email OTP.
 3. Chạy thử **Docker/HTTPS thật** trên VPS theo RUNBOOK, đặt `APP_PUBLIC_BASE_URL`, in thử một tờ giấy và quét bằng điện thoại.
 4. Hai tài khoản bố/mẹ (sau khi trả lời Đ1).
 5. Chọn kênh trợ lý và chạy spike ADR-0001; chọn cách báo việc cho mẹ.
@@ -164,11 +164,20 @@ Không đưa dữ liệu thật, SĐT, tên khách hay mã tài khoản vào rep
 3. **12 thẻ trạng thái**: Tất cả, Đợi lấy hàng, Đã lấy hàng, Đang vận chuyển, Giao thành công (con: Kí nhận CPN, Đã đối soát), Đang giao hàng, Đăng ký chuyển hoàn, Đang chuyển hoàn, Ký nhận chuyển hoàn, Kiện vấn đề, Hủy, Kết thúc. Bảng ánh xạ `V3__jt_status_mapping.sql` mới có 5 trạng thái (Đã lấy hàng, Đang vận chuyển, Giao thành công, Hủy, Ký nhận chuyển hoàn). **Các trạng thái còn lại** (Đợi lấy hàng, Đang giao hàng, Đăng ký chuyển hoàn, Đang chuyển hoàn, Kiện vấn đề, Kết thúc, Kí nhận CPN, Đã đối soát) chưa gán nghĩa: để chủ shop chọn ở màn Trạng thái đơn, hoặc đề xuất sẵn nhưng **không tự coi là "Giao thành công"** nếu chưa chắc ("Kết thúc", "Đã đối soát", "Kí nhận CPN" đều có thể là đã giao xong nhưng cần hỏi).
 4. Menu **Thiết lập** (`/setting`) chỉ có: Nội dung ghi chú, Danh sách đen, Cấu hình thông báo đẩy, Danh sách người nhận, Dịch vụ gia tăng. **Không thấy API, token, webhook, tích hợp hay lịch xuất tự động.** Thanh trên còn: Hoàn 1 phần, Sản phẩm, Dòng tiền, Yêu cầu, Chat.
 
-**Chưa biết:** có OTP/captcha khi đăng nhập không; có email báo cáo tự động/API/webhook không (mới chỉ biết không có trong Thiết lập; chưa xem Dòng tiền, Yêu cầu, menu tài khoản); giới hạn số dòng khi xuất và xuất nhiều tháng một lần; "Cấu hình cột" có thêm cột vào file xuất không; menu con của "Đợi lấy hàng"; mã tài khoản trong tên file có cố định không.
+### Bổ sung (cùng ngày, luồng xác thực J&T chạy trên máy người dùng, chỉ đọc)
+5. **Đăng nhập J&T có OTP gửi qua email** => không thể tự đăng nhập ổn định, và không nên đọc email OTP để vượt qua. Không khuyên làm bot đăng nhập.
+6. Màn Đơn hàng **chỉ xem tối đa 1 tháng mỗi lần** và **xuất tối đa 500 dòng mỗi trang**: phải chọn toàn bộ dòng của trang đó rồi mới xuất Excel đủ. Muốn lấy nhiều đơn phải xuất nhiều lần (nhiều khoảng thời gian/nhiều trang), mỗi lần một file.
+7. Đã xem thêm menu tài khoản: **Hồ sơ** (4 thẻ: Thông tin shop, Kho hàng/Trả hàng, Quản lý tài khoản con, Điều khoản và chính sách), **Dòng tiền** (Lịch sử đối soát có cột "Tải về"; nút Rút tiền, Trả cước, Báo cáo), **Yêu cầu** (chỉ là vé hỗ trợ). **Không có API, token, webhook, email báo cáo hay lịch xuất tự động** ở bất kỳ menu nào đã xem.
 
-**Ý nghĩa:** **phương án A (nhập file Excel J&T tăng dần) khả thi và có đủ SĐT.** Bộ nhập J&T cần khớp 14 cột trên, đọc ngày dạng chuỗi, tách tỉnh từ "Địa chỉ hành chính". **Chưa có bằng chứng J&T hỗ trợ tự động hóa chính thức** (API/webhook/báo cáo định kỳ); cần hỏi nhân viên kinh doanh hoặc bưu cục J&T. Cách thực tế nhất hiện nay: mẹ bấm "Xuất" trên cổng J&T (lọc theo thời gian tạo, ví dụ 7 ngày) rồi thả file vào hệ thống.
+**Còn chưa biết:** nút **Báo cáo** ở Dòng tiền (chưa bấm nên chưa biết tải gì); thẻ **Quản lý tài khoản con** (tài khoản con có thể cho một tài khoản riêng chỉ-xuất-file, nhưng vẫn dính OTP email); menu con của "Đợi lấy hàng"; giới hạn khi xuất nhiều tháng (đã biết mỗi lần chỉ xem được 1 tháng); "Cấu hình cột" có thêm cột vào file xuất không; mã tài khoản trong tên file có cố định không.
 
-**Về việc "tự động xuất file hằng ngày":** muốn vậy hệ thống phải tự đăng nhập tài khoản J&T thay mẹ. Rủi ro: (1) phải lưu mật khẩu J&T trên máy chủ, (2) có thể vi phạm điều khoản của J&T và bị khóa tài khoản, (3) hỏng khi J&T bật mã xác minh hoặc đổi giao diện. File 03 mục 2F cũng ghi rõ **không đăng nhập cổng web của hãng bằng mật khẩu của shop**. Các cách tự động an toàn hơn đã đề xuất với người dùng (chưa nhận trả lời):
+**Ý nghĩa và kết luận:** **phương án A (nhập file Excel J&T tăng dần) khả thi và có đủ SĐT, nhưng chỉ bán tự động**: mẹ (hoặc người được giao) đăng nhập J&T bằng OTP email, chọn khoảng thời gian, chọn toàn bộ dòng của trang rồi bấm "Xuất", sau đó thả file vào hệ thống. Thiết kế bộ nhập J&T:
+- Đọc theo **TÊN cột** (14 cột ở trên), không theo vị trí cột; ngày tạo là chuỗi `yyyy-MM-dd HH:mm`; tách tỉnh từ "Địa chỉ hành chính".
+- Mỗi lần xuất tối đa 500 dòng nên cần **tải lên nhiều file J&T trong một lần** và **gộp theo mã vận đơn** (khóa hãng + mã vận đơn; cùng một đơn nằm ở hai file thì lấy bản mới hơn, ghi lịch sử đổi trạng thái); báo cáo xem trước hiển thị số đơn mới, đơn đổi trạng thái, đơn trùng.
+- Nhắc mỗi sáng (hoặc theo tuần) nếu chưa có file mới là tính năng thay cho tự động hóa; **không** tự đăng nhập J&T, **không** đọc email OTP, **không** lưu mật khẩu J&T trên máy chủ.
+- **Chưa có bằng chứng J&T hỗ trợ tự động hóa chính thức** (API/webhook/báo cáo định kỳ); cần hỏi nhân viên kinh doanh hoặc bưu cục J&T nếu muốn đi hướng đó (phương án B, mục 2F file 03).
+
+**Về việc "tự động xuất file hằng ngày":** muốn vậy hệ thống phải tự đăng nhập tài khoản J&T thay mẹ. Rủi ro: (1) phải lưu mật khẩu J&T trên máy chủ, (2) có thể vi phạm điều khoản của J&T và bị khóa tài khoản, (3) **đã xác nhận đăng nhập J&T có OTP qua email** nên không thể tự động ổn định, và đọc email OTP để vượt qua là hướng không nên làm; hỏng khi J&T đổi giao diện. File 03 mục 2F cũng ghi rõ **không đăng nhập cổng web của hãng bằng mật khẩu của shop**. Các cách tự động an toàn hơn đã đề xuất với người dùng (chưa nhận trả lời):
 1. Hỏi J&T xem tài khoản shop có bật được **báo cáo đơn tự gửi mail hằng ngày** hoặc **API riêng** (phương án B) không.
 2. **Thư mục dùng chung** (Google Drive/OneDrive): mẹ chỉ thả file J&T vào, hệ thống nhập mỗi ngày.
 3. Trang nhập file kéo thả kèm **nhắc mỗi sáng** nếu hôm qua chưa có file mới.
