@@ -9,8 +9,8 @@
         <span th:text="${#temporals.format(campaign.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</span></p>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã tạo.</div>
-    <div class="notice">Chế độ thử: <strong>chưa có tin nào được gửi</strong>. "Đã bấm" chỉ là lượt bấm link,
-        không có nghĩa khách đã vào nhóm.</div>
+    <div class="notice">Hệ thống <strong>không tự gửi tin</strong>: gửi thật qua SMS/ZBS đang tắt. Bạn chạy thử để xem sẽ
+        gửi gì, hoặc xuất danh sách để mẹ tự gửi. "Đã bấm" chỉ là lượt bấm link, không có nghĩa khách đã vào nhóm.</div>
 
     <div class="cards">
         <div class="card"><div class="big" th:text="${campaign.total}">0</div><div class="label">Lời mời</div></div>
@@ -22,9 +22,19 @@
     <h2>Nội dung tin (mẫu)</h2>
     <p th:text="${campaign.template}" class="mono">mẫu</p>
 
-    <form th:if="${campaign.ready > 0}" th:action="@{/campaigns/{id}/cancel-unsent(id=${campaign.id})}" method="post">
-        <div class="actions"><button type="submit" class="btn secondary">Hủy các lời mời chưa gửi</button></div>
-    </form>
+    <div class="actions" th:if="${campaign.ready > 0}">
+        <form th:action="@{/campaigns/{id}/dry-run(id=${campaign.id})}" method="post">
+            <button type="submit" class="btn secondary">Chạy thử (không gửi gì)</button>
+        </form>
+        <form th:action="@{/campaigns/{id}/export.csv(id=${campaign.id})}" method="post">
+            <button type="submit" class="btn" th:disabled="${paused}">Xuất danh sách để mẹ gửi tay</button>
+        </form>
+        <form th:action="@{/campaigns/{id}/cancel-unsent(id=${campaign.id})}" method="post">
+            <button type="submit" class="btn secondary">Hủy các lời mời chưa gửi</button>
+        </form>
+    </div>
+    <p class="hint" th:if="${campaign.ready > 0}">Xuất danh sách sẽ đánh dấu các lời mời trong file là "đã gửi" (kênh gửi tay).
+        Hệ thống không biết tin có tới khách hay chưa. Mỗi ngày chỉ xuất tối đa theo hạn mức ở mục Gửi tin.</p>
 
     <h2>Lời mời</h2>
     <div class="table-wrap">
@@ -37,6 +47,7 @@
                     <span class="badge ok" th:if="${r.status == 'SENT'}">Đã gửi</span>
                     <span class="badge ok" th:if="${r.status == 'CLICKED'}">Đã bấm link</span>
                     <span class="badge bad" th:if="${r.status == 'CANCELLED'}">Đã hủy</span>
+                    <span class="badge bad" th:if="${r.status == 'FAILED'}">Gửi lỗi</span>
                     <span class="badge warn" th:if="${r.expired}">Hết hạn</span>
                 </td>
                 <td th:text="${r.groupName}">Nhóm 1</td>

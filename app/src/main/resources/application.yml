@@ -40,3 +40,17 @@ app:
     max-batch: 20
     # Tỷ lệ giả định khách bấm rồi vào nhóm, CHỈ dùng để chia nhóm; không phải số người thật.
     assumed-accept-rate: 0.5
+  sending:
+    # Gửi thật qua dịch vụ bên ngoài. MẶC ĐỊNH TẮT; chỉ chủ cửa hàng bật bằng biến môi trường.
+    # Hiện chưa có bộ gửi SMS/ZBS nào được cài, nên bật cũng chưa gửi được gì qua dịch vụ ngoài.
+    enabled: ${APP_SENDING_ENABLED:false}
+    window-start: "07:00"
+    window-end: "22:00"
+    daily-limit: 20
+    min-gap-seconds: 30
+    max-gap-seconds: 120
+    scheduler-enabled: false
+    monthly-budget-vnd: 1000000
+    stop-after-consecutive-failures: 3
+    stop-failure-rate: 0.3
+    stop-opt-out-rate: 0.05
