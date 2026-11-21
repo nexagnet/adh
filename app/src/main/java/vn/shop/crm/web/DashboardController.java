@@ -9,6 +9,7 @@ import vn.shop.crm.contact.PrivacyService;
 import vn.shop.crm.customers.CustomerService;
 import vn.shop.crm.customers.Segment;
 import vn.shop.crm.imports.ImportService;
+import vn.shop.crm.invite.InviteService;
 import vn.shop.crm.shipping.CanonicalStatus;
 import vn.shop.crm.shipping.Carrier;
 import vn.shop.crm.shipping.StatusMappingService;
@@ -27,9 +28,12 @@ public class DashboardController {
     private final StatusMappingService statuses;
     private final ContactService contacts;
     private final PrivacyService privacy;
+    private final InviteService invites;
 
     public DashboardController(JdbcClient jdbc, CustomerService customers, ImportService imports,
-                               StatusMappingService statuses, ContactService contacts, PrivacyService privacy) {
+                               StatusMappingService statuses, ContactService contacts, PrivacyService privacy,
+                               InviteService invites) {
+        this.invites = invites;
         this.contacts = contacts;
         this.privacy = privacy;
         this.jdbc = jdbc;
@@ -58,6 +62,7 @@ public class DashboardController {
         model.addAttribute("none", bySegment.get(Segment.NO_SUCCESSFUL_PURCHASE));
         model.addAttribute("review", customers.countNeedsReview());
         model.addAttribute("contact", contacts.stats());
+        model.addAttribute("invites", invites.stats());
         model.addAttribute("privacyOpen", privacy.openCount());
         model.addAttribute("privacyOverdue", privacy.overdueCount());
         model.addAttribute("unmapped", statuses.unmapped().size());

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title th:text="${shopName} + ' - Nhóm Zalo chăm sóc khách'">Nhóm Zalo</title>
+    <link rel="stylesheet" th:href="@{/app.css}">
+</head>
+<body class="landing">
+<main>
+    <h1>Chào bạn, đây là <span th:text="${shopName}">Cửa hàng</span></h1>
+    <p>Cảm ơn bạn đã mua hàng. Cửa hàng lập một nhóm Zalo nhỏ để hướng dẫn sử dụng và giải đáp thắc mắc cho khách đã mua.</p>
+    <p><strong>Bạn không bắt buộc tham gia.</strong></p>
+    <form th:action="@{/i/{token}/go(token=${token})}" method="post">
+        <button type="submit" class="btn">Vào nhóm Zalo</button>
+    </form>
+    <p class="small">Nếu không muốn vào nhóm, bạn chỉ cần đóng trang này. Bạn vẫn mua hàng và gọi điện cho cửa hàng như bình thường.
+        <span th:if="${!shopPhone.isEmpty()}">Điện thoại cửa hàng: <strong th:text="${shopPhone}">0900000000</strong>.</span></p>
+    <form th:action="@{/i/{token}/stop(token=${token})}" method="post">
+        <button type="submit" class="linklike">Tôi không muốn nhận tin từ cửa hàng nữa</button>
+    </form>
+</main>
+</body>
+</html>

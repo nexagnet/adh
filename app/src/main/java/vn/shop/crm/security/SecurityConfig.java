@@ -23,13 +23,21 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                // Trang mời công khai: chỉ POST "vào nhóm"/"ngừng nhận tin", idempotent và chỉ dùng token ngẫu nhiên,
+                // không có phiên đăng nhập nên miễn CSRF để khách không phải mang cookie.
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/i/**"))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/login", "/app.css", "/error").permitAll()
+                        .requestMatchers("/login", "/app.css", "/error", "/i/**").permitAll()
                         .anyRequest().authenticated())
                 .formLogin(form -> form.loginPage("/login").defaultSuccessUrl("/", true).permitAll())
                 .logout(logout -> logout.logoutSuccessUrl("/login?logout"))
-                .headers(headers -> headers.contentSecurityPolicy(csp -> csp.policyDirectives(
-                        "default-src 'self'; style-src 'self'; form-action 'self'; frame-ancestors 'none'")));
+                .headers(headers -> headers
+                        // Token nằm trong URL: không gửi Referer sang trang khác (ví dụ zalo.me).
+                        .referrerPolicy(r -> r.policy(
+                                org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter
+                                        .ReferrerPolicy.NO_REFERRER))
+                        .contentSecurityPolicy(csp -> csp.policyDirectives(
+                                "default-src 'self'; style-src 'self'; form-action 'self'; frame-ancestors 'none'")));
         return http.build();
     }
 

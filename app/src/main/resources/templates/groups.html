@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Nhóm Zalo')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <h1>Nhóm Zalo</h1>
+    <p class="hint">Mẹ tạo nhóm trên Zalo thật rồi dán link vào đây. Mỗi nhóm nhắm khoảng 5 khách, lệch một ít cũng được.
+        Số khách <strong>không tính tài khoản mẹ và tài khoản bot</strong>
+        (tổng thành viên thường là số khách + <span th:text="${storeAccounts}">2</span>).
+        Số khách thật do mẹ đếm rồi nhập tay; "lượt bấm chờ" chỉ là ước lượng để chia nhóm, không phải số người đã vào.</p>
+
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
+
+    <h2>Thêm nhóm</h2>
+    <form class="inline" th:action="@{/groups}" method="post">
+        <input type="text" name="name" placeholder="Tên nhóm" required maxlength="100">
+        <input type="text" name="link" placeholder="Link https://zalo.me/g/... (có thể để trống)" size="36" maxlength="300">
+        <input type="number" name="target" value="5" min="1" max="500" title="Mục tiêu số khách">
+        <button type="submit" class="btn">Thêm nhóm</button>
+    </form>
+
+    <h2>Các nhóm (<span th:text="${groups.size()}">0</span>)</h2>
+    <div class="table-wrap" th:if="${!groups.isEmpty()}">
+        <table>
+            <tr><th>Tên</th><th>Trạng thái</th><th class="num">Khách thật / mục tiêu</th><th class="num">Lượt bấm chờ</th><th>Thao tác</th></tr>
+            <tr th:each="g : ${groups}">
+                <td><strong th:text="${g.name}">Nhóm 1</strong>
+                    <div class="muted mono" th:if="${g.hasLink()}" th:text="${g.inviteLink}">https://zalo.me/g/x</div>
+                    <div class="muted" th:unless="${g.hasLink()}">Chưa có link</div>
+                    <div class="muted" th:if="${g.note != null}" th:text="${g.note}">ghi chú</div></td>
+                <td>
+                    <span class="badge ok" th:if="${g.status.name() == 'OPEN'}" th:text="${g.status.label()}">Đang nhận khách</span>
+                    <span class="badge warn" th:unless="${g.status.name() == 'OPEN'}" th:text="${g.status.label()}">Tạm dừng</span>
+                    <div class="muted" th:if="${g.status.name() == 'OPEN' and g.full()}">Gần đủ: tạm không cấp link mới</div>
+                </td>
+                <td class="num"><span th:text="${g.actual}">0</span> / <span th:text="${g.target}">5</span>
+                    <div class="muted" th:if="${g.countedAt != null}"
+                         th:text="'đếm ' + ${#temporals.format(g.countedAt, 'dd/MM HH:mm')}">đếm 01/01 10:00</div></td>
+                <td class="num" th:text="${g.pendingClicks}">0</td>
+                <td>
+                    <form class="inline" th:action="@{/groups/{id}/count(id=${g.id})}" method="post">
+                        <input type="number" name="actual" min="0" max="1000" th:value="${g.actual}" title="Số khách thật (không tính mẹ, bot)">
+                        <button type="submit" class="btn secondary">Cập nhật số khách</button>
+                    </form>
+                    <form class="inline" th:action="@{/groups/{id}/status(id=${g.id})}" method="post">
+                        <select name="status">
+                            <option th:each="s : ${statuses}" th:value="${s.name()}" th:text="${s.label()}"
+                                    th:selected="${s == g.status}">Đang nhận khách</option>
+                        </select>
+                        <button type="submit" class="btn secondary">Đổi trạng thái</button>
+                    </form>
+                    <details>
+                        <summary>Sửa tên, link, mục tiêu</summary>
+                        <form class="inline" th:action="@{/groups/{id}/update(id=${g.id})}" method="post">
+                            <input type="text" name="name" th:value="${g.name}" required maxlength="100">
+                            <input type="text" name="link" th:value="${g.inviteLink}" size="36" maxlength="300" placeholder="https://zalo.me/g/...">
+                            <input type="number" name="target" th:value="${g.target}" min="1" max="500">
+                            <input type="text" name="note" th:value="${g.note}" placeholder="Ghi chú" maxlength="200">
+                            <button type="submit" class="btn">Lưu</button>
+                        </form>
+                    </details>
+                </td>
+            </tr>
+        </table>
+    </div>
+    <p class="muted" th:if="${groups.isEmpty()}">Chưa có nhóm nào. Nên bắt đầu với 2–3 nhóm nhỏ, không tạo sẵn hàng chục nhóm.</p>
+</main>
+</body>
+</html>

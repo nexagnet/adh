@@ -30,3 +30,13 @@ app:
   imports:
     max-rows: 50000
     max-uncompressed-bytes: 104857600
+  # Địa chỉ công khai của ứng dụng, dùng để ghép link mời /i/<token>. Đặt APP_PUBLIC_BASE_URL khi chạy thật.
+  public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:8080}
+  shop-name: ${APP_SHOP_NAME:Cửa hàng}
+  # Số điện thoại cửa hàng hiển thị trên trang khách bấm link (có thể để trống).
+  shop-phone: ${APP_SHOP_PHONE:}
+  invitations:
+    # Mỗi lô mời tối đa bao nhiêu khách (gửi chậm, theo lô nhỏ).
+    max-batch: 20
+    # Tỷ lệ giả định khách bấm rồi vào nhóm, CHỈ dùng để chia nhóm; không phải số người thật.
+    assumed-accept-rate: 0.5

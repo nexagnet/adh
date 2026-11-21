@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Chiến dịch mời')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <h1>Chiến dịch mời vào nhóm</h1>
+    <p class="hint">Mỗi chiến dịch là một lô nhỏ khách đã được duyệt (mục Danh sách mời), mỗi khách chỉ được mời một lần.
+        Tin nhằm kết nối và chăm sóc khách đã mua, không phải quảng cáo sản phẩm. Hiện ở <strong>chế độ thử</strong>:
+        hệ thống chỉ tạo link riêng và đếm lượt bấm, chưa gửi tin cho ai.</p>
+
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã tạo.</div>
+
+    <div class="notice bad" th:if="${paused}">
+        <strong>Đang TẠM DỪNG tất cả chiến dịch.</strong>
+        <span th:if="${!pausedReason.isEmpty()}" th:text="'Lý do: ' + ${pausedReason}">Lý do</span>
+        <form th:action="@{/campaigns/resume-all}" method="post" class="inline">
+            <button type="submit" class="btn">Bỏ tạm dừng</button>
+        </form>
+    </div>
+
+    <div class="cards">
+        <div class="card"><div class="big" th:text="${contact.eligible}">0</div><div class="label">Đã duyệt, đủ điều kiện mời</div></div>
+        <div class="card"><div class="big" th:text="${stats.invitations}">0</div><div class="label">Lời mời đã tạo</div></div>
+        <div class="card"><div class="big" th:text="${stats.clicked}">0</div><div class="label">Lượt bấm link (không phải số người đã vào nhóm)</div></div>
+        <a class="card" th:href="@{/groups}"><div class="big" th:text="${stats.openGroups}">0</div><div class="label">Nhóm đang nhận khách</div></a>
+    </div>
+
+    <h2>Tạo chiến dịch mới</h2>
+    <form th:action="@{/campaigns}" method="post" th:unless="${paused}">
+        <label>Tên chiến dịch <input type="text" name="name" required maxlength="100" placeholder="Ví dụ: Đợt thử 1"></label>
+        <label>Số khách trong lô (tối đa <span th:text="${maxBatch}">20</span>)
+            <input type="number" name="count" value="10" min="1" th:max="${maxBatch}" required></label>
+        <label>Link có hiệu lực (ngày) <input type="number" name="expiresDays" value="14" min="1" max="90" required></label>
+        <label>Nội dung tin (phải có {link}; có thể dùng {ten} và {cua_hang})
+            <textarea name="template" rows="4" maxlength="500" th:text="${defaultTemplate}"></textarea></label>
+        <div class="actions"><button type="submit" class="btn">Tạo lô thử</button></div>
+    </form>
+
+    <h2>Các chiến dịch</h2>
+    <div class="table-wrap" th:if="${!campaigns.isEmpty()}">
+        <table>
+            <tr><th>Tên</th><th>Tạo lúc</th><th class="num">Lời mời</th><th class="num">Chưa gửi</th><th class="num">Đã gửi</th><th class="num">Đã bấm</th></tr>
+            <tr th:each="c : ${campaigns}">
+                <td><a th:href="@{/campaigns/{id}(id=${c.id})}" th:text="${c.name}">Đợt 1</a></td>
+                <td th:text="${#temporals.format(c.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
+                <td class="num" th:text="${c.total}">0</td>
+                <td class="num" th:text="${c.ready}">0</td>
+                <td class="num" th:text="${c.sent}">0</td>
+                <td class="num" th:text="${c.clicked}">0</td>
+            </tr>
+        </table>
+    </div>
+    <p class="muted" th:if="${campaigns.isEmpty()}">Chưa có chiến dịch nào.</p>
+
+    <h2>Tạm dừng khẩn cấp</h2>
+    <form th:action="@{/campaigns/pause-all}" method="post" class="inline" th:unless="${paused}">
+        <input type="text" name="reason" placeholder="Lý do (không bắt buộc)" maxlength="200">
+        <button type="submit" class="btn danger">Tạm dừng TẤT CẢ chiến dịch</button>
+    </form>
+</main>
+</body>
+</html>

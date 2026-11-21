@@ -44,7 +44,8 @@ public abstract class AbstractPostgresTest {
         jdbc.sql("""
                 TRUNCATE shipment_status_history, shipment, customer, import_error, import_batch,
                          column_mapping, import_setting, contact_basis, customer_note, suppression, contact_event,
-                         data_request RESTART IDENTITY CASCADE""").update();
+                         data_request, invitation, invitation_campaign, zalo_group, app_setting
+                         RESTART IDENTITY CASCADE""").update();
         jdbc.sql("DELETE FROM status_mapping WHERE carrier <> 'VIETTEL_POST'").update();
         jdbc.sql("DELETE FROM status_mapping WHERE status_key = 'cho xu ly'").update();
     }
