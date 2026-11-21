@@ -26,6 +26,7 @@ public class DashboardController {
     private final JdbcClient jdbc;
     private final CustomerService customers;
     private final ImportService imports;
+    private final vn.shop.crm.imports.ExportWindowService exportWindow;
     private final StatusMappingService statuses;
     private final ContactService contacts;
     private final PrivacyService privacy;
@@ -39,8 +40,10 @@ public class DashboardController {
                                StatusMappingService statuses, ContactService contacts, PrivacyService privacy,
                                InviteService invites, HandoffService handoffs,
                                vn.shop.crm.map.WeatherService weather, vn.shop.crm.invite.GroupService groups,
+                               vn.shop.crm.imports.ExportWindowService exportWindow,
                                @org.springframework.beans.factory.annotation.Value("${app.imports.remind-days:7}") int importRemindDays) {
         this.importRemindDays = importRemindDays;
+        this.exportWindow = exportWindow;
         this.groups = groups;
         this.weather = weather;
         this.invites = invites;
@@ -85,7 +88,7 @@ public class DashboardController {
         model.addAttribute("freeSpots", openGroups.stream().mapToInt(vn.shop.crm.invite.GroupService.Group::spotsLeft).sum());
         model.addAttribute("groupsNeedRecount", openGroups.stream()
                 .filter(vn.shop.crm.invite.GroupService.Group::needsRecount).count());
-        model.addAttribute("staleImports", imports.staleCarriers(importRemindDays));
+        model.addAttribute("exportDue", exportWindow.overdue());
         model.addAttribute("importRemindDays", importRemindDays);
         model.addAttribute("weatherAlerts", weather.alerts());
         model.addAttribute("batches", imports.list().stream().limit(5).toList());

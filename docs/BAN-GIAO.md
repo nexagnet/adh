@@ -191,6 +191,13 @@ Chỉ khi người dùng **hiểu rủi ro và đồng ý rõ ràng bằng lời
 
 ---
 
+### Báo cần xuất Excel từ ngày nào (J&T, đồng bộ làm tay)
+
+- Chủ shop chốt (21/11/2026): đồng bộ J&T làm **tay** (mẹ xuất Excel rồi thả vào Adh), không tích hợp chính thức, không tự đăng nhập.
+- `imports/ExportWindowService`: mốc "xuất từ" = **thời gian tạo đơn lớn nhất đã nhập** (không dùng giờ trong tên file) trừ `app.imports.overlap-days` (14, đề xuất chưa đo thực tế); lùi thêm tới đơn cũ nhất chưa có kết quả cuối (Giao thành công, Hủy, Ký nhận chuyển hoàn) nếu đơn đó trong `app.imports.lookback-days` (30). Đơn treo quá cũ (ví dụ "Đã lấy hàng" từ tháng 6 đến 7/2026) chỉ được đếm riêng, không kéo mốc lùi mãi và không bao giờ là mua thành công.
+- Chia khoảng: J&T chỉ lọc tối đa 1 tháng và 500 đơn mỗi lần, nên khoảng dài hơn 31 ngày hoặc ước tính gần 500 đơn được chia thành các khoảng liền nhau. Hiện ở trang Nhập file mới và thành việc trên Tổng quan khi quá `app.imports.remind-days`.
+- **Chưa làm:** file "Lịch sử đối soát" (Mã đơn KH, thời gian ký nhận, tiêu đề ở dòng 3, kỳ đối soát thứ 2/4/6) chưa có importer, cần file mẫu thật; trạng thái "Kiện vấn đề" vẫn cố ý để chủ shop chọn nghĩa ở màn Trạng thái đơn; chưa cảnh báo khi một file đúng 500 dòng (có thể bị cắt).
+
 ## 9. Giao diện Penpot đã duyệt (đã code, chưa xem bằng mắt)
 
 > Cập nhật: các mục (a)–(e) của mục 7.1 đã code. Còn thiếu: tài khoản Bố và Mẹ riêng (chờ Đ1), cách báo việc cho mẹ (chờ chọn), xem thử bằng trình duyệt thật và in thử giấy A5, "Khách đổi nhóm" ở màn xem trước nhập file. Giấy in mặc định A5; chữ mặc định theo kiểu "anh/chị" (đổi được ở trang In giấy giới thiệu).

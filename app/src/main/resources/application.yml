@@ -35,6 +35,10 @@ app:
     max-uncompressed-bytes: 104857600
     # Nhắc trên Tổng quan khi một hãng đã nhập file mà quá chừng này ngày chưa có file mới (thay cho tự động hóa).
     remind-days: 7
+    # File xuất lần tới lùi lại chừng này ngày so với đơn mới nhất đã nhập (trạng thái đơn đổi sau khi tạo). Đề xuất, chưa đo thực tế.
+    overlap-days: 14
+    # Đơn chưa có kết quả cuối chỉ kéo mốc xuất lùi tối đa chừng này ngày (đơn "Đã lấy hàng" từ nhiều tháng trước không kéo mãi).
+    lookback-days: 30
   # Địa chỉ công khai của ứng dụng, dùng để ghép link mời /i/<token>. Đặt APP_PUBLIC_BASE_URL khi chạy thật.
   public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:8080}
   shop-name: ${APP_SHOP_NAME:Cửa hàng}
