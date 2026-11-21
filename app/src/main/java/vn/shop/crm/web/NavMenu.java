@@ -42,8 +42,13 @@ public class NavMenu {
         if (path == null || path.isEmpty()) {
             return "/";
         }
-        if (path.startsWith("/customers")) {
-            return "REPEAT".equals(segment) ? "/customers/repeat" : "/customers/one-time";
+        if ("/customers".equals(path) || path.matches("/customers/\\d+")) {
+            if ("REPEAT".equals(segment)) {
+                return "/customers/repeat";
+            }
+            if ("ONE_TIME".equals(segment) || path.length() > "/customers".length()) {
+                return "/customers/one-time";
+            }
         }
         return path;
     }

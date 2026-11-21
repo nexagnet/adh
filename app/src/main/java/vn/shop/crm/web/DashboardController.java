@@ -78,7 +78,7 @@ public class DashboardController {
         model.addAttribute("shipments", shipments);
         model.addAttribute("totalShipments", totalShipments);
         var openGroups = groups.list().stream()
-                .filter(g -> g.status() == vn.shop.crm.invite.GroupStatus.OPEN).toList();
+                .filter(g -> g.status() == vn.shop.crm.invite.GroupStatus.OPEN && g.hasLink()).toList();
         model.addAttribute("freeSpots", openGroups.stream().mapToInt(vn.shop.crm.invite.GroupService.Group::spotsLeft).sum());
         model.addAttribute("groupsNeedRecount", openGroups.stream()
                 .filter(vn.shop.crm.invite.GroupService.Group::needsRecount).count());

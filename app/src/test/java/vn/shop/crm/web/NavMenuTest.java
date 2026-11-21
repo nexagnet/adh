@@ -48,6 +48,9 @@ class NavMenuTest extends AbstractPostgresTest {
         assertThat(NavMenu.keyOf("/customers", "REPEAT")).isEqualTo("/customers/repeat");
         assertThat(NavMenu.keyOf("/customers/12", null)).isEqualTo("/customers/one-time");
         assertThat(NavMenu.keyOf("/groups", null)).isEqualTo("/groups");
+        // xuất file và lọc "cần kiểm tra" không tô sai mục
+        assertThat(NavMenu.keyOf("/customers/export.csv", "ONE_TIME")).isEqualTo("/customers/export.csv");
+        assertThat(NavMenu.keyOf("/customers", null)).isEqualTo("/customers");
     }
 
     @Test
