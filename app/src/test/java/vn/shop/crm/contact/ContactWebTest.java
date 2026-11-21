@@ -141,7 +141,7 @@ class ContactWebTest extends AbstractPostgresTest {
                 .andExpect(content().string(containsString("Xóa dữ liệu")))
                 .andExpect(content().string(containsString("***678")));
         mvc.perform(get("/").with(owner)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("Yêu cầu của khách chưa xử lý")))
+                .andExpect(content().string(containsString("yêu cầu của khách chưa xử lý")))
                 .andExpect(content().string(containsString("Đủ điều kiện mời")));
     }
 }

@@ -7,22 +7,15 @@
     <link rel="stylesheet" th:href="@{/app.css}">
 </head>
 <body>
-<nav th:fragment="nav" class="nav">
-    <a th:href="@{/}">Tổng quan</a>
-    <a th:href="@{/imports}">Nhập đơn</a>
-    <a th:href="@{/contacts}">Danh sách mời</a>
-    <a th:href="@{/campaigns}">Chiến dịch mời</a>
-    <a th:href="@{/groups}">Nhóm Zalo</a>
-    <a th:href="@{/map}">Bản đồ khách</a>
-    <a th:href="@{/print}">In giấy giới thiệu</a>
-    <a th:href="@{/sending}">Gửi tin</a>
-    <a th:href="@{/bot}">Bot</a>
-    <a th:href="@{/handoffs}">Việc cần mẹ xử lý</a>
-    <a th:href="@{/customers(segment=ONE_TIME)}">Khách mua 1 lần</a>
-    <a th:href="@{/customers(segment=REPEAT)}">Khách mua từ 2 lần</a>
-    <a th:href="@{/status-mappings}">Trạng thái đơn</a>
-    <a th:href="@{/privacy}">Yêu cầu của khách</a>
-    <span class="spacer"></span>
+<nav th:fragment="nav" class="nav" aria-label="Menu chính">
+    <a class="brand" th:href="@{/}">Chăm sóc khách</a>
+    <div class="nav-group" th:each="g : ${@navMenu.groups(navKey)}">
+        <div class="nav-title" th:text="${g.title}">Khách hàng</div>
+        <a th:each="i : ${g.items}" th:href="@{${i.url}}" th:classappend="${i.active} ? 'active'">
+            <span th:text="${i.label}">Tổng quan</span>
+            <span class="count" th:if="${i.hasBadge()}" th:text="${i.badge}">3</span>
+        </a>
+    </div>
     <form th:action="@{/logout}" method="post">
         <button type="submit">Đăng xuất</button>
     </form>

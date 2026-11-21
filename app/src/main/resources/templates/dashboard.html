@@ -17,6 +17,42 @@
         <a th:href="@{/map}">Xem bản đồ và chi tiết</a>
     </div>
 
+    <section class="todo" th:if="${totalShipments > 0}">
+        <h2>Việc cần làm hôm nay</h2>
+        <ul>
+            <li th:if="${contact.candidates > 0}">
+                <span><span class="todo-num" th:text="${contact.candidates}">0</span>khách mua 1 lần đang chờ duyệt mời</span>
+                <a class="btn" th:href="@{/contacts}">Duyệt danh sách mời</a>
+            </li>
+            <li th:if="${privacyOpen > 0}">
+                <span><span class="todo-num" th:text="${privacyOpen}">0</span>yêu cầu của khách chưa xử lý<strong
+                    class="warn-text" th:if="${privacyOverdue > 0}" th:text="' (' + ${privacyOverdue} + ' quá hạn)'"></strong></span>
+                <a class="btn" th:href="@{/privacy}">Xem yêu cầu</a>
+            </li>
+            <li th:if="${handoffOpen > 0}">
+                <span><span class="todo-num" th:text="${handoffOpen}">0</span>việc trợ lý AI chuyển cho mẹ</span>
+                <a class="btn" th:href="@{/handoffs}">Xem việc cần mẹ xử lý</a>
+            </li>
+            <li th:if="${unmapped > 0}">
+                <span><span class="todo-num" th:text="${unmapped}">0</span>trạng thái đơn chưa rõ nghĩa</span>
+                <a class="btn" th:href="@{/status-mappings}">Chọn nghĩa</a>
+            </li>
+            <li th:if="${review > 0}">
+                <span><span class="todo-num" th:text="${review}">0</span>khách cần kiểm tra lại</span>
+                <a class="btn secondary" th:href="@{/customers(review=true)}">Xem khách</a>
+            </li>
+            <li th:if="${groupsNeedRecount > 0}">
+                <span><span class="todo-num" th:text="${groupsNeedRecount}">0</span>nhóm Zalo chưa đếm lại thành viên trong 7 ngày</span>
+                <a class="btn secondary" th:href="@{/groups}">Đếm lại nhóm</a>
+            </li>
+            <li class="todo-empty"
+                th:if="${contact.candidates == 0 and privacyOpen == 0 and handoffOpen == 0 and unmapped == 0 and review == 0 and groupsNeedRecount == 0}">
+                Hôm nay chưa có việc nào cần làm.
+            </li>
+        </ul>
+    </section>
+
+    <h2>Khách hàng</h2>
     <div class="cards">
         <a class="card" th:href="@{/customers(segment=ONE_TIME)}">
             <div class="big" th:text="${oneTime}">0</div>
@@ -30,9 +66,13 @@
             <div class="big" th:text="${none}">0</div>
             <div class="label">Chưa có đơn giao thành công</div>
         </a>
+    </div>
+
+    <h2>Mời vào nhóm</h2>
+    <div class="cards">
         <a class="card" th:href="@{/contacts}">
             <div class="big" th:text="${contact.eligible}">0</div>
-            <div class="label">Đủ điều kiện mời (<span th:text="${contact.candidates}">0</span> chờ duyệt)</div>
+            <div class="label">Đủ điều kiện mời (đã duyệt)</div>
         </a>
         <a class="card" th:href="@{/campaigns}">
             <div class="big" th:text="${invites.clicked}">0</div>
@@ -42,29 +82,16 @@
             <div class="big" th:text="${invites.openGroups}">0</div>
             <div class="label">Nhóm Zalo đang nhận khách</div>
         </a>
-        <a class="card warn" th:if="${handoffOpen > 0}" th:href="@{/handoffs}">
-            <div class="big" th:text="${handoffOpen}">0</div>
-            <div class="label">Việc bot báo mẹ xử lý</div>
-        </a>
-        <a class="card warn" th:if="${privacyOpen > 0}" th:href="@{/privacy}">
-            <div class="big" th:text="${privacyOpen}">0</div>
-            <div class="label">Yêu cầu của khách chưa xử lý<span th:if="${privacyOverdue > 0}"
-                th:text="' (' + ${privacyOverdue} + ' quá hạn)'"></span></div>
-        </a>
-        <a class="card warn" th:if="${review > 0}" th:href="@{/customers(review=true)}">
-            <div class="big" th:text="${review}">0</div>
-            <div class="label">Khách cần kiểm tra</div>
-        </a>
-        <a class="card warn" th:if="${unmapped > 0}" th:href="@{/status-mappings}">
-            <div class="big" th:text="${unmapped}">0</div>
-            <div class="label">Trạng thái đơn chưa rõ nghĩa</div>
+        <a class="card" th:href="@{/groups}">
+            <div class="big" th:text="${freeSpots}">0</div>
+            <div class="label">Chỗ trống ước tính trong các nhóm đang nhận</div>
         </a>
     </div>
 
     <div class="actions">
         <a class="btn" th:href="@{/imports/new}">Nhập file đơn hàng</a>
-        <a class="btn secondary" th:href="@{/customers/export.csv(segment=ONE_TIME)}">Tải danh sách mua 1 lần (CSV)</a>
-        <a class="btn secondary" th:href="@{/customers/export.csv(segment=REPEAT)}">Tải danh sách mua từ 2 lần (CSV)</a>
+        <a class="btn secondary" th:href="@{/customers/export.csv(segment=ONE_TIME)}">Tải danh sách mua 1 lần (mở bằng Excel)</a>
+        <a class="btn secondary" th:href="@{/customers/export.csv(segment=REPEAT)}">Tải danh sách mua từ 2 lần (mở bằng Excel)</a>
     </div>
 
     <h2>Đơn hàng theo hãng và trạng thái</h2>
