@@ -5,6 +5,7 @@
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
     <h1>Chọn cột dữ liệu</h1>
+    <ol th:replace="~{fragments :: steps(2)}"></ol>
     <p class="hint">
         File <strong th:text="${view.batch.filename}">file.csv</strong> —
         <span th:text="${view.batch.carrier.label()}">Viettel Post</span>.
@@ -34,6 +35,11 @@
     <form th:action="@{/imports/{id}/preview(id=${view.batch.id})}" method="post">
         <input type="hidden" name="headerRow" th:value="${headerRow}">
         <h2>Cột nào là gì?</h2>
+        <div class="notice" th:if="${selected.get(T(vn.shop.crm.imports.FieldKey).ORDER_REF) == null}">
+            <strong>Chưa chọn cột mã đơn hàng của shop.</strong> Khi không có mã đơn, mỗi vận đơn được tính là một lần mua riêng,
+            nên đơn tách thành nhiều kiện có thể bị đếm dư. Những khách có thể bị đếm dư sẽ được gắn "cần kiểm tra".
+        </div>
+        <p class="hint">Cách chọn cột được nhớ cho lần nhập sau của cùng hãng khi bạn xác nhận nhập.</p>
         <div th:each="f : ${fields}">
             <label th:for="${'col_' + f.name()}">
                 <span th:text="${f.label()}">Mã vận đơn</span>

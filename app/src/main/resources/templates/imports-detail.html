@@ -5,6 +5,7 @@
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
     <h1>Kết quả nhập</h1>
+    <ol th:replace="~{fragments :: steps(4)}"></ol>
     <p class="hint">
         <span th:text="${batch.carrier.label()}">Viettel Post</span> —
         <strong th:text="${batch.filename}">file.csv</strong>

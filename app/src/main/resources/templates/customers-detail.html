@@ -33,6 +33,54 @@
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
 
+    <div class="cols2">
+    <div class="col-main">
+    <h2>Các lần mua và vận đơn tạo ra kết quả này</h2>
+    <div class="table-wrap">
+        <table>
+            <tr>
+                <th>Lần mua</th><th>Hãng</th><th>Mã vận đơn</th><th>Trạng thái gốc</th>
+                <th>Trạng thái chuẩn</th><th>Ngày tạo</th><th>Tính?</th>
+            </tr>
+            <th:block th:each="p, st : ${detail.classification.purchases}">
+                <tr th:each="s : ${p.shipments}">
+                    <td th:text="'#' + ${st.count} + (${p.hasOrderRef} ? ' (mã đơn ' + ${detail.shipments[s.id()].orderRef} + ')' : ' (không có mã đơn)')">#1</td>
+                    <td th:text="${detail.shipments[s.id()].carrier.label()}">Viettel Post</td>
+                    <td class="mono" th:text="${detail.shipments[s.id()].trackingNo}">VTP001</td>
+                    <td th:text="${detail.shipments[s.id()].rawStatus}">Giao thành công</td>
+                    <td th:text="${detail.shipments[s.id()].status.label()}">Giao thành công</td>
+                    <td th:text="${detail.shipments[s.id()].createdOn != null} ? ${#temporals.format(detail.shipments[s.id()].createdOn, 'dd/MM/yyyy')} : ''">01/01/2026</td>
+                    <td>
+                        <span class="badge ok" th:if="${p.successful}">Có</span>
+                        <span class="badge" th:unless="${p.successful}">Không</span>
+                    </td>
+                </tr>
+            </th:block>
+        </table>
+    </div>
+
+    <h2>Ghi chú của bố mẹ</h2>
+    <form th:action="@{/customers/{id}/note(id=${detail.customer.id})}" method="post">
+        <textarea name="note" rows="3" maxlength="2000" th:text="${note}"
+                  placeholder="Ví dụ: khách quen, đã gọi điện hỏi thăm ngày ..."></textarea>
+        <div class="actions"><button type="submit" class="btn secondary">Lưu ghi chú</button></div>
+    </form>
+
+    <h2 th:if="${!events.isEmpty()}">Nhật ký</h2>
+    <div class="table-wrap" th:if="${!events.isEmpty()}">
+        <table>
+            <tr><th>Lúc</th><th>Việc</th><th>Chi tiết</th><th>Ai</th></tr>
+            <tr th:each="e : ${events}">
+                <td th:text="${#temporals.format(e.recordedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
+                <td th:text="${@labels.contactEvent(e.event)}">Duyệt vào danh sách mời</td>
+                <td th:text="${e.detail}">chi tiết</td>
+                <td th:text="${@labels.person(e.recordedBy)}">Bố/Mẹ</td>
+            </tr>
+        </table>
+    </div>
+    </div>
+
+    <div class="col-side">
     <h2>Cơ sở liên hệ (mời vào nhóm sau bán hàng)</h2>
     <div th:if="${suppressed}" class="notice bad">
         <strong>Số này nằm trong danh sách từ chối hoặc đã xóa.</strong> Không bao giờ được liên hệ.
@@ -65,16 +113,13 @@
         </form>
     </div>
 
-    <h2>Ghi chú của bố mẹ</h2>
-    <form th:action="@{/customers/{id}/note(id=${detail.customer.id})}" method="post">
-        <textarea name="note" rows="3" maxlength="2000" th:text="${note}"
-                  placeholder="Ví dụ: khách quen, đã gọi điện hỏi thăm ngày ..."></textarea>
-        <div class="actions"><button type="submit" class="btn secondary">Lưu ghi chú</button></div>
-    </form>
+    <h2>Lời mời vào nhóm</h2>
+    <p><span class="badge" th:text="${inviteState.invitation}">Chưa mời</span>
+        <span class="muted" th:if="${detail.customer.segment.name() != 'ONE_TIME'}">Khách này không nằm trong danh sách mời.</span></p>
 
     <h2>Yêu cầu của khách về dữ liệu của họ</h2>
-    <p class="hint">Khi khách nhắn yêu cầu, ghi nhận ngay để bộ đếm hạn phản hồi chạy. Hạn mặc định
-        15 ngày kể từ ngày khách gửi (chưa có xác nhận pháp lý, xem trang Yêu cầu của khách).</p>
+    <p class="hint">Khi khách nhắn yêu cầu, ghi nhận ngay để bộ đếm hạn phản hồi chạy. Hạn theo loại yêu cầu
+        (xem, xuất, ngừng liên hệ: 2 ngày làm việc; xóa: 20 ngày; chưa có xác nhận pháp lý, xem trang Yêu cầu của khách).</p>
     <form th:action="@{/customers/{id}/privacy/open(id=${detail.customer.id})}" method="post" class="inline">
         <select name="kind">
             <option value="ACCESS">Xem dữ liệu</option>
@@ -105,42 +150,9 @@
         </form>
     </details>
 
-    <h2 th:if="${!events.isEmpty()}">Nhật ký</h2>
-    <div class="table-wrap" th:if="${!events.isEmpty()}">
-        <table>
-            <tr><th>Lúc</th><th>Việc</th><th>Chi tiết</th><th>Ai</th></tr>
-            <tr th:each="e : ${events}">
-                <td th:text="${#temporals.format(e.recordedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
-                <td th:text="${@labels.contactEvent(e.event)}">Duyệt vào danh sách mời</td>
-                <td th:text="${e.detail}">chi tiết</td>
-                <td th:text="${@labels.person(e.recordedBy)}">Bố/Mẹ</td>
-            </tr>
-        </table>
+    </div>
     </div>
 
-    <h2>Các lần mua và vận đơn tạo ra kết quả này</h2>
-    <div class="table-wrap">
-        <table>
-            <tr>
-                <th>Lần mua</th><th>Hãng</th><th>Mã vận đơn</th><th>Trạng thái gốc</th>
-                <th>Trạng thái chuẩn</th><th>Ngày tạo</th><th>Tính?</th>
-            </tr>
-            <th:block th:each="p, st : ${detail.classification.purchases}">
-                <tr th:each="s : ${p.shipments}">
-                    <td th:text="'#' + ${st.count} + (${p.hasOrderRef} ? ' (mã đơn ' + ${detail.shipments[s.id()].orderRef} + ')' : ' (không có mã đơn)')">#1</td>
-                    <td th:text="${detail.shipments[s.id()].carrier.label()}">Viettel Post</td>
-                    <td class="mono" th:text="${detail.shipments[s.id()].trackingNo}">VTP001</td>
-                    <td th:text="${detail.shipments[s.id()].rawStatus}">Giao thành công</td>
-                    <td th:text="${detail.shipments[s.id()].status.label()}">Giao thành công</td>
-                    <td th:text="${detail.shipments[s.id()].createdOn != null} ? ${#temporals.format(detail.shipments[s.id()].createdOn, 'dd/MM/yyyy')} : ''">01/01/2026</td>
-                    <td>
-                        <span class="badge ok" th:if="${p.successful}">Có</span>
-                        <span class="badge" th:unless="${p.successful}">Không</span>
-                    </td>
-                </tr>
-            </th:block>
-        </table>
-    </div>
     <div class="actions">
         <a class="btn secondary" th:href="@{/customers}">Quay lại danh sách</a>
     </div>

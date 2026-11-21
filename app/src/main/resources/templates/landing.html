@@ -11,6 +11,7 @@
 <main>
     <h1>Chào bạn, đây là <span th:text="${shopName}">Cửa hàng</span></h1>
     <p>Cảm ơn bạn đã mua hàng. Cửa hàng lập một nhóm Zalo nhỏ để hướng dẫn sử dụng và giải đáp thắc mắc cho khách đã mua.</p>
+    <p>Trong nhóm có <strong>chủ cửa hàng</strong> và một <strong>trợ lý AI</strong> của cửa hàng (tài khoản riêng, không phải người thật).</p>
     <p><strong>Bạn không bắt buộc tham gia.</strong></p>
     <form th:action="@{/i/{token}/go(token=${token})}" method="post">
         <button type="submit" class="btn">Vào nhóm Zalo</button>

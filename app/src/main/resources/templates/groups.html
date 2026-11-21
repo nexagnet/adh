@@ -41,8 +41,12 @@
         <p class="hint">Hệ thống không biết ai thật sự đã vào nhóm, chỉ đếm lượt quét. Vì vậy mẹ đếm lại thì số mới chính xác.</p>
     </details>
 
+    <div class="cards">
+        <div class="card"><div class="big" th:text="${spotsLeft}">0</div><div class="label">Chỗ trống ước tính trong các nhóm đang nhận</div></div>
+    </div>
+
     <h2>Thêm nhóm</h2>
-    <form class="inline" th:action="@{/groups}" method="post">
+    <form class="inline card" th:action="@{/groups}" method="post">
         <input type="text" name="name" placeholder="Tên nhóm" required maxlength="100">
         <input type="text" name="link" placeholder="Link https://zalo.me/g/... (có thể để trống)" size="36" maxlength="300">
         <select name="scope" title="Khu vực nhóm nhận khách">

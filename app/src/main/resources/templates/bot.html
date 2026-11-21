@@ -34,6 +34,19 @@
         </div>
     </div>
 
+    <h2>Cách kết nối với Zalo</h2>
+    <div class="notice">
+        <strong>Chưa chọn cách kết nối.</strong> Cần chạy thử từng cách rồi chủ cửa hàng chọn (tài liệu ADR-0001).
+        Khi chưa chọn, trợ lý AI không đọc và không gửi tin trong nhóm thật.
+    </div>
+    <ul class="choices">
+        <li><strong>Zalo Bot chính thức</strong> — an toàn về chính sách, nhưng chưa biết có vào được nhóm Zalo cá nhân không.</li>
+        <li><strong>Zalo OA (nhóm do OA sở hữu)</strong> — chính thức, nhưng nhóm do OA sở hữu chứ không phải mẹ, và có phí theo nhóm.</li>
+        <li><strong>Tài khoản Zalo cá nhân riêng</strong> — <span class="warn-text">trái chính sách của Zalo, có thể bị khóa
+            bất kỳ lúc nào</span>. Không bao giờ dùng tài khoản của mẹ.</li>
+    </ul>
+    <button type="button" class="btn" disabled title="Chọn cách kết nối trước">Kết nối (đang khóa)</button>
+
     <h2>Bật trợ lý AI theo từng nhóm</h2>
     <div class="table-wrap" th:if="${!groups.isEmpty()}">
         <table>

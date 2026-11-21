@@ -9,6 +9,8 @@
         rồi bấm "Đã nhận" và "Xong" ở đây để cả nhà biết. Trích đoạn đã che số điện thoại và số dài.</p>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã nhận.</div>
+    <div class="notice"><strong>Chưa chọn cách báo cho mẹ.</strong> Hiện việc chỉ hiện ở trang này và trên Tổng quan,
+        chưa có tin nhắn tự báo tới mẹ. Mẹ nên mở trang này mỗi khi vào xem nhóm Zalo.</div>
     <div class="actions">
         <a class="btn secondary" th:if="${!all}" th:href="@{/handoffs(all=true)}">Xem cả việc đã xong</a>
         <a class="btn secondary" th:if="${all}" th:href="@{/handoffs}">Chỉ xem việc còn mở</a>

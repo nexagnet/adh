@@ -32,7 +32,11 @@
         <form th:action="@{/campaigns/{id}/cancel-unsent(id=${campaign.id})}" method="post">
             <button type="submit" class="btn secondary">Hủy các lời mời chưa gửi</button>
         </form>
+        <button type="button" class="btn secondary" disabled
+                title="Chưa chọn nhà cung cấp gửi tin nhắn">Gửi tự động (đang khóa)</button>
     </div>
+    <p class="hint" th:if="${campaign.ready > 0}">Gửi tự động đang khóa vì chưa chọn nhà cung cấp tin nhắn (SMS hay Zalo thông báo).
+        Hiện chỉ có đường xuất danh sách để mẹ gửi tay.</p>
     <p class="hint" th:if="${campaign.ready > 0}">Xuất danh sách sẽ đánh dấu các lời mời trong file là "đã gửi" (kênh gửi tay).
         Hệ thống không biết tin có tới khách hay chưa. Mỗi ngày chỉ xuất tối đa theo hạn mức ở mục Gửi tin.</p>
 
