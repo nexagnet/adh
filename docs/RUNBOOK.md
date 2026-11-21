@@ -89,6 +89,29 @@ docker compose -f docker-compose.prod.yml --env-file .env up -d --build
 ```
 Caddy tự xin chứng chỉ HTTPS cho `APP_DOMAIN`. Ứng dụng **từ chối khởi động** nếu `APP_ADMIN_PASSWORD` trống. Chỉ cổng 80/443 ra Internet; PostgreSQL và ứng dụng không công bố cổng.
 
+### 2b. Cài trên máy chủ dùng chung (đã có Caddy/dự án khác chiếm cổng 80/443)
+Dùng khi máy chủ đã chạy dự án khác (ví dụ legal-office) với Caddy cài sẵn. Không dùng `docker-compose.prod.yml` vì Caddy riêng trong đó sẽ tranh cổng 80/443.
+- Ảnh ứng dụng được GitHub Actions (`.github/workflows/image.yml`) build khi có commit vào `main` và đẩy lên `ghcr.io/nexagnet/adh-app:<mã commit>`. Máy chủ chỉ kéo về, không build Java. Lần đầu: vào trang gói trên GitHub, cho phép máy chủ kéo (đặt gói công khai, hoặc `docker login ghcr.io` bằng token chỉ đọc gói).
+- Bản dùng chung (`docker-compose.shared.yml`) chỉ có PostgreSQL 18 (tối đa 256 MB) và ứng dụng (tối đa 512 MB, Java tối đa 320 MB). Ứng dụng chỉ nghe ở `127.0.0.1:8081`, không ra Internet.
+- Cài và cập nhật:
+```bash
+git clone https://github.com/nexagnet/adh.git && cd adh/infra
+cp .env.example .env && chmod 600 .env     # sửa DB_PASSWORD, APP_ADMIN_PASSWORD, APP_SHOP_NAME
+./deploy.sh deploy                         # kéo ảnh của commit mới nhất trên main và chạy; tự lùi nếu không khỏe
+./deploy.sh status | logs | backup | rollback
+```
+- `deploy.sh deploy` từ chối chạy nếu RAM còn trống dưới 250 MB (đặt `MIN_FREE_MB` để đổi), tự sao lưu trước khi cập nhật, và chờ ứng dụng trả lời trước khi coi là xong.
+- Sao lưu và thử khôi phục dùng chung script cũ: `COMPOSE_FILE=docker-compose.shared.yml ./backup.sh` (deploy.sh đã đặt sẵn). Cron: `17 3 * * * cd /đường/dẫn/adh/infra && COMPOSE_FILE=docker-compose.shared.yml DOCKER_SUDO="sudo " ./backup.sh >> /var/log/adh-backup.log 2>&1` (bỏ `DOCKER_SUDO` nếu người chạy thuộc nhóm docker).
+- **Mở ra Internet** chỉ khi đã có tên miền trỏ về máy chủ: đặt `APP_PUBLIC_BASE_URL=https://<tên miền>` trong `.env`, chạy lại `./deploy.sh deploy`, rồi thêm VÀO CADDY CỦA MÁY một khối riêng (không sửa khối của dự án khác):
+```
+<tên miền> {
+	encode gzip
+	request_body { max_size 12MB }
+	reverse_proxy 127.0.0.1:8081
+}
+```
+  Chạy `caddy validate` rồi `systemctl reload caddy`. Chưa có tên miền thì KHÔNG mở ra ngoài và KHÔNG in giấy QR: hồ sơ `prod` đặt cookie đăng nhập chỉ qua HTTPS nên truy cập bằng IP/HTTP sẽ không giữ được phiên.
+
 ### 3. Cập nhật phiên bản
 ```bash
 cd adh && git pull && cd infra
