@@ -180,4 +180,68 @@ class EntryWebTest extends AbstractPostgresTest {
                 .andExpect(header().string("Content-Type", containsString("image/svg+xml")))
                 .andExpect(content().string(containsString("<svg")));
     }
+
+    @Test
+    void trangMoiHoiTinhThanhVaChonTinhThiVaoNhomCungMien() throws Exception {
+        mvc.perform(get("/moi"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Bạn ở tỉnh/thành nào?")))
+                .andExpect(content().string(containsString("Miền Nam")))
+                .andExpect(content().string(containsString("value=\"can-tho\"")))
+                .andExpect(content().string(containsString("Tôi không chọn")));
+
+        long nam = groups.create("Nhóm Nam", "https://zalo.me/g/nam", 5, "R:NAM");
+        groups.setStatus(nam, GroupStatus.OPEN);
+        long bac = groups.create("Nhóm Bắc", "https://zalo.me/g/bac", 5, "R:BAC");
+        groups.setStatus(bac, GroupStatus.OPEN);
+
+        mvc.perform(post("/moi/vao").param("province", "hai-phong"))
+                .andExpect(status().isSeeOther())
+                .andExpect(header().string("Location", "https://zalo.me/g/bac"));
+    }
+
+    @Test
+    void chonTinhChuaCoNhomHopThiBaoChuaCoChoVaGhiNhan() throws Exception {
+        long bac = groups.create("Nhóm Bắc", "https://zalo.me/g/bac", 5, "R:BAC");
+        groups.setStatus(bac, GroupStatus.OPEN);
+
+        mvc.perform(post("/moi/vao").param("province", "can-tho"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Hiện chưa có chỗ trong nhóm")))
+                .andExpect(header().string("Set-Cookie", containsString("adh_moi=")));
+        assertThat(groups.waitingByProvince()).hasSize(1);
+    }
+
+    @Test
+    void quanLyThayKhuVucNhomVaKhachCoLocTheoKhuVuc() throws Exception {
+        var owner = user("admin").roles("OWNER");
+        long id = groups.create("Nhóm Nam", null, 5, "R:NAM");
+        jdbc.sql("""
+                INSERT INTO customer (phone, name, address, segment, successful_purchases, province)
+                VALUES ('+84900000001', 'Khách Nam', 'x, Cần Thơ', 'ONE_TIME', 1, 'can-tho'),
+                       ('+84900000002', 'Khách Bắc', 'x, Hà Nội', 'ONE_TIME', 1, 'ha-noi')""").update();
+
+        mvc.perform(get("/groups").with(owner))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Khu vực:")))
+                .andExpect(content().string(containsString("Miền Nam")));
+        mvc.perform(post("/groups/" + id + "/update").with(owner).with(csrf())
+                        .param("name", "Nhóm Nam").param("target", "5").param("scope", "P:can-tho"))
+                .andExpect(status().is3xxRedirection());
+        assertThat(groups.find(id).orElseThrow().scopeLabel()).isEqualTo("Cần Thơ");
+
+        mvc.perform(get("/customers").param("area", "R:NAM").with(owner))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Khách Nam")))
+                .andExpect(content().string(not(containsString("Khách Bắc"))))
+                .andExpect(content().string(containsString("Chưa rõ khu vực")));
+        // mã khu vực lạ không làm hỏng trang
+        mvc.perform(get("/customers").param("area", "R:XYZ").with(owner))
+                .andExpect(status().isOk()).andExpect(content().string(containsString("Khách Bắc")));
+        mvc.perform(get("/customers/export.csv").param("area", "R:BAC").with(owner))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("tinh_thanh")))
+                .andExpect(content().string(containsString("Hà Nội")))
+                .andExpect(content().string(not(containsString("Cần Thơ"))));
+    }
 }

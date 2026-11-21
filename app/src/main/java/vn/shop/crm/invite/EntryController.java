@@ -47,6 +47,18 @@ public class EntryController {
         this.shopPhone = shopPhone;
     }
 
+    /** Danh sách tỉnh/thành xếp theo miền cho câu hỏi "Bạn ở đâu?". */
+    private static java.util.List<RegionOption> regionOptions() {
+        java.util.List<RegionOption> out = new java.util.ArrayList<>();
+        for (vn.shop.crm.geo.Region r : vn.shop.crm.geo.Region.values()) {
+            out.add(new RegionOption(r.label(), vn.shop.crm.geo.VnGeo.in(r)));
+        }
+        return out;
+    }
+
+    public record RegionOption(String label, java.util.List<vn.shop.crm.geo.Province> provinces) {
+    }
+
     private void common(Model model) {
         model.addAttribute("shopName", shopName);
         model.addAttribute("shopPhone", shopPhone);
@@ -56,6 +68,7 @@ public class EntryController {
     @GetMapping("/moi")
     public String page(Model model) {
         common(model);
+        model.addAttribute("regions", regionOptions());
         return "entry";
     }
 
@@ -80,9 +93,10 @@ public class EntryController {
     }
 
     @PostMapping("/moi/vao")
-    public Object join(@CookieValue(name = COOKIE, required = false) String visitor, HttpServletRequest request,
+    public Object join(@CookieValue(name = COOKIE, required = false) String visitor,
+                       @RequestParam(required = false) String province, HttpServletRequest request,
                        HttpServletResponse response, Model model) {
-        EntryService.Result result = entries.enter(visitor, request.getRemoteAddr());
+        EntryService.Result result = entries.enter(visitor, request.getRemoteAddr(), province);
         common(model);
         switch (result.outcome()) {
             case REDIRECT:
@@ -98,6 +112,11 @@ public class EntryController {
                 return "landing-unavailable";
             default:
                 model.addAttribute("noGroup", true);
+                if (result.stored()) {
+                    response.addHeader(HttpHeaders.SET_COOKIE, ResponseCookie.from(COOKIE, result.visitor())
+                            .httpOnly(true).secure(request.isSecure()).sameSite("Lax").path("/moi")
+                            .maxAge(Duration.ofDays(90)).build().toString());
+                }
                 return "landing-unavailable";
         }
     }

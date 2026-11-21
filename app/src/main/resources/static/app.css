@@ -159,3 +159,4 @@ body.landing { background: #fff; }
     .sheet:last-child { break-after: auto; }
 }
 .warn-text { color: var(--warn); font-weight: 600; }
+.landing select { font-size: 20px; padding: 12px; width: 100%; }

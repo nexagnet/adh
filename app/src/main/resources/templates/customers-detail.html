@@ -19,6 +19,11 @@
             <div class="big" th:text="${detail.customer.segment.label()}">Mua 1 lần</div>
             <div class="label">Phân loại</div>
         </div>
+        <div class="card">
+            <div class="big" th:text="${detail.customer.provinceLabel()}">Hà Nội</div>
+            <div class="label"><span th:text="${detail.customer.regionLabel()}">Miền Bắc</span>
+                <span class="muted" th:if="${detail.customer.province == null}">(không đoán được từ địa chỉ)</span></div>
+        </div>
     </div>
 
     <div class="notice" th:if="${detail.customer.needsReview}">

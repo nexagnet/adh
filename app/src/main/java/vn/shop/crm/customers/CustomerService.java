@@ -28,9 +28,23 @@ import java.util.stream.Collectors;
 public class CustomerService {
 
     public record CustomerRow(long id, String phone, String name, String address, LocalDateTime lastOrderOn,
-                              Segment segment, int successfulPurchases, boolean needsReview, String reviewReasons) {
+                              Segment segment, int successfulPurchases, boolean needsReview, String reviewReasons,
+                              String province) {
         public String displayPhone() {
             return vn.shop.crm.common.PhoneNormalizer.toDisplay(phone);
+        }
+
+        public java.util.Optional<vn.shop.crm.geo.Province> provinceInfo() {
+            return vn.shop.crm.geo.VnGeo.byCode(province);
+        }
+
+        /** Tên tỉnh để hiển thị; "Chưa rõ" khi không đoán được từ địa chỉ. */
+        public String provinceLabel() {
+            return provinceInfo().map(vn.shop.crm.geo.Province::name).orElse("Chưa rõ");
+        }
+
+        public String regionLabel() {
+            return provinceInfo().map(p -> p.region().label()).orElse("Chưa rõ");
         }
 
         public List<String> reviewReasonLabels() {
@@ -130,13 +144,15 @@ public class CustomerService {
 
         jdbc.sql("""
                         INSERT INTO customer (phone, name, address, last_order_on, segment, successful_purchases,
-                                              needs_review, review_reasons, calculated_at)
-                        VALUES (:phone, :name, :address, :lastOrder, :segment, :count, :review, :reasons, now())
+                                              needs_review, review_reasons, calculated_at, province, geo_version)
+                        VALUES (:phone, :name, :address, :lastOrder, :segment, :count, :review, :reasons, now(),
+                                :province, :geoVersion)
                         ON CONFLICT (phone) DO UPDATE SET
                             name = EXCLUDED.name, address = EXCLUDED.address,
                             last_order_on = EXCLUDED.last_order_on, segment = EXCLUDED.segment,
                             successful_purchases = EXCLUDED.successful_purchases,
                             needs_review = EXCLUDED.needs_review, review_reasons = EXCLUDED.review_reasons,
+                            province = EXCLUDED.province, geo_version = EXCLUDED.geo_version,
                             calculated_at = now()
                         """)
                 .param("phone", phone)
@@ -147,6 +163,9 @@ public class CustomerService {
                 .param("count", result.successfulPurchases())
                 .param("review", result.needsReview())
                 .param("reasons", reasons)
+                .param("province", vn.shop.crm.geo.VnGeo.detect(address).map(vn.shop.crm.geo.Province::code).orElse(null),
+                        Types.VARCHAR)
+                .param("geoVersion", vn.shop.crm.geo.VnGeo.VERSION)
                 .update();
     }
 
@@ -169,8 +188,16 @@ public class CustomerService {
     // ---------- truy vấn ----------
 
     public Page<CustomerRow> search(Segment segment, boolean reviewOnly, String query, int page, int size) {
+        return search(segment, reviewOnly, null, query, page, size);
+    }
+
+    /**
+     * @param area mã khu vực ({@code R:NAM}, {@code S:...}, {@code P:...}) hoặc {@code U} (chưa rõ); rỗng/sai = tất cả
+     */
+    public Page<CustomerRow> search(Segment segment, boolean reviewOnly, String area, String query, int page, int size) {
         StringBuilder where = new StringBuilder(" WHERE 1=1");
         Map<String, Object> params = new LinkedHashMap<>();
+        appendArea(where, params, area);
         if (segment != null) {
             where.append(" AND segment = :segment");
             params.put("segment", segment.name());
@@ -195,7 +222,7 @@ public class CustomerService {
         int safePage = Math.max(page, 1);
         String pageSql = """
                 SELECT id, phone, name, address, last_order_on, segment, successful_purchases, needs_review,
-                       review_reasons FROM customer""" + where
+                       review_reasons, province FROM customer""" + where
                 + " ORDER BY last_order_on DESC NULLS LAST, id LIMIT " + safeSize
                 + " OFFSET " + ((long) (safePage - 1) * safeSize);
         List<CustomerRow> items = bind(jdbc.sql(pageSql), params)
@@ -205,10 +232,15 @@ public class CustomerService {
 
     /** Toàn bộ khách theo bộ lọc, dùng để xuất CSV. */
     public List<CustomerRow> listAll(Segment segment, boolean reviewOnly) {
+        return listAll(segment, reviewOnly, null);
+    }
+
+    public List<CustomerRow> listAll(Segment segment, boolean reviewOnly, String area) {
         StringBuilder sql = new StringBuilder("""
                 SELECT id, phone, name, address, last_order_on, segment, successful_purchases, needs_review,
-                       review_reasons FROM customer WHERE 1=1""");
+                       review_reasons, province FROM customer WHERE 1=1""");
         Map<String, Object> params = new LinkedHashMap<>();
+        appendArea(sql, params, area);
         if (segment != null) {
             sql.append(" AND segment = :segment");
             params.put("segment", segment.name());
@@ -223,7 +255,7 @@ public class CustomerService {
     public Detail detail(long id) {
         CustomerRow customer = jdbc.sql("""
                         SELECT id, phone, name, address, last_order_on, segment, successful_purchases, needs_review,
-                               review_reasons FROM customer WHERE id = :id""")
+                               review_reasons, province FROM customer WHERE id = :id""")
                 .param("id", id).query(CustomerService::mapCustomer).optional()
                 .orElseThrow(() -> new ImportException("Không tìm thấy khách."));
         List<ShipmentRow> shipments = jdbc.sql("""
@@ -254,6 +286,66 @@ public class CustomerService {
         return jdbc.sql("SELECT count(*) FROM customer WHERE needs_review").query(Long.class).single();
     }
 
+    /** Số khách theo miền; khóa null = chưa rõ. */
+    public Map<vn.shop.crm.geo.Region, Long> countByRegion() {
+        Map<vn.shop.crm.geo.Region, Long> result = new EnumMap<>(vn.shop.crm.geo.Region.class);
+        for (vn.shop.crm.geo.Region r : vn.shop.crm.geo.Region.values()) {
+            result.put(r, 0L);
+        }
+        jdbc.sql("SELECT province, count(*) AS n FROM customer WHERE province IS NOT NULL GROUP BY province")
+                .query((rs, i) -> Map.entry(rs.getString("province"), rs.getLong("n"))).list()
+                .forEach(e -> vn.shop.crm.geo.VnGeo.byCode(e.getKey())
+                        .ifPresent(p -> result.merge(p.region(), e.getValue(), Long::sum)));
+        return result;
+    }
+
+    public long countUnknownRegion() {
+        return jdbc.sql("SELECT count(*) FROM customer WHERE province IS NULL").query(Long.class).single();
+    }
+
+    /** Số khách theo từng tỉnh (chỉ số tổng hợp, không kèm SĐT hay địa chỉ). */
+    public Map<String, Long> countByProvince() {
+        Map<String, Long> result = new LinkedHashMap<>();
+        jdbc.sql("SELECT province, count(*) AS n FROM customer WHERE province IS NOT NULL GROUP BY province ORDER BY n DESC")
+                .query((rs, i) -> Map.entry(rs.getString("province"), rs.getLong("n"))).list()
+                .forEach(e -> result.put(e.getKey(), e.getValue()));
+        return result;
+    }
+
+    /**
+     * Tính lại tỉnh cho khách có phiên bản cách đoán cũ (khách mới nhập đã có sẵn phiên bản mới). Chỉ đọc địa chỉ
+     * đã có trong bảng khách, không gọi dịch vụ bên ngoài.
+     */
+    @Transactional
+    public int refreshProvinces(boolean all) {
+        record Row(long id, String address) {
+        }
+        List<Row> rows = jdbc.sql("SELECT id, address FROM customer" + (all ? "" : " WHERE geo_version < :v"))
+                .param("v", vn.shop.crm.geo.VnGeo.VERSION).query((rs, i) -> new Row(rs.getLong("id"), rs.getString("address")))
+                .list();
+        for (Row r : rows) {
+            jdbc.sql("UPDATE customer SET province = :p, geo_version = :v WHERE id = :id")
+                    .param("p", vn.shop.crm.geo.VnGeo.detect(r.address()).map(vn.shop.crm.geo.Province::code).orElse(null),
+                            Types.VARCHAR)
+                    .param("v", vn.shop.crm.geo.VnGeo.VERSION).param("id", r.id()).update();
+        }
+        return rows.size();
+    }
+
+    private static void appendArea(StringBuilder where, Map<String, Object> params, String area) {
+        if (area == null || area.isBlank()) {
+            return;
+        }
+        if (vn.shop.crm.geo.GeoArea.UNKNOWN.equals(area)) {
+            where.append(" AND province IS NULL");
+            return;
+        }
+        vn.shop.crm.geo.GeoArea.parse(area).ifPresent(a -> {
+            where.append(" AND province IN (:areaCodes)");
+            params.put("areaCodes", vn.shop.crm.geo.VnGeo.in(a).stream().map(vn.shop.crm.geo.Province::code).toList());
+        });
+    }
+
     // ---------- helpers ----------
 
     private static JdbcClient.StatementSpec bind(JdbcClient.StatementSpec spec, Map<String, Object> params) {
@@ -267,7 +359,7 @@ public class CustomerService {
         return new CustomerRow(rs.getLong("id"), rs.getString("phone"), rs.getString("name"),
                 rs.getString("address"), toLocal(rs.getTimestamp("last_order_on")),
                 Segment.valueOf(rs.getString("segment")), rs.getInt("successful_purchases"),
-                rs.getBoolean("needs_review"), rs.getString("review_reasons"));
+                rs.getBoolean("needs_review"), rs.getString("review_reasons"), rs.getString("province"));
     }
 
     private static ShipmentWithContact mapShipmentWithContact(ResultSet rs, int i) throws SQLException {

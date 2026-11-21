@@ -257,7 +257,11 @@ public class InviteService {
                     .orElse(null);
         }
         if (group == null) {
-            group = groups.pickGroup().orElse(null);
+            // Khách đã biết (có trong danh sách): xếp vào nhóm cùng khu vực theo tỉnh đoán từ địa chỉ đã có.
+            vn.shop.crm.geo.Province province = jdbc.sql("SELECT province FROM customer WHERE id = :id")
+                    .param("id", row.customerId()).query(String.class).optional()
+                    .flatMap(vn.shop.crm.geo.VnGeo::byCode).orElse(null);
+            group = groups.pickGroup(province).orElse(null);
         }
         if (group == null) {
             return new GoResult(Outcome.NO_GROUP, null);

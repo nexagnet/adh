@@ -26,13 +26,36 @@ public class GroupController {
         model.addAttribute("next", groups.pickGroup().orElse(null));
         model.addAttribute("spotsLeft", groups.list().stream()
                 .filter(g -> g.status() == GroupStatus.OPEN && g.hasLink()).mapToInt(GroupService.Group::spotsLeft).sum());
+        model.addAttribute("scopes", scopeOptions());
+        model.addAttribute("waiting", groups.waitingByProvince());
         return "groups";
+    }
+
+    public record ScopeOption(String code, String label) {
+    }
+
+    /** Khu vực chọn được cho nhóm: từng miền, từng vùng, từng tỉnh. */
+    static java.util.List<java.util.List<ScopeOption>> scopeOptions() {
+        java.util.List<ScopeOption> regions = new java.util.ArrayList<>();
+        java.util.List<ScopeOption> subs = new java.util.ArrayList<>();
+        java.util.List<ScopeOption> provinces = new java.util.ArrayList<>();
+        for (vn.shop.crm.geo.Region r : vn.shop.crm.geo.Region.values()) {
+            regions.add(new ScopeOption(vn.shop.crm.geo.GeoArea.region(r).code(), r.label()));
+        }
+        for (vn.shop.crm.geo.SubRegion s : vn.shop.crm.geo.SubRegion.values()) {
+            subs.add(new ScopeOption(vn.shop.crm.geo.GeoArea.sub(s).code(), "Vùng " + s.label()));
+        }
+        for (vn.shop.crm.geo.Province p : vn.shop.crm.geo.VnGeo.all()) {
+            provinces.add(new ScopeOption(vn.shop.crm.geo.GeoArea.province(p).code(), p.name()));
+        }
+        return java.util.List.of(regions, subs, provinces);
     }
 
     @PostMapping("/groups")
     public String create(@RequestParam String name, @RequestParam(required = false) String link,
-                         @RequestParam(required = false) Integer target, RedirectAttributes redirect) {
-        groups.create(name, link, target);
+                         @RequestParam(required = false) Integer target,
+                         @RequestParam(required = false) String scope, RedirectAttributes redirect) {
+        groups.create(name, link, target, scope);
         redirect.addFlashAttribute("flash", "Đã thêm nhóm. Nhóm mới ở trạng thái 'Đang chuẩn bị', "
                 + "hãy nhập link rồi mở nhóm khi sẵn sàng nhận khách.");
         return "redirect:/groups";
@@ -41,8 +64,8 @@ public class GroupController {
     @PostMapping("/groups/{id}/update")
     public String update(@PathVariable long id, @RequestParam String name, @RequestParam(required = false) String link,
                          @RequestParam(required = false) Integer target, @RequestParam(required = false) String note,
-                         RedirectAttributes redirect) {
-        groups.update(id, name, link, target, note);
+                         @RequestParam(required = false) String scope, RedirectAttributes redirect) {
+        groups.update(id, name, link, target, note, scope);
         redirect.addFlashAttribute("flash", "Đã lưu nhóm.");
         return "redirect:/groups";
     }

@@ -50,6 +50,12 @@ Trang **In giấy giới thiệu**: một mã QR tĩnh và một link ngắn gi�
 
 **Ngoại lệ so với BR-06 (quyết định ngày 21/11/2026):** giấy bỏ vào MỌI gói hàng, kể cả khách mua từ 2 lần, và ai quét cũng vào được nhóm. Khách tự quét, hệ thống không chủ động mời ai. Khách có thể xin ngừng nhận tin trên trang sau khi quét (nhập số điện thoại, vào danh sách từ chối vĩnh viễn, chỉ lưu mã băm).
 
+### 5c. Khu vực của khách và của nhóm Zalo
+1. **Danh sách khách** hiện thêm cột "Khu vực" (tỉnh/thành và miền), có thẻ đếm theo miền và bộ lọc khu vực (miền, vùng hoặc từng tỉnh). Khu vực suy ra từ địa chỉ trên vận đơn: địa chỉ không ghi tên tỉnh thì để **Chưa rõ**, hệ thống không đoán bừa. Tải Excel/CSV cũng có thêm hai cột tỉnh và miền.
+2. Sau khi cập nhật phần mềm, khu vực của khách cũ tự được tính lại khi khởi động. Nếu thấy sai, bấm **Tính lại phân loại và khu vực của tất cả khách** ở cuối danh sách khách.
+3. Ở **Nhóm Zalo**, mỗi nhóm chọn được khu vực: cả miền, một vùng hoặc một tỉnh; để "Chung" thì nhóm nhận khách mọi nơi. Khách được xếp ưu tiên: cùng tỉnh, rồi cùng vùng, rồi cùng miền, rồi nhóm chung. Khách miền khác không bị xếp vào nhóm của miền này (đặt `APP_GROUPING_ALLOW_OTHER_REGION=true` nếu muốn cho phép).
+4. Trang quét mã QR chung hỏi "Bạn ở tỉnh/thành nào?" (có thể bỏ qua). Khách đã chọn tỉnh mà chưa có nhóm hợp sẽ thấy "chưa có chỗ" và được ghi lại (chỉ mã tỉnh, không có số điện thoại/tên). Trang Nhóm Zalo hiện khu vực nào đang thiếu nhóm; mở nhóm mới thì khách quét lại mã sẽ được xếp vào.
+
 ### 6. Việc cần mẹ xử lý (khi bật bot)
 Bot báo khi trong nhóm có khách muốn mua, khiếu nại hoặc cần người thật. Mẹ vào Zalo trả lời, rồi bấm **Đã nhận** và **Xong**. Bot không bao giờ tự chốt đơn.
 Muốn tắt bot ngay: **Bot → TẮT bot ngay**. Mẹ vẫn trả lời khách bình thường.

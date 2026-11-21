@@ -43,7 +43,10 @@ public class ContactService {
     }
 
     public record InviteRow(long id, String phone, String name, String address, LocalDateTime lastOrderOn,
-                            String evidenceRef, LocalDateTime approvedAt) {
+                            String evidenceRef, LocalDateTime approvedAt, String province) {
+        public String provinceLabel() {
+            return vn.shop.crm.geo.VnGeo.byCode(province).map(vn.shop.crm.geo.Province::name).orElse("Chưa rõ");
+        }
     }
 
     public record Basis(String basis, ContactStatus status, String evidenceRef, String statement, String note,
@@ -115,12 +118,13 @@ public class ContactService {
         int p = Math.max(1, page);
         long total = count(inviteCountSql());
         List<InviteRow> items = jdbc.sql("""
-                        SELECT c.id, c.phone, c.name, c.address, c.last_order_on, b.evidence_ref, b.recorded_at
+                        SELECT c.id, c.phone, c.name, c.address, c.last_order_on, b.evidence_ref, b.recorded_at, c.province
                         """ + inviteFrom() + " ORDER BY b.recorded_at, c.id LIMIT :limit OFFSET :offset")
                 .param("limit", size).param("offset", (long) (p - 1) * size)
                 .query((rs, i) -> new InviteRow(rs.getLong("id"), rs.getString("phone"), rs.getString("name"),
                         rs.getString("address"), rs.getObject("last_order_on", LocalDateTime.class),
-                        rs.getString("evidence_ref"), local(rs.getObject("recorded_at", OffsetDateTime.class))))
+                        rs.getString("evidence_ref"), local(rs.getObject("recorded_at", OffsetDateTime.class)),
+                        rs.getString("province")))
                 .list();
         return new InvitePage(items, total, p, size);
     }
