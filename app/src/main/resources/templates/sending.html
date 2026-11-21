@@ -4,77 +4,85 @@
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
-    <h1>Gửi tin: cài đặt và nhật ký</h1>
-    <p class="hint">Các giới hạn dưới đây là cấu hình, chỉ đổi được khi chủ cửa hàng sửa biến môi trường hoặc file cấu hình
-        rồi khởi động lại. Giao diện này chỉ để xem và tạm dừng.</p>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Cài đặt gửi tin</h1>
+            <p class="hint">Các giới hạn dưới đây chỉ để xem. Muốn đổi, chủ cửa hàng sửa cấu hình trên máy chủ rồi khởi động lại; không đổi được từ trình duyệt.</p>
+        </div>
+        <div class="actions">
+            <form th:action="@{/campaigns/pause-all}" method="post" th:unless="${status.paused}">
+                <button type="submit" class="btn danger">Tạm dừng tất cả chiến dịch</button>
+            </form>
+            <form th:action="@{/campaigns/resume-all}" method="post" th:if="${status.paused}">
+                <button type="submit" class="btn">Bỏ tạm dừng</button>
+            </form>
+        </div>
+    </header>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
-
     <div class="notice bad" th:if="${status.paused}">
-        <strong>Đang TẠM DỪNG tất cả chiến dịch.</strong>
+        <strong>Đang TẠM DỪNG tất cả chiến dịch</strong>
         <span th:if="${!status.pausedReason.isEmpty()}" th:text="'Lý do: ' + ${status.pausedReason}">Lý do</span>
-        <form th:action="@{/campaigns/resume-all}" method="post" class="inline">
-            <button type="submit" class="btn">Bỏ tạm dừng</button>
-        </form>
     </div>
+    <div class="notice bad" th:if="${!status.enabled and !status.paused}">
+        <strong>Gửi tự động đang TẮT</strong>
+        Chỉ bật khi đã chọn nhà cung cấp SMS, duyệt mẫu tin và chủ cửa hàng chấp nhận trách nhiệm.
+    </div>
+    <div class="notice ok" th:if="${status.enabled and !status.paused}"><strong>Gửi tự động đang BẬT</strong></div>
 
-    <div class="cards">
-        <div class="card" th:classappend="${status.enabled} ? '' : 'warn'">
-            <div class="big" th:text="${status.enabled} ? 'BẬT' : 'TẮT'">TẮT</div>
-            <div class="label">Gửi thật qua dịch vụ bên ngoài (mặc định TẮT)</div>
+    <div class="setrows">
+        <div class="setrow">
+            <div><div class="t">Giờ được gửi</div><div class="d">Ngoài giờ này hệ thống tự hoãn sang hôm sau.</div></div>
+            <div class="v"><span th:text="${#temporals.format(status.windowStart, 'HH:mm')}">07:00</span> đến <span th:text="${#temporals.format(status.windowEnd, 'HH:mm')}">22:00</span></div>
         </div>
-        <div class="card">
-            <div class="big">Chưa chọn</div>
-            <div class="label">Nhà cung cấp tin nhắn (SMS hoặc Zalo thông báo)</div>
+        <div class="setrow">
+            <div><div class="t">Hạn mức mỗi ngày</div><div class="d">Gửi chậm, theo lô nhỏ. Mỗi khách chỉ nhận một lần. Hôm nay đã gửi <span th:text="${status.sentToday}">0</span>.</div></div>
+            <div class="v"><span th:text="${status.dailyLimit}">20</span> tin</div>
         </div>
-        <div class="card">
-            <div class="big"><span th:text="${status.sentToday}">0</span> / <span th:text="${status.dailyLimit}">20</span></div>
-            <div class="label">Đã gửi hôm nay / hạn mức ngày</div>
+        <div class="setrow">
+            <div><div class="t">Trần chi SMS mỗi tháng</div><div class="d">Hết ngân sách thì tự dừng. Đã dùng tháng này: <span th:text="${#numbers.formatInteger(status.monthSpend, 1, 'POINT')}">0</span> đ.</div></div>
+            <div class="v"><span th:text="${#numbers.formatInteger(status.monthlyBudget, 1, 'POINT')}">1.000.000</span> đ</div>
         </div>
-        <div class="card">
-            <div class="big" th:text="${#numbers.formatInteger(status.monthSpend, 1, 'POINT')} + ' đ'">0 đ</div>
-            <div class="label">Chi tháng này / trần
-                <span th:text="${#numbers.formatInteger(status.monthlyBudget, 1, 'POINT')} + ' đ'">1.000.000 đ</span></div>
-        </div>
-        <div class="card">
-            <div class="big"><span th:text="${#temporals.format(status.windowStart, 'HH:mm')}">07:00</span>–<span th:text="${#temporals.format(status.windowEnd, 'HH:mm')}">22:00</span></div>
-            <div class="label">Giờ được phép gửi tự động (giờ Việt Nam)</div>
+        <div class="setrow">
+            <div><div class="t">Nhà cung cấp SMS</div><div class="d">Đường gửi đang dùng: Zalo, mẹ gửi tay (xuất danh sách ở trang chiến dịch). SMS và Zalo thông báo chưa dùng.</div></div>
+            <div class="v"><span class="badge warn">Chưa chọn</span></div>
         </div>
     </div>
 
-    <div class="notice">
-        <strong>Đường gửi đang dùng: Zalo, mẹ gửi tay.</strong> Vào chiến dịch, bấm <em>Xuất danh sách để mẹ gửi tay</em>,
-        rồi mẹ nhắn từng khách bằng Zalo của mình (lô nhỏ, theo hạn mức ngày ở trên). Hệ thống không tự gửi và không đăng nhập Zalo.
-        <br><strong>SMS và Zalo thông báo (ZBS): chưa dùng</strong>, đang tắt; chưa có bộ gửi nào được cài cho hai kênh này.
-    </div>
-    <p class="hint">Nếu sau này có kênh gửi tự động, hệ thống vẫn gửi từng tin một, nghỉ ngẫu nhiên giữa các tin, và <strong>tự dừng</strong>
-        khi gửi lỗi liên tiếp, tỷ lệ lỗi cao, nhiều khách từ chối, hoặc hết ngân sách.</p>
+    <section>
+        <h2>Tự động dừng khi</h2>
+        <div class="table-wrap">
+            <table>
+                <tr><th>Điều kiện</th><th>Hệ thống làm gì</th></tr>
+                <tr><td>Gửi lỗi liên tiếp, hoặc tỉ lệ gửi lỗi cao</td><td>Dừng chiến dịch</td></tr>
+                <tr><td>Có khách từ chối hoặc khiếu nại</td><td>Dừng chiến dịch, báo bố mẹ xem</td></tr>
+                <tr><td>Hết ngân sách tháng</td><td>Dừng đến đầu tháng sau</td></tr>
+            </table>
+        </div>
+        <p class="muted small" style="margin-top:10px">Hệ thống luôn gửi từng tin một và nghỉ ngẫu nhiên giữa các tin, chỉ để dàn trải việc gửi.</p>
+    </section>
 
-    <form th:action="@{/campaigns/pause-all}" method="post" class="inline" th:unless="${status.paused}">
-        <input type="text" name="reason" placeholder="Lý do (không bắt buộc)" maxlength="200">
-        <button type="submit" class="btn danger">Tạm dừng TẤT CẢ chiến dịch</button>
-    </form>
-
-    <h2>Nhật ký gửi gần đây</h2>
-    <div class="table-wrap">
-        <table>
-            <tr><th>Lúc</th><th>Số (3 số cuối)</th><th>Kênh</th><th>Kết quả</th><th>Ghi chú</th><th class="num">Chi phí</th></tr>
-            <tr th:each="r : ${status.recent}">
-                <td th:text="${#temporals.format(r.at, 'dd/MM/yyyy HH:mm')}">01/01/2026 10:00</td>
-                <td class="mono" th:text="${r.phoneTail}">***678</td>
-                <td th:text="${@labels.channel(r.channel)}">Gửi giả lập</td>
-                <td>
-                    <span class="badge ok" th:if="${r.outcome == 'SENT'}">Đã gửi</span>
-                    <span class="badge" th:if="${r.outcome == 'DRY_RUN'}">Thử, chưa gửi thật</span>
-                    <span class="badge warn" th:if="${r.outcome == 'SKIPPED'}">Bỏ qua</span>
-                    <span class="badge bad" th:if="${r.outcome == 'FAILED'}">Lỗi</span>
-                </td>
-                <td th:text="${r.reason}">ghi chú</td>
-                <td class="num" th:text="${r.costVnd}">0</td>
-            </tr>
-            <tr th:if="${status.recent.isEmpty()}"><td colspan="6" class="muted">Chưa có lần gửi hay chạy thử nào.</td></tr>
-        </table>
-    </div>
+    <section>
+        <h2>Nhật ký gửi gần đây</h2>
+        <div class="table-wrap">
+            <table>
+                <tr><th>Lúc</th><th>Số (3 số cuối)</th><th>Kênh</th><th>Kết quả</th><th>Ghi chú</th></tr>
+                <tr th:each="r : ${status.recent}">
+                    <td th:text="${#temporals.format(r.at, 'dd/MM HH:mm')}">21/11 18:40</td>
+                    <td th:text="${r.phoneTail}">***678</td>
+                    <td th:text="${@labels.channel(r.channel)}">Chạy thử</td>
+                    <td>
+                        <span class="badge ok" th:if="${r.outcome == 'SENT'}">Đã gửi</span>
+                        <span class="badge" th:if="${r.outcome == 'DRY_RUN'}">Chạy thử</span>
+                        <span class="badge warn" th:if="${r.outcome == 'SKIPPED'}">Bỏ qua</span>
+                        <span class="badge bad" th:if="${r.outcome == 'FAILED'}">Lỗi</span>
+                    </td>
+                    <td th:text="${r.reason}">ghi chú</td>
+                </tr>
+                <tr th:if="${status.recent.isEmpty()}"><td colspan="5" class="muted">Chưa có lần gửi hay chạy thử nào.</td></tr>
+            </table>
+        </div>
+    </section>
 </main>
 </body>
 </html>

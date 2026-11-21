@@ -56,8 +56,8 @@ class BotWebTest extends AbstractPostgresTest {
         mvc.perform(get("/bot").with(user("admin").roles("OWNER")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("TẮT")))
-                .andExpect(content().string(containsString("CHẠY THỬ")))
-                .andExpect(content().string(containsString("chưa có kênh kết nối Zalo nào được cài")));
+                .andExpect(content().string(containsString("chưa kết nối")))
+                .andExpect(content().string(containsString("Chưa chọn cách nào")));
     }
 
     @Test

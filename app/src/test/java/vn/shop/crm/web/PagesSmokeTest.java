@@ -70,7 +70,7 @@ class PagesSmokeTest extends AbstractPostgresTest {
                 .andExpect(content().string(containsString("Lời mời vào nhóm")))
                 .andExpect(content().string(containsString("Chưa mời")))
                 .andExpect(content().string(containsString("Hệ thống")))
-                .andExpect(content().string(containsString("danger-zone")));
+                .andExpect(content().string(containsString("panel danger")));
         mvc.perform(get("/customers/" + customerId("+84987654321")).with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Khách này không nằm trong danh sách mời")));
     }
@@ -80,20 +80,20 @@ class PagesSmokeTest extends AbstractPostgresTest {
         var owner = user("admin").roles("OWNER");
         mvc.perform(get("/customers").param("segment", "ONE_TIME").with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("class=\"chips\"")))
-                .andExpect(content().string(containsString("Tất cả (2)")))
-                .andExpect(content().string(containsString("Mua 1 lần (1)")))
-                .andExpect(content().string(containsString("Chưa duyệt")))
-                .andExpect(content().string(containsString("Chưa mời")));
+                .andExpect(content().string(containsString("Tất cả")))
+                .andExpect(content().string(containsString("Cần kiểm tra")))
+                .andExpect(content().string(containsString("Duyệt mời")))
+                .andExpect(content().string(containsString("Lời mời")));
         mvc.perform(get("/customers").param("segment", "REPEAT").with(owner)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("Không mời")));
+                .andExpect(content().string(containsString("Không có nút mời vào nhóm")));
     }
 
     @Test
     void trangTroLyAiVaViecCanMeKhongConChuBotVaNoiRoChuaChonCachKetNoi() throws Exception {
         var owner = user("admin").roles("OWNER");
         mvc.perform(get("/bot").with(owner)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("Chưa chọn cách kết nối")))
-                .andExpect(content().string(containsString("Kết nối (đang khóa)")))
+                .andExpect(content().string(containsString("Chưa chọn cách nào")))
+                .andExpect(content().string(containsString("Kết nối (chọn một cách trước)")))
                 .andExpect(content().string(not(containsString("Bot trợ lý"))));
         mvc.perform(get("/handoffs").with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Chưa chọn cách báo cho mẹ")));
@@ -129,7 +129,7 @@ class PagesSmokeTest extends AbstractPostgresTest {
                 .andExpect(content().string(containsString("Gửi tự động (đang khóa)")))
                 .andExpect(content().string(containsString("Xuất danh sách để mẹ gửi tay")));
         mvc.perform(get("/groups").with(owner)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("Chỗ trống ước tính")));
+                .andExpect(content().string(containsString("Chỗ trống trong các nhóm")));
     }
 
     @Test
@@ -143,7 +143,7 @@ class PagesSmokeTest extends AbstractPostgresTest {
         mvc.perform(get("/imports/" + fresh + "/mapping").with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Chưa chọn cột mã đơn hàng của shop")));
         mvc.perform(get("/imports/" + batch).with(owner)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("Xong")));
+                .andExpect(content().string(containsString("Xác nhận")));
     }
 
     @Test

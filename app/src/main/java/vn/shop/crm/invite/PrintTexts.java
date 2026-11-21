@@ -35,9 +35,9 @@ public class PrintTexts {
             new Field(PREFIX + "intro", "Lời giới thiệu nhóm",
                     "Vài câu. {cua_hang} sẽ thành tên cửa hàng. Nói rõ trong nhóm có chủ cửa hàng và trợ lý AI", 300, 4,
                     "{cua_hang} có một nhóm Zalo nhỏ, khoảng 5 khách mua hàng, để anh/chị hỏi cách dùng. "
-                            + "Trong nhóm có chủ cửa hàng và một trợ lý AI của cửa hàng trả lời các câu hỏi thông thường.", false),
+                            + "Trong nhóm có chủ cửa hàng và một trợ lý AI của cửa hàng.", false),
             new Field(PREFIX + "step1", "Bước 1", "Chữ ngay trên mã QR", 100, 1,
-                    "1. Mở Zalo, quét mã vuông bên dưới.", false),
+                    "1. Mở Zalo, quét mã vuông bên cạnh.", false),
             new Field(PREFIX + "step2", "Bước 2", "Sau khi quét", 100, 1,
                     "2. Bấm nút «Vào nhóm Zalo».", false),
             new Field(PREFIX + "nocode", "Dòng không cần mã", "Trấn an khách", 100, 1,
@@ -48,7 +48,7 @@ public class PrintTexts {
                     "Vào nhóm là tự nguyện. Không vào cũng không sao, anh/chị vẫn gọi điện cho cửa hàng như bình thường.", false),
             new Field(PREFIX + "phone", "Số điện thoại cửa hàng", "Để trống thì dùng số đã cài sẵn", 30, 1, "", true),
             new Field(PREFIX + "stop", "Dòng ngừng nhận tin", "Cách khách xin ngừng nhận tin", 200, 2,
-                    "Không muốn nhận tin từ cửa hàng nữa? Anh/chị gọi hoặc nhắn Zalo vào số trên, cửa hàng sẽ ghi lại và không liên hệ nữa.", false));
+                    "Không muốn nhận tin nữa? Gọi hoặc nhắn Zalo vào số trên, cửa hàng sẽ ghi lại và không liên hệ nữa.", false));
 
     private static final java.util.regex.Pattern SHORT_LINK =
             java.util.regex.Pattern.compile("^[A-Za-z0-9.-]+(:\\d{2,5})?(/[A-Za-z0-9._~\\-/]*)?$");

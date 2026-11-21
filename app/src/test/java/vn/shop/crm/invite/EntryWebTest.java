@@ -104,7 +104,7 @@ class EntryWebTest extends AbstractPostgresTest {
     void khongConChoThiBaoChoKhach() throws Exception {
         mvc.perform(post("/moi/vao"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("chưa có chỗ")));
+                .andExpect(content().string(containsString("đã đủ người")));
     }
 
     @Test
@@ -119,7 +119,7 @@ class EntryWebTest extends AbstractPostgresTest {
     void khachXinNgungNhanTinKhongCanDangNhap() throws Exception {
         mvc.perform(post("/moi/ngung").param("phone", "0912345678"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Đã ghi nhận")));
+                .andExpect(content().string(containsString("đã ghi nhận")));
         assertThat(jdbc.sql("SELECT count(*) FROM suppression").query(Long.class).single()).isEqualTo(1);
 
         mvc.perform(post("/moi/ngung").param("phone", "abc"))
@@ -212,7 +212,7 @@ class EntryWebTest extends AbstractPostgresTest {
     void trangMoiHoiTinhThanhVaChonTinhThiVaoNhomCungMien() throws Exception {
         mvc.perform(get("/moi"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Bạn ở tỉnh/thành nào?")))
+                .andExpect(content().string(containsString("ở tỉnh/thành nào?")))
                 .andExpect(content().string(containsString("Miền Nam")))
                 .andExpect(content().string(containsString("value=\"can-tho\"")))
                 .andExpect(content().string(containsString("Tôi không chọn")));
@@ -234,7 +234,7 @@ class EntryWebTest extends AbstractPostgresTest {
 
         mvc.perform(post("/moi/vao").param("province", "can-tho"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Hiện chưa có chỗ trong nhóm")))
+                .andExpect(content().string(containsString("Các nhóm hiện đã đủ người")))
                 .andExpect(header().string("Set-Cookie", containsString("adh_moi=")));
         assertThat(groups.waitingByProvince()).hasSize(1);
     }

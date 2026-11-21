@@ -84,6 +84,6 @@ class NavMenuTest extends AbstractPostgresTest {
         imports.commit(batch, new ImportService.Mapping(view.headerRow(), view.suggested()));
         mvc.perform(get("/").with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Việc cần làm hôm nay")))
-                .andExpect(content().string(containsString("đang chờ duyệt mời")));
+                .andExpect(content().string(containsString("đang chờ bạn duyệt để được mời vào nhóm")));
     }
 }

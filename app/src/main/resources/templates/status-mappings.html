@@ -4,59 +4,82 @@
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
-    <h1>Trạng thái đơn của hãng vận chuyển</h1>
-    <p class="hint">
-        Mỗi hãng dùng chữ khác nhau. Chỉ trạng thái được gán "Giao thành công" mới được tính là một lần mua.
-        Trạng thái chưa gán luôn bị coi là chưa xác định, không bao giờ được tính là thành công.
-    </p>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Trạng thái đơn của hãng vận chuyển</h1>
+            <p class="hint">Chọn nghĩa đúng cho từng trạng thái. Trạng thái chưa rõ nghĩa không bao giờ được tính là mua thành công.
+                Sau khi lưu, hệ thống tự tính lại phân loại khách.</p>
+        </div>
+    </header>
 
-    <h2>Chưa rõ nghĩa</h2>
-    <p class="muted" th:if="${unmapped.isEmpty()}">Không có trạng thái nào cần gán.</p>
-    <div class="table-wrap" th:if="${!unmapped.isEmpty()}">
-        <table>
-            <tr><th>Hãng</th><th>Trạng thái trong file</th><th class="num">Số vận đơn</th><th>Chọn nghĩa</th></tr>
-            <tr th:each="u : ${unmapped}">
-                <td th:text="${u.carrier.label()}">J&amp;T Express</td>
-                <td th:text="${u.sampleText}">Đã ký nhận</td>
-                <td class="num" th:text="${u.shipments}">1</td>
-                <td>
-                    <form class="inline" th:action="@{/status-mappings}" method="post">
-                        <input type="hidden" name="carrier" th:value="${u.carrier.name()}">
-                        <input type="hidden" name="sample" th:value="${u.sampleText}">
-                        <select name="status">
-                            <option th:each="o : ${options}" th:if="${o.name() != 'UNKNOWN'}"
-                                    th:value="${o.name()}" th:text="${o.label()}">Giao thành công</option>
-                        </select>
-                        <button type="submit" class="btn">Lưu</button>
-                    </form>
-                </td>
-            </tr>
-        </table>
-    </div>
+    <section>
+        <h2>Cần chọn nghĩa (<span th:text="${unmapped.size()}">0</span>)</h2>
+        <p class="muted" th:if="${unmapped.isEmpty()}">Không có trạng thái nào cần gán.</p>
+        <div class="table-wrap" th:if="${!unmapped.isEmpty()}">
+            <table>
+                <tr><th>Hãng</th><th>Trạng thái gốc</th><th>Số đơn</th><th>Nghĩa của nó là gì?</th></tr>
+                <tr th:each="u : ${unmapped}">
+                    <td th:text="${u.carrier.label()}">J&amp;T Express</td>
+                    <td th:text="${u.sampleText}">Đã ký nhận</td>
+                    <td th:text="${u.shipments}">1</td>
+                    <td>
+                        <form class="inline" th:action="@{/status-mappings}" method="post">
+                            <input type="hidden" name="carrier" th:value="${u.carrier.name()}">
+                            <input type="hidden" name="sample" th:value="${u.sampleText}">
+                            <select name="status" required aria-label="Nghĩa của trạng thái">
+                                <option value="" disabled selected>Chọn nghĩa...</option>
+                                <option th:each="o : ${options}" th:if="${o.name() != 'UNKNOWN'}"
+                                        th:value="${o.name()}" th:text="${o.label()}">Giao thành công</option>
+                            </select>
+                            <button type="submit" class="btn sm">Lưu</button>
+                        </form>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </section>
 
-    <h2>Đã gán</h2>
-    <div class="table-wrap">
-        <table>
-            <tr><th>Hãng</th><th>Trạng thái trong file</th><th>Nghĩa</th><th>Đổi</th></tr>
-            <tr th:each="m : ${mappings}">
-                <td th:text="${m.carrier.label()}">Viettel Post</td>
-                <td th:text="${m.sampleText}">Giao thành công</td>
-                <td th:text="${m.status.label()}">Giao thành công</td>
-                <td>
-                    <form class="inline" th:action="@{/status-mappings}" method="post">
-                        <input type="hidden" name="carrier" th:value="${m.carrier.name()}">
-                        <input type="hidden" name="sample" th:value="${m.sampleText}">
-                        <select name="status">
-                            <option th:each="o : ${options}" th:value="${o.name()}"
-                                    th:text="${o.name() == 'UNKNOWN'} ? 'Bỏ gán (chưa xác định)' : ${o.label()}"
-                                    th:selected="${o == m.status}">Giao thành công</option>
-                        </select>
-                        <button type="submit" class="btn secondary">Lưu</button>
-                    </form>
-                </td>
-            </tr>
-        </table>
-    </div>
+    <section>
+        <h2>Đã biết nghĩa (<span th:text="${mappings.size()}">0</span>)</h2>
+        <div class="table-wrap">
+            <table>
+                <tr><th>Hãng</th><th>Trạng thái gốc</th><th>Nghĩa chuẩn</th><th>Tính là mua?</th></tr>
+                <tr th:each="m : ${mappings}">
+                    <td th:text="${m.carrier.label()}">Viettel Post</td>
+                    <td th:text="${m.sampleText}">Giao thành công</td>
+                    <td th:text="${m.status.label()}">Giao thành công</td>
+                    <td>
+                        <span class="badge ok" th:if="${m.status.name() == 'DELIVERED'}">Có</span>
+                        <span class="badge" th:unless="${m.status.name() == 'DELIVERED'}">Không</span>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <details class="more" style="margin-top:16px">
+            <summary>Đổi nghĩa đã gán</summary>
+            <div class="table-wrap">
+                <table>
+                    <tr><th>Hãng</th><th>Trạng thái gốc</th><th>Đổi thành</th></tr>
+                    <tr th:each="m : ${mappings}">
+                        <td th:text="${m.carrier.label()}">Viettel Post</td>
+                        <td th:text="${m.sampleText}">Giao thành công</td>
+                        <td>
+                            <form class="inline nowrap" th:action="@{/status-mappings}" method="post">
+                                <input type="hidden" name="carrier" th:value="${m.carrier.name()}">
+                                <input type="hidden" name="sample" th:value="${m.sampleText}">
+                                <select name="status" aria-label="Nghĩa của trạng thái">
+                                    <option th:each="o : ${options}" th:value="${o.name()}"
+                                            th:text="${o.name() == 'UNKNOWN'} ? 'Bỏ gán (chưa xác định)' : ${o.label()}"
+                                            th:selected="${o == m.status}">Giao thành công</option>
+                                </select>
+                                <button type="submit" class="btn secondary sm">Lưu</button>
+                            </form>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </details>
+    </section>
 </main>
 </body>
 </html>

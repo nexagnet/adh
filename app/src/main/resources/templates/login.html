@@ -1,22 +1,24 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="vi">
 <head th:replace="~{fragments :: head('Đăng nhập')}"></head>
-<body>
+<body class="login-page">
 <div class="login">
-    <h1>Đăng nhập</h1>
     <div class="card">
-        <div class="notice bad" th:if="${param.error}">Sai tên đăng nhập hoặc mật khẩu.</div>
-        <div class="notice bad" th:if="${param.locked}">Bạn đã nhập sai nhiều lần. Vui lòng đợi 15 phút rồi thử lại.</div>
-        <div class="notice ok" th:if="${param.logout}">Bạn đã đăng xuất.</div>
+        <h1>Chăm sóc khách</h1>
+        <p class="sub-title">Đăng nhập</p>
+        <div class="notice bad" th:if="${param.error}"><strong>Sai tên đăng nhập hoặc mật khẩu</strong>Vui lòng kiểm tra rồi thử lại.</div>
+        <div class="notice bad" th:if="${param.locked}"><strong>Bạn đã nhập sai nhiều lần</strong>Vui lòng đợi 15 phút rồi thử lại.</div>
+        <div class="notice ok" th:if="${param.logout}"><strong>Bạn đã đăng xuất</strong></div>
         <form th:action="@{/login}" method="post">
             <label for="username">Tên đăng nhập</label>
             <input type="text" id="username" name="username" autocomplete="username" autofocus required>
             <label for="password">Mật khẩu</label>
             <input type="password" id="password" name="password" autocomplete="current-password" required>
             <div class="actions">
-                <button type="submit" class="btn">Đăng nhập</button>
+                <button type="submit" class="btn" th:disabled="${param.locked}">Đăng nhập</button>
             </div>
         </form>
+        <p class="note">Mỗi người một mật khẩu riêng để hệ thống ghi đúng ai đã duyệt khách, ai đã xóa dữ liệu.</p>
     </div>
 </div>
 </body>

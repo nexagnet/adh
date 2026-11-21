@@ -2,7 +2,6 @@ package vn.shop.crm.web;
 
 import org.springframework.stereotype.Component;
 import vn.shop.crm.bot.HandoffService;
-import vn.shop.crm.contact.ContactService;
 import vn.shop.crm.contact.PrivacyService;
 import vn.shop.crm.shipping.StatusMappingService;
 
@@ -24,14 +23,11 @@ public class NavMenu {
     public record Group(String title, List<Item> items) {
     }
 
-    private final ContactService contacts;
     private final HandoffService handoffs;
     private final PrivacyService privacy;
     private final StatusMappingService statuses;
 
-    public NavMenu(ContactService contacts, HandoffService handoffs, PrivacyService privacy,
-                   StatusMappingService statuses) {
-        this.contacts = contacts;
+    public NavMenu(HandoffService handoffs, PrivacyService privacy, StatusMappingService statuses) {
         this.handoffs = handoffs;
         this.privacy = privacy;
         this.statuses = statuses;
@@ -55,7 +51,6 @@ public class NavMenu {
 
     public List<Group> groups(String currentKey) {
         String key = currentKey == null ? "/" : currentKey;
-        long candidates = contacts.stats().candidates();
         long handoffOpen = handoffs.openCount();
         long privacyOpen = privacy.openCount();
         long unmapped = statuses.unmapped().size();
@@ -65,19 +60,19 @@ public class NavMenu {
                         item("Nhập đơn", "/imports", "/imports", 0, key),
                         item("Khách mua 1 lần", "/customers?segment=ONE_TIME", "/customers/one-time", 0, key),
                         item("Khách mua từ 2 lần", "/customers?segment=REPEAT", "/customers/repeat", 0, key),
-                        item("Trạng thái đơn", "/status-mappings", "/status-mappings", unmapped, key),
-                        item("Bản đồ khách", "/map", "/map", 0, key))),
+                        item("Trạng thái đơn", "/status-mappings", "/status-mappings", unmapped, key))),
                 new Group("Mời vào nhóm", List.of(
-                        item("Danh sách mời", "/contacts", "/contacts", candidates, key),
+                        item("Danh sách mời", "/contacts", "/contacts", 0, key),
                         item("Chiến dịch mời", "/campaigns", "/campaigns", 0, key),
                         item("Nhóm Zalo", "/groups", "/groups", 0, key),
-                        item("Cài đặt gửi tin", "/sending", "/sending", 0, key),
-                        item("In giấy giới thiệu", "/print", "/print", 0, key))),
+                        item("Cài đặt gửi tin", "/sending", "/sending", 0, key))),
                 new Group("Trợ lý AI", List.of(
                         item("Việc cần mẹ xử lý", "/handoffs", "/handoffs", handoffOpen, key),
                         item("Tài khoản trợ lý AI", "/bot", "/bot", 0, key))),
                 new Group("Khác", List.of(
-                        item("Yêu cầu của khách", "/privacy", "/privacy", privacyOpen, key))));
+                        item("Yêu cầu của khách", "/privacy", "/privacy", privacyOpen, key),
+                        item("In giấy giới thiệu", "/print", "/print", 0, key),
+                        item("Bản đồ khách", "/map", "/map", 0, key))));
     }
 
     private static Item item(String label, String url, String itemKey, long badge, String current) {

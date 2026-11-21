@@ -4,19 +4,21 @@
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
-    <h1>Nhập file đơn hàng</h1>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Nhập file đơn hàng</h1>
+            <p class="hint">Dùng file Excel (.xlsx) xuất từ trang quản lý của hãng vận chuyển. Nhập lại cùng một file không làm tăng số lần mua.</p>
+        </div>
+    </header>
     <ol th:replace="~{fragments :: steps(1)}"></ol>
-    <p class="hint">
-        Dùng file Excel (.xlsx) xuất từ trang quản lý của hãng vận chuyển.
-        Nhập lại cùng một file không làm tăng số lần mua.
-    </p>
-    <p class="hint">
-        <strong>J&amp;T Express chỉ cho xuất tối đa 500 đơn mỗi lần.</strong> Hãy chọn nhiều file cùng lúc (giữ phím Ctrl
-        khi bấm chọn). Hệ thống gộp theo mã vận đơn; đơn nằm ở nhiều file thì lấy file xuất sau cùng.
-    </p>
+    <div class="notice info">
+        <strong>J&amp;T Express chỉ cho xuất tối đa 500 đơn mỗi lần</strong>
+        Hãy chọn nhiều file cùng lúc (giữ phím Ctrl khi bấm chọn). Hệ thống gộp theo mã vận đơn; đơn nằm ở nhiều file thì lấy file xuất sau cùng.
+    </div>
+    <section>
     <h2>Cần xuất Excel từ ngày nào?</h2>
     <p class="hint">Hệ thống không tự đăng nhập vào trang của hãng, nên mẹ xuất file bằng tay rồi tải lên đây. Mục này cho biết nên xuất từ ngày nào.</p>
-    <div class="card" th:each="a : ${advice}">
+    <div class="panel stack" th:each="a : ${advice}" style="margin-top:12px">
         <h3 th:text="${a.carrier.label()}">J&amp;T Express</h3>
         <p th:if="${!a.hasData}">Chưa nhập đơn nào của hãng này. Lần đầu, hãy xuất từ ngày cửa hàng bắt đầu gửi hàng qua hãng,
             chia thành nhiều file theo từng khoảng ngày ngắn nếu cần.</p>
@@ -48,8 +50,11 @@
             chọn hiển thị 500 đơn mỗi trang rồi bấm Xuất.</p>
     </div>
 
+    </section>
+
+    <section>
     <h2>Tải file lên</h2>
-    <form th:action="@{/imports(_csrf=${_csrf.token})}" method="post" enctype="multipart/form-data">
+    <form class="panel" th:action="@{/imports(_csrf=${_csrf.token})}" method="post" enctype="multipart/form-data">
         <label for="carrier">Hãng vận chuyển</label>
         <select id="carrier" name="carrier" required>
             <option th:each="c : ${carriers}" th:value="${c.name()}" th:text="${c.label()}">Viettel Post</option>
@@ -61,6 +66,7 @@
             <a class="btn secondary" th:href="@{/imports}">Quay lại</a>
         </div>
     </form>
+    </section>
 </main>
 </body>
 </html>

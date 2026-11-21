@@ -4,38 +4,47 @@
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
-    <h1>Tổng quan</h1>
-    <p class="hint">Khách được gộp theo số điện thoại nhận hàng, chỉ tính đơn giao thành công.</p>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Tổng quan</h1>
+            <p class="hint" th:if="${lastImport != null}">Lần nhập file gần nhất: <span th:text="${#temporals.format(lastImport.committedAt != null ? lastImport.committedAt : lastImport.uploadedAt, 'dd/MM/yyyy HH:mm')}">21/11/2026 18:05</span>
+                (<span th:text="${lastImport.carrier.label()}">J&amp;T Express</span>, <span th:text="${lastImport.newShipments != null ? lastImport.newShipments : 0}">0</span> vận đơn mới).</p>
+            <p class="hint" th:if="${lastImport == null}">Khách được gộp theo số điện thoại nhận hàng, chỉ tính đơn giao thành công.</p>
+        </div>
+        <div class="actions"><a class="btn" th:href="@{/imports/new}">Nhập file đơn hàng</a></div>
+    </header>
 
     <div class="notice" th:if="${totalShipments == 0}">
-        Chưa có dữ liệu. Hãy bắt đầu bằng <a th:href="@{/imports/new}">nhập file đơn hàng</a> của Viettel Post hoặc J&amp;T.
+        <strong>Chưa có dữ liệu</strong>
+        Hãy bắt đầu bằng <a th:href="@{/imports/new}">nhập file đơn hàng</a> của Viettel Post hoặc J&amp;T.
     </div>
 
-    <div class="notice warn" th:if="${!weatherAlerts.isEmpty()}">
-        <strong>Nhắc việc thời tiết:</strong>
+    <div class="notice" th:if="${!weatherAlerts.isEmpty()}">
+        <strong>Nhắc việc thời tiết</strong>
         <span th:each="a, st : ${weatherAlerts}"><span th:text="${a.province.name} + ' (' + ${a.kindLabel()} + ', ' + ${a.customers} + ' khách)'">Cần Thơ</span><span th:unless="${st.last}">; </span></span>.
         <a th:href="@{/map}">Xem bản đồ và chi tiết</a>
     </div>
 
-    <section class="todo" th:if="${totalShipments > 0}">
+    <section th:if="${totalShipments > 0}">
         <h2>Việc cần làm hôm nay</h2>
+        <div class="todo">
         <ul>
             <li th:if="${contact.candidates > 0}">
-                <span><span class="todo-num" th:text="${contact.candidates}">0</span>khách mua 1 lần đang chờ duyệt mời</span>
+                <span><span class="todo-num blue" th:text="${contact.candidates}">0</span>khách mua 1 lần đang chờ bạn duyệt để được mời vào nhóm</span>
                 <a class="btn" th:href="@{/contacts}">Duyệt danh sách mời</a>
             </li>
             <li th:if="${privacyOpen > 0}">
-                <span><span class="todo-num" th:text="${privacyOpen}">0</span>yêu cầu của khách chưa xử lý<strong
-                    class="warn-text" th:if="${privacyOverdue > 0}" th:text="' (' + ${privacyOverdue} + ' quá hạn)'"></strong></span>
-                <a class="btn" th:href="@{/privacy}">Xem yêu cầu</a>
+                <span><span class="todo-num" th:classappend="${privacyOverdue > 0} ? 'red'" th:text="${privacyOverdue > 0} ? ${privacyOverdue} : ${privacyOpen}">0</span><th:block
+                    th:text="${privacyOverdue > 0} ? 'yêu cầu của khách đã quá hạn phản hồi' : 'yêu cầu của khách đang chờ xử lý'">yêu cầu của khách đã quá hạn phản hồi</th:block></span>
+                <a class="btn secondary" th:href="@{/privacy}">Xem yêu cầu</a>
             </li>
             <li th:if="${handoffOpen > 0}">
                 <span><span class="todo-num" th:text="${handoffOpen}">0</span>việc trợ lý AI chuyển cho mẹ</span>
-                <a class="btn" th:href="@{/handoffs}">Xem việc cần mẹ xử lý</a>
+                <a class="btn secondary" th:href="@{/handoffs}">Xem việc</a>
             </li>
             <li th:if="${unmapped > 0}">
-                <span><span class="todo-num" th:text="${unmapped}">0</span>trạng thái đơn chưa rõ nghĩa</span>
-                <a class="btn" th:href="@{/status-mappings}">Chọn nghĩa</a>
+                <span><span class="todo-num" th:text="${unmapped}">0</span>trạng thái đơn chưa rõ nghĩa, chưa được tính là mua thành công</span>
+                <a class="btn secondary" th:href="@{/status-mappings}">Chọn nghĩa</a>
             </li>
             <li th:if="${review > 0}">
                 <span><span class="todo-num" th:text="${review}">0</span>khách cần kiểm tra lại</span>
@@ -56,77 +65,84 @@
                 Hôm nay chưa có việc nào cần làm.
             </li>
         </ul>
+        </div>
     </section>
 
-    <h2>Khách hàng</h2>
-    <div class="cards">
-        <a class="card" th:href="@{/customers(segment=ONE_TIME)}">
-            <div class="big" th:text="${oneTime}">0</div>
-            <div class="label">Khách mua 1 lần</div>
-        </a>
-        <a class="card" th:href="@{/customers(segment=REPEAT)}">
-            <div class="big" th:text="${repeat}">0</div>
-            <div class="label">Khách mua từ 2 lần</div>
-        </a>
-        <a class="card" th:href="@{/customers(segment=NO_SUCCESSFUL_PURCHASE)}">
-            <div class="big" th:text="${none}">0</div>
-            <div class="label">Chưa có đơn giao thành công</div>
-        </a>
-    </div>
+    <section>
+        <h2>Khách hàng</h2>
+        <div class="cards c4">
+            <a class="card" th:href="@{/customers(segment=ONE_TIME)}">
+                <div class="big" th:text="${oneTime}">0</div>
+                <div class="label">Khách mua 1 lần</div>
+            </a>
+            <a class="card" th:href="@{/customers(segment=REPEAT)}">
+                <div class="big" th:text="${repeat}">0</div>
+                <div class="label">Khách mua từ 2 lần</div>
+            </a>
+            <a class="card" th:classappend="${review > 0} ? 'warn'" th:href="@{/customers(review=true)}">
+                <div class="big" th:text="${review}">0</div>
+                <div class="label">Khách cần kiểm tra</div>
+            </a>
+            <a class="card" th:href="@{/customers(segment=NO_SUCCESSFUL_PURCHASE)}">
+                <div class="big" th:text="${none}">0</div>
+                <div class="label">Chưa có đơn giao thành công</div>
+            </a>
+        </div>
+    </section>
 
-    <h2>Mời vào nhóm</h2>
-    <div class="cards">
-        <a class="card" th:href="@{/contacts}">
-            <div class="big" th:text="${contact.eligible}">0</div>
-            <div class="label">Đủ điều kiện mời (đã duyệt)</div>
-        </a>
-        <a class="card" th:href="@{/campaigns}">
-            <div class="big" th:text="${invites.clicked}">0</div>
-            <div class="label">Lượt bấm link mời (trong <span th:text="${invites.invitations}">0</span> lời mời)</div>
-        </a>
-        <a class="card" th:href="@{/groups}">
-            <div class="big" th:text="${invites.openGroups}">0</div>
-            <div class="label">Nhóm Zalo đang nhận khách</div>
-        </a>
-        <a class="card" th:href="@{/groups}">
-            <div class="big" th:text="${freeSpots}">0</div>
-            <div class="label">Chỗ trống ước tính trong các nhóm đang nhận</div>
-        </a>
-    </div>
+    <section>
+        <h2>Lời mời và nhóm</h2>
+        <div class="cards c4">
+            <a class="card" th:href="@{/campaigns}">
+                <div class="big" th:text="${invites.invitations}">0</div>
+                <div class="label">Lời mời đã gửi</div>
+            </a>
+            <a class="card" th:href="@{/campaigns}">
+                <div class="big" th:text="${invites.clicked}">0</div>
+                <div class="label">Lượt bấm link (chưa phải đã vào nhóm)</div>
+            </a>
+            <a class="card" th:href="@{/groups}">
+                <div class="big" th:text="${invites.openGroups}">0</div>
+                <div class="label">Nhóm đang nhận khách</div>
+            </a>
+            <a class="card" th:href="@{/groups}">
+                <div class="big" th:text="${freeSpots}">0</div>
+                <div class="label">Chỗ trống trong các nhóm</div>
+            </a>
+        </div>
+    </section>
 
-    <div class="actions">
-        <a class="btn" th:href="@{/imports/new}">Nhập file đơn hàng</a>
-        <a class="btn secondary" th:href="@{/customers/export.csv(segment=ONE_TIME)}">Tải danh sách mua 1 lần (mở bằng Excel)</a>
-        <a class="btn secondary" th:href="@{/customers/export.csv(segment=REPEAT)}">Tải danh sách mua từ 2 lần (mở bằng Excel)</a>
-    </div>
+    <section th:if="${!shipments.isEmpty()}">
+        <h2>Đơn hàng theo hãng và trạng thái</h2>
+        <div class="table-wrap">
+            <table>
+                <tr><th>Hãng</th><th>Trạng thái</th><th>Số đơn</th></tr>
+                <tr th:each="s : ${shipments}">
+                    <td th:text="${s.carrier}">Viettel Post</td>
+                    <td th:text="${s.status}">Giao thành công</td>
+                    <td th:text="${s.count}">0</td>
+                </tr>
+            </table>
+        </div>
+    </section>
 
-    <h2>Đơn hàng theo hãng và trạng thái</h2>
-    <div class="table-wrap" th:if="${!shipments.isEmpty()}">
-        <table>
-            <tr><th>Hãng</th><th>Trạng thái</th><th class="num">Số vận đơn</th></tr>
-            <tr th:each="s : ${shipments}">
-                <td th:text="${s.carrier}">Viettel Post</td>
-                <td th:text="${s.status}">Giao thành công</td>
-                <td class="num" th:text="${s.count}">0</td>
-            </tr>
-        </table>
-    </div>
-
-    <h2>Các lần nhập gần đây</h2>
-    <div class="table-wrap" th:if="${!batches.isEmpty()}">
-        <table>
-            <tr><th>Thời gian</th><th>Hãng</th><th>File</th><th>Tình trạng</th></tr>
-            <tr th:each="b : ${batches}">
-                <td th:text="${#temporals.format(b.uploadedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
-                <td th:text="${b.carrier.label()}">Viettel Post</td>
-                <td><a th:href="${b.committed()} ? @{/imports/{id}(id=${b.id})} : @{/imports/{id}/mapping(id=${b.id})}" th:text="${b.filename}">file.csv</a></td>
-                <td>
-                    <span class="badge ok" th:if="${b.committed()}">Đã nhập</span>
-                    <span class="badge warn" th:unless="${b.committed()}">Chưa xác nhận</span>
-                </td>
-            </tr>
-        </table>
-    </div>
+    <section th:if="${!batches.isEmpty()}">
+        <h2>Các lần nhập gần đây</h2>
+        <div class="table-wrap">
+            <table>
+                <tr><th>Thời gian</th><th>Hãng</th><th>File</th><th>Tình trạng</th></tr>
+                <tr th:each="b : ${batches}">
+                    <td th:text="${#temporals.format(b.uploadedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
+                    <td th:text="${b.carrier.label()}">Viettel Post</td>
+                    <td><a th:href="${b.committed()} ? @{/imports/{id}(id=${b.id})} : @{/imports/{id}/mapping(id=${b.id})}" th:text="${b.filename}">file.csv</a></td>
+                    <td>
+                        <span class="badge ok" th:if="${b.committed()}">Đã nhập</span>
+                        <span class="badge warn" th:unless="${b.committed()}">Chưa xác nhận</span>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </section>
 </main>
 </body>
 </html>

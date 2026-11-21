@@ -4,48 +4,64 @@
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
-    <h1>Tài khoản trợ lý AI</h1>
-    <p class="hint">Trợ lý AI là tài khoản <strong>riêng, công khai là "Trợ lý cửa hàng"</strong>, không phải tài khoản của mẹ.
-        Trợ lý AI chỉ trả lời bằng các câu hỏi thường gặp dưới đây (do cửa hàng soạn). Khi khách muốn mua, khiếu nại hoặc cần
-        người thật, trợ lý AI chỉ <strong>báo mẹ</strong>, không bao giờ tự nhận đã chốt đơn, không hỏi địa chỉ hay số điện thoại.
-        Mẹ vẫn trả lời khách trên Zalo như bình thường, trợ lý AI tắt hay hỏng cũng không ảnh hưởng.</p>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Tài khoản Zalo của trợ lý AI</h1>
+            <p class="hint">Trợ lý là một tài khoản Zalo RIÊNG, công khai là «Trợ lý AI của cửa hàng». Hệ thống không bao giờ dùng tài khoản của mẹ.
+                Trợ lý chỉ trả lời bằng các câu hỏi thường gặp do cửa hàng soạn; khi khách muốn mua, khiếu nại hoặc cần người thật, trợ lý chỉ báo mẹ.</p>
+        </div>
+    </header>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
-    <div class="notice">Hiện <strong>chưa có kênh kết nối Zalo nào được cài</strong> (cần chạy thử để chọn phương án, xem tài liệu <strong>ADR-0001</strong> của dự án). Vì vậy trợ lý AI chưa đọc hay gửi tin trong nhóm thật; bạn có thể soạn câu hỏi thường gặp
-        và thử trợ lý AI ngay ở dưới.</div>
-
-    <div class="cards">
-        <div class="card" th:classappend="${botEnabled} ? '' : 'warn'">
-            <div class="big" th:text="${botEnabled} ? 'BẬT' : 'TẮT'">TẮT</div>
-            <div class="label">Trợ lý AI toàn hệ thống (công tắc tắt ngay)</div>
-            <form th:action="@{/bot/enable}" method="post" class="inline">
-                <input type="hidden" name="on" th:value="${!botEnabled}">
-                <button type="submit" class="btn" th:classappend="${botEnabled} ? 'danger' : ''"
-                        th:text="${botEnabled} ? 'TẮT trợ lý AI ngay' : 'Bật trợ lý AI'">Bật trợ lý AI</button>
-            </form>
-        </div>
-        <div class="card">
-            <div class="big" th:text="${dryRun} ? 'CHẠY THỬ' : 'GỬI THẬT'">CHẠY THỬ</div>
-            <div class="label">Chế độ thử: chỉ ghi "sẽ trả lời gì", không gửi vào nhóm</div>
-            <form th:action="@{/bot/dry-run}" method="post" class="inline">
-                <input type="hidden" name="on" th:value="${!dryRun}">
-                <button type="submit" class="btn secondary" th:text="${dryRun} ? 'Tắt chế độ thử' : 'Bật lại chế độ thử'">Tắt chế độ thử</button>
-            </form>
-        </div>
+    <div class="notice bad" th:if="${!botEnabled}">
+        <strong>Trợ lý AI đang TẮT và chưa kết nối</strong>
+        Trợ lý chưa đọc hay gửi tin trong nhóm nào. Mẹ vẫn trả lời khách trên Zalo như bình thường.
+    </div>
+    <div class="notice" th:if="${botEnabled}">
+        <strong>Trợ lý AI đang BẬT cho các nhóm đã bật bên dưới</strong>
+        <span th:if="${dryRun}">Đang ở chế độ thử: chỉ ghi dự kiến, chưa gửi thật.</span>
     </div>
 
-    <h2>Cách kết nối với Zalo</h2>
-    <div class="notice">
-        <strong>Chưa chọn cách kết nối.</strong> Cần chạy thử từng cách rồi chủ cửa hàng chọn (tài liệu ADR-0001).
-        Khi chưa chọn, trợ lý AI không đọc và không gửi tin trong nhóm thật.
+    <div class="panel stack">
+        <h2>Công tắc an toàn</h2>
+        <form th:action="@{/bot/dry-run}" method="post" class="toggle-row">
+            <input type="hidden" name="on" th:value="${!dryRun}">
+            <button type="submit" class="sw" th:classappend="${dryRun} ? 'on'" th:aria-label="${dryRun} ? 'Tắt chế độ thử' : 'Bật chế độ thử'"></button>
+            <div><div class="t">Chỉ ghi dự kiến, chưa gửi thật</div>
+                <div class="d">Trợ lý chỉ ghi lại «sẽ trả lời gì», không gửi gì cho khách.</div></div>
+        </form>
+        <form th:action="@{/bot/enable}" method="post" class="toggle-row">
+            <input type="hidden" name="on" th:value="${!botEnabled}">
+            <button type="submit" class="sw" th:classappend="${botEnabled} ? 'on'" th:aria-label="${botEnabled} ? 'Tắt trợ lý' : 'Bật trợ lý'"></button>
+            <div><div class="t" th:text="${botEnabled} ? 'Trợ lý đang bật' : 'Trợ lý đang tắt'">Trợ lý đang tắt</div>
+                <div class="d">Bật riêng cho từng nhóm ở bên dưới. Mặc định tắt.</div></div>
+        </form>
+        <form th:action="@{/bot/enable}" method="post" th:if="${botEnabled}">
+            <input type="hidden" name="on" value="false">
+            <button type="submit" class="btn danger">Tạm dừng trợ lý ngay</button>
+        </form>
     </div>
-    <ul class="choices">
-        <li><strong>Zalo Bot chính thức</strong> — an toàn về chính sách, nhưng chưa biết có vào được nhóm Zalo cá nhân không.</li>
-        <li><strong>Zalo OA (nhóm do OA sở hữu)</strong> — chính thức, nhưng nhóm do OA sở hữu chứ không phải mẹ, và có phí theo nhóm.</li>
-        <li><strong>Tài khoản Zalo cá nhân riêng</strong> — <span class="warn-text">trái chính sách của Zalo, có thể bị khóa
-            bất kỳ lúc nào</span>. Không bao giờ dùng tài khoản của mẹ.</li>
-    </ul>
-    <button type="button" class="btn" disabled title="Chọn cách kết nối trước">Kết nối (đang khóa)</button>
+
+    <div class="panel stack">
+        <h2>Cách kết nối với Zalo (làm sau, khi bố mẹ đã chọn)</h2>
+        <p class="muted">Chưa chọn cách nào. Chủ cửa hàng sẽ chọn sau khi thử từng cách (tài liệu ADR-0001).</p>
+        <label class="option"><input type="radio" name="connect" disabled>
+            <span class="t">Zalo Bot chính thức</span><span class="badge">Chưa thử</span>
+            <span class="d">Chính thức, miễn phí đăng ký. Chưa biết trợ lý có vào được nhóm Zalo cá nhân không.</span></label>
+        <label class="option"><input type="radio" name="connect" disabled>
+            <span class="t">Trang Zalo của cửa hàng (Zalo OA) làm chủ nhóm</span><span class="badge">Chưa thử</span>
+            <span class="d">Chính thức, có phí theo nhóm. Nhóm sẽ do trang cửa hàng làm chủ, mẹ không còn là trưởng nhóm; khách vào cần được duyệt.</span></label>
+        <label class="option"><input type="radio" name="connect" disabled>
+            <span class="t">Tài khoản Zalo cá nhân riêng (không chính thức)</span><span class="badge warn">Rủi ro khóa</span>
+            <span class="d">Zalo có thể khóa tài khoản này bất cứ lúc nào. Chỉ dùng khi chủ cửa hàng chấp nhận rủi ro bằng văn bản; không dùng tài khoản của mẹ.</span></label>
+        <div class="actions"><button type="button" class="btn" disabled>Kết nối (chọn một cách trước)</button></div>
+    </div>
+
+    <div class="panel stack">
+        <h2>Tài khoản của mẹ (trưởng nhóm)</h2>
+        <div><span class="badge">Không kết nối vào hệ thống</span></div>
+        <p class="muted">Mẹ dùng Zalo thật trên điện thoại để trả lời và lên đơn. Hệ thống không đăng nhập, không đọc và không gửi bằng tài khoản của mẹ.</p>
+    </div>
 
     <h2>Bật trợ lý AI theo từng nhóm</h2>
     <div class="table-wrap" th:if="${!groups.isEmpty()}">

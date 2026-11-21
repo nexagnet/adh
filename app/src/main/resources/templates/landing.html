@@ -4,20 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
-    <title th:text="${shopName} + ' - Nhóm Zalo chăm sóc khách'">Nhóm Zalo</title>
+    <title th:text="${shopName}">Cửa hàng</title>
     <link rel="stylesheet" th:href="@{/app.css}">
 </head>
 <body class="landing">
+<div class="shopbar" th:text="${shopName}">Cửa hàng</div>
 <main>
-    <h1>Chào bạn, đây là <span th:text="${shopName}">Cửa hàng</span></h1>
-    <p>Cảm ơn bạn đã mua hàng. Cửa hàng lập một nhóm Zalo nhỏ để hướng dẫn sử dụng và giải đáp thắc mắc cho khách đã mua.</p>
-    <p>Trong nhóm có <strong>chủ cửa hàng</strong> và một <strong>trợ lý AI</strong> của cửa hàng (tài khoản riêng, không phải người thật).</p>
-    <p><strong>Bạn không bắt buộc tham gia.</strong></p>
+    <h1>Cảm ơn anh/chị đã mua hàng</h1>
+    <p>Cửa hàng có một nhóm Zalo nhỏ, khoảng 5 khách mua hàng, để anh/chị hỏi cách dùng. Trong nhóm có chủ cửa hàng và một trợ lý AI của cửa hàng.</p>
     <form th:action="@{/i/{token}/go(token=${token})}" method="post">
         <button type="submit" class="btn">Vào nhóm Zalo</button>
     </form>
-    <p class="small">Nếu không muốn vào nhóm, bạn chỉ cần đóng trang này. Bạn vẫn mua hàng và gọi điện cho cửa hàng như bình thường.
-        <span th:if="${!shopPhone.isEmpty()}">Điện thoại cửa hàng: <strong th:text="${shopPhone}">0900000000</strong>.</span></p>
+    <p class="small">Không vào nhóm cũng không sao. Anh/chị vẫn gọi điện cho cửa hàng như bình thường.</p>
+    <a class="btn secondary" th:if="${!shopPhone.isEmpty()}" th:href="@{|tel:${shopPhone}|}">Gọi cửa hàng: <span th:text="${shopPhone}">09xx xxx xxx</span></a>
+    <p class="small">Không cần nhập mã xác nhận hay số điện thoại.</p>
     <form th:action="@{/i/{token}/stop(token=${token})}" method="post">
         <button type="submit" class="linklike">Tôi không muốn nhận tin từ cửa hàng nữa</button>
     </form>
