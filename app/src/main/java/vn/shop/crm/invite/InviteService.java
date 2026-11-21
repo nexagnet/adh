@@ -298,10 +298,14 @@ public class InviteService {
         if (group == null) {
             throw new ImportException("Chưa có nhóm Zalo nào còn chỗ cho khu vực của khách này. Hãy mở thêm nhóm ở mục Nhóm Zalo.");
         }
-        jdbc.sql("""
+        int changed = jdbc.sql("""
                         UPDATE invitation SET status = 'JOINED', group_id = :g, joined_at = now(),
                                friended_at = coalesce(friended_at, now())
-                        WHERE id = :id""").param("g", group.id()).param("id", invitationId).update();
+                        WHERE id = :id AND status IN ('SENT', 'CLICKED', 'FRIENDED')""")
+                .param("g", group.id()).param("id", invitationId).update();
+        if (changed == 0) {
+            return; // bấm hai lần liền: lần trước đã ghi rồi, không tăng số khách của nhóm thêm lần nữa
+        }
         if (!r.clicked()) {
             // khách đã từng bấm link thì đã được tính ở "lượt bấm chờ" của nhóm (dù trạng thái giờ là đã kết bạn), không tính hai lần
             groups.addMember(group.id());
