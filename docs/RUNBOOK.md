@@ -56,6 +56,11 @@ Trang **In giấy giới thiệu**: một mã QR tĩnh và một link ngắn gi�
 3. Ở **Nhóm Zalo**, mỗi nhóm chọn được khu vực: cả miền, một vùng hoặc một tỉnh; để "Chung" thì nhóm nhận khách mọi nơi. Khách được xếp ưu tiên: cùng tỉnh, rồi cùng vùng, rồi cùng miền, rồi nhóm chung. Khách miền khác không bị xếp vào nhóm của miền này (đặt `APP_GROUPING_ALLOW_OTHER_REGION=true` nếu muốn cho phép).
 4. Trang quét mã QR chung hỏi "Bạn ở tỉnh/thành nào?" (có thể bỏ qua). Khách đã chọn tỉnh mà chưa có nhóm hợp sẽ thấy "chưa có chỗ" và được ghi lại (chỉ mã tỉnh, không có số điện thoại/tên). Trang Nhóm Zalo hiện khu vực nào đang thiếu nhóm; mở nhóm mới thì khách quét lại mã sẽ được xếp vào.
 
+### 5d. Bản đồ khách và thời tiết
+1. Mục **Bản đồ khách**: mỗi chấm là một tỉnh/thành, càng to và đậm càng nhiều khách. Bấm chấm (hoặc tên tỉnh trong bảng) để xem số khách, các nhóm Zalo phù hợp và dự báo thời tiết. Chỉ có số đếm, không có địa chỉ hay số điện thoại. Đây là sơ đồ minh họa, không phải bản đồ hành chính.
+2. Thời tiết **tắt mặc định**. Bật bằng biến môi trường `APP_WEATHER_ENABLED=true` rồi khởi động lại. Hệ thống chỉ hỏi những tỉnh đang có khách, chỉ gửi tọa độ thành phố tỉnh lỵ (không gửi gì về khách) tới MET Norway (miễn phí, giấy phép CC BY 4.0, đã ghi nguồn trên trang). Nút **Cập nhật thời tiết ngay** hỏi lại tất cả tỉnh. Nếu muốn nêu tên cửa hàng cho MET Norway biết, đặt `APP_WEATHER_USER_AGENT` (ví dụ tên miền của cửa hàng).
+3. **Nhắc việc thời tiết** hiện trên Bản đồ và Tổng quan khi một tỉnh có từ 10 khách trở lên mà 48 giờ tới dự báo lạnh bất thường (thấp nhất ≤13°C miền Bắc, ≤16°C miền Trung, ≤22°C miền Nam) hoặc nóng (cao nhất ≥37°C). Chỉ là nhắc việc cho mẹ, **hệ thống không tự nhắn gì cho khách**. Ngưỡng chỉnh trong `application.yml` mục `app.weather`.
+
 ### 6. Việc cần mẹ xử lý (khi bật bot)
 Bot báo khi trong nhóm có khách muốn mua, khiếu nại hoặc cần người thật. Mẹ vào Zalo trả lời, rồi bấm **Đã nhận** và **Xong**. Bot không bao giờ tự chốt đơn.
 Muốn tắt bot ngay: **Bot → TẮT bot ngay**. Mẹ vẫn trả lời khách bình thường.

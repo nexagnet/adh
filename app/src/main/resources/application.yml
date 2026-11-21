@@ -41,6 +41,22 @@ app:
   entry:
     # Giấy in bỏ vào gói hàng dùng MỘT mã QR chung (/moi). Mỗi địa chỉ mạng chỉ được tạo tối đa chừng này lượt MỚI mỗi giờ.
     max-new-per-ip-per-hour: 20
+  grouping:
+    # Cho phép xếp khách vào nhóm của miền khác khi không còn nhóm nào hợp (mặc định không).
+    allow-other-region: false
+  weather:
+    # Dự báo thời tiết theo tỉnh để nhắc việc cho mẹ (nguồn MET Norway, CC BY 4.0). MẶC ĐỊNH TẮT; bật bằng biến môi trường.
+    # Chỉ gửi ra ngoài tọa độ thành phố tỉnh lỵ, không bao giờ gửi dữ liệu khách. Không tự nhắn khách.
+    enabled: ${APP_WEATHER_ENABLED:false}
+    # Tên ứng dụng gửi cho MET Norway (họ yêu cầu có định danh). Có thể thêm tên miền của cửa hàng nếu muốn.
+    user-agent: ${APP_WEATHER_USER_AGENT:adh-shop-crm/1.0}
+    refresh-hours: 3
+    # Ngưỡng nhắc việc: nhiệt độ thấp nhất trong 48 giờ tới (lạnh) và cao nhất (nóng), theo từng miền.
+    cold-bac: 13
+    cold-trung: 16
+    cold-nam: 22
+    hot: 37
+    alert-min-customers: 10
   invitations:
     # Mỗi lô mời tối đa bao nhiêu khách (gửi chậm, theo lô nhỏ).
     max-batch: 20

@@ -185,7 +185,7 @@ public class GroupService {
     }
 
     /** Thứ tự ưu tiên (số nhỏ = hợp hơn); âm = không dùng được cho khách này. */
-    int rank(Group g, Province p) {
+    public int rank(Group g, Province p) {
         if (p == null) {
             return g.scope() == null ? 0 : 1;
         }

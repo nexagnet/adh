@@ -11,6 +11,12 @@
         Chưa có dữ liệu. Hãy bắt đầu bằng <a th:href="@{/imports/new}">nhập file đơn hàng</a> của Viettel Post hoặc J&amp;T.
     </div>
 
+    <div class="notice warn" th:if="${!weatherAlerts.isEmpty()}">
+        <strong>Nhắc việc thời tiết:</strong>
+        <span th:each="a, st : ${weatherAlerts}"><span th:text="${a.province.name} + ' (' + ${a.kindLabel()} + ', ' + ${a.customers} + ' khách)'">Cần Thơ</span><span th:unless="${st.last}">; </span></span>.
+        <a th:href="@{/map}">Xem bản đồ và chi tiết</a>
+    </div>
+
     <div class="cards">
         <a class="card" th:href="@{/customers(segment=ONE_TIME)}">
             <div class="big" th:text="${oneTime}">0</div>
