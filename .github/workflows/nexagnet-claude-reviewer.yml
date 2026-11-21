@@ -19,7 +19,7 @@ jobs:
       actions: read
       issues: read
       pull-requests: write
-    uses: nexagnet/.github/.github/workflows/claude-reviewer.yml@4ed9b70e1d7e0fb3b162e822f1be7c1a094ffd47
+    uses: nexagnet/.github/.github/workflows/claude-reviewer.yml@3830e26333771c6c0895b59b88fe2b62e24907a8
     with:
       pr_number: ${{ github.event.workflow_run.pull_requests[0].number }}
       expected_head_sha: ${{ github.event.workflow_run.head_sha }}
@@ -28,3 +28,4 @@ jobs:
       trusted_authors_csv: phungtienviet14-sketch
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      CLAUDE_CODE_OAUTH_TOKEN_FALLBACK: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_FALLBACK }}
