@@ -14,6 +14,8 @@ public class AppSettings {
     public static final String PAUSED_REASON = "campaigns.paused_reason";
     /** Bot tắt/bật toàn hệ thống (mốc 1E). Mặc định TẮT. */
     public static final String BOT_ENABLED = "bot.enabled";
+    /** Chạy thử của bot: chỉ ghi "sẽ trả lời gì", không gửi vào nhóm. Mặc định BẬT (an toàn). */
+    public static final String BOT_DRY_RUN = "bot.dry_run";
 
     private final JdbcClient jdbc;
 
@@ -54,5 +56,14 @@ public class AppSettings {
     public void resumeAll(String by) {
         set(PAUSED_REASON, "", by);
         set(PAUSED, "false", by);
+    }
+
+    public boolean botEnabled() {
+        return flag(BOT_ENABLED);
+    }
+
+    /** Mặc định true: chưa từng đặt thì vẫn là chạy thử. */
+    public boolean botDryRun() {
+        return !"false".equals(get(BOT_DRY_RUN).orElse("true"));
     }
 }

@@ -54,3 +54,7 @@ app:
     stop-after-consecutive-failures: 3
     stop-failure-rate: 0.3
     stop-opt-out-rate: 0.05
+  bot:
+    # Mẹ vừa trả lời trong nhóm thì bot im lặng bao nhiêu phút (tránh trả lời trùng).
+    human-quiet-minutes: 30
+    max-replies-per-5-min: 3

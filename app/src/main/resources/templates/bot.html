@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Bot trợ lý')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <h1>Bot trợ lý trong nhóm</h1>
+    <p class="hint">Bot là tài khoản <strong>riêng, công khai là "Trợ lý cửa hàng"</strong>, không phải tài khoản của mẹ.
+        Bot chỉ trả lời bằng các câu hỏi thường gặp dưới đây (do cửa hàng soạn). Khi khách muốn mua, khiếu nại hoặc cần
+        người thật, bot chỉ <strong>báo mẹ</strong>, không bao giờ tự nhận đã chốt đơn, không hỏi địa chỉ hay số điện thoại.
+        Mẹ vẫn trả lời khách trên Zalo như bình thường, bot tắt hay hỏng cũng không ảnh hưởng.</p>
+
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
+    <div class="notice">Hiện <strong>chưa có kênh kết nối Zalo nào được cài</strong> (cần chạy thử chọn phương án, xem
+        <code>docs/ADR-0001-chon-kenh-bot.md</code>). Vì vậy bot chưa đọc hay gửi tin trong nhóm thật; bạn có thể soạn FAQ
+        và thử bot ngay ở dưới.</div>
+
+    <div class="cards">
+        <div class="card" th:classappend="${botEnabled} ? '' : 'warn'">
+            <div class="big" th:text="${botEnabled} ? 'BẬT' : 'TẮT'">TẮT</div>
+            <div class="label">Bot toàn hệ thống (công tắc tắt khẩn cấp)</div>
+            <form th:action="@{/bot/enable}" method="post" class="inline">
+                <input type="hidden" name="on" th:value="${!botEnabled}">
+                <button type="submit" class="btn" th:classappend="${botEnabled} ? 'danger' : ''"
+                        th:text="${botEnabled} ? 'TẮT bot ngay' : 'Bật bot'">Bật bot</button>
+            </form>
+        </div>
+        <div class="card">
+            <div class="big" th:text="${dryRun} ? 'CHẠY THỬ' : 'GỬI THẬT'">CHẠY THỬ</div>
+            <div class="label">Chế độ thử: chỉ ghi "sẽ trả lời gì", không gửi vào nhóm</div>
+            <form th:action="@{/bot/dry-run}" method="post" class="inline">
+                <input type="hidden" name="on" th:value="${!dryRun}">
+                <button type="submit" class="btn secondary" th:text="${dryRun} ? 'Tắt chế độ thử' : 'Bật lại chế độ thử'">Tắt chế độ thử</button>
+            </form>
+        </div>
+    </div>
+
+    <h2>Bật bot theo từng nhóm</h2>
+    <div class="table-wrap" th:if="${!groups.isEmpty()}">
+        <table>
+            <tr><th>Nhóm</th><th>Bot</th><th></th></tr>
+            <tr th:each="g : ${groups}">
+                <td th:text="${g.name}">Nhóm 1</td>
+                <td><span class="badge ok" th:if="${g.botEnabled}">Bật</span><span class="badge" th:unless="${g.botEnabled}">Tắt</span></td>
+                <td>
+                    <form th:action="@{/bot/groups/{id}/toggle(id=${g.id})}" method="post" class="inline">
+                        <input type="hidden" name="on" th:value="${!g.botEnabled}">
+                        <button type="submit" class="btn secondary" th:text="${g.botEnabled} ? 'Tắt cho nhóm này' : 'Bật cho nhóm này'">Bật</button>
+                    </form>
+                </td>
+            </tr>
+        </table>
+    </div>
+    <p class="muted" th:if="${groups.isEmpty()}">Chưa có nhóm nào. Hãy thêm nhóm ở mục Nhóm Zalo.</p>
+
+    <h2>Thử bot với một câu</h2>
+    <form th:action="@{/bot/simulate}" method="post">
+        <label>Khách nhắn: <input type="text" name="text" th:value="${sample}" maxlength="300" required
+                                   placeholder="Ví dụ: Áo này giặt máy được không?"></label>
+        <div class="actions"><button type="submit" class="btn">Xem bot sẽ làm gì</button></div>
+    </form>
+    <div class="notice" th:if="${decision != null}">
+        <div>Nhận diện: <strong th:text="${decision.intent != null ? decision.intent.label() : 'Trao đổi bình thường'}">Câu hỏi</strong></div>
+        <div th:switch="${decision.type.name()}">
+            <div th:case="'ANSWERED'">Bot sẽ trả lời bằng FAQ: <strong th:text="${decision.reply}">...</strong></div>
+            <div th:case="'HANDOFF'">Bot sẽ <strong>báo mẹ</strong> và nhắn khách: <strong th:text="${decision.reply}">...</strong></div>
+            <div th:case="*">Bot sẽ <strong>không trả lời</strong> (không phải câu hỏi hướng tới cửa hàng).</div>
+        </div>
+        <div class="muted">Thử như thế này không ghi gì, không tạo việc, không gửi gì.</div>
+    </div>
+
+    <h2>Câu hỏi thường gặp (bot chỉ trả lời bằng các câu này)</h2>
+    <p class="hint">Từ khóa viết cách nhau bằng dấu phẩy, không cần dấu tiếng Việt. Ví dụ: <code>giặt, giặt máy, vệ sinh</code>.
+        Không điền giá, tồn kho hay bảo hành nếu chưa chắc chắn.</p>
+    <form class="inline" th:action="@{/bot/faq}" method="post">
+        <input type="text" name="title" placeholder="Tiêu đề" required maxlength="100">
+        <input type="text" name="keywords" placeholder="Từ khóa, cách nhau bằng dấu phẩy" size="30" required maxlength="300">
+        <input type="text" name="answer" placeholder="Câu trả lời của cửa hàng" size="40" required maxlength="800">
+        <button type="submit" class="btn">Thêm</button>
+    </form>
+    <div class="table-wrap" th:if="${!faqs.isEmpty()}">
+        <table>
+            <tr><th>Tiêu đề</th><th>Từ khóa</th><th>Trả lời</th><th>Thao tác</th></tr>
+            <tr th:each="f : ${faqs}">
+                <td th:text="${f.title}">Giặt</td>
+                <td class="mono" th:text="${f.keywords}">giặt</td>
+                <td th:text="${f.answer}">Giặt tay</td>
+                <td>
+                    <span class="badge warn" th:unless="${f.enabled}">Đang tắt</span>
+                    <details>
+                        <summary>Sửa</summary>
+                        <form class="inline" th:action="@{/bot/faq/{id}/update(id=${f.id})}" method="post">
+                            <input type="text" name="title" th:value="${f.title}" required maxlength="100">
+                            <input type="text" name="keywords" th:value="${f.keywords}" size="30" required maxlength="300">
+                            <input type="text" name="answer" th:value="${f.answer}" size="40" required maxlength="800">
+                            <label class="check"><input type="checkbox" name="enabled" value="true" th:checked="${f.enabled}"> Đang dùng</label>
+                            <button type="submit" class="btn">Lưu</button>
+                        </form>
+                        <form th:action="@{/bot/faq/{id}/delete(id=${f.id})}" method="post">
+                            <button type="submit" class="btn danger">Xóa</button>
+                        </form>
+                    </details>
+                </td>
+            </tr>
+        </table>
+    </div>
+    <p class="muted" th:if="${faqs.isEmpty()}">Chưa có câu nào. Khi chưa có FAQ, bot chỉ báo mẹ chứ không trả lời nội dung.</p>
+
+    <h2>Bot xử lý gần đây</h2>
+    <div class="table-wrap">
+        <table>
+            <tr><th>Lúc</th><th>Nhóm</th><th>Người nhắn</th><th>Kết quả</th><th>Bot muốn trả lời</th></tr>
+            <tr th:each="e : ${events}">
+                <td th:text="${#temporals.format(e.at, 'dd/MM HH:mm')}">01/01 10:00</td>
+                <td th:text="${e.group}">Nhóm 1</td>
+                <td th:text="${e.senderKind}">CUSTOMER</td>
+                <td><span th:text="${e.type}">ANSWERED</span> <span class="muted" th:if="${e.intent != null}" th:text="'(' + ${e.intent} + ')'"></span></td>
+                <td><span th:text="${e.reply}">...</span>
+                    <span class="badge" th:if="${e.reply != null and !e.sent}">chưa gửi</span>
+                    <span class="badge ok" th:if="${e.sent}">đã gửi</span></td>
+            </tr>
+            <tr th:if="${events.isEmpty()}"><td colspan="5" class="muted">Chưa có tin nào được bot xử lý.</td></tr>
+        </table>
+    </div>
+</main>
+</body>
+</html>

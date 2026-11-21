@@ -4,6 +4,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import vn.shop.crm.bot.HandoffService;
 import vn.shop.crm.contact.ContactService;
 import vn.shop.crm.contact.PrivacyService;
 import vn.shop.crm.customers.CustomerService;
@@ -29,11 +30,13 @@ public class DashboardController {
     private final ContactService contacts;
     private final PrivacyService privacy;
     private final InviteService invites;
+    private final HandoffService handoffs;
 
     public DashboardController(JdbcClient jdbc, CustomerService customers, ImportService imports,
                                StatusMappingService statuses, ContactService contacts, PrivacyService privacy,
-                               InviteService invites) {
+                               InviteService invites, HandoffService handoffs) {
         this.invites = invites;
+        this.handoffs = handoffs;
         this.contacts = contacts;
         this.privacy = privacy;
         this.jdbc = jdbc;
@@ -63,6 +66,7 @@ public class DashboardController {
         model.addAttribute("review", customers.countNeedsReview());
         model.addAttribute("contact", contacts.stats());
         model.addAttribute("invites", invites.stats());
+        model.addAttribute("handoffOpen", handoffs.openCount());
         model.addAttribute("privacyOpen", privacy.openCount());
         model.addAttribute("privacyOverdue", privacy.overdueCount());
         model.addAttribute("unmapped", statuses.unmapped().size());
