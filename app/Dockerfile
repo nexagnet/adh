@@ -16,5 +16,7 @@ COPY --from=build /src/app.jar /app/app.jar
 USER crm
 EXPOSE 8080
 # Máy chủ 2 GB RAM: giới hạn bộ nhớ Java khoảng 512 MB, nhường chỗ cho PostgreSQL và hệ điều hành.
+# Biến môi trường có chữ có dấu (ví dụ APP_SHOP_NAME) chỉ đọc đúng khi hệ thống dùng bảng mã UTF-8.
+ENV LC_ALL=C.UTF-8
 ENV JAVA_TOOL_OPTIONS="-Xms128m -Xmx512m -XX:+ExitOnOutOfMemoryError"
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

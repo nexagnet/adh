@@ -23,6 +23,7 @@ Mục này **ghi đè** mọi chỗ khác trong file khi có mâu thuẫn (ví d
 | D7 | VPS **ở Singapore, 2 CPU, 2 GB RAM, 40 GB đĩa** | Dữ liệu khách nằm ngoài Việt Nam: ghi nhận rủi ro chuyển dữ liệu xuyên biên giới, mã hóa đĩa/sao lưu, không ghi SĐT đầy đủ vào log, hỏi luật sư. Cấu hình 2 GB: giới hạn bộ nhớ Java (~512 MB), Postgres nhỏ, bật swap, sao lưu ra ngoài VPS, không cài dịch vụ nặng |
 | D8 | Chưa có file mẫu từ hai hãng; chủ cửa hàng **có quyền truy cập tài khoản của ba mẹ và tự xuất** khi cần | Dev bằng dữ liệu giả; chủ cửa hàng tự xuất, che SĐT trước khi gửi file mẫu |
 | D9 | **21/11/2026: tạm chưa dùng SMS, làm qua Zalo trước** | Đường mời hiện dùng: xuất danh sách, **mẹ gửi tay** bằng Zalo của mình, lô nhỏ. Không viết bộ gửi SMS/ZBS lúc này, giữ chúng ở trạng thái tắt và ghi "chưa dùng". Mục D4 (SMS là kênh chính) tạm không áp dụng cho tới khi chủ cửa hàng quyết lại |
+| D10 | **21/11/2026: giấy in bỏ vào MỌI gói hàng, kể cả khách mua từ 2 lần**, dùng một mã QR tĩnh chung | Ngoại lệ so với BR-06: khách tự quét, hệ thống không chủ động mời; ai quét cũng vào được nhóm còn chỗ. Vẫn chặn quét lặp (cookie, giới hạn theo địa chỉ mạng) và có cách khách tự xin ngừng nhận tin. Mẹ đếm lại thành viên nhóm mỗi tuần (giả định) |
 
 **Việc chủ cửa hàng đang giữ:** (1) đăng ký hộ kinh doanh; (2) hỏi eSMS và SpeedSMS: mẫu "mời vào nhóm Zalo" thuộc loại tin nào, có gắn link được không, giá mỗi tin, phí brandname, và **cá nhân chưa đăng ký hộ kinh doanh có đăng ký brandname được không**; (3) xuất file mẫu Viettel Post và J&T. Nhà cung cấp SMS chưa được chọn.
 

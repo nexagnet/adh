@@ -12,6 +12,27 @@
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
 
+    <div class="notice" th:if="${next != null}">
+        Khách quét mã QR chung (xem <a th:href="@{/print}">In giấy giới thiệu</a>) lúc này sẽ vào:
+        <strong th:text="${next.name}">Nhóm 1</strong>. Tổng chỗ còn lại ước lượng: <strong th:text="${spotsLeft}">3</strong>.
+    </div>
+    <div class="notice bad" th:if="${next == null}">
+        <strong>Chưa có nhóm nào còn chỗ.</strong> Khách quét mã QR sẽ thấy "chưa có chỗ". Hãy thêm nhóm mới bên dưới hoặc mở nhóm đang tạm dừng.
+    </div>
+
+    <details class="card">
+        <summary><strong>Cách đóng nhóm đã đầy và mở nhóm mới</strong></summary>
+        <ol>
+            <li><strong>Mỗi tuần</strong> (hoặc khi thấy nhóm gần đủ), mẹ mở nhóm trên Zalo, đếm số khách thật (không tính mẹ và bot),
+                rồi nhập vào ô "Cập nhật số khách" bên dưới. Hệ thống tự tính nhóm nào còn chỗ.</li>
+            <li>Khi nhóm đủ khoảng 5 khách, hệ thống tự ngừng đưa khách mới vào nhóm đó. Mẹ có thể đổi trạng thái sang <em>Đã đóng</em> cho gọn.</li>
+            <li>Tạo nhóm mới trên Zalo, lấy link mời nhóm, bấm <em>Thêm nhóm</em> ở trên và dán link vào.
+                Nhóm mới ở trạng thái <em>Đang chuẩn bị</em>: đổi sang <em>Đang nhận khách</em> khi sẵn sàng.</li>
+            <li>Khách quét mã QR từ giờ sẽ tự vào nhóm mới. Không cần in lại giấy.</li>
+        </ol>
+        <p class="hint">Hệ thống không biết ai thật sự đã vào nhóm, chỉ đếm lượt quét. Vì vậy mẹ đếm lại thì số mới chính xác.</p>
+    </details>
+
     <h2>Thêm nhóm</h2>
     <form class="inline" th:action="@{/groups}" method="post">
         <input type="text" name="name" placeholder="Tên nhóm" required maxlength="100">
@@ -33,6 +54,7 @@
                     <span class="badge ok" th:if="${g.status.name() == 'OPEN'}" th:text="${g.status.label()}">Đang nhận khách</span>
                     <span class="badge warn" th:unless="${g.status.name() == 'OPEN'}" th:text="${g.status.label()}">Tạm dừng</span>
                     <div class="muted" th:if="${g.status.name() == 'OPEN' and g.full()}">Gần đủ: tạm không cấp link mới</div>
+                    <div class="muted warn-text" th:if="${g.needsRecount()}">Cần đếm lại (quá 7 ngày)</div>
                 </td>
                 <td class="num"><span th:text="${g.actual}">0</span> / <span th:text="${g.target}">5</span>
                     <div class="muted" th:if="${g.countedAt != null}"

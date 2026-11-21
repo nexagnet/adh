@@ -23,6 +23,8 @@ public class GroupService {
 
     /** Mẹ + bot: hai tài khoản của cửa hàng, hiển thị để không nhầm với khách (tiêu chí 8). */
     public static final int STORE_ACCOUNTS = 2;
+    /** Mẹ đếm lại số khách trong nhóm ít nhất mỗi tuần (giả định, chỉnh được ở đây). */
+    public static final int RECOUNT_DAYS = 7;
 
     public record Group(long id, String name, String inviteLink, int target, int actual, OffsetDateTime countedAt,
                         GroupStatus status, String note, long pendingClicks, double score) {
@@ -37,6 +39,17 @@ public class GroupService {
 
         public boolean full() {
             return score >= target;
+        }
+
+        /** Nhóm đang nhận khách mà chưa đếm lại trong 7 ngày: số "đang chờ" có thể đã lệch nhiều. */
+        public boolean needsRecount() {
+            return status == GroupStatus.OPEN
+                    && (countedAt == null || countedAt.isBefore(OffsetDateTime.now().minusDays(RECOUNT_DAYS)));
+        }
+
+        /** Số chỗ còn lại ước lượng (không âm). */
+        public int spotsLeft() {
+            return (int) Math.max(0, Math.floor(target - score));
         }
     }
 
@@ -60,7 +73,9 @@ public class GroupService {
             SELECT g.id, g.name, g.invite_link, g.target_customers, g.actual_customers, g.counted_at, g.status, g.note,
                    (SELECT count(*) FROM invitation i
                      WHERE i.group_id = g.id AND i.first_clicked_at IS NOT NULL
-                       AND (g.counted_at IS NULL OR i.first_clicked_at > g.counted_at)) AS pending
+                       AND (g.counted_at IS NULL OR i.first_clicked_at > g.counted_at))
+                   + (SELECT count(*) FROM open_entry o
+                       WHERE o.group_id = g.id AND (g.counted_at IS NULL OR o.created_at > g.counted_at)) AS pending
             FROM zalo_group g""";
 
     private Group map(java.sql.ResultSet rs) throws java.sql.SQLException {

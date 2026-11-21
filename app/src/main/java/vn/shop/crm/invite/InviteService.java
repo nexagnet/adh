@@ -34,7 +34,7 @@ public class InviteService {
     private static final ZoneId VN = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final SecureRandom RANDOM = new SecureRandom();
     /** Khóa tư vấn Postgres để hai lượt bấm cùng lúc không cùng chọn một nhóm đã gần đầy. */
-    private static final long GROUP_PICK_LOCK = 7_301_001L;
+    static final long GROUP_PICK_LOCK = 7_301_001L;
 
     public record Campaign(long id, String name, String template, int expiresDays, String createdBy,
                            LocalDateTime createdAt, long total, long ready, long sent, long clicked, long cancelled) {

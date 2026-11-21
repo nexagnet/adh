@@ -9,11 +9,13 @@
 </head>
 <body class="landing">
 <main>
+    <h1 th:if="${tooMany}">Bạn thao tác hơi nhiều lần</h1>
+    <p th:if="${tooMany}">Vui lòng đợi một lúc rồi thử lại.</p>
     <h1 th:if="${noGroup}">Hiện chưa có chỗ trong nhóm</h1>
     <p th:if="${noGroup}">Các nhóm của <span th:text="${shopName}">Cửa hàng</span> đang chuẩn bị hoặc đã đủ người.
         Mời bạn liên hệ cửa hàng để được hỗ trợ.</p>
-    <h1 th:unless="${noGroup}">Link này không còn dùng được</h1>
-    <p th:unless="${noGroup}">Mời bạn liên hệ <span th:text="${shopName}">Cửa hàng</span> nếu cần hỗ trợ.</p>
+    <h1 th:unless="${noGroup == true or tooMany == true}">Link này không còn dùng được</h1>
+    <p th:unless="${noGroup == true or tooMany == true}">Mời bạn liên hệ <span th:text="${shopName}">Cửa hàng</span> nếu cần hỗ trợ.</p>
     <p th:if="${!shopPhone.isEmpty()}">Điện thoại: <strong th:text="${shopPhone}">0900000000</strong></p>
 </main>
 </body>

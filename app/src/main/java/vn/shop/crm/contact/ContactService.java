@@ -250,6 +250,24 @@ public class ContactService {
                 .param("id", customerId).param("reason", reason).update();
     }
 
+    /**
+     * Khách tự xin ngừng nhận tin bằng số điện thoại (trang giấy giới thiệu dùng mã QR chung, không có link riêng).
+     * Số hợp lệ nào cũng được ghi vào danh sách từ chối (chỉ lưu băm); nếu số đó đã là khách thì xử lý như
+     * "ngừng liên hệ" đầy đủ. Trả lỗi tiếng Việt nếu số không hợp lệ.
+     */
+    @Transactional
+    public void optOutByPhone(String rawPhone, String source) {
+        String phone = vn.shop.crm.common.PhoneNormalizer.toE164(rawPhone)
+                .orElseThrow(() -> new ImportException("Số điện thoại chưa đúng. Hãy nhập số 10 chữ số, ví dụ 0912345678."));
+        Optional<Long> customer = jdbc.sql("SELECT id FROM customer WHERE phone = :p").param("p", phone)
+                .query(Long.class).optional();
+        if (customer.isPresent()) {
+            suppressAs(customer.get(), source, "khach-tu-bam");
+        } else {
+            suppressPhone(phone, "OPT_OUT", source, "khach-tu-bam");
+        }
+    }
+
     /** Ghi SĐT vào danh sách từ chối (chỉ lưu băm). Gọi lặp lại không sao. */
     void suppressPhone(String phone, String reason, String source) {
         suppressPhone(phone, reason, source, actor());

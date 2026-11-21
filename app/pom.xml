@@ -16,6 +16,7 @@
 	<properties>
 		<java.version>25</java.version>
 		<libphonenumber.version>9.0.44</libphonenumber.version>
+		<zxing.version>3.5.3</zxing.version>
 		<fastexcel.version>0.20.2</fastexcel.version>
 		<commons-csv.version>1.14.1</commons-csv.version>
 		<embedded-postgres.version>2.2.2</embedded-postgres.version>
@@ -49,6 +50,11 @@
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-database-postgresql</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.google.zxing</groupId>
+			<artifactId>core</artifactId>
+			<version>${zxing.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.googlecode.libphonenumber</groupId>

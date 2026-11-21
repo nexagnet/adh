@@ -38,6 +38,9 @@ app:
   shop-name: ${APP_SHOP_NAME:Cửa hàng}
   # Số điện thoại cửa hàng hiển thị trên trang khách bấm link (có thể để trống).
   shop-phone: ${APP_SHOP_PHONE:}
+  entry:
+    # Giấy in bỏ vào gói hàng dùng MỘT mã QR chung (/moi). Mỗi địa chỉ mạng chỉ được tạo tối đa chừng này lượt MỚI mỗi giờ.
+    max-new-per-ip-per-hour: 20
   invitations:
     # Mỗi lô mời tối đa bao nhiêu khách (gửi chậm, theo lô nhỏ).
     max-batch: 20

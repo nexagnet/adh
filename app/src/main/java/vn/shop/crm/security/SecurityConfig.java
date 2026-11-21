@@ -25,12 +25,12 @@ public class SecurityConfig {
         http
                 // Trang mời công khai: chỉ POST "vào nhóm"/"ngừng nhận tin", idempotent và chỉ dùng token ngẫu nhiên,
                 // không có phiên đăng nhập nên miễn CSRF để khách không phải mang cookie.
-                .csrf(csrf -> csrf.ignoringRequestMatchers("/i/**"))
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/i/**", "/moi/**"))
                 // Giới hạn đăng nhập sai (mốc 1F). Không đăng ký thành @Bean để khỏi bị nạp hai lần.
                 .addFilterBefore(new LoginThrottleFilter(throttle),
                         org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/login", "/app.css", "/error", "/i/**").permitAll()
+                        .requestMatchers("/login", "/app.css", "/error", "/i/**", "/moi", "/moi/**").permitAll()
                         .anyRequest().authenticated())
                 .formLogin(form -> form.loginPage("/login").defaultSuccessUrl("/", true).permitAll())
                 .logout(logout -> logout.logoutSuccessUrl("/login?logout"))

@@ -23,6 +23,9 @@ public class GroupController {
         model.addAttribute("groups", groups.list());
         model.addAttribute("statuses", GroupStatus.values());
         model.addAttribute("storeAccounts", GroupService.STORE_ACCOUNTS);
+        model.addAttribute("next", groups.pickGroup().orElse(null));
+        model.addAttribute("spotsLeft", groups.list().stream()
+                .filter(g -> g.status() == GroupStatus.OPEN && g.hasLink()).mapToInt(GroupService.Group::spotsLeft).sum());
         return "groups";
     }
 

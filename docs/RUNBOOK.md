@@ -39,6 +39,17 @@ Nên bắt đầu với 2 đến 3 nhóm.
 
 **Đường mời hiện dùng: Zalo, mẹ gửi tay** (quyết định của chủ cửa hàng ngày 21/11/2026). Mẹ nhắn từng khách bằng Zalo của mình, lô nhỏ, đúng hạn mức ngày; không dùng phần mềm tự gửi và không đăng nhập Zalo bằng công cụ. **SMS và Zalo thông báo (ZBS): chưa dùng**, đang tắt, chưa có bộ gửi (xem phần B.7).
 
+### 5b. Giấy giới thiệu bỏ vào gói hàng (mã QR chung)
+Trang **In giấy giới thiệu**: một mã QR tĩnh và một link ngắn giống hệt nhau trên mọi tờ, mẹ in như tờ rơi thường (A6, A5, hoặc 4 tờ A6 trên một tờ A4 rồi cắt).
+1. Sửa chữ trên giấy (tiêu đề, nội dung, lời nhắn, hướng dẫn) rồi bấm **Lưu chữ**. Chữ này cũng hiện ở trang khách thấy sau khi quét.
+2. Chọn khổ giấy, bấm **In trang này**; trong hộp thoại in chọn đúng khổ, tỷ lệ 100%, tắt "Đầu trang và chân trang". In thử một tờ và quét thử bằng điện thoại trước khi in nhiều.
+3. **Chỉ in khi địa chỉ web đã là địa chỉ thật** (nếu chạy ngoài Docker, đặt `LC_ALL=C.UTF-8` để tên cửa hàng có dấu hiện đúng) (trang sẽ cảnh báo "Chưa nên in" nếu chưa đặt `APP_PUBLIC_BASE_URL`). Mã QR chỉ phải in lại nếu đổi tên miền.
+4. Khi khách quét, hệ thống tự chọn nhóm còn chỗ (mục tiêu mặc định 5 khách). Mỗi điện thoại (nhớ bằng cookie 90 ngày) chỉ được tính một lần; mỗi địa chỉ mạng tối đa 20 lượt mới mỗi giờ (`app.entry.max-new-per-ip-per-hour`).
+5. **Mỗi tuần mẹ đếm lại số khách thật trong từng nhóm** và nhập ở trang **Nhóm Zalo**. Nhóm đủ thì hệ thống tự ngừng đưa khách vào; thêm nhóm mới bằng link mời Zalo rồi đổi sang "Đang nhận khách". Không cần in lại giấy.
+6. Hệ thống **không biết ai đã thật sự vào nhóm**, chỉ đếm lượt quét (mỗi lượt tính nửa người cho tới lần đếm lại tiếp theo, đây là giả định).
+
+**Ngoại lệ so với BR-06 (quyết định ngày 21/11/2026):** giấy bỏ vào MỌI gói hàng, kể cả khách mua từ 2 lần, và ai quét cũng vào được nhóm. Khách tự quét, hệ thống không chủ động mời ai. Khách có thể xin ngừng nhận tin trên trang sau khi quét (nhập số điện thoại, vào danh sách từ chối vĩnh viễn, chỉ lưu mã băm).
+
 ### 6. Việc cần mẹ xử lý (khi bật bot)
 Bot báo khi trong nhóm có khách muốn mua, khiếu nại hoặc cần người thật. Mẹ vào Zalo trả lời, rồi bấm **Đã nhận** và **Xong**. Bot không bao giờ tự chốt đơn.
 Muốn tắt bot ngay: **Bot → TẮT bot ngay**. Mẹ vẫn trả lời khách bình thường.

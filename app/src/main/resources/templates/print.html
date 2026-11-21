@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('In giấy giới thiệu')}"></head>
+<body class="printpage">
+<nav th:replace="~{fragments :: nav}"></nav>
+<link rel="stylesheet" th:href="@{|/print-${#strings.toLowerCase(kho)}.css|}">
+<main>
+    <div class="noprint">
+        <h1>In giấy giới thiệu vào nhóm Zalo</h1>
+        <p class="hint">Bỏ một tờ giấy vào mỗi gói hàng. <strong>Mọi tờ giống hệt nhau</strong>: cùng một mã QR và cùng một link ngắn,
+            nên mẹ in như tờ rơi bình thường, không cần in từng tờ khác nhau. Khi khách quét, hệ thống tự chọn nhóm còn chỗ.</p>
+
+        <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
+        <div class="notice">
+            <strong>Giấy bỏ vào mọi gói hàng, kể cả khách mua từ 2 lần.</strong> Đây là <strong>ngoại lệ so với BR-06</strong>
+            (khách mua từ 2 lần thường chỉ để bố mẹ tự tư vấn): ở đây khách tự quét, hệ thống không chủ động mời ai.
+            Ai quét cũng vào được nhóm còn chỗ; mỗi điện thoại chỉ được tính một lần; khách có thể xin ngừng nhận tin ngay trên trang sau khi quét.
+        </div>
+        <div class="notice bad" th:if="${addressNotReal}">
+            <strong>Chưa nên in.</strong> Địa chỉ web của hệ thống chưa phải địa chỉ thật (đang là <span class="mono" th:text="${shortLink}">localhost</span>),
+            tờ in ra khách quét sẽ không vào được. Nhờ người cài máy chủ đặt tên miền thật (biến <code>APP_PUBLIC_BASE_URL</code>) rồi mở lại trang này.
+        </div>
+        <div class="notice" th:if="${next != null}">
+            Khách quét lúc này sẽ vào: <strong th:text="${next.name}">Nhóm 1</strong>.
+            Tổng chỗ còn lại ước lượng: <strong th:text="${spotsLeft}">3</strong>.
+        </div>
+        <div class="notice bad" th:if="${next == null}">
+            <strong>Hiện chưa có nhóm nào còn chỗ.</strong> Khách quét sẽ thấy "chưa có chỗ". Vào trang <a th:href="@{/groups}">Nhóm Zalo</a>
+            để thêm nhóm mới hoặc mở nhóm.
+        </div>
+
+        <h2>1. Sửa chữ trên giấy</h2>
+        <p class="hint">Chỉ là chữ thuần. Nên giữ lời mời nhẹ nhàng, nói rõ không bắt buộc, không quảng cáo sản phẩm.
+            Chữ này cũng hiện ở trang khách thấy sau khi quét.</p>
+        <form th:action="@{/print/texts}" method="post" class="textform">
+            <input type="hidden" name="kho" th:value="${kho}">
+            <label th:each="f : ${fields}">
+                <span th:text="${f.label}">Tiêu đề</span> <small class="muted" th:text="'(' + ${f.hint} + ')'">gợi ý</small>
+                <textarea th:name="${f.name()}" th:rows="${f.rows}" th:maxlength="${f.max}" required
+                          th:text="${raw[f.name()]}"></textarea>
+            </label>
+            <div class="actions">
+                <button type="submit" class="btn">Lưu chữ</button>
+            </div>
+        </form>
+        <form th:action="@{/print/texts/reset}" method="post" class="inline">
+            <input type="hidden" name="kho" th:value="${kho}">
+            <button type="submit" class="btn secondary">Dùng lại chữ mặc định</button>
+        </form>
+
+        <h2>2. Chọn khổ giấy</h2>
+        <p>
+            <a class="btn" th:classappend="${kho == 'A6'} ? '' : 'secondary'" th:href="@{/print(kho='A6')}">A6 (một tờ nhỏ)</a>
+            <a class="btn" th:classappend="${kho == 'A5'} ? '' : 'secondary'" th:href="@{/print(kho='A5')}">A5 (một tờ vừa)</a>
+            <a class="btn" th:classappend="${kho == 'A4X4'} ? '' : 'secondary'" th:href="@{/print(kho='A4X4')}">4 tờ A6 trên một tờ A4 (in rồi cắt)</a>
+        </p>
+
+        <h2>3. In</h2>
+        <ol>
+            <li>Bấm nút <strong>In trang này</strong> bên dưới (hoặc nhấn Ctrl + P).</li>
+            <li>Trong hộp thoại in, chọn đúng khổ giấy đã chọn ở trên, tỷ lệ <strong>100%</strong>, và <strong>tắt</strong> mục "Đầu trang và chân trang".</li>
+            <li>In thử một tờ, dùng điện thoại quét thử xem có vào được trang không, rồi mới in số lượng lớn.</li>
+        </ol>
+        <p>
+            <button type="button" class="btn" id="print-btn">In trang này</button>
+            <a class="btn secondary" th:href="@{/print/qr.png(tai=true)}">Tải mã QR (ảnh PNG)</a>
+            <a class="btn secondary" th:href="@{/print/qr.svg}" download="qr-vao-nhom.svg">Tải mã QR (SVG)</a>
+        </p>
+        <p class="hint">Mã QR là mã tĩnh: in một lần dùng mãi, kể cả khi sau này đổi hay thêm nhóm. Chỉ khi đổi tên miền thì mới phải in lại.</p>
+
+        <h2>Xem trước tờ giấy</h2>
+    </div>
+
+    <div th:class="'sheets sheets-' + ${#strings.toLowerCase(kho)}">
+        <div class="sheet" th:each="n : ${sheets}">
+            <h2 class="sheet-title" th:text="${t['title']}">Cảm ơn bạn đã mua hàng!</h2>
+            <p class="sheet-intro keepline" th:text="${t['intro']}">Nội dung chính.</p>
+            <p class="sheet-scan keepline" th:text="${t['scan']}">Quét mã này</p>
+            <img class="qr" th:src="@{/print/qr.png}" alt="Mã QR vào nhóm Zalo">
+            <p class="sheet-type keepline" th:text="${t['type']}">Không quét được? Gõ:</p>
+            <p class="sheet-link" th:text="${shortLink}">cuahang.vn/moi</p>
+            <p class="sheet-note keepline" th:text="${t['note']}">Không bắt buộc.</p>
+            <p class="sheet-footer keepline" th:text="${t['footer']}">Chúc bạn vui vẻ!</p>
+            <p class="sheet-phone" th:if="${!shopPhone.isEmpty()}">Điện thoại: <span th:text="${shopPhone}">0900000000</span></p>
+        </div>
+    </div>
+</main>
+<script th:src="@{/print.js}"></script>
+</body>
+</html>
