@@ -21,7 +21,7 @@ import java.util.Set;
 public final class VnGeo {
 
     /** Tăng số này khi sửa cách đoán để hệ thống tự tính lại cho khách cũ. */
-    public static final int VERSION = 1;
+    public static final int VERSION = 2;
 
     // mã | tên | vùng | vĩ độ | kinh độ | tên gọi khác (cách nhau bằng ; , dấu = đầu: chỉ khớp khi có dấu tiếng Việt)
     private static final String TABLE = """
@@ -146,8 +146,8 @@ public final class VnGeo {
         if (address == null || address.isBlank() || address.length() > 1000) {
             return Optional.empty();
         }
-        String plainText = " " + plain(address) + " ";
-        String marked = " " + lowerKeepMarks(address) + " ";
+        String plainText = " " + plainKeepCommas(address) + " ";
+        String marked = " " + lowerKeepMarksAndCommas(address) + " ";
         Province best = null;
         int bestEnd = -1;
         int bestLen = -1;
@@ -161,7 +161,7 @@ public final class VnGeo {
                     break;
                 }
                 from = at + 1;
-                String before = a.needMarks() ? plain(text.substring(0, at)) : text.substring(0, at).strip();
+                String before = a.needMarks() ? plainKeepCommas(text.substring(0, at)) : text.substring(0, at).strip();
                 if (isUnitName(before)) {
                     continue;
                 }
@@ -176,7 +176,11 @@ public final class VnGeo {
         return Optional.ofNullable(best);
     }
 
-    /** Phần chữ ngay trước tên kết thúc bằng "xã/phường/quận/huyện/đường/phố...": tên đó là đơn vị nhỏ, không phải tỉnh. */
+    /**
+     * Phần chữ ngay trước tên kết thúc bằng "xã/phường/quận/huyện/đường/phố...": tên đó là đơn vị nhỏ, không phải tỉnh.
+     * Dấu phẩy được giữ lại thành một từ riêng ","; nếu đứng ngay trước tên thì tên là một cấp địa chỉ riêng (thường là
+     * tỉnh), nên chữ cuối của cấp trước ("Điền Xá", "Sơn Dương", "Đan Phượng") không được tính là tiền tố "xã/đường/phường".
+     */
     private static boolean isUnitName(String before) {
         if (before.isEmpty()) {
             return false;
@@ -190,6 +194,23 @@ public final class VnGeo {
             return true;
         }
         return before.endsWith("thi tran") || before.endsWith("thi xa") || before.endsWith("khu pho");
+    }
+
+    /** Như {@link #plain} nhưng dấu phẩy, chấm phẩy, xuống dòng thành từ "," riêng để biết ranh giới giữa các cấp địa chỉ. */
+    static String plainKeepCommas(String s) {
+        String lower = s.toLowerCase(Locale.ROOT).replace('đ', 'd');
+        String d = Normalizer.normalize(lower, Normalizer.Form.NFD).replaceAll("\\p{M}+", "");
+        return separators(d.replaceAll("[,;\\r\\n]+", ",").replaceAll("[^a-z0-9,]+", " "));
+    }
+
+    /** Như {@link #lowerKeepMarks} nhưng giữ ranh giới cấp địa chỉ như {@link #plainKeepCommas}. */
+    static String lowerKeepMarksAndCommas(String s) {
+        String n = Normalizer.normalize(s.toLowerCase(Locale.ROOT), Normalizer.Form.NFC);
+        return separators(n.replaceAll("[,;\\r\\n]+", ",").replaceAll("[^\\p{L}\\p{N},]+", " "));
+    }
+
+    private static String separators(String s) {
+        return s.replaceAll("\\s*,[\\s,]*", " , ").replaceAll(" +", " ").strip();
     }
 
     /** Chữ thường, bỏ dấu tiếng Việt, mọi ký tự không phải chữ/số thành một dấu cách. */
