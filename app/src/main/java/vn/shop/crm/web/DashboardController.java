@@ -91,7 +91,9 @@ public class DashboardController {
         model.addAttribute("exportDue", exportWindow.overdue());
         model.addAttribute("importRemindDays", importRemindDays);
         model.addAttribute("weatherAlerts", weather.alerts());
-        model.addAttribute("batches", imports.list().stream().limit(5).toList());
+        var recentBatches = imports.list();
+        model.addAttribute("batches", recentBatches.stream().limit(5).toList());
+        model.addAttribute("lastImport", recentBatches.stream().filter(ImportService.BatchSummary::committed).findFirst().orElse(null));
         return "dashboard";
     }
 }

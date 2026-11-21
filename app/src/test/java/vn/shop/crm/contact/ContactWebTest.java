@@ -82,8 +82,8 @@ class ContactWebTest extends AbstractPostgresTest {
                 .isEqualTo(2);
 
         mvc.perform(get("/contacts").with(owner)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("Danh sách đủ điều kiện mời vào nhóm")))
-                .andExpect(content().string(containsString("+84912345678")));
+                .andExpect(content().string(containsString("Đủ điều kiện mời")))
+                .andExpect(content().string(containsString("0912 345 678")));
     }
 
     @Test
@@ -94,7 +94,7 @@ class ContactWebTest extends AbstractPostgresTest {
         mvc.perform(get("/customers/" + id).with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Chưa duyệt")))
                 .andExpect(content().string(containsString("Duyệt: được mời vào nhóm")))
-                .andExpect(content().string(containsString("Xóa dữ liệu của khách này")));
+                .andExpect(content().string(containsString("Xóa dữ liệu của khách")));
 
         mvc.perform(post("/customers/" + id + "/approve").with(owner).with(csrf()))
                 .andExpect(status().is3xxRedirection());
@@ -141,7 +141,7 @@ class ContactWebTest extends AbstractPostgresTest {
                 .andExpect(content().string(containsString("Xóa dữ liệu")))
                 .andExpect(content().string(containsString("***678")));
         mvc.perform(get("/").with(owner)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("yêu cầu của khách chưa xử lý")))
-                .andExpect(content().string(containsString("Đủ điều kiện mời")));
+                .andExpect(content().string(containsString("yêu cầu của khách đang chờ xử lý")))
+                .andExpect(content().string(containsString("đang chờ bạn duyệt để được mời vào nhóm")));
     }
 }

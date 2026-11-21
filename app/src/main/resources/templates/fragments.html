@@ -9,8 +9,8 @@
 <body>
 <ol th:fragment="steps(current)" class="steps" aria-label="Các bước nhập file">
     <li th:each="n : ${#numbers.sequence(1, 4)}" th:classappend="${n == current} ? 'on' : (${n < current} ? 'done')">
-        <span class="n" th:text="${n}">1</span>
-        <span th:text="${n == 1} ? 'Chọn file' : (${n == 2} ? 'Chọn cột' : (${n == 3} ? 'Xem trước' : 'Xong'))">Chọn file</span>
+        <span th:if="${n < current}">&#10003;</span>
+        <span th:text="${n < current ? '' : n + '. '} + (${n == 1} ? 'Chọn file' : (${n == 2} ? 'Chọn cột' : (${n == 3} ? 'Xem trước' : 'Xác nhận')))">Chọn file</span>
     </li>
 </ol>
 <nav th:fragment="nav" class="nav" aria-label="Menu chính">
@@ -22,9 +22,12 @@
             <span class="count" th:if="${i.hasBadge()}" th:text="${i.badge}">3</span>
         </a>
     </div>
-    <form th:action="@{/logout}" method="post">
-        <button type="submit">Đăng xuất</button>
-    </form>
+    <div class="nav-account">
+        <div class="who">Đang đăng nhập: Chủ cửa hàng</div>
+        <form th:action="@{/logout}" method="post">
+            <button type="submit">Đăng xuất</button>
+        </form>
+    </div>
 </nav>
 </body>
 </html>

@@ -8,15 +8,15 @@
     <link rel="stylesheet" th:href="@{/app.css}">
 </head>
 <body class="landing">
+<div class="shopbar" th:text="${shopName}">Cửa hàng</div>
 <main>
-    <h1 th:if="${tooMany}">Bạn thao tác hơi nhiều lần</h1>
+    <h1 th:if="${tooMany}">Anh/chị thao tác hơi nhiều lần</h1>
     <p th:if="${tooMany}">Vui lòng đợi một lúc rồi thử lại.</p>
-    <h1 th:if="${noGroup}">Hiện chưa có chỗ trong nhóm</h1>
-    <p th:if="${noGroup}">Các nhóm của <span th:text="${shopName}">Cửa hàng</span> đang chuẩn bị hoặc đã đủ người.
-        Mời bạn liên hệ cửa hàng để được hỗ trợ, hoặc quét lại mã này sau ít ngày khi cửa hàng mở thêm nhóm.</p>
-    <h1 th:unless="${noGroup == true or tooMany == true}">Link này không còn dùng được</h1>
-    <p th:unless="${noGroup == true or tooMany == true}">Mời bạn liên hệ <span th:text="${shopName}">Cửa hàng</span> nếu cần hỗ trợ.</p>
-    <p th:if="${!shopPhone.isEmpty()}">Điện thoại: <strong th:text="${shopPhone}">0900000000</strong></p>
+    <h1 th:if="${noGroup}">Các nhóm hiện đã đủ người</h1>
+    <p th:if="${noGroup}">Cửa hàng sẽ mở thêm nhóm. Anh/chị cần hỗ trợ thì cứ gọi điện cho cửa hàng.</p>
+    <h1 th:unless="${noGroup == true or tooMany == true}">Link này đã hết hạn</h1>
+    <p th:unless="${noGroup == true or tooMany == true}">Anh/chị vui lòng gọi điện cho cửa hàng, cửa hàng sẽ hướng dẫn anh/chị.</p>
+    <a class="btn" th:if="${!shopPhone.isEmpty()}" th:href="@{|tel:${shopPhone}|}">Gọi cửa hàng: <span th:text="${shopPhone}">09xx xxx xxx</span></a>
 </main>
 </body>
 </html>

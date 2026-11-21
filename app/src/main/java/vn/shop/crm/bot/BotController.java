@@ -134,9 +134,17 @@ public class BotController {
     // ---------- việc cần mẹ xử lý ----------
 
     @GetMapping("/handoffs")
-    public String handoffs(@RequestParam(defaultValue = "false") boolean all, Model model) {
-        model.addAttribute("rows", handoffs.list(!all));
+    public String handoffs(@RequestParam(defaultValue = "false") boolean all,
+                           @RequestParam(defaultValue = "false") boolean done, Model model) {
+        var everything = handoffs.list(false);
+        long doneCount = everything.stream().filter(r -> "RESOLVED".equals(r.status())).count();
+        model.addAttribute("rows", done ? everything.stream().filter(r -> "RESOLVED".equals(r.status())).toList()
+                : (all ? everything : everything.stream().filter(r -> !"RESOLVED".equals(r.status())).toList()));
         model.addAttribute("all", all);
+        model.addAttribute("done", done);
+        model.addAttribute("doneCount", doneCount);
+        model.addAttribute("openCount", everything.size() - doneCount);
+        model.addAttribute("botEnabled", settings.botEnabled());
         return "handoffs";
     }
 

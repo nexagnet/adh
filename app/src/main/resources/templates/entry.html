@@ -7,32 +7,35 @@
     <link rel="stylesheet" th:href="@{/app.css}">
 </head>
 <body class="landing">
+<div class="shopbar" th:text="${shopName}">Cửa hàng</div>
 <main>
-    <h1 th:text="${t['title']}">Cảm ơn bạn đã mua hàng!</h1>
+    <h1 th:text="${t['title']}">Cảm ơn anh/chị đã mua hàng</h1>
     <p class="keepline" th:text="${t['intro']}">Cửa hàng có một nhóm Zalo nhỏ.</p>
-    <p class="keepline"><strong th:text="${t['voluntary']}">Vào nhóm là tự nguyện.</strong></p>
-    <form th:action="@{/moi/vao}" method="post">
-        <p class="keepline"><label for="province"><strong>Bạn ở tỉnh/thành nào?</strong></label><br>
-            <span class="small">Để cửa hàng xếp bạn vào nhóm gần nơi bạn ở. Có thể bỏ qua.</span></p>
-        <select id="province" name="province">
-            <option value="">Tôi không chọn</option>
-            <optgroup th:each="r : ${regions}" th:label="${r.label}">
-                <option th:each="p : ${r.provinces}" th:value="${p.code}" th:text="${p.name}">Hà Nội</option>
-            </optgroup>
-        </select>
-        <button type="submit" class="btn">Vào nhóm Zalo</button>
-    </form>
     <div class="notice bad" th:if="${stopError}" th:text="${stopError}">Số điện thoại chưa đúng.</div>
-    <details class="small">
-        <summary>Tôi không muốn nhận tin từ cửa hàng</summary>
-        <p class="small">Cửa hàng sẽ không nhắn tin mời bạn nữa. Nhập số điện thoại bạn đã dùng khi mua hàng:</p>
+    <form th:action="@{/moi/vao}" method="post">
+        <button type="submit" class="btn">Vào nhóm Zalo</button>
+        <details class="small">
+            <summary>Anh/chị ở tỉnh/thành nào? (có thể bỏ qua)</summary>
+            <p class="small">Để cửa hàng xếp vào nhóm gần nơi anh/chị ở.</p>
+            <select id="province" name="province">
+                <option value="">Tôi không chọn</option>
+                <optgroup th:each="r : ${regions}" th:label="${r.label}">
+                    <option th:each="p : ${r.provinces}" th:value="${p.code}" th:text="${p.name}">Hà Nội</option>
+                </optgroup>
+            </select>
+        </details>
+    </form>
+    <p class="small keepline" th:text="${t['voluntary']}">Vào nhóm là tự nguyện.</p>
+    <a class="btn secondary" th:if="${!shopPhone.isEmpty()}" th:href="@{|tel:${shopPhone}|}">Gọi cửa hàng: <span th:text="${shopPhone}">09xx xxx xxx</span></a>
+    <p class="small keepline" th:text="${t['nocode']}">Không cần nhập mã xác nhận hay số điện thoại.</p>
+    <details class="stopbox">
+        <summary>Tôi không muốn nhận tin từ cửa hàng nữa</summary>
+        <p class="small">Cửa hàng sẽ không nhắn tin mời nữa. Nhập số điện thoại đã dùng khi mua hàng:</p>
         <form th:action="@{/moi/ngung}" method="post">
             <input type="tel" name="phone" inputmode="tel" autocomplete="tel" maxlength="20" required placeholder="0912345678">
             <button type="submit" class="btn secondary">Ngừng nhận tin</button>
         </form>
     </details>
-    <p class="small">Nếu không muốn vào nhóm, bạn chỉ cần đóng trang này. Trang này không lưu số điện thoại hay tên của bạn (trừ khi bạn tự xin ngừng nhận tin).
-        <span th:if="${!shopPhone.isEmpty()}">Điện thoại cửa hàng: <strong th:text="${shopPhone}">0900000000</strong>.</span></p>
 </main>
 </body>
 </html>

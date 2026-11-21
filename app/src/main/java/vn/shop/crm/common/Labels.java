@@ -115,4 +115,9 @@ public class Labels {
         }
         return carrier + ", vận đơn " + tracking;
     }
+
+    /** Số điện thoại dạng dễ đọc (0912 345 678) từ số lưu dạng quốc tế. */
+    public String phoneDisplay(String e164) {
+        return e164 == null ? "" : PhoneNormalizer.toDisplay(e164);
+    }
 }
