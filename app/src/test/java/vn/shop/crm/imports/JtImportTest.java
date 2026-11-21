@@ -164,4 +164,22 @@ class JtImportTest extends AbstractPostgresTest {
                 file("Data 21-11-2026-08-00-00 1.xlsx", many.toString()))))
                 .isInstanceOf(ImportException.class).hasMessageContaining("quá nhiều dòng");
     }
+
+    @Test
+    void khachJtThatCoXaHuyenCuoiTenXaTrungTuDonViVanCoKhuVucVaTinhCuaKhachCuDuocTinhLai() {
+        importFiles(file("Data 21-11-2026-09-00-00 1 ĐƠN HÀNG.xlsx",
+                line("861000000001", "Giao thành công", "0988870620", "đội 5, thôn thanh Bình .", "Xã Hợp Hòa-207HSD11, Huyện Sơn Dương, Tuyên Quang"),
+                line("861000000002", "Giao thành công", "0972059487", "thôn kim Sơn .", "Xã Đoài Phương, Hà Nội"),
+                line("861000000003", "Giao thành công", "0974053402", "SN 74 ngõ 3 thôn chiến thắng .", "Xã Điền Xá, Quảng Ninh"),
+                line("861000000004", "Giao thành công", "0962589250", "xóm thăng.", "Xã Cao Dương, Phú Thọ")));
+        assertThat(jdbc.sql("SELECT phone || '=' || coalesce(province, '?') FROM customer ORDER BY phone")
+                .query(String.class).list())
+                .containsExactly("+84962589250=phu-tho", "+84972059487=ha-noi", "+84974053402=quang-ninh",
+                        "+84988870620=tuyen-quang");
+
+        // khách đã nhập trước khi sửa (phiên bản cách đoán cũ, chưa rõ khu vực) được tính lại, không cần nhập lại file
+        jdbc.sql("UPDATE customer SET province = NULL, geo_version = 1").update();
+        assertThat(customers.refreshProvinces(false)).isEqualTo(4);
+        assertThat(jdbc.sql("SELECT count(*) FROM customer WHERE province IS NULL").query(Integer.class).single()).isZero();
+    }
 }

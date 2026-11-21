@@ -39,6 +39,29 @@ class VnGeoTest {
         assertThat(code("Số 1, Thừa Thiên Huế")).isEqualTo("hue");
     }
 
+    /** Đúng các địa chỉ J&T thật người dùng báo "Chưa rõ" trên máy dev (21/11/2026): tỉnh luôn là phần cuối sau dấu phẩy. */
+    @Test
+    void diaChiJtThatCoXaHuyenCuoiTenXaTrungTuDonViVanNhanDuocTinh() {
+        assertThat(code("đội 5, thôn thanh Bình ., Xã Hợp Hòa-207HSD11, Huyện Sơn Dương, Tuyên Quang")).isEqualTo("tuyen-quang");
+        assertThat(code("thôn kim Sơn ., Xã Đoài Phương, Hà Nội")).isEqualTo("ha-noi");
+        assertThat(code("nhà văn hóa số 8., Xã Thọ Xuân-024HDM14, Huyện Đan Phượng, Hà Nội")).isEqualTo("ha-noi");
+        assertThat(code("SN 74 ngõ 3 thôn chiến thắng ., Xã Điền Xá, Quảng Ninh")).isEqualTo("quang-ninh");
+        assertThat(code("sn 29 thôn an định., Xã Sơn Dương, Tuyên Quang")).isEqualTo("tuyen-quang");
+        assertThat(code("thôn hạ mỗ., Xã Đan Phượng, Hà Nội")).isEqualTo("ha-noi");
+        assertThat(code("xóm thăng., Xã Cao Dương, Phú Thọ")).isEqualTo("phu-tho");
+        assertThat(code("thôn đông lai ., Xã Liên Hồng-024HDM07, Huyện Đan Phượng, Hà Nội")).isEqualTo("ha-noi");
+    }
+
+    @Test
+    void dauPhayNganCachCacCapNenTenDonViTruocDauPhayKhongLamMatTinh() {
+        // tên xã kết thúc bằng "Xá", "Dương", "Phương" nằm ở phần trước dấu phẩy, không phải tiền tố của tên tỉnh
+        assertThat(code("Xã Điền Xá, Quảng Ninh")).isEqualTo("quang-ninh");
+        assertThat(code("xa Dien Xa, Quang Ninh")).isEqualTo("quang-ninh");
+        // vẫn bỏ tên xã/phường/đường trùng tên tỉnh khi đứng liền sau tiền tố, cả khi không có dấu phẩy
+        assertThat(code("Phường Hòa Bình, Quận Hoàng Mai, Hà Nội")).isEqualTo("ha-noi");
+        assertThat(code("Xã Hòa Bình Hà Nội")).isEqualTo("ha-noi");
+    }
+
     @Test
     void layTenCuoiCungVaBoQuaTenPhuongXaDuong() {
         // địa chỉ có tên phường trùng tên tỉnh khác: tỉnh là tên đứng cuối
