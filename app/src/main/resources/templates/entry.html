@@ -12,6 +12,14 @@
     <p class="keepline" th:text="${t['intro']}">Cửa hàng có một nhóm Zalo nhỏ.</p>
     <p class="keepline"><strong th:text="${t['note']}">Bạn không bắt buộc tham gia.</strong></p>
     <form th:action="@{/moi/vao}" method="post">
+        <p class="keepline"><label for="province"><strong>Bạn ở tỉnh/thành nào?</strong></label><br>
+            <span class="small">Để cửa hàng xếp bạn vào nhóm gần nơi bạn ở. Có thể bỏ qua.</span></p>
+        <select id="province" name="province">
+            <option value="">Tôi không chọn</option>
+            <optgroup th:each="r : ${regions}" th:label="${r.label}">
+                <option th:each="p : ${r.provinces}" th:value="${p.code}" th:text="${p.name}">Hà Nội</option>
+            </optgroup>
+        </select>
         <button type="submit" class="btn">Vào nhóm Zalo</button>
     </form>
     <div class="notice bad" th:if="${stopError}" th:text="${stopError}">Số điện thoại chưa đúng.</div>

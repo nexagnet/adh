@@ -20,6 +20,14 @@
         <strong>Chưa có nhóm nào còn chỗ.</strong> Khách quét mã QR sẽ thấy "chưa có chỗ". Hãy thêm nhóm mới bên dưới hoặc mở nhóm đang tạm dừng.
     </div>
 
+    <div class="notice" th:if="${!waiting.isEmpty()}">
+        <strong>Khách đã chọn tỉnh nhưng chưa có nhóm hợp (30 ngày qua):</strong>
+        <span th:each="w, st : ${waiting}"><span th:text="${w.provinceName} + ' (' + ${w.count} + ')'">Hà Nội (3)</span><span th:unless="${st.last}">, </span></span>.
+        Hãy mở thêm nhóm cho khu vực này. Khách quét lại mã sẽ được xếp vào nhóm mới.
+    </div>
+    <p class="hint">Mỗi nhóm có thể gắn một khu vực (cả miền, một vùng hoặc một tỉnh). Khách được xếp ưu tiên: cùng tỉnh, rồi cùng vùng,
+        rồi cùng miền, rồi nhóm chung. Khách miền khác không bị xếp vào nhóm của miền này. Nhóm để "Chung" nhận mọi khách.</p>
+
     <details class="card">
         <summary><strong>Cách đóng nhóm đã đầy và mở nhóm mới</strong></summary>
         <ol>
@@ -37,6 +45,12 @@
     <form class="inline" th:action="@{/groups}" method="post">
         <input type="text" name="name" placeholder="Tên nhóm" required maxlength="100">
         <input type="text" name="link" placeholder="Link https://zalo.me/g/... (có thể để trống)" size="36" maxlength="300">
+        <select name="scope" title="Khu vực nhóm nhận khách">
+            <option value="">Chung (nhận khách mọi nơi)</option>
+            <optgroup label="Miền"><option th:each="o : ${scopes[0]}" th:value="${o.code}" th:text="${o.label}">Miền Nam</option></optgroup>
+            <optgroup label="Vùng"><option th:each="o : ${scopes[1]}" th:value="${o.code}" th:text="${o.label}">Vùng Đông Nam Bộ</option></optgroup>
+            <optgroup label="Tỉnh/thành"><option th:each="o : ${scopes[2]}" th:value="${o.code}" th:text="${o.label}">Cần Thơ</option></optgroup>
+        </select>
         <input type="number" name="target" value="5" min="1" max="500" title="Mục tiêu số khách">
         <button type="submit" class="btn">Thêm nhóm</button>
     </form>
@@ -49,6 +63,7 @@
                 <td><strong th:text="${g.name}">Nhóm 1</strong>
                     <div class="muted mono" th:if="${g.hasLink()}" th:text="${g.inviteLink}">https://zalo.me/g/x</div>
                     <div class="muted" th:unless="${g.hasLink()}">Chưa có link</div>
+                    <div class="muted">Khu vực: <strong th:text="${g.scopeLabel()}">Chung</strong></div>
                     <div class="muted" th:if="${g.note != null}" th:text="${g.note}">ghi chú</div></td>
                 <td>
                     <span class="badge ok" th:if="${g.status.name() == 'OPEN'}" th:text="${g.status.label()}">Đang nhận khách</span>
@@ -77,7 +92,13 @@
                         <form class="inline" th:action="@{/groups/{id}/update(id=${g.id})}" method="post">
                             <input type="text" name="name" th:value="${g.name}" required maxlength="100">
                             <input type="text" name="link" th:value="${g.inviteLink}" size="36" maxlength="300" placeholder="https://zalo.me/g/...">
-                            <input type="number" name="target" th:value="${g.target}" min="1" max="500">
+                            <select name="scope" title="Khu vực nhóm nhận khách">
+            <option value="" th:selected="${g.scope == null}">Chung (nhận khách mọi nơi)</option>
+            <optgroup label="Miền"><option th:each="o : ${scopes[0]}" th:value="${o.code}" th:text="${o.label}" th:selected="${o.code == g.scopeCode()}">Miền Nam</option></optgroup>
+            <optgroup label="Vùng"><option th:each="o : ${scopes[1]}" th:value="${o.code}" th:text="${o.label}" th:selected="${o.code == g.scopeCode()}">Vùng Đông Nam Bộ</option></optgroup>
+            <optgroup label="Tỉnh/thành"><option th:each="o : ${scopes[2]}" th:value="${o.code}" th:text="${o.label}" th:selected="${o.code == g.scopeCode()}">Cần Thơ</option></optgroup>
+        </select>
+        <input type="number" name="target" th:value="${g.target}" min="1" max="500">
                             <input type="text" name="note" th:value="${g.note}" placeholder="Ghi chú" maxlength="200">
                             <button type="submit" class="btn">Lưu</button>
                         </form>

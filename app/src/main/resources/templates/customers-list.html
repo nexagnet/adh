@@ -14,47 +14,63 @@
         Danh sách này dành cho bố mẹ chủ động tư vấn riêng. Không đưa vào chiến dịch mời nhóm.
     </p>
 
+    <p class="hint">Khu vực suy ra từ địa chỉ trên vận đơn (tên tỉnh/thành). Địa chỉ không ghi rõ tỉnh thì để "Chưa rõ", hệ thống không đoán bừa.</p>
+    <div class="cards">
+        <a class="card" th:each="r : ${regions}" th:href="@{/customers(area=${r.code}, segment=${segment})}">
+            <div class="big" th:text="${r.count}">0</div><div class="label" th:text="${r.label}">Miền Nam</div></a>
+        <a class="card" th:href="@{/customers(area='U', segment=${segment})}">
+            <div class="big" th:text="${unknownCount}">0</div><div class="label">Chưa rõ khu vực</div></a>
+    </div>
+
     <form class="inline" th:action="@{/customers}" method="get">
         <select name="segment">
             <option value="">Tất cả phân loại</option>
             <option th:each="s : ${segments}" th:value="${s.name()}" th:text="${s.label()}"
                     th:selected="${segment == s}">Mua 1 lần</option>
         </select>
+        <select name="area">
+            <option value="">Tất cả khu vực</option>
+            <option value="U" th:selected="${area == 'U'}">Chưa rõ khu vực</option>
+            <optgroup th:each="g : ${areaGroups}" th:label="${g.label}">
+                <option th:each="o : ${g.options}" th:value="${o.code}" th:text="${o.label}" th:selected="${area == o.code}">Hà Nội</option>
+            </optgroup>
+        </select>
         <input type="text" name="q" th:value="${q}" placeholder="Số điện thoại hoặc tên">
         <label><input type="checkbox" name="review" value="true" th:checked="${review}"> Chỉ khách cần kiểm tra</label>
         <button type="submit" class="btn">Lọc</button>
-        <a class="btn secondary" th:href="@{/customers/export.csv(segment=${segment}, review=${review})}">Tải CSV</a>
+        <a class="btn secondary" th:href="@{/customers/export.csv(segment=${segment}, review=${review}, area=${area})}">Tải CSV</a>
     </form>
 
     <p><strong th:text="${page.total}">0</strong> khách</p>
     <div class="table-wrap">
         <table>
             <tr>
-                <th>Số điện thoại</th><th>Tên</th><th>Địa chỉ</th>
+                <th>Số điện thoại</th><th>Tên</th><th>Địa chỉ</th><th>Khu vực</th>
                 <th class="num">Lần mua</th><th>Gần nhất</th><th>Ghi chú</th>
             </tr>
             <tr th:each="c : ${page.items}">
                 <td><a th:href="@{/customers/{id}(id=${c.id})}" th:text="${c.displayPhone()}">0912 345 678</a></td>
                 <td th:text="${c.name}">Nguyen Van A</td>
                 <td th:text="${c.address}">Địa chỉ</td>
+                <td><span th:text="${c.provinceLabel()}">Hà Nội</span><div class="muted" th:if="${c.province != null}" th:text="${c.regionLabel()}">Miền Bắc</div></td>
                 <td class="num" th:text="${c.successfulPurchases}">1</td>
                 <td th:text="${c.lastOrderOn != null} ? ${#temporals.format(c.lastOrderOn, 'dd/MM/yyyy')} : ''">01/01/2026</td>
                 <td><span class="badge warn" th:if="${c.needsReview}">Cần kiểm tra</span></td>
             </tr>
-            <tr th:if="${page.items.isEmpty()}"><td colspan="6" class="muted">Không có khách nào.</td></tr>
+            <tr th:if="${page.items.isEmpty()}"><td colspan="7" class="muted">Không có khách nào.</td></tr>
         </table>
     </div>
 
     <div class="pager">
         <a class="btn secondary" th:if="${page.hasPrevious()}"
-           th:href="@{/customers(segment=${segment}, review=${review}, q=${q}, page=${page.page - 1})}">‹ Trước</a>
+           th:href="@{/customers(segment=${segment}, review=${review}, area=${area}, q=${q}, page=${page.page - 1})}">‹ Trước</a>
         <span>Trang <span th:text="${page.page}">1</span>/<span th:text="${page.totalPages()}">1</span></span>
         <a class="btn secondary" th:if="${page.hasNext()}"
-           th:href="@{/customers(segment=${segment}, review=${review}, q=${q}, page=${page.page + 1})}">Sau ›</a>
+           th:href="@{/customers(segment=${segment}, review=${review}, area=${area}, q=${q}, page=${page.page + 1})}">Sau ›</a>
     </div>
 
     <form th:action="@{/customers/recalculate}" method="post">
-        <button type="submit" class="btn secondary">Tính lại phân loại tất cả khách</button>
+        <button type="submit" class="btn secondary">Tính lại phân loại và khu vực của tất cả khách</button>
     </form>
 </main>
 </body>

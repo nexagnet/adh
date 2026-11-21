@@ -58,15 +58,16 @@
     <h2>Danh sách (<span th:text="${page.total}">0</span> khách)</h2>
     <div class="table-wrap">
         <table>
-            <tr><th>Số điện thoại</th><th>Tên</th><th>Địa chỉ</th><th>Bằng chứng</th><th>Duyệt lúc</th></tr>
+            <tr><th>Số điện thoại</th><th>Tên</th><th>Địa chỉ</th><th>Tỉnh/thành</th><th>Bằng chứng</th><th>Duyệt lúc</th></tr>
             <tr th:each="c : ${page.items}">
                 <td><a th:href="@{/customers/{id}(id=${c.id})}" th:text="${c.phone}">+84912345678</a></td>
                 <td th:text="${c.name}">Nguyen Van A</td>
                 <td th:text="${c.address}">Địa chỉ</td>
+                <td th:text="${c.provinceLabel()}">Hà Nội</td>
                 <td class="mono" th:text="${@labels.evidence(c.evidenceRef)}">Viettel Post, vận đơn 123</td>
                 <td th:text="${#temporals.format(c.approvedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026 10:00</td>
             </tr>
-            <tr th:if="${page.items.isEmpty()}"><td colspan="5" class="muted">Chưa có khách nào được duyệt.</td></tr>
+            <tr th:if="${page.items.isEmpty()}"><td colspan="6" class="muted">Chưa có khách nào được duyệt.</td></tr>
         </table>
     </div>
     <div class="pager">
