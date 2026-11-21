@@ -45,7 +45,8 @@ app:
     assumed-accept-rate: 0.5
   sending:
     # Gửi thật qua dịch vụ bên ngoài. MẶC ĐỊNH TẮT; chỉ chủ cửa hàng bật bằng biến môi trường.
-    # Hiện chưa có bộ gửi SMS/ZBS nào được cài, nên bật cũng chưa gửi được gì qua dịch vụ ngoài.
+    # Đường gửi hiện dùng: Zalo, mẹ gửi tay từ danh sách xuất ra (không qua cờ này). SMS/ZBS chưa dùng, chưa có bộ gửi,
+    # nên bật cờ này cũng chưa gửi được gì qua dịch vụ ngoài.
     enabled: ${APP_SENDING_ENABLED:false}
     window-start: "07:00"
     window-end: "22:00"

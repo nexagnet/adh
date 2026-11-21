@@ -38,9 +38,13 @@
         </div>
     </div>
 
-    <p class="hint">Khi gửi tự động, hệ thống gửi từng tin một, nghỉ ngẫu nhiên giữa các tin, và <strong>tự dừng</strong> khi gửi lỗi
-        liên tiếp, tỷ lệ lỗi cao, nhiều khách từ chối, hoặc hết ngân sách. Hiện chưa có kênh gửi tự động nào được cài
-        (chưa chọn nhà cung cấp SMS/ZBS, chưa có xác nhận pháp lý), nên chỉ có chạy thử và xuất danh sách cho mẹ gửi tay.</p>
+    <div class="notice">
+        <strong>Đường gửi đang dùng: Zalo, mẹ gửi tay.</strong> Vào chiến dịch, bấm <em>Xuất danh sách để mẹ gửi tay</em>,
+        rồi mẹ nhắn từng khách bằng Zalo của mình (lô nhỏ, theo hạn mức ngày ở trên). Hệ thống không tự gửi và không đăng nhập Zalo.
+        <br><strong>SMS và Zalo thông báo (ZBS): chưa dùng</strong>, đang tắt; chưa có bộ gửi nào được cài cho hai kênh này.
+    </div>
+    <p class="hint">Nếu sau này có kênh gửi tự động, hệ thống vẫn gửi từng tin một, nghỉ ngẫu nhiên giữa các tin, và <strong>tự dừng</strong>
+        khi gửi lỗi liên tiếp, tỷ lệ lỗi cao, nhiều khách từ chối, hoặc hết ngân sách.</p>
 
     <form th:action="@{/campaigns/pause-all}" method="post" class="inline" th:unless="${status.paused}">
         <input type="text" name="reason" placeholder="Lý do (không bắt buộc)" maxlength="200">

@@ -13,7 +13,7 @@ public class Labels {
 
     private static final Map<String, String> CHANNEL = Map.of(
             "MOCK", "Gửi giả lập (không gửi thật)",
-            "MANUAL_EXPORT", "Xuất file để gửi tay");
+            "MANUAL_EXPORT", "Zalo, mẹ gửi tay (xuất danh sách)");
 
     private static final Map<String, String> CONTACT_EVENT = Map.of(
             "BASIS_APPROVED", "Duyệt vào danh sách mời",

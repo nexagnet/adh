@@ -11,7 +11,7 @@ Tài liệu gốc: [`01_DAC_TA_NGHIEP_VU.md`](01_DAC_TA_NGHIEP_VU.md) (nghiệp 
 | **1A** | Nền tảng, nhập file Viettel Post/J&T, chuẩn hóa SĐT, phân loại `ONE_TIME`/`REPEAT`, xuất CSV | **Xong, đã kiểm chứng bằng test** |
 | **1B** | Sổ cơ sở liên hệ, danh sách từ chối, danh sách mời, quyền dữ liệu của khách (xem/xuất/ngừng liên hệ/xóa + hạn phản hồi), ghi chú tay | **Xong, đã kiểm chứng bằng test** |
 | **1C** | Nhóm Zalo, chiến dịch mời theo lô nhỏ, link riêng + trang khách bấm link, đếm lượt bấm (chế độ thử) | **Xong, đã kiểm chứng bằng test** |
-| **1D** | Cổng chặn gửi, bộ gửi chạy thử và xuất danh sách cho mẹ gửi tay, nhật ký gửi, tự dừng | **Xong, đã kiểm chứng bằng test.** Chưa có SMS/ZBS thật (chưa chọn nhà cung cấp, chưa có xác nhận pháp lý) |
+| **1D** | Cổng chặn gửi, bộ gửi chạy thử và xuất danh sách cho mẹ gửi tay, nhật ký gửi, tự dừng | **Xong, đã kiểm chứng bằng test.** Đường mời hiện dùng: Zalo, mẹ gửi tay. SMS/ZBS chưa dùng, chưa có bộ gửi |
 | **1E** | Lõi bot (FAQ, báo mẹ khi khách muốn mua/khiếu nại, DRY_RUN, tắt khẩn cấp) | **Xong phần lõi, đã kiểm chứng bằng test.** Chưa có kênh Zalo thật: cần chạy thử chọn phương án (`docs/ADR-0001-chon-kenh-bot.md`) |
 | **1F** | Đóng gói Docker + HTTPS, sao lưu và thử khôi phục, giới hạn đăng nhập sai, hướng dẫn vận hành | **Xong phần mã và script.** Docker chưa được chạy thử trong môi trường phát triển (xem `docs/RUNBOOK.md`) |
 

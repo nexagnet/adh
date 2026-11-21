@@ -5,8 +5,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Hẹn giờ gửi từng tin một qua kênh tự động. Mặc định TẮT; hiện chưa có kênh tự động nào (chưa chọn nhà cung cấp
- * SMS/ZBS) nên bật cũng chưa làm gì. Mọi lần gửi vẫn đi qua {@link SendService} và cổng chặn của nó.
+ * Hẹn giờ gửi từng tin một qua kênh tự động. Mặc định TẮT; hiện chưa có kênh tự động nào (SMS/ZBS chưa dùng,
+ * mời qua Zalo do mẹ gửi tay) nên bật cũng chưa làm gì. Mọi lần gửi vẫn đi qua {@link SendService} và cổng chặn của nó.
  */
 @Component
 @ConditionalOnProperty(prefix = "app.sending", name = "scheduler-enabled", havingValue = "true")

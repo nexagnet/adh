@@ -2,7 +2,7 @@ package vn.shop.crm.send;
 
 /**
  * Một cách đưa lời mời tới khách. Mọi bộ gửi đều đi qua {@link SendService} (cổng chặn gửi), không bao giờ được
- * gọi trực tiếp. Bộ gửi thật (ZBS, SMS) chưa được cài vì chưa chọn nhà cung cấp và chưa có xác nhận pháp lý.
+ * gọi trực tiếp. Đường mời đang dùng là Zalo do mẹ gửi tay (ManualExportSender). Bộ gửi SMS/ZBS chưa dùng nên chưa được cài.
  */
 public interface InvitationSender {
 

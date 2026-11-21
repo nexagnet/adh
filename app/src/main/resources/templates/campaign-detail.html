@@ -9,8 +9,8 @@
         <span th:text="${#temporals.format(campaign.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</span></p>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã tạo.</div>
-    <div class="notice">Hệ thống <strong>không tự gửi tin</strong>: gửi thật qua SMS/ZBS đang tắt. Bạn chạy thử để xem sẽ
-        gửi gì, hoặc xuất danh sách để mẹ tự gửi. "Đã bấm" chỉ là lượt bấm link, không có nghĩa khách đã vào nhóm.</div>
+    <div class="notice">Hệ thống <strong>không tự gửi tin</strong>. Cách mời hiện nay: xuất danh sách rồi mẹ nhắn từng khách
+        bằng Zalo của mình (SMS chưa dùng). Bạn có thể chạy thử trước để xem sẽ gửi gì. "Đã bấm" chỉ là lượt bấm link, không có nghĩa khách đã vào nhóm.</div>
 
     <div class="cards">
         <div class="card"><div class="big" th:text="${campaign.total}">0</div><div class="label">Lời mời</div></div>

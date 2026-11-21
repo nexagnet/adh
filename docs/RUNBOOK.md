@@ -37,7 +37,7 @@ Nên bắt đầu với 2 đến 3 nhóm.
 5. Cột "Đã bấm" chỉ là **lượt bấm link**, không có nghĩa khách đã vào nhóm.
 6. Khách bấm "không muốn nhận tin nữa" trên trang mời sẽ vào danh sách từ chối vĩnh viễn.
 
-Hiện **chưa có gửi tự động qua SMS hay Zalo**: chưa chọn nhà cung cấp và chưa có xác nhận pháp lý (xem phần B.7).
+**Đường mời hiện dùng: Zalo, mẹ gửi tay** (quyết định của chủ cửa hàng ngày 21/11/2026). Mẹ nhắn từng khách bằng Zalo của mình, lô nhỏ, đúng hạn mức ngày; không dùng phần mềm tự gửi và không đăng nhập Zalo bằng công cụ. **SMS và Zalo thông báo (ZBS): chưa dùng**, đang tắt, chưa có bộ gửi (xem phần B.7).
 
 ### 6. Việc cần mẹ xử lý (khi bật bot)
 Bot báo khi trong nhóm có khách muốn mua, khiếu nại hoặc cần người thật. Mẹ vào Zalo trả lời, rồi bấm **Đã nhận** và **Xong**. Bot không bao giờ tự chốt đơn.
@@ -107,7 +107,7 @@ Script nạp bản sao lưu mới nhất vào một cơ sở dữ liệu tạm `
 | Nghi lộ dữ liệu | Tạm dừng tất cả chiến dịch, đổi mật khẩu, kiểm tra nhật ký, hỏi luật sư về nghĩa vụ thông báo |
 
 ### 7. Điều kiện trước khi bật gửi thật
-Biến `APP_SENDING_ENABLED` mặc định `false`, và hiện **chưa có bộ gửi SMS/ZBS nào được cài**. Chỉ cân nhắc bật khi đã đủ: hộ kinh doanh, nhà cung cấp SMS/ZBS đã chọn và mẫu tin được duyệt, xác nhận pháp lý về liên hệ khách cũ (D3 là bạn tự chịu rủi ro, nhưng vẫn không bỏ cổng chặn), và đã chạy thử một lô nhỏ 10 đến 20 khách theo dõi lỗi, từ chối, khiếu nại.
+Mời qua Zalo do mẹ gửi tay không cần bật gì ở đây. Biến `APP_SENDING_ENABLED` chỉ dành cho gửi tự động sau này, mặc định `false`, và hiện **SMS/ZBS chưa dùng, chưa có bộ gửi nào được cài**. Nếu sau này muốn dùng SMS/ZBS, chỉ cân nhắc bật khi đã đủ: hộ kinh doanh, nhà cung cấp SMS/ZBS đã chọn và mẫu tin được duyệt, xác nhận pháp lý về liên hệ khách cũ (D3 là bạn tự chịu rủi ro, nhưng vẫn không bỏ cổng chặn), và đã chạy thử một lô nhỏ 10 đến 20 khách theo dõi lỗi, từ chối, khiếu nại.
 Nếu máy chủ ở Singapore (D7): dữ liệu khách nằm ngoài Việt Nam, file 03 mục 1 điểm 4 khuyên hỏi luật sư trước khi chạy thật.
 
 ### 8. Bot
