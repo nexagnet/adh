@@ -45,8 +45,13 @@
                 <span><span class="todo-num" th:text="${groupsNeedRecount}">0</span>nhóm Zalo chưa đếm lại thành viên trong 7 ngày</span>
                 <a class="btn secondary" th:href="@{/groups}">Đếm lại nhóm</a>
             </li>
+            <li th:each="st : ${staleImports}">
+                <span>Đã <span class="todo-num" th:text="${st.daysSince}">0</span>ngày chưa nhập file đơn mới của
+                    <strong th:text="${st.carrier.label()}">J&amp;T Express</strong></span>
+                <a class="btn secondary" th:href="@{/imports/new}">Nhập file mới</a>
+            </li>
             <li class="todo-empty"
-                th:if="${contact.candidates == 0 and privacyOpen == 0 and handoffOpen == 0 and unmapped == 0 and review == 0 and groupsNeedRecount == 0}">
+                th:if="${contact.candidates == 0 and privacyOpen == 0 and handoffOpen == 0 and unmapped == 0 and review == 0 and groupsNeedRecount == 0 and staleImports.isEmpty()}">
                 Hôm nay chưa có việc nào cần làm.
             </li>
         </ul>

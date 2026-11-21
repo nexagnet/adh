@@ -20,6 +20,8 @@ public enum FieldKey {
             List.of("ten nguoi nhan", "ho ten nguoi nhan", "receiver name", "nguoi nhan", "ten khach hang")),
     RECEIVER_ADDRESS("Địa chỉ người nhận", false,
             List.of("dia chi nguoi nhan", "dia chi nhan", "receiver address", "dia chi giao hang", "dia chi")),
+    ADMIN_AREA("Địa chỉ hành chính (xã, huyện, tỉnh — nếu hãng có cột riêng)", false,
+            List.of("dia chi hanh chinh", "don vi hanh chinh", "tinh thanh", "tinh/thanh pho")),
     STATUS("Trạng thái đơn", true,
             List.of("trang thai don hang", "trang thai van don", "trang thai", "status", "tinh trang")),
     CREATED_ON("Ngày tạo đơn", false,
@@ -62,6 +64,7 @@ public enum FieldKey {
                     found = headers.stream()
                             .filter(h -> StatusKey.of(h).contains(syn))
                             .filter(h -> !isSenderColumn(field, h))
+                            .filter(h -> !(field == RECEIVER_ADDRESS && StatusKey.of(h).contains("hanh chinh")))
                             .findFirst().orElse(null);
                     if (found != null) {
                         break;

@@ -6,16 +6,20 @@
 <main>
     <h1>Nhập file đơn hàng</h1>
     <p class="hint">
-        Dùng file Excel (.xlsx) hoặc CSV UTF-8 xuất từ trang quản lý của hãng vận chuyển.
+        Dùng file Excel (.xlsx) xuất từ trang quản lý của hãng vận chuyển.
         Nhập lại cùng một file không làm tăng số lần mua.
+    </p>
+    <p class="hint">
+        <strong>J&amp;T Express chỉ cho xuất tối đa 500 đơn mỗi lần.</strong> Hãy chọn nhiều file cùng lúc (giữ phím Ctrl
+        khi bấm chọn). Hệ thống gộp theo mã vận đơn; đơn nằm ở nhiều file thì lấy file xuất sau cùng.
     </p>
     <form th:action="@{/imports(_csrf=${_csrf.token})}" method="post" enctype="multipart/form-data">
         <label for="carrier">Hãng vận chuyển</label>
         <select id="carrier" name="carrier" required>
             <option th:each="c : ${carriers}" th:value="${c.name()}" th:text="${c.label()}">Viettel Post</option>
         </select>
-        <label for="file">File (tối đa 10 MB)</label>
-        <input type="file" id="file" name="file" accept=".xlsx,.csv,.txt" required>
+        <label for="file">File (mỗi file tối đa 10 MB, tổng các file tối đa 60 MB, tối đa 20 file)</label>
+        <input type="file" id="file" name="file" accept=".xlsx,.csv,.txt" multiple required>
         <div class="actions">
             <button type="submit" class="btn">Tiếp tục</button>
             <a class="btn secondary" th:href="@{/imports}">Quay lại</a>
