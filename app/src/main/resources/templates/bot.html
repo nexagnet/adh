@@ -11,8 +11,8 @@
         Mẹ vẫn trả lời khách trên Zalo như bình thường, bot tắt hay hỏng cũng không ảnh hưởng.</p>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
-    <div class="notice">Hiện <strong>chưa có kênh kết nối Zalo nào được cài</strong> (cần chạy thử chọn phương án, xem
-        <code>docs/ADR-0001-chon-kenh-bot.md</code>). Vì vậy bot chưa đọc hay gửi tin trong nhóm thật; bạn có thể soạn FAQ
+    <div class="notice">Hiện <strong>chưa có kênh kết nối Zalo nào được cài</strong> (cần chạy thử để chọn phương án, xem tài liệu
+        <strong>ADR-0001 chọn kênh bot</strong> trong thư mục tài liệu). Vì vậy bot chưa đọc hay gửi tin trong nhóm thật; bạn có thể soạn câu hỏi thường gặp
         và thử bot ngay ở dưới.</div>
 
     <div class="cards">
@@ -62,7 +62,7 @@
     <div class="notice" th:if="${decision != null}">
         <div>Nhận diện: <strong th:text="${decision.intent != null ? decision.intent.label() : 'Trao đổi bình thường'}">Câu hỏi</strong></div>
         <div th:switch="${decision.type.name()}">
-            <div th:case="'ANSWERED'">Bot sẽ trả lời bằng FAQ: <strong th:text="${decision.reply}">...</strong></div>
+            <div th:case="'ANSWERED'">Bot sẽ trả lời bằng câu hỏi thường gặp: <strong th:text="${decision.reply}">...</strong></div>
             <div th:case="'HANDOFF'">Bot sẽ <strong>báo mẹ</strong> và nhắn khách: <strong th:text="${decision.reply}">...</strong></div>
             <div th:case="*">Bot sẽ <strong>không trả lời</strong> (không phải câu hỏi hướng tới cửa hàng).</div>
         </div>
@@ -104,7 +104,7 @@
             </tr>
         </table>
     </div>
-    <p class="muted" th:if="${faqs.isEmpty()}">Chưa có câu nào. Khi chưa có FAQ, bot chỉ báo mẹ chứ không trả lời nội dung.</p>
+    <p class="muted" th:if="${faqs.isEmpty()}">Chưa có câu nào. Khi chưa có câu hỏi thường gặp, bot chỉ báo mẹ chứ không trả lời nội dung.</p>
 
     <h2>Bot xử lý gần đây</h2>
     <div class="table-wrap">
@@ -113,8 +113,8 @@
             <tr th:each="e : ${events}">
                 <td th:text="${#temporals.format(e.at, 'dd/MM HH:mm')}">01/01 10:00</td>
                 <td th:text="${e.group}">Nhóm 1</td>
-                <td th:text="${e.senderKind}">CUSTOMER</td>
-                <td><span th:text="${e.type}">ANSWERED</span> <span class="muted" th:if="${e.intent != null}" th:text="'(' + ${e.intent} + ')'"></span></td>
+                <td th:text="${@labels.sender(e.senderKind)}">Khách</td>
+                <td><span th:text="${@labels.botResult(e.type)}">Đã trả lời bằng câu hỏi thường gặp</span> <span class="muted" th:if="${e.intent != null}" th:text="'(' + ${@labels.intent(e.intent)} + ')'"></span></td>
                 <td><span th:text="${e.reply}">...</span>
                     <span class="badge" th:if="${e.reply != null and !e.sent}">chưa gửi</span>
                     <span class="badge ok" th:if="${e.sent}">đã gửi</span></td>

@@ -36,7 +36,7 @@
          th:class="${basis.status.name() == 'ELIGIBLE'} ? 'notice ok' : 'notice bad'">
         <strong th:text="${basis.status.label()}">Đã duyệt</strong>
         <div th:if="${basis.evidenceRef != null}">Bằng chứng: đơn giao thành công
-            <span class="mono" th:text="${basis.evidenceRef}">VIETTEL_POST:123</span></div>
+            <span class="mono" th:text="${@labels.evidence(basis.evidenceRef)}">Viettel Post, vận đơn 123</span></div>
         <div class="muted" th:text="${basis.statement}">Chủ cửa hàng chịu trách nhiệm</div>
         <div class="muted">Ghi bởi <span th:text="${basis.recordedBy}">admin</span> lúc
             <span th:text="${#temporals.format(basis.recordedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026 10:00</span></div>
@@ -69,7 +69,7 @@
 
     <h2>Yêu cầu của khách về dữ liệu của họ</h2>
     <p class="hint">Khi khách nhắn yêu cầu, ghi nhận ngay để bộ đếm hạn phản hồi chạy. Hạn mặc định
-        15 ngày kể từ ngày khách gửi (chưa có xác nhận pháp lý, xem /privacy).</p>
+        15 ngày kể từ ngày khách gửi (chưa có xác nhận pháp lý, xem trang Yêu cầu của khách).</p>
     <form th:action="@{/customers/{id}/privacy/open(id=${detail.customer.id})}" method="post" class="inline">
         <select name="kind">
             <option value="ACCESS">Xem dữ liệu</option>
@@ -106,7 +106,7 @@
             <tr><th>Lúc</th><th>Việc</th><th>Chi tiết</th><th>Ai</th></tr>
             <tr th:each="e : ${events}">
                 <td th:text="${#temporals.format(e.recordedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
-                <td th:text="${e.event}">BASIS_APPROVED</td>
+                <td th:text="${@labels.contactEvent(e.event)}">Duyệt vào danh sách mời</td>
                 <td th:text="${e.detail}">chi tiết</td>
                 <td th:text="${e.recordedBy}">admin</td>
             </tr>

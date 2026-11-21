@@ -207,7 +207,7 @@ public class SendService {
             }
             if (result.ok()) {
                 log(c, sender, "SENT", null, sender.costPerMessageVnd());
-                contacts.event(c.customerId(), c.phone(), "INVITATION_SENT", "Kênh: " + sender.channel());
+                contacts.event(c.customerId(), c.phone(), "INVITATION_SENT", "Kênh: " + vn.shop.crm.common.Labels.channelLabel(sender.channel()));
                 delivered.add(invite);
                 sent++;
             } else {

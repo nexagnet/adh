@@ -54,7 +54,7 @@
             <tr th:each="r : ${status.recent}">
                 <td th:text="${#temporals.format(r.at, 'dd/MM/yyyy HH:mm')}">01/01/2026 10:00</td>
                 <td class="mono" th:text="${r.phoneTail}">***678</td>
-                <td th:text="${r.channel}">MOCK</td>
+                <td th:text="${@labels.channel(r.channel)}">Gửi giả lập</td>
                 <td>
                     <span class="badge ok" th:if="${r.outcome == 'SENT'}">Đã gửi</span>
                     <span class="badge" th:if="${r.outcome == 'DRY_RUN'}">Chạy thử</span>
