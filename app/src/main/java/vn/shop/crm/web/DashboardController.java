@@ -31,10 +31,13 @@ public class DashboardController {
     private final PrivacyService privacy;
     private final InviteService invites;
     private final HandoffService handoffs;
+    private final vn.shop.crm.map.WeatherService weather;
 
     public DashboardController(JdbcClient jdbc, CustomerService customers, ImportService imports,
                                StatusMappingService statuses, ContactService contacts, PrivacyService privacy,
-                               InviteService invites, HandoffService handoffs) {
+                               InviteService invites, HandoffService handoffs,
+                               vn.shop.crm.map.WeatherService weather) {
+        this.weather = weather;
         this.invites = invites;
         this.handoffs = handoffs;
         this.contacts = contacts;
@@ -72,6 +75,7 @@ public class DashboardController {
         model.addAttribute("unmapped", statuses.unmapped().size());
         model.addAttribute("shipments", shipments);
         model.addAttribute("totalShipments", totalShipments);
+        model.addAttribute("weatherAlerts", weather.alerts());
         model.addAttribute("batches", imports.list().stream().limit(5).toList());
         return "dashboard";
     }

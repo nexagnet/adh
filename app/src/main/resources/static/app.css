@@ -160,3 +160,17 @@ body.landing { background: #fff; }
 }
 .warn-text { color: var(--warn); font-weight: 600; }
 .landing select { font-size: 20px; padding: 12px; width: 100%; }
+
+/* Bản đồ khách theo tỉnh */
+.map-layout { display: grid; grid-template-columns: minmax(260px, 420px) 1fr; gap: 24px; align-items: start; }
+@media (max-width: 800px) { .map-layout { grid-template-columns: 1fr; } }
+.vnmap { width: 100%; height: auto; max-height: 80vh; background: #f7fafc; border: 1px solid #d5dbe3; border-radius: 8px; }
+.map-land { fill: #eef1e6; stroke: #b4b9a4; stroke-width: 1.5; }
+.map-dot { stroke: #ffffff; stroke-width: 1.5; cursor: pointer; }
+.map-dot.lv0 { fill: #c9d0d9; }
+.map-dot.lv1 { fill: #a9c8ee; }
+.map-dot.lv2 { fill: #6fa3df; }
+.map-dot.lv3 { fill: #2f6fbd; }
+.map-dot.lv4 { fill: #123f7a; }
+.map-dot.sel { stroke: #c0392b; stroke-width: 3.5; }
+.map-label { font-size: 15px; fill: #1a1a1a; paint-order: stroke; stroke: #ffffff; stroke-width: 3px; pointer-events: none; }
