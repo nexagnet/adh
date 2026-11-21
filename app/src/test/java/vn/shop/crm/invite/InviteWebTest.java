@@ -98,7 +98,7 @@ class InviteWebTest extends AbstractPostgresTest {
         mvc.perform(get("/campaigns/" + campaign).with(user("admin").roles("OWNER")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("/i/" + token)))
-                .andExpect(content().string(containsString("chưa có tin nào được gửi")));
+                .andExpect(content().string(containsString("không tự gửi tin")));
     }
 
     @Test

@@ -13,8 +13,11 @@ spring:
     cache: true
 
 server:
+  # Chạy sau reverse proxy (Caddy): lấy địa chỉ khách thật từ X-Forwarded-For (Tomcat chỉ tin proxy trong mạng nội bộ).
+  forward-headers-strategy: native
   servlet:
     session:
+      timeout: 8h
       cookie:
         http-only: true
         same-site: lax
@@ -58,3 +61,7 @@ app:
     # Mẹ vừa trả lời trong nhóm thì bot im lặng bao nhiêu phút (tránh trả lời trùng).
     human-quiet-minutes: 30
     max-replies-per-5-min: 3
+  security:
+    # Sai quá số lần này liên tiếp thì khóa cặp (IP, tên đăng nhập) trong lock-minutes phút.
+    max-login-failures: 5
+    lock-minutes: 15

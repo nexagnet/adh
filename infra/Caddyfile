@@ -1,0 +1,9 @@
+# HTTPS tự động (Let's Encrypt) cho tên miền trong APP_DOMAIN. Tên miền phải trỏ về IP của máy chủ.
+# Không bật nhật ký truy cập: đường dẫn lời mời /i/<token> là link riêng của từng khách.
+{$APP_DOMAIN} {
+	encode gzip
+	request_body {
+		max_size 12MB
+	}
+	reverse_proxy app:8080
+}

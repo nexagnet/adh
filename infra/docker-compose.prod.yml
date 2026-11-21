@@ -1,0 +1,71 @@
+# Chạy thật trên một máy chủ (VPS 2 CPU, 2 GB RAM). Dùng:
+#   cp .env.example .env   # rồi sửa MẬT KHẨU và APP_DOMAIN
+#   docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+# Chỉ cổng 80/443 (Caddy) mở ra Internet. PostgreSQL và ứng dụng nằm trong mạng nội bộ, không công bố cổng.
+name: adh
+
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: crm
+      POSTGRES_USER: crm
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Hãy đặt DB_PASSWORD trong file .env}
+    # Cấu hình nhỏ cho máy 2 GB RAM.
+    command: ["postgres", "-c", "shared_buffers=128MB", "-c", "max_connections=30", "-c", "work_mem=4MB"]
+    volumes:
+      - pgdata:/var/lib/postgresql
+    networks: [internal]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm -d crm"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: ../app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://postgres:5432/crm
+      DB_USER: crm
+      DB_PASSWORD: ${DB_PASSWORD:?Hãy đặt DB_PASSWORD trong file .env}
+      APP_ADMIN_USERNAME: ${APP_ADMIN_USERNAME:-admin}
+      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:?Hãy đặt APP_ADMIN_PASSWORD trong file .env}
+      APP_PUBLIC_BASE_URL: https://${APP_DOMAIN:?Hãy đặt APP_DOMAIN trong file .env}
+      APP_SHOP_NAME: ${APP_SHOP_NAME:-Cửa hàng}
+      APP_SHOP_PHONE: ${APP_SHOP_PHONE:-}
+      # Gửi thật qua dịch vụ ngoài mặc định TẮT. Chỉ đổi sau khi đã chọn nhà cung cấp và có xác nhận pháp lý.
+      APP_SENDING_ENABLED: ${APP_SENDING_ENABLED:-false}
+    networks: [internal]
+    mem_limit: 768m
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [app]
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Hãy đặt APP_DOMAIN trong file .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [internal]
+    mem_limit: 128m
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
+
+networks:
+  internal:

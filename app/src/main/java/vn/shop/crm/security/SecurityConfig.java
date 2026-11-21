@@ -21,11 +21,14 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, LoginThrottle throttle) throws Exception {
         http
                 // Trang mời công khai: chỉ POST "vào nhóm"/"ngừng nhận tin", idempotent và chỉ dùng token ngẫu nhiên,
                 // không có phiên đăng nhập nên miễn CSRF để khách không phải mang cookie.
                 .csrf(csrf -> csrf.ignoringRequestMatchers("/i/**"))
+                // Giới hạn đăng nhập sai (mốc 1F). Không đăng ký thành @Bean để khỏi bị nạp hai lần.
+                .addFilterBefore(new LoginThrottleFilter(throttle),
+                        org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/login", "/app.css", "/error", "/i/**").permitAll()
                         .anyRequest().authenticated())
