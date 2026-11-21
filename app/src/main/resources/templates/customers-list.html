@@ -38,7 +38,7 @@
         <input type="text" name="q" th:value="${q}" placeholder="Số điện thoại hoặc tên">
         <label><input type="checkbox" name="review" value="true" th:checked="${review}"> Chỉ khách cần kiểm tra</label>
         <button type="submit" class="btn">Lọc</button>
-        <a class="btn secondary" th:href="@{/customers/export.csv(segment=${segment}, review=${review}, area=${area})}">Tải CSV</a>
+        <a class="btn secondary" th:href="@{/customers/export.csv(segment=${segment}, review=${review}, area=${area})}">Tải file Excel</a>
     </form>
 
     <p><strong th:text="${page.total}">0</strong> khách</p>

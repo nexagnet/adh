@@ -50,4 +50,22 @@ class LabelsTest {
         assertThat(labels.evidence("JT_EXPRESS:9")).isEqualTo("J&T Express, vận đơn 9");
         assertThat(labels.evidence(null)).isEmpty();
     }
+
+    @Test
+    void nguoiThaoTacHienThanhBoMeKhongHienTenDangNhap() {
+        assertThat(labels.person("admin")).isEqualTo("Bố/Mẹ");
+        assertThat(labels.person("system")).isEqualTo("Hệ thống");
+        assertThat(labels.person(null)).isEmpty();
+        assertThat(labels.person("co-tuan")).isEqualTo("co-tuan");
+    }
+
+    @Test
+    void khongConChuBotTrongNhanHienRaGiaoDien() {
+        for (BotEngine.Type t : BotEngine.Type.values()) {
+            assertThat(labels.botResult(t.name())).doesNotContainPattern("(?i)\\bbot\\b");
+        }
+        for (BotEngine.SenderKind k : BotEngine.SenderKind.values()) {
+            assertThat(labels.sender(k.name())).doesNotContainPattern("(?i)\\bbot\\b");
+        }
+    }
 }

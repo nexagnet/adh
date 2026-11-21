@@ -76,7 +76,7 @@ class InviteWebTest extends AbstractPostgresTest {
                 .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/groups"));
         mvc.perform(get("/groups").with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Nhóm X")))
-                .andExpect(content().string(containsString("không tính tài khoản mẹ và tài khoản bot")));
+                .andExpect(content().string(containsString("không tính tài khoản mẹ và tài khoản trợ lý AI")));
         mvc.perform(get("/campaigns").with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("chưa gửi tin cho ai")));
     }

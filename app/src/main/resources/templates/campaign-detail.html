@@ -5,7 +5,7 @@
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
     <h1 th:text="${campaign.name}">Chiến dịch</h1>
-    <p class="hint"><a th:href="@{/campaigns}">‹ Tất cả chiến dịch</a> · tạo bởi <span th:text="${campaign.createdBy}">admin</span> lúc
+    <p class="hint"><a th:href="@{/campaigns}">‹ Tất cả chiến dịch</a> · tạo bởi <span th:text="${@labels.person(campaign.createdBy)}">Bố/Mẹ</span> lúc
         <span th:text="${#temporals.format(campaign.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</span></p>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã tạo.</div>

@@ -61,7 +61,7 @@
                 <td th:text="${@labels.channel(r.channel)}">Gửi giả lập</td>
                 <td>
                     <span class="badge ok" th:if="${r.outcome == 'SENT'}">Đã gửi</span>
-                    <span class="badge" th:if="${r.outcome == 'DRY_RUN'}">Chạy thử</span>
+                    <span class="badge" th:if="${r.outcome == 'DRY_RUN'}">Thử, chưa gửi thật</span>
                     <span class="badge warn" th:if="${r.outcome == 'SKIPPED'}">Bỏ qua</span>
                     <span class="badge bad" th:if="${r.outcome == 'FAILED'}">Lỗi</span>
                 </td>

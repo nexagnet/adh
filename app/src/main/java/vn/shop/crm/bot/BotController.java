@@ -74,16 +74,16 @@ public class BotController {
     @PostMapping("/bot/enable")
     public String enable(@RequestParam boolean on, RedirectAttributes redirect) {
         settings.set(AppSettings.BOT_ENABLED, String.valueOf(on), ContactService.actor());
-        redirect.addFlashAttribute("flash", on ? "Đã BẬT bot (vẫn chỉ chạy thử nếu chế độ thử đang bật)."
-                : "Đã TẮT bot. Mẹ vẫn trả lời khách trên Zalo như bình thường.");
+        redirect.addFlashAttribute("flash", on ? "Đã BẬT trợ lý AI (vẫn chỉ chạy thử nếu chế độ thử đang bật)."
+                : "Đã TẮT trợ lý AI. Mẹ vẫn trả lời khách trên Zalo như bình thường.");
         return "redirect:/bot";
     }
 
     @PostMapping("/bot/dry-run")
     public String dryRun(@RequestParam boolean on, RedirectAttributes redirect) {
         settings.set(AppSettings.BOT_DRY_RUN, String.valueOf(on), ContactService.actor());
-        redirect.addFlashAttribute("flash", on ? "Bot đang ở chế độ thử: chỉ ghi sẽ trả lời gì, không gửi."
-                : "Đã tắt chế độ thử. Bot SẼ gửi tin qua kênh khi có kênh được cài (hiện chưa có kênh nào).");
+        redirect.addFlashAttribute("flash", on ? "Trợ lý AI đang ở chế độ thử: chỉ ghi sẽ trả lời gì, không gửi."
+                : "Đã tắt chế độ thử. Trợ lý AI SẼ gửi tin qua kênh khi có kênh được cài (hiện chưa có kênh nào).");
         return "redirect:/bot";
     }
 
@@ -94,7 +94,7 @@ public class BotController {
         if (n == 0) {
             throw new ImportException("Không tìm thấy nhóm.");
         }
-        redirect.addFlashAttribute("flash", on ? "Đã bật bot cho nhóm." : "Đã tắt bot cho nhóm.");
+        redirect.addFlashAttribute("flash", on ? "Đã bật trợ lý AI cho nhóm." : "Đã tắt trợ lý AI cho nhóm.");
         return "redirect:/bot";
     }
 

@@ -6,7 +6,7 @@
 <main>
     <h1>Nhóm Zalo</h1>
     <p class="hint">Mẹ tạo nhóm trên Zalo thật rồi dán link vào đây. Mỗi nhóm nhắm khoảng 5 khách, lệch một ít cũng được.
-        Số khách <strong>không tính tài khoản mẹ và tài khoản bot</strong>
+        Số khách <strong>không tính tài khoản mẹ và tài khoản trợ lý AI</strong>
         (tổng thành viên thường là số khách + <span th:text="${storeAccounts}">2</span>).
         Số khách thật do mẹ đếm rồi nhập tay; "lượt bấm chờ" chỉ là ước lượng để chia nhóm, không phải số người đã vào.</p>
 
@@ -31,7 +31,7 @@
     <details class="card">
         <summary><strong>Cách đóng nhóm đã đầy và mở nhóm mới</strong></summary>
         <ol>
-            <li><strong>Mỗi tuần</strong> (hoặc khi thấy nhóm gần đủ), mẹ mở nhóm trên Zalo, đếm số khách thật (không tính mẹ và bot),
+            <li><strong>Mỗi tuần</strong> (hoặc khi thấy nhóm gần đủ), mẹ mở nhóm trên Zalo, đếm số khách thật (không tính mẹ và trợ lý AI),
                 rồi nhập vào ô "Cập nhật số khách" bên dưới. Hệ thống tự tính nhóm nào còn chỗ.</li>
             <li>Khi nhóm đủ khoảng 5 khách, hệ thống tự ngừng đưa khách mới vào nhóm đó. Mẹ có thể đổi trạng thái sang <em>Đã đóng</em> cho gọn.</li>
             <li>Tạo nhóm mới trên Zalo, lấy link mời nhóm, bấm <em>Thêm nhóm</em> ở trên và dán link vào.
@@ -77,7 +77,7 @@
                 <td class="num" th:text="${g.pendingClicks}">0</td>
                 <td>
                     <form class="inline" th:action="@{/groups/{id}/count(id=${g.id})}" method="post">
-                        <input type="number" name="actual" min="0" max="1000" th:value="${g.actual}" title="Số khách thật (không tính mẹ, bot)">
+                        <input type="number" name="actual" min="0" max="1000" th:value="${g.actual}" title="Số khách thật (không tính mẹ và trợ lý AI)">
                         <button type="submit" class="btn secondary">Cập nhật số khách</button>
                     </form>
                     <form class="inline" th:action="@{/groups/{id}/status(id=${g.id})}" method="post">

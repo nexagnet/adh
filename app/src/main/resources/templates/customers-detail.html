@@ -43,7 +43,7 @@
         <div th:if="${basis.evidenceRef != null}">Bằng chứng: đơn giao thành công
             <span class="mono" th:text="${@labels.evidence(basis.evidenceRef)}">Viettel Post, vận đơn 123</span></div>
         <div class="muted" th:text="${basis.statement}">Chủ cửa hàng chịu trách nhiệm</div>
-        <div class="muted">Ghi bởi <span th:text="${basis.recordedBy}">admin</span> lúc
+        <div class="muted">Ghi bởi <span th:text="${@labels.person(basis.recordedBy)}">Bố/Mẹ</span> lúc
             <span th:text="${#temporals.format(basis.recordedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026 10:00</span></div>
     </div>
     <div th:if="${basis == null and !suppressed}" class="notice">
@@ -88,7 +88,7 @@
     </form>
     <div class="actions">
         <form th:action="@{/customers/{id}/privacy/export.csv(id=${detail.customer.id})}" method="post">
-            <button type="submit" class="btn secondary">Tải toàn bộ dữ liệu của khách (CSV)</button>
+            <button type="submit" class="btn secondary">Tải toàn bộ dữ liệu của khách (mở bằng Excel)</button>
         </form>
         <form th:if="${!suppressed}" th:action="@{/customers/{id}/privacy/stop-contact(id=${detail.customer.id})}"
               method="post">
@@ -113,7 +113,7 @@
                 <td th:text="${#temporals.format(e.recordedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
                 <td th:text="${@labels.contactEvent(e.event)}">Duyệt vào danh sách mời</td>
                 <td th:text="${e.detail}">chi tiết</td>
-                <td th:text="${e.recordedBy}">admin</td>
+                <td th:text="${@labels.person(e.recordedBy)}">Bố/Mẹ</td>
             </tr>
         </table>
     </div>
