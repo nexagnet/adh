@@ -4,58 +4,66 @@
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
-    <h1>Chọn cột dữ liệu</h1>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Nhập file <span th:text="${view.batch.carrier.label()}">J&amp;T Express</span>: chọn cột</h1>
+            <p class="hint">Đã nhận file <strong th:text="${view.batch.filename}">file.csv</strong>
+                (tiêu đề ở dòng <span th:text="${headerRow}">1</span>). Hệ thống đã đoán sẵn các cột, bạn chỉ cần kiểm tra lại.</p>
+        </div>
+    </header>
     <ol th:replace="~{fragments :: steps(2)}"></ol>
-    <p class="hint">
-        File <strong th:text="${view.batch.filename}">file.csv</strong> —
-        <span th:text="${view.batch.carrier.label()}">Viettel Post</span>.
-        Hệ thống đã đoán sẵn các cột, hãy kiểm tra lại cho đúng.
-    </p>
 
     <div class="notice" th:if="${view.sameFileAlreadyImported}">
-        File giống hệt đã được nhập trước đây. Nhập lại vẫn an toàn, số lần mua sẽ không tăng.
+        <strong>File này đã được nhập trước đây</strong>
+        Nhập lại vẫn an toàn, số lần mua sẽ không tăng.
     </div>
 
-    <form class="inline" th:action="@{/imports/{id}/mapping(id=${view.batch.id})}" method="get">
-        <label for="headerRowPick">Dòng tiêu đề là dòng số</label>
-        <input type="number" id="headerRowPick" name="headerRow" min="1" th:value="${headerRow}">
-        <button type="submit" class="btn secondary">Đọc lại</button>
-    </form>
-
-    <h2>Vài dòng đầu của file</h2>
-    <div class="table-wrap">
-        <table>
-            <tr><th th:each="h : ${view.headers}" th:text="${h}">Cột</th></tr>
-            <tr th:each="row : ${view.sampleRows}">
-                <td th:each="cell : ${row}" th:text="${cell}">-</td>
-            </tr>
-        </table>
-    </div>
-
-    <form th:action="@{/imports/{id}/preview(id=${view.batch.id})}" method="post">
+    <form th:action="@{/imports/{id}/preview(id=${view.batch.id})}" method="post" class="stack" id="mapform">
         <input type="hidden" name="headerRow" th:value="${headerRow}">
-        <h2>Cột nào là gì?</h2>
-        <div class="notice" th:if="${selected.get(T(vn.shop.crm.imports.FieldKey).ORDER_REF) == null}">
-            <strong>Chưa chọn cột mã đơn hàng của shop.</strong> Khi không có mã đơn, mỗi vận đơn được tính là một lần mua riêng,
-            nên đơn tách thành nhiều kiện có thể bị đếm dư. Những khách có thể bị đếm dư sẽ được gắn "cần kiểm tra".
+        <div class="maprows">
+            <div class="maprow" th:each="f : ${fields}">
+                <label th:for="${'col_' + f.name()}">
+                    <span th:text="${f.label()}">Mã vận đơn</span>
+                    <span class="badge info" th:if="${f.required()}">Bắt buộc</span>
+                </label>
+                <select th:id="${'col_' + f.name()}" th:name="${'col_' + f.name()}" class="mapsel">
+                    <option value="" data-sample="—">(không có cột này)</option>
+                    <option th:each="h, st : ${view.headers}" th:value="${h}" th:text="${h}"
+                            th:attr="data-sample=${view.sampleRows.isEmpty() or st.index >= view.sampleRows.get(0).size() or view.sampleRows.get(0).get(st.index) == null or view.sampleRows.get(0).get(st.index).isEmpty()} ? '—' : ${view.sampleRows.get(0).get(st.index)}"
+                            th:selected="${selected.get(f) != null and selected.get(f) == h}">Cột</option>
+                </select>
+                <span class="sample" aria-label="Giá trị mẫu">—</span>
+            </div>
         </div>
-        <p class="hint">Cách chọn cột được nhớ cho lần nhập sau của cùng hãng khi bạn xác nhận nhập.</p>
-        <div th:each="f : ${fields}">
-            <label th:for="${'col_' + f.name()}">
-                <span th:text="${f.label()}">Mã vận đơn</span>
-                <span class="badge bad" th:if="${f.required()}">bắt buộc</span>
-            </label>
-            <select th:id="${'col_' + f.name()}" th:name="${'col_' + f.name()}">
-                <option value="">(không dùng)</option>
-                <option th:each="h : ${view.headers}" th:value="${h}" th:text="${h}"
-                        th:selected="${selected.get(f) != null and selected.get(f) == h}">Cột</option>
-            </select>
+        <div class="notice" th:if="${selected.get(T(vn.shop.crm.imports.FieldKey).ORDER_REF) == null}">
+            <strong>Chưa chọn cột mã đơn hàng của shop</strong>
+            Khi không có mã đơn, mỗi vận đơn được tính là một lần mua riêng, nên đơn tách thành nhiều kiện có thể bị đếm dư.
+            Hệ thống không đoán theo ngày hay giá: những khách có thể bị đếm dư sẽ vào mục «cần kiểm tra».
         </div>
         <div class="actions">
-            <button type="submit" class="btn">Xem trước kết quả</button>
-            <a class="btn secondary" th:href="@{/imports}">Hủy</a>
+            <button type="submit" class="btn">Xem trước</button>
+            <a class="linkbtn" th:href="@{/imports}">Hủy</a>
+            <span class="muted">Cách chọn cột được nhớ cho lần nhập sau của cùng hãng khi bạn xác nhận nhập.</span>
         </div>
     </form>
+
+    <details class="more">
+        <summary>Xem vài dòng đầu của file, hoặc đổi dòng tiêu đề</summary>
+        <form class="inline" th:action="@{/imports/{id}/mapping(id=${view.batch.id})}" method="get">
+            <label for="headerRowPick" class="inline-label">Dòng tiêu đề là dòng số</label>
+            <input type="number" id="headerRowPick" name="headerRow" min="1" th:value="${headerRow}" style="width:90px">
+            <button type="submit" class="btn secondary sm">Đọc lại</button>
+        </form>
+        <div class="table-wrap">
+            <table>
+                <tr><th th:each="h : ${view.headers}" th:text="${h}">Cột</th></tr>
+                <tr th:each="row : ${view.sampleRows}">
+                    <td th:each="cell : ${row}" th:text="${cell}">-</td>
+                </tr>
+            </table>
+        </div>
+    </details>
 </main>
+<script th:src="@{/import-map.js}"></script>
 </body>
 </html>

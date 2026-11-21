@@ -4,42 +4,52 @@
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
-    <h1>Việc cần mẹ xử lý</h1>
-    <p class="hint">Trợ lý AI báo khi trong nhóm có khách muốn mua, khiếu nại hoặc cần người thật. Mẹ vào Zalo trả lời khách,
-        rồi bấm "Đã nhận" và "Xong" ở đây để cả nhà biết. Trích đoạn đã che số điện thoại và số dài.</p>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Việc cần mẹ xử lý</h1>
+            <p class="hint">Mẹ trả lời khách trên Zalo thật, rồi bấm «Mẹ đã xem» hoặc «Đã xử lý xong» ở đây để cả nhà biết.
+                Trợ lý AI không tự chốt đơn, không tự hứa giá hay bảo hành.</p>
+        </div>
+        <div class="actions" th:if="${botEnabled}">
+            <form th:action="@{/bot/enable}" method="post">
+                <input type="hidden" name="on" value="false">
+                <button type="submit" class="btn danger secondary">Tắt trợ lý ngay</button>
+            </form>
+        </div>
+    </header>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã nhận.</div>
-    <div class="notice"><strong>Chưa chọn cách báo cho mẹ.</strong> Hiện việc chỉ hiện ở trang này và trên Tổng quan,
-        chưa có tin nhắn tự báo tới mẹ. Mẹ nên mở trang này mỗi khi vào xem nhóm Zalo.</div>
-    <div class="actions">
-        <a class="btn secondary" th:if="${!all}" th:href="@{/handoffs(all=true)}">Xem cả việc đã xong</a>
-        <a class="btn secondary" th:if="${all}" th:href="@{/handoffs}">Chỉ xem việc còn mở</a>
+    <div class="notice">
+        <strong>Chưa chọn cách báo cho mẹ</strong>
+        Nếu mẹ không mở trang này, việc khách muốn mua có thể bị bỏ sót. Hiện việc chỉ hiện ở trang này và trên Tổng quan,
+        chưa có tin nhắn tự báo tới mẹ.
     </div>
 
-    <div class="table-wrap">
-        <table>
-            <tr><th>Lúc</th><th>Nhóm</th><th>Lý do</th><th>Trích đoạn</th><th>Tình trạng</th><th></th></tr>
-            <tr th:each="r : ${rows}">
-                <td th:text="${#temporals.format(r.createdAt, 'dd/MM HH:mm')}">01/01 10:00</td>
-                <td th:text="${r.groupName}">Nhóm 1</td>
-                <td th:text="${r.reason.label()}">Khách muốn đặt hàng</td>
-                <td th:text="${r.excerpt}">Mình muốn mua thêm</td>
-                <td>
-                    <span class="badge bad" th:if="${r.status == 'OPEN'}">Mới</span>
-                    <span class="badge warn" th:if="${r.status == 'ACKNOWLEDGED'}">Đã nhận <span th:if="${r.ackedBy != null}" th:text="'(' + ${r.ackedBy} + ')'"></span></span>
-                    <span class="badge ok" th:if="${r.status == 'RESOLVED'}">Xong</span>
-                </td>
-                <td>
-                    <form th:if="${r.status == 'OPEN'}" th:action="@{/handoffs/{id}/ack(id=${r.id})}" method="post" class="inline">
-                        <button type="submit" class="btn">Đã nhận</button>
-                    </form>
-                    <form th:if="${r.status != 'RESOLVED'}" th:action="@{/handoffs/{id}/resolve(id=${r.id})}" method="post" class="inline">
-                        <button type="submit" class="btn secondary">Xong</button>
-                    </form>
-                </td>
-            </tr>
-            <tr th:if="${rows.isEmpty()}"><td colspan="6" class="muted">Không có việc nào đang chờ.</td></tr>
-        </table>
+    <div class="chips" aria-label="Lọc việc">
+        <a class="chip" th:classappend="${!done and !all} ? 'on'" th:href="@{/handoffs}">Cần xử lý <span class="n" th:text="${openCount}">0</span></a>
+        <a class="chip" th:classappend="${done} ? 'on'" th:href="@{/handoffs(done=true)}">Đã xong <span class="n" th:text="${doneCount}">0</span></a>
+    </div>
+
+    <div class="stack">
+        <div class="job" th:each="r : ${rows}">
+            <div class="meta">
+                <span class="badge info" th:text="${r.reason.label()}">Muốn đặt thêm hàng</span>
+                <span class="badge bad" th:if="${r.status == 'OPEN'}">Mới</span>
+                <span class="badge" th:if="${r.status == 'ACKNOWLEDGED'}">Mẹ đã xem<span th:if="${r.ackedBy != null}" th:text="' (' + ${r.ackedBy} + ')'"></span></span>
+                <span class="badge ok" th:if="${r.status == 'RESOLVED'}">Đã xong</span>
+                <span><span th:text="${r.groupName}">Nhóm 1</span> · <span th:text="${#temporals.format(r.createdAt, 'dd/MM HH:mm')}">21/11 09:12</span></span>
+            </div>
+            <div class="what" th:text="${r.excerpt}">Khách hỏi còn pin Aki ta 18V và muốn lấy 2 cái</div>
+            <div class="actions" th:if="${r.status != 'RESOLVED'}">
+                <form th:if="${r.status == 'OPEN'}" th:action="@{/handoffs/{id}/ack(id=${r.id})}" method="post">
+                    <button type="submit" class="btn sm">Mẹ đã xem</button>
+                </form>
+                <form th:action="@{/handoffs/{id}/resolve(id=${r.id})}" method="post">
+                    <button type="submit" class="btn sm" th:classappend="${r.status == 'OPEN'} ? 'secondary'">Đã xử lý xong</button>
+                </form>
+            </div>
+        </div>
+        <p class="muted" th:if="${rows.isEmpty()}">Không có việc nào đang chờ.</p>
     </div>
 </main>
 </body>

@@ -370,6 +370,18 @@ public class ContactService {
                 .query(String.class).optional().orElse("");
     }
 
+    /** Ghi chú của nhiều khách bằng một truy vấn (khách không có ghi chú thì không có trong kết quả). */
+    public java.util.Map<Long, String> notes(java.util.Collection<Long> ids) {
+        java.util.Map<Long, String> result = new java.util.HashMap<>();
+        if (ids.isEmpty()) {
+            return result;
+        }
+        jdbc.sql("SELECT customer_id, note FROM customer_note WHERE customer_id IN (:ids)").param("ids", ids)
+                .query((rs, i) -> java.util.Map.entry(rs.getLong("customer_id"), rs.getString("note")))
+                .list().forEach(e -> result.put(e.getKey(), e.getValue()));
+        return result;
+    }
+
     @Transactional
     public void saveNote(long customerId, String note) {
         phoneOf(customerId); // báo lỗi nếu khách không tồn tại

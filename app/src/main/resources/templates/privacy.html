@@ -4,45 +4,57 @@
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
-    <h1>Yêu cầu của khách về dữ liệu</h1>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Yêu cầu của khách về dữ liệu</h1>
+            <p class="hint">Khi khách nhắn xin xóa, xuất dữ liệu hoặc ngừng liên hệ, hãy ghi nhận ngay để hệ thống đếm hạn phản hồi.</p>
+        </div>
+        <div class="actions"><a class="btn" href="#ghi-nhan">Ghi nhận yêu cầu mới</a></div>
+    </header>
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã ghi nhận.</div>
-    <p class="hint">
-        Khi khách nhắn muốn xem, tải, ngừng liên hệ hoặc xóa dữ liệu, ghi nhận yêu cầu để bộ đếm hạn chạy.
-        Hạn phản hồi theo loại yêu cầu: <strong>xem, tải, ngừng liên hệ trong <span th:text="${quickDays}">2</span>
-        ngày làm việc</strong>; <strong>xóa dữ liệu trong <span th:text="${eraseDays}">20</span> ngày</strong>, tính từ
-        ngày khách gửi. Đây là mức tạm đặt, <strong>chưa có xác nhận pháp lý</strong> về thời hạn đúng.
-    </p>
 
-    <h2>Ghi nhận yêu cầu mới</h2>
-    <form class="inline" th:action="@{/privacy/new}" method="post">
-        <input type="text" name="phone" placeholder="Số điện thoại của khách" required>
-        <select name="kind">
-            <option th:each="k : ${kinds}" th:value="${k.name()}" th:text="${k.label()}">Xóa dữ liệu</option>
-        </select>
-        <label class="inline-label">Ngày khách gửi <input type="date" name="receivedOn" th:value="${today}"></label>
-        <button type="submit" class="btn">Ghi nhận yêu cầu mới</button>
-    </form>
+    <div class="notice">
+        <strong>Hạn phản hồi đang đặt theo loại yêu cầu</strong>
+        Ngừng liên hệ, xem và xuất dữ liệu: <span th:text="${quickDays}">2</span> ngày làm việc.
+        Xóa dữ liệu: <span th:text="${eraseDays}">20</span> ngày. Đây là mức tạm đặt, chưa có xác nhận pháp lý.
+    </div>
 
-    <h2>Các yêu cầu</h2>
+    <div class="chips" aria-label="Lọc yêu cầu">
+        <a class="chip" th:classappend="${tab == 'open'} ? 'on'" th:href="@{/privacy}">Cần xử lý <span class="n" th:text="${openCount}">0</span></a>
+        <a class="chip" th:classappend="${tab == 'done'} ? 'on'" th:href="@{/privacy(tab='done')}">Đã xong <span class="n" th:text="${doneCount}">0</span></a>
+    </div>
+
     <div class="table-wrap">
         <table>
-            <tr><th>Việc khách yêu cầu</th><th>Số (3 số cuối)</th><th>Khách gửi</th><th>Hạn</th><th>Tình trạng</th><th>Ghi chú</th></tr>
+            <tr><th>Số (3 số cuối)</th><th>Loại yêu cầu</th><th>Khách gửi</th><th>Hạn</th><th>Tình trạng</th></tr>
             <tr th:each="r : ${requests}">
-                <td th:text="${r.kind.label()}">Xóa dữ liệu</td>
-                <td class="mono" th:text="${r.phoneTail}">***678</td>
+                <td th:text="${r.phoneTail}">***678</td>
+                <td><strong th:text="${r.kind.label()}">Xóa dữ liệu</strong>
+                    <span class="sub-line" th:if="${r.note != null and !r.note.isEmpty()}" th:text="${r.note}">Khách gọi điện</span></td>
                 <td th:text="${#temporals.format(r.receivedOn, 'dd/MM/yyyy')}">01/01/2026</td>
                 <td th:text="${#temporals.format(r.dueOn, 'dd/MM/yyyy')}">16/01/2026</td>
                 <td>
                     <span class="badge ok" th:if="${!r.open()}">Đã xong</span>
-                    <span class="badge bad" th:if="${r.overdue}">Quá hạn</span>
+                    <span class="badge bad" th:if="${r.overdue}" th:text="'Quá hạn ' + ${-r.daysLeft} + ' ngày'">Quá hạn</span>
                     <span class="badge warn" th:if="${r.open() and !r.overdue}"
                           th:text="'Còn ' + ${r.daysLeft} + ' ngày'">Còn 5 ngày</span>
                 </td>
-                <td th:text="${r.note}">ghi chú</td>
             </tr>
-            <tr th:if="${requests.isEmpty()}"><td colspan="6" class="muted">Chưa có yêu cầu nào.</td></tr>
+            <tr th:if="${requests.isEmpty()}"><td colspan="5" class="muted">Chưa có yêu cầu nào.</td></tr>
         </table>
     </div>
+
+    <section id="ghi-nhan">
+        <h2>Ghi nhận yêu cầu mới</h2>
+        <form class="panel inline" th:action="@{/privacy/new}" method="post">
+            <input type="text" name="phone" placeholder="Số điện thoại của khách" required aria-label="Số điện thoại của khách">
+            <select name="kind" aria-label="Loại yêu cầu">
+                <option th:each="k : ${kinds}" th:value="${k.name()}" th:text="${k.label()}">Xóa dữ liệu</option>
+            </select>
+            <label class="inline-label">Ngày khách gửi <input type="date" name="receivedOn" th:value="${today}"></label>
+            <button type="submit" class="btn">Ghi nhận yêu cầu mới</button>
+        </form>
+    </section>
 </main>
 </body>
 </html>

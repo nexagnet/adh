@@ -43,7 +43,11 @@ public class CustomerController {
         String areaCode = validArea(area);
         var pageResult = customers.search(segment, review, areaCode, q, page, 50);
         model.addAttribute("page", pageResult);
-        model.addAttribute("states", contacts.inviteStates(pageResult.items().stream().map(c -> c.id()).toList()));
+        var ids = pageResult.items().stream().map(c -> c.id()).toList();
+        model.addAttribute("states", contacts.inviteStates(ids));
+        model.addAttribute("notes", contacts.notes(ids));
+        model.addAttribute("reviewCount", customers.search(segment, true, areaCode, q, 1, 1).total());
+        model.addAttribute("shown", pageResult.items().size());
         var bySegment = customers.countBySegment();
         model.addAttribute("segmentCounts", bySegment);
         model.addAttribute("totalCustomers", bySegment.values().stream().mapToLong(Long::longValue).sum());
