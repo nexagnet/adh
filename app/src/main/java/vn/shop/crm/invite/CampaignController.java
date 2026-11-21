@@ -33,7 +33,7 @@ public class CampaignController {
         model.addAttribute("paused", settings.paused());
         model.addAttribute("pausedReason", settings.pausedReason());
         model.addAttribute("maxBatch", invites.maxBatch());
-        model.addAttribute("defaultTemplate", InviteService.DEFAULT_TEMPLATE);
+        model.addAttribute("defaultTemplate", invites.defaultTemplate());
         return "campaigns";
     }
 
@@ -46,6 +46,14 @@ public class CampaignController {
         return "redirect:/campaigns/" + id;
     }
 
+    /** Chủ shop soạn mẫu tin mặc định trên trang quản trị (để trống = dùng lại mẫu có sẵn). */
+    @PostMapping("/campaigns/default-template")
+    public String saveTemplate(@RequestParam(required = false) String template, RedirectAttributes redirect) {
+        invites.saveDefaultTemplate(template);
+        redirect.addFlashAttribute("flash", "Đã lưu nội dung tin mặc định. Chiến dịch mới sẽ dùng nội dung này.");
+        return "redirect:/campaigns";
+    }
+
     @GetMapping("/campaigns/{id}")
     public String detail(@PathVariable long id, Model model) {
         var campaign = invites.campaign(id).orElseThrow(() -> new ImportException("Không tìm thấy chiến dịch."));
@@ -53,6 +61,28 @@ public class CampaignController {
         model.addAttribute("rows", invites.invitations(id, campaign.template()));
         model.addAttribute("paused", settings.paused());
         return "campaign-detail";
+    }
+
+    /** Đánh dấu tay các bước của đường nhắn bằng tài khoản Zalo phụ: đã kết bạn, đã vào nhóm, khách từ chối. */
+    @PostMapping("/campaigns/{id}/invitations/{invitationId}/friended")
+    public String friended(@PathVariable long id, @PathVariable long invitationId, RedirectAttributes redirect) {
+        invites.markFriended(invitationId);
+        redirect.addFlashAttribute("flash", "Đã ghi: khách đồng ý kết bạn.");
+        return "redirect:/campaigns/" + id;
+    }
+
+    @PostMapping("/campaigns/{id}/invitations/{invitationId}/joined")
+    public String joined(@PathVariable long id, @PathVariable long invitationId, RedirectAttributes redirect) {
+        invites.markJoined(invitationId);
+        redirect.addFlashAttribute("flash", "Đã ghi: khách đã được thêm vào nhóm. Số khách thật của nhóm tăng thêm 1.");
+        return "redirect:/campaigns/" + id;
+    }
+
+    @PostMapping("/campaigns/{id}/invitations/{invitationId}/declined")
+    public String declined(@PathVariable long id, @PathVariable long invitationId, RedirectAttributes redirect) {
+        invites.markDeclined(invitationId);
+        redirect.addFlashAttribute("flash", "Đã ghi: khách từ chối. Số này vào danh sách từ chối vĩnh viễn, không nhắn lại.");
+        return "redirect:/campaigns/" + id;
     }
 
     @PostMapping("/campaigns/{id}/cancel-unsent")

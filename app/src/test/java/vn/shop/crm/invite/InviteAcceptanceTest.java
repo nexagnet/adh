@@ -139,13 +139,15 @@ class InviteAcceptanceTest extends AbstractPostgresTest {
         contacts.approveAllCandidates();
 
         assertThatThrownBy(() -> invites.createCampaign("Thử", null, 14, 21)).hasMessageContaining("1 đến 20");
-        assertThatThrownBy(() -> invites.createCampaign("Thử", "Không có link", 14, 5))
-                .hasMessageContaining("{link}");
+        assertThatThrownBy(() -> invites.createCampaign("Thử", "x".repeat(801), 14, 5)).hasMessageContaining("quá dài");
 
         settings.pauseAll("kiểm tra", "test");
         assertThatThrownBy(() -> invites.createCampaign("Thử", null, 14, 5)).hasMessageContaining("tạm dừng");
         settings.resumeAll("test");
-        invites.createCampaign("Thử", null, 14, 5);
+        // tin nhắn bằng tài khoản Zalo phụ không cần {link}
+        long camp = invites.createCampaign("Thử", "Chào {ten}, {cua_hang} tư vấn cách dùng sản phẩm.", 14, 5);
+        assertThat(invites.invitations(camp, invites.campaign(camp).orElseThrow().template()).getFirst().message())
+                .startsWith("Chào Khach 1");
     }
 
     @Test

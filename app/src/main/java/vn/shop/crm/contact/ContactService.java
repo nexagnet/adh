@@ -139,6 +139,8 @@ public class ContactService {
                 case "READY" -> "Chưa gửi";
                 case "SENT" -> "Đã gửi";
                 case "CLICKED" -> "Đã bấm link";
+                case "FRIENDED" -> "Đã kết bạn";
+                case "JOINED" -> "Đã vào nhóm";
                 case "CANCELLED" -> "Đã hủy";
                 default -> "Chưa mời";
             };
@@ -301,7 +303,7 @@ public class ContactService {
                 .param("id", customerId).update();
         jdbc.sql("""
                         UPDATE invitation SET status = 'CANCELLED', cancelled_reason = :reason
-                        WHERE customer_id = :id AND status IN ('SENT', 'CLICKED')""")
+                        WHERE customer_id = :id AND status IN ('SENT', 'CLICKED', 'FRIENDED')""")
                 .param("id", customerId).param("reason", reason).update();
     }
 

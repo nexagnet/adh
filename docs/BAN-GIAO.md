@@ -52,13 +52,14 @@ Mã nguồn trên nhánh `main` của `nexagnet/adh`, đã gộp các PR #3, #4,
 | D10 | Giấy in bỏ vào **mọi gói hàng**, kể cả khách mua từ 2 lần, dùng **một mã QR tĩnh chung** (ngoại lệ so với BR-06) |
 | D11 | Phân vùng khách theo miền/tỉnh, xếp nhóm Zalo theo khu vực (lý do: mùa lạnh chủ yếu khách miền Nam mua) |
 | D12 | Bản đồ phân bố khách + nhắc việc thời tiết (chỉ nhắc trên web, không tự nhắn khách) |
+| D13 | **Nghiệp vụ giai đoạn 1 (chốt 21/11/2026):** dùng **tài khoản Zalo cá nhân phụ** nhắn tin tư vấn sản phẩm cho khách mua **đúng 1 lần**; ai đồng ý **kết bạn** thì thêm vào **nhóm Zalo cùng khu vực**; chỉ nhắn **một lần duy nhất** mỗi người; **nội dung tin do chủ shop soạn ở trang quản trị**. Hệ thống **vẫn không tự gửi tin** và không đăng nhập Zalo |
 
 Lựa chọn khác của người dùng trong các phiên: giao diện **100% tiếng Việt**; "trợ lý AI" thay cho chữ "bot" (theo thiết kế Penpot); bố mẹ không rành kỹ thuật nên chữ to, mỗi màn một việc; người dùng đã **duyệt thiết kế Penpot** (21/11/2026) và dặn "sửa xong Penpot thì code luôn"; chọn **phương án A cho J&T** (nhập file tăng dần).
 
 ### Giả định do phiên trước tự đặt (chủ shop chưa xác nhận, chỉnh được)
 - Mẹ **đếm lại thành viên nhóm Zalo mỗi tuần** (`GroupService.RECOUNT_DAYS = 7`). Lượt bấm chờ tính tỷ lệ 0,5 (`app.invitations.assumed-accept-rate`) chỉ để chia nhóm, **không phải số người thật vào nhóm**.
 - Nhóm Zalo mục tiêu khoảng **5 khách/nhóm**, số khách **không tính tài khoản mẹ và trợ lý** (2 tài khoản cửa hàng).
-- **Phân vùng:** tỉnh là tên xuất hiện **cuối cùng** trong địa chỉ vận đơn, bỏ qua tên đứng sau "xã/phường/quận/huyện/đường/phố"; không chắc thì "Chưa rõ", **không đoán bừa**. Tây Nguyên xếp miền Trung. Sau sáp nhập tỉnh (1/7/2025) tên tỉnh mới đều trùng một tên tỉnh cũ nên vẫn nhận được, nhưng khách cũ ở tỉnh bị sáp nhập có thể hiện tên tỉnh mới (vẫn cùng miền hoặc vùng kế bên). Danh sách 63 tỉnh nằm ở `geo/VnGeo.java`; sửa cách đoán thì tăng `VnGeo.VERSION` để khởi động lại tự tính lại cho khách cũ.
+- **Phân vùng:** tỉnh là tên xuất hiện **cuối cùng** trong địa chỉ vận đơn, bỏ qua tên đứng sau "xã/phường/quận/huyện/đường/phố"; dấu phẩy là ranh giới giữa các cấp địa chỉ (chữ cuối của cấp trước như "Sơn Dương", "Điền Xá" không phải tiền tố "đường/xã"; đã sửa ở `VnGeo.VERSION = 2`); không chắc thì "Chưa rõ", **không đoán bừa**. Tây Nguyên xếp miền Trung. Sau sáp nhập tỉnh (1/7/2025) tên tỉnh mới đều trùng một tên tỉnh cũ nên vẫn nhận được, nhưng khách cũ ở tỉnh bị sáp nhập có thể hiện tên tỉnh mới (vẫn cùng miền hoặc vùng kế bên). Danh sách 63 tỉnh nằm ở `geo/VnGeo.java`; sửa cách đoán thì tăng `VnGeo.VERSION` để khởi động lại tự tính lại cho khách cũ.
 - **Xếp nhóm theo khu vực:** cùng tỉnh > cùng vùng > cùng miền > nhóm chung; nhóm của miền khác bị loại (cấu hình `app.grouping.allow-other-region`, mặc định không). Nhóm mới mặc định là "Chung" cho tới khi mẹ gắn khu vực. Khách chưa rõ khu vực: nhóm chung trước, rồi mọi nhóm.
 - **Mã QR chung `/moi`** hỏi "Bạn ở tỉnh/thành nào?" (bỏ qua được). Khách chọn tỉnh mà chưa có nhóm hợp được ghi một dòng "chờ nhóm" (chỉ mã tỉnh + mã ngẫu nhiên của trình duyệt, **không SĐT/tên/địa chỉ mạng**) để mẹ biết cần mở nhóm ở đâu. Chống quét lặp bằng cookie `adh_moi` (90 ngày) và giới hạn 20 lượt mới/địa chỉ mạng/giờ.
 - **Thời tiết:** ngưỡng nhắc lạnh bất thường là nhiệt độ thấp nhất 48 giờ tới ≤13°C (Bắc), ≤16°C (Trung), ≤22°C (Nam); nóng khi cao nhất ≥37°C; chỉ nhắc ở tỉnh có từ 10 khách. Tất cả là giả định, chỉnh trong `application.yml` mục `app.weather`.
@@ -66,6 +67,14 @@ Lựa chọn khác của người dùng trong các phiên: giao diện **100% ti
 - Hạn phản hồi yêu cầu dữ liệu của khách hiện là 15 ngày cho mọi loại (`app.privacy.request-due-days`) và **chưa có xác nhận pháp lý**. Thiết kế Penpot muốn hạn theo loại (ngừng liên hệ/xuất dữ liệu 2 ngày làm việc, xóa 20 ngày theo file 03 mục 1; nguồn phụ, cần đối chiếu Công báo).
 
 ---
+
+### D13: nhắn bằng tài khoản Zalo phụ (đã code)
+
+- **Cách làm:** Chiến dịch mời, Xuất danh sách, người gửi nhắn tay bằng tài khoản phụ, rồi bấm trên trang chiến dịch: *Đã kết bạn*, *Đã vào nhóm* (hệ thống gợi ý nhóm cùng tỉnh, vùng, miền, và tăng số khách thật của nhóm thêm 1) hoặc *Khách từ chối* (vào danh sách từ chối vĩnh viễn, không nhắn lại). Trạng thái lời mời: READY, SENT, FRIENDED, JOINED, CLICKED, CANCELLED (V12). Khách có lời mời (mọi trạng thái) không bao giờ vào chiến dịch mới, nên chỉ nhắn một lần.
+- **Nội dung tin** soạn ở trang Chiến dịch mời (khung "Nội dung tin mặc định", lưu trong cài đặt `invite.template`, tối đa 800 ký tự). `{link}` không còn bắt buộc; có `{ten}`, `{cua_hang}`.
+- **Giữ nguyên:** hệ thống không tự gửi, không đăng nhập Zalo, tài khoản phụ không kết nối vào hệ thống (BR-11); chỉ khách mua 1 lần đã duyệt (BR-06); cổng chặn, danh sách từ chối, hạn mức lô và giờ gửi; đường QR trên giấy in (D10) vẫn chạy song song.
+- **Mâu thuẫn cần chủ shop biết:** (1) tin **tư vấn sản phẩm** là tin quảng cáo, khác với quy tắc cũ BR-16 "chỉ kết nối, không quảng cáo" (quy tắc đó vẫn áp dụng cho chữ trên giấy in và trang quét QR); (2) nhắn cho người **chưa đồng ý nhận tin** (chỉ để lại số khi nhận hàng) có rủi ro pháp lý về dữ liệu cá nhân và tin nhắn rác; chủ shop đã nhận rủi ro (D3), nên nên có câu cho khách biết cách xin ngừng nhận tin; (3) Zalo có thể **hạn chế tài khoản phụ** nếu nhắn hoặc gửi kết bạn cho nhiều người lạ, nên giữ lô nhỏ, chậm, và tuyệt đối không dùng công cụ tự động gửi tin lên tài khoản này; (4) người gửi phải tự đánh dấu các bước, hệ thống không biết khách có thật sự kết bạn hay vào nhóm.
+- **Chưa làm:** gợi ý chọn nhóm khác với nhóm được gợi ý khi đánh dấu *Đã vào nhóm*; xuất file Excel có cột nhóm gợi ý; nhắc theo dõi khách đã nhắn mà quá lâu chưa kết bạn.
 
 ## 3. Cấu hình và công tắc
 

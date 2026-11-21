@@ -80,6 +80,12 @@ public class GroupService {
         return jdbc.sql(SELECT + " ORDER BY g.id").query((rs, i) -> map(rs)).list();
     }
 
+    /** Người gửi vừa thêm một khách vào nhóm bằng tay: tăng số khách thật thêm 1. */
+    @Transactional
+    public void addMember(long groupId) {
+        jdbc.sql("UPDATE zalo_group SET actual_customers = actual_customers + 1 WHERE id = :id").param("id", groupId).update();
+    }
+
     public Optional<Group> find(long id) {
         return jdbc.sql(SELECT + " WHERE g.id = :id").param("id", id).query((rs, i) -> map(rs)).optional();
     }
@@ -177,7 +183,12 @@ public class GroupService {
      * phù hợp thì trả rỗng (landing page báo "chưa có chỗ", không chuyển hướng sai).
      */
     public Optional<Group> pickGroup(Province province) {
-        return list().stream()
+        return pickGroup(list(), province);
+    }
+
+    /** Như {@link #pickGroup(Province)} nhưng dùng danh sách nhóm đã tải sẵn (tránh tải lại cho từng khách). */
+    public Optional<Group> pickGroup(List<Group> all, Province province) {
+        return all.stream()
                 .filter(g -> g.status() == GroupStatus.OPEN && g.hasLink() && !g.full())
                 .filter(g -> rank(g, province) >= 0)
                 .min(java.util.Comparator.comparingInt((Group g) -> rank(g, province)).thenComparingDouble(Group::score)
