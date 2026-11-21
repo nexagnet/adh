@@ -32,11 +32,13 @@ public class DashboardController {
     private final InviteService invites;
     private final HandoffService handoffs;
     private final vn.shop.crm.map.WeatherService weather;
+    private final vn.shop.crm.invite.GroupService groups;
 
     public DashboardController(JdbcClient jdbc, CustomerService customers, ImportService imports,
                                StatusMappingService statuses, ContactService contacts, PrivacyService privacy,
                                InviteService invites, HandoffService handoffs,
-                               vn.shop.crm.map.WeatherService weather) {
+                               vn.shop.crm.map.WeatherService weather, vn.shop.crm.invite.GroupService groups) {
+        this.groups = groups;
         this.weather = weather;
         this.invites = invites;
         this.handoffs = handoffs;
@@ -75,6 +77,11 @@ public class DashboardController {
         model.addAttribute("unmapped", statuses.unmapped().size());
         model.addAttribute("shipments", shipments);
         model.addAttribute("totalShipments", totalShipments);
+        var openGroups = groups.list().stream()
+                .filter(g -> g.status() == vn.shop.crm.invite.GroupStatus.OPEN).toList();
+        model.addAttribute("freeSpots", openGroups.stream().mapToInt(vn.shop.crm.invite.GroupService.Group::spotsLeft).sum());
+        model.addAttribute("groupsNeedRecount", openGroups.stream()
+                .filter(vn.shop.crm.invite.GroupService.Group::needsRecount).count());
         model.addAttribute("weatherAlerts", weather.alerts());
         model.addAttribute("batches", imports.list().stream().limit(5).toList());
         return "dashboard";
