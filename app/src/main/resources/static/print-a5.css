@@ -1,10 +1,10 @@
 /* Khổ A5 (148 x 210 mm), một tờ mỗi trang */
 @page { size: 148mm 210mm; margin: 0; }
 .sheets-a5 .sheet { width: 148mm; height: 210mm; padding: 12mm; }
-.sheets-a5 .sheet-title { font-size: 28pt; }
-.sheets-a5 .sheet-intro { font-size: 15pt; margin: 5mm 0; }
-.sheets-a5 .sheet-scan { font-size: 15pt; margin-top: 2mm; }
-.sheets-a5 .qr { width: 72mm; height: 72mm; margin: 4mm 0; }
-.sheets-a5 .sheet-type { font-size: 12pt; }
-.sheets-a5 .sheet-link { font-size: 20pt; margin-bottom: 5mm; }
-.sheets-a5 .sheet-note, .sheets-a5 .sheet-footer, .sheets-a5 .sheet-phone { font-size: 13pt; margin-top: 2.5mm; }
+.sheets-a5 .sheet-shop { font-size: 13pt; font-weight: 700; letter-spacing: .02em; }
+.sheets-a5 .sheet-title { font-size: 26pt; margin-top: 3mm; }
+.sheets-a5 .sheet-intro { font-size: 14pt; margin: 3mm 0; }
+.sheets-a5 .sheet-step { font-size: 15pt; font-weight: 700; margin-top: 1mm; }
+.sheets-a5 .qr { width: 62mm; height: 62mm; margin: 3mm auto; }
+.sheets-a5 .sheet-link { font-size: 19pt; margin-bottom: 3mm; }
+.sheets-a5 .sheet-nocode, .sheets-a5 .sheet-voluntary, .sheets-a5 .sheet-phone, .sheets-a5 .sheet-stop { font-size: 12pt; margin-top: 1mm; }

@@ -20,55 +20,50 @@ import java.util.stream.IntStream;
 
 /**
  * Trang quản trị để in giấy giới thiệu bỏ vào gói hàng: MỘT mã QR tĩnh + link ngắn, giống hệt nhau trên mọi tờ.
- * Phần "động" (chọn nhóm còn chỗ) nằm ở trang {@code /moi} phía sau mã.
+ * Phần "động" (chọn nhóm còn chỗ) nằm ở trang {@code /n} (bí danh {@code /moi}) phía sau mã.
  */
 @Controller
 public class PrintController {
 
-    static final List<String> SIZES = List.of("A6", "A5", "A4X4");
+    static final List<String> SIZES = List.of("A5", "A6", "A4X4");
+    static final String DEFAULT_SIZE = "A5";
 
     private final GroupService groups;
     private final PrintTexts texts;
-    private final String baseUrl;
     private final String shopName;
-    private final String shopPhone;
 
     public PrintController(GroupService groups, PrintTexts texts,
-                           @Value("${app.public-base-url:http://localhost:8080}") String baseUrl,
-                           @Value("${app.shop-name:Cửa hàng}") String shopName,
-                           @Value("${app.shop-phone:}") String shopPhone) {
+                           @Value("${app.shop-name:Cửa hàng}") String shopName) {
         this.groups = groups;
         this.texts = texts;
-        this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.shopName = shopName;
-        this.shopPhone = shopPhone;
     }
 
-    /** Địa chỉ in trên giấy và mã hóa trong QR. */
+    /** Địa chỉ in trên giấy và mã hóa trong QR (đường chung /n, hoặc địa chỉ ngắn mẹ đã sửa). */
     String entryUrl() {
-        return baseUrl + "/moi";
+        return texts.entryUrl();
     }
 
     /** Bản gõ tay được: bỏ "https://" cho ngắn. */
     String shortLink() {
-        return entryUrl().replaceFirst("^https?://", "");
+        return texts.shortLink();
     }
 
     @GetMapping("/print")
-    public String page(@RequestParam(defaultValue = "A6") String kho, Model model) {
-        String size = SIZES.contains(kho.toUpperCase()) ? kho.toUpperCase() : "A6";
+    public String page(@RequestParam(defaultValue = DEFAULT_SIZE) String kho, Model model) {
+        String size = SIZES.contains(kho.toUpperCase()) ? kho.toUpperCase() : DEFAULT_SIZE;
         List<GroupService.Group> all = groups.list();
         model.addAttribute("kho", size);
         model.addAttribute("t", texts.rendered(shopName));
         model.addAttribute("fields", PrintTexts.FIELDS);
         model.addAttribute("raw", texts.current());
+        model.addAttribute("eff", texts.effective());
         model.addAttribute("sizes", SIZES);
         model.addAttribute("shortLink", shortLink());
-        model.addAttribute("shopName", shopName);
-        model.addAttribute("shopPhone", shopPhone);
         model.addAttribute("sheets", IntStream.rangeClosed(1, "A4X4".equals(size) ? 4 : 1).boxed().toList());
         // Cảnh báo trước khi in: địa chỉ chưa phải địa chỉ thật thì tờ in ra sẽ vô dụng.
-        boolean notReal = !baseUrl.startsWith("https://") || baseUrl.contains("localhost") || baseUrl.contains("example.");
+        String url = entryUrl();
+        boolean notReal = !url.startsWith("https://") || url.contains("localhost") || url.contains("example.");
         model.addAttribute("addressNotReal", notReal);
         model.addAttribute("next", groups.pickGroup().orElse(null));
         model.addAttribute("spotsLeft", all.stream()
@@ -76,20 +71,20 @@ public class PrintController {
         return "print";
     }
 
-    /** Lưu chữ trên giấy. Mỗi ô nhập tên là tên khóa ngắn (title, intro, scan, type, note, footer). */
+    /** Lưu chữ trên giấy. Mỗi ô nhập tên là tên khóa ngắn (shop, title, intro, step1, step2, nocode, link, voluntary, phone, stop). */
     @PostMapping("/print/texts")
-    public String saveTexts(@RequestParam Map<String, String> form, @RequestParam(defaultValue = "A6") String kho,
+    public String saveTexts(@RequestParam Map<String, String> form, @RequestParam(defaultValue = DEFAULT_SIZE) String kho,
                             RedirectAttributes redirect) {
         texts.save(form, ContactService.actor());
         redirect.addFlashAttribute("flash", "Đã lưu chữ trên giấy. Xem lại bên dưới rồi in.");
-        return "redirect:/print?kho=" + (SIZES.contains(kho.toUpperCase()) ? kho.toUpperCase() : "A6");
+        return "redirect:/print?kho=" + (SIZES.contains(kho.toUpperCase()) ? kho.toUpperCase() : DEFAULT_SIZE);
     }
 
     @PostMapping("/print/texts/reset")
-    public String resetTexts(@RequestParam(defaultValue = "A6") String kho, RedirectAttributes redirect) {
+    public String resetTexts(@RequestParam(defaultValue = DEFAULT_SIZE) String kho, RedirectAttributes redirect) {
         texts.reset(ContactService.actor());
         redirect.addFlashAttribute("flash", "Đã dùng lại chữ mặc định.");
-        return "redirect:/print?kho=" + (SIZES.contains(kho.toUpperCase()) ? kho.toUpperCase() : "A6");
+        return "redirect:/print?kho=" + (SIZES.contains(kho.toUpperCase()) ? kho.toUpperCase() : DEFAULT_SIZE);
     }
 
     @GetMapping("/print/qr.svg")

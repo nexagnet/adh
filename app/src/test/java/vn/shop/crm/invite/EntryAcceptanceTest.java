@@ -139,12 +139,12 @@ class EntryAcceptanceTest extends AbstractPostgresTest {
     @Test
     void chuTrenGiayCoMacDinhSuaDuocVaKiemTraDoDai() {
         assertThat(texts.rendered("Cửa hàng An").get("intro")).startsWith("Cửa hàng An có một nhóm Zalo nhỏ");
-        assertThat(texts.current().get("title")).isEqualTo("Cảm ơn bạn đã mua hàng!");
+        assertThat(texts.current().get("title")).isEqualTo("Cảm ơn anh/chị đã mua hàng!");
 
-        texts.save(java.util.Map.of("title", "  Cảm ơn quý khách  ", "footer", "Hẹn gặp lại"), "mẹ");
+        texts.save(java.util.Map.of("title", "  Cảm ơn quý khách  ", "stop", "Hẹn gặp lại"), "mẹ");
         assertThat(texts.current().get("title")).isEqualTo("Cảm ơn quý khách");
-        assertThat(texts.current().get("footer")).isEqualTo("Hẹn gặp lại");
-        assertThat(texts.current().get("note")).contains("không bắt buộc");
+        assertThat(texts.current().get("stop")).isEqualTo("Hẹn gặp lại");
+        assertThat(texts.current().get("voluntary")).contains("tự nguyện");
 
         assertThatThrownBy(() -> texts.save(java.util.Map.of("title", "x".repeat(81)), "mẹ"))
                 .isInstanceOf(ImportException.class).hasMessageContaining("quá dài");
@@ -156,7 +156,7 @@ class EntryAcceptanceTest extends AbstractPostgresTest {
         assertThat(texts.current().get("title")).isEqualTo("Cảm ơn quý khách");
 
         texts.reset("mẹ");
-        assertThat(texts.current().get("title")).isEqualTo("Cảm ơn bạn đã mua hàng!");
+        assertThat(texts.current().get("title")).isEqualTo("Cảm ơn anh/chị đã mua hàng!");
     }
 
     @Test

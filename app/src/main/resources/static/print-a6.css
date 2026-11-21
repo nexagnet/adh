@@ -1,10 +1,10 @@
 /* Khổ A6 (105 x 148 mm), một tờ mỗi trang */
 @page { size: 105mm 148mm; margin: 0; }
 .sheets-a6 .sheet { width: 105mm; height: 148mm; padding: 8mm; }
-.sheets-a6 .sheet-title { font-size: 20pt; }
-.sheets-a6 .sheet-intro { font-size: 11.5pt; margin: 3mm 0; }
-.sheets-a6 .sheet-scan { font-size: 11pt; margin-top: 1mm; }
-.sheets-a6 .qr { width: 50mm; height: 50mm; margin: 2mm 0; }
-.sheets-a6 .sheet-type { font-size: 9.5pt; }
-.sheets-a6 .sheet-link { font-size: 14pt; margin-bottom: 3mm; }
-.sheets-a6 .sheet-note, .sheets-a6 .sheet-footer, .sheets-a6 .sheet-phone { font-size: 10pt; margin-top: 1.5mm; }
+.sheets-a6 .sheet-shop { font-size: 9.5pt; font-weight: 700; letter-spacing: .02em; }
+.sheets-a6 .sheet-title { font-size: 18pt; margin-top: 2mm; }
+.sheets-a6 .sheet-intro { font-size: 10.5pt; margin: 2mm 0; }
+.sheets-a6 .sheet-step { font-size: 11pt; font-weight: 700; margin-top: 1mm; }
+.sheets-a6 .qr { width: 42mm; height: 42mm; margin: 2mm auto; }
+.sheets-a6 .sheet-link { font-size: 13pt; margin-bottom: 2mm; }
+.sheets-a6 .sheet-nocode, .sheets-a6 .sheet-voluntary, .sheets-a6 .sheet-phone, .sheets-a6 .sheet-stop { font-size: 9pt; margin-top: 1mm; }

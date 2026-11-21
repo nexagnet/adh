@@ -10,7 +10,7 @@
 <main>
     <h1 th:text="${t['title']}">Cảm ơn bạn đã mua hàng!</h1>
     <p class="keepline" th:text="${t['intro']}">Cửa hàng có một nhóm Zalo nhỏ.</p>
-    <p class="keepline"><strong th:text="${t['note']}">Bạn không bắt buộc tham gia.</strong></p>
+    <p class="keepline"><strong th:text="${t['voluntary']}">Vào nhóm là tự nguyện.</strong></p>
     <form th:action="@{/moi/vao}" method="post">
         <p class="keepline"><label for="province"><strong>Bạn ở tỉnh/thành nào?</strong></label><br>
             <span class="small">Để cửa hàng xếp bạn vào nhóm gần nơi bạn ở. Có thể bỏ qua.</span></p>

@@ -30,7 +30,7 @@ public class SecurityConfig {
                 .addFilterBefore(new LoginThrottleFilter(throttle),
                         org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/login", "/app.css", "/error", "/i/**", "/moi", "/moi/**").permitAll()
+                        .requestMatchers("/login", "/app.css", "/error", "/i/**", "/n", "/moi", "/moi/**").permitAll()
                         .anyRequest().authenticated())
                 .formLogin(form -> form.loginPage("/login").defaultSuccessUrl("/", true).permitAll())
                 .logout(logout -> logout.logoutSuccessUrl("/login?logout"))
