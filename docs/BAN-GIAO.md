@@ -25,8 +25,8 @@ Mã nguồn trên nhánh `main` của `nexagnet/adh`, đã gộp các PR #3, #4,
 | Giấy in | Trang `/print` + trang khách `/moi` dùng một mã QR tĩnh chung | Xong (PR #3) |
 | 1G | Phân vùng khách Bắc/Trung/Nam theo địa chỉ, nhóm Zalo theo khu vực | Xong (PR #4) |
 | 1H | Bản đồ khách theo tỉnh `/map` + nhắc việc thời tiết | Xong (PR #5) |
-| Giao diện Penpot | Làm lại giao diện theo thiết kế đã duyệt | **CHƯA BẮT ĐẦU code** (xem mục 9) |
-| 2F | Đồng bộ đơn mới từ J&T | **Chưa code**, đang chờ xác nhận từ J&T (mục 8) |
+| Giao diện Penpot | Làm lại giao diện theo thiết kế đã duyệt | **Đã code** (PR #8 thanh bên + việc hôm nay; PR kế tiếp: thuật ngữ tiếng Việt, chi tiết khách 2 cột, chiến dịch, giấy in A5, `/n`). Chưa xem bằng mắt trên trình duyệt thật (xem mục 9) |
+| 2F | Đồng bộ đơn mới từ J&T | Phương án A đã code (PR #9): nhập nhiều file, gộp theo mã vận đơn, Địa chỉ hành chính, trạng thái J&T, nhắc nhập file. **Chưa chạy với file J&T thật.** Cổng nạp chung `ShipmentIngest` chưa làm (chưa có nguồn thứ hai) |
 
 ### PR và nhánh
 - Đã gộp: **#3** (giai đoạn 1C–1F, Việt hóa, giấy in QR chung), **#4** (phân vùng), **#5** (bản đồ + thời tiết).
@@ -191,7 +191,9 @@ Chỉ khi người dùng **hiểu rủi ro và đồng ý rõ ràng bằng lời
 
 ---
 
-## 9. Giao diện Penpot đã duyệt (chưa code)
+## 9. Giao diện Penpot đã duyệt (đã code, chưa xem bằng mắt)
+
+> Cập nhật: các mục (a)–(e) của mục 7.1 đã code. Còn thiếu: tài khoản Bố và Mẹ riêng (chờ Đ1), cách báo việc cho mẹ (chờ chọn), xem thử bằng trình duyệt thật và in thử giấy A5, "Khách đổi nhóm" ở màn xem trước nhập file. Giấy in mặc định A5; chữ mặc định theo kiểu "anh/chị" (đổi được ở trang In giấy giới thiệu).
 
 - Người dùng **đã duyệt** thiết kế (21/11/2026) và dặn "sửa xong Penpot thì code luôn".
 - Bản sao trong repo: `docs/thiet-ke-penpot/`
