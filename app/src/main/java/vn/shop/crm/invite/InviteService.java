@@ -331,13 +331,19 @@ public class InviteService {
     /** Khách đã đồng ý kết bạn với tài khoản phụ. Chỉ đánh dấu được sau khi đã nhắn (đã xuất danh sách). */
     @Transactional
     public void markFriended(long invitationId) {
+        markFriended(invitationId, "đánh dấu tay");
+    }
+
+    /** Như {@link #markFriended(long)}; {@code via} ghi vào lịch sử khách ("đánh dấu tay", "bộ nối Zalo"...). */
+    @Transactional
+    public void markFriended(long invitationId, String via) {
         StepRow r = stepRow(invitationId);
         if (!List.of("SENT", "CLICKED").contains(r.status())) {
             throw new ImportException("Chỉ đánh dấu \"đã kết bạn\" cho khách đã được nhắn (đã xuất danh sách để gửi).");
         }
         jdbc.sql("UPDATE invitation SET status = 'FRIENDED', friended_at = now() WHERE id = :id")
                 .param("id", invitationId).update();
-        contacts.event(r.customerId(), r.phone(), "FRIENDED", "Khách đồng ý kết bạn Zalo (đánh dấu tay)");
+        contacts.event(r.customerId(), r.phone(), "FRIENDED", "Khách đồng ý kết bạn Zalo (" + via + ")");
     }
 
     /**
@@ -365,6 +371,24 @@ public class InviteService {
         if (group == null) {
             throw new ImportException("Chưa có nhóm Zalo nào còn chỗ cho khu vực của khách này. Hãy mở thêm nhóm ở mục Nhóm Zalo.");
         }
+        finishJoin(invitationId, r, group, "đánh dấu tay");
+    }
+
+    /**
+     * Bộ nối Zalo vừa thêm khách vào ĐÚNG nhóm này (D16). Khác {@link #markJoined}: không chọn lại nhóm, vì khách đã ở
+     * trong nhóm Zalo đó thật rồi; ghi đúng nhóm đã thêm.
+     */
+    @Transactional
+    public void markJoinedExact(long invitationId, long groupId) {
+        StepRow r = stepRow(invitationId);
+        if (!List.of("SENT", "CLICKED", "FRIENDED").contains(r.status())) {
+            return; // đã vào nhóm (người bấm tay trước) hoặc đã hủy: không ghi đè
+        }
+        GroupService.Group group = groups.find(groupId).orElseThrow(() -> new ImportException("Không tìm thấy nhóm."));
+        finishJoin(invitationId, r, group, "bộ nối Zalo");
+    }
+
+    private void finishJoin(long invitationId, StepRow r, GroupService.Group group, String via) {
         int changed = jdbc.sql("""
                         UPDATE invitation SET status = 'JOINED', group_id = :g, joined_at = now(),
                                friended_at = coalesce(friended_at, now())
@@ -377,7 +401,7 @@ public class InviteService {
             // khách đã từng bấm link thì đã được tính ở "lượt bấm chờ" của nhóm (dù trạng thái giờ là đã kết bạn), không tính hai lần
             groups.addMember(group.id());
         }
-        contacts.event(r.customerId(), r.phone(), "JOINED_GROUP", "Đã thêm vào nhóm: " + group.name() + " (đánh dấu tay)");
+        contacts.event(r.customerId(), r.phone(), "JOINED_GROUP", "Đã thêm vào nhóm: " + group.name() + " (" + via + ")");
     }
 
     /** Khách từ chối hoặc nhắn xin ngừng nhận tin: ghi vào danh sách từ chối vĩnh viễn, lời mời đã gửi chuyển thành "đã hủy". */

@@ -30,7 +30,12 @@ public class GroupService {
 
     public record Group(long id, String name, String inviteLink, int target, int actual, OffsetDateTime countedAt,
                         GroupStatus status, String note, long pendingClicks, double score,
-                        vn.shop.crm.geo.GeoArea scope) {
+                        vn.shop.crm.geo.GeoArea scope, String zaloGroupId) {
+        /** Có mã nhóm trong Zalo để bộ nối (D16) thêm người; không có thì bộ nối không bao giờ thêm vào nhóm này. */
+        public boolean hasZaloId() {
+            return zaloGroupId != null && !zaloGroupId.isBlank();
+        }
+
         /** Tên khu vực của nhóm; nhóm chung nhận khách mọi nơi. */
         public String scopeLabel() {
             return scope == null ? "Chung (mọi nơi)" : scope.label();
@@ -91,7 +96,7 @@ public class GroupService {
     }
 
     private static final String SELECT = """
-            SELECT g.id, g.name, g.invite_link, g.target_customers, g.actual_customers, g.counted_at, g.status, g.note, g.geo_scope,
+            SELECT g.id, g.name, g.invite_link, g.target_customers, g.actual_customers, g.counted_at, g.status, g.note, g.geo_scope, g.zalo_group_id,
                    (SELECT count(*) FROM invitation i
                      WHERE i.group_id = g.id AND i.first_clicked_at IS NOT NULL
                        AND (g.counted_at IS NULL OR i.first_clicked_at > g.counted_at))
@@ -105,7 +110,8 @@ public class GroupService {
         return new Group(rs.getLong("id"), rs.getString("name"), rs.getString("invite_link"),
                 rs.getInt("target_customers"), actual, rs.getObject("counted_at", OffsetDateTime.class),
                 GroupStatus.valueOf(rs.getString("status")), rs.getString("note"), pending,
-                actual + pending * acceptRate, vn.shop.crm.geo.GeoArea.parse(rs.getString("geo_scope")).orElse(null));
+                actual + pending * acceptRate, vn.shop.crm.geo.GeoArea.parse(rs.getString("geo_scope")).orElse(null),
+                rs.getString("zalo_group_id"));
     }
 
     @Transactional
@@ -144,6 +150,20 @@ public class GroupService {
                 .param("scope", validateScope(scope), java.sql.Types.VARCHAR)
                 .param("name", requireName(name)).param("link", l).param("target", validateTarget(target))
                 .param("note", blankToNull(note)).param("id", id).update();
+    }
+
+    /** Mã nhóm trong Zalo (chuỗi số) cho bộ nối D16; để trống = gỡ mã, bộ nối không thêm vào nhóm này nữa. */
+    @Transactional
+    public void setZaloGroupId(long id, String raw) {
+        String v = raw == null ? "" : raw.strip();
+        if (!v.isEmpty() && !v.matches("\\d{1,32}")) {
+            throw new ImportException("Mã nhóm Zalo chỉ gồm chữ số (không phải link nhóm).");
+        }
+        int n = jdbc.sql("UPDATE zalo_group SET zalo_group_id = :z WHERE id = :id")
+                .param("z", v.isEmpty() ? null : v, java.sql.Types.VARCHAR).param("id", id).update();
+        if (n == 0) {
+            throw new ImportException("Không tìm thấy nhóm.");
+        }
     }
 
     /** Mẹ/quản trị đếm lại số khách thật trong nhóm; đặt lại mốc "đang chờ". */
