@@ -33,8 +33,13 @@ wait_healthy() {
     return 1
 }
 
+bridge_on() { # bộ nối Zalo (D16) chỉ chạy khi .env bật profile zalo-auto
+    grep -E '^COMPOSE_PROFILES=' .env | tail -n1 | grep -q 'zalo-auto'
+}
+
 up_with() { # $1 = thẻ
     ADH_TAG="$1" dc pull app
+    if bridge_on; then ADH_TAG="$1" dc pull zalo-bridge; fi
     ADH_TAG="$1" dc up -d
 }
 

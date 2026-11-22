@@ -217,7 +217,8 @@ public class SendService {
                 continue;
             }
             OutboundInvite invite = new OutboundInvite(c.id(), c.customerId(), c.phone(), c.name(),
-                    invites.render(c.template(), c.name(), invites.linkFor(c.token())),
+                    invites.render(c.template(), c.name(), invites.linkFor(c.token()),
+                            vn.shop.crm.geo.VnGeo.byCode(c.province()).orElse(null)),
                     invites.areaLabel(c.province()), invites.suggestGroupName(c.province()).orElse(""));
             if (!sender.realDelivery()) {
                 log(c, sender, "DRY_RUN", "Chạy thử: sẽ gửi", 0);

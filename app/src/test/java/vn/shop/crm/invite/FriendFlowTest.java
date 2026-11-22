@@ -239,6 +239,21 @@ class FriendFlowTest extends AbstractPostgresTest {
     }
 
     @Test
+    void tinMoiMacDinhDienTenCuaHangVaMienCuaKhach() {
+        var nam = vn.shop.crm.geo.VnGeo.all().stream().filter(p -> p.region() == vn.shop.crm.geo.Region.NAM).findFirst().orElseThrow();
+        String tin1 = invites.render(InviteService.DEFAULT_TEMPLATE, "Lan", "https://x/i/t", nam);
+        assertThat(tin1).startsWith("Chào anh/chị Lan, em bên " + invites.shopName() + ".")
+                .contains("nhóm Zalo khách hàng Miền Nam để được hướng dẫn")
+                .contains("rẻ hơn mua qua tiktok 10% và được miễn ship")
+                .doesNotContain("{");
+        // không có tên hoặc chưa rõ khu vực: không để lại chữ "bạn" thừa hay dấu ngoặc nhọn
+        String khongTen = invites.render(InviteService.DEFAULT_TEMPLATE, " ", "https://x/i/t");
+        assertThat(khongTen).startsWith("Chào anh/chị, em bên ").contains("khách hàng khu vực của mình").doesNotContain("{");
+        String tin2 = invites.renderGroupLink(InviteService.DEFAULT_GROUP_LINK_TEMPLATE, "Lan", "Nhóm Nam", "https://zalo.me/g/abc", "https://x/i/t");
+        assertThat(tin2).isEqualTo("Mình vào nhóm theo link này nhé: https://zalo.me/g/abc.");
+    }
+
+    @Test
     void trangChienDichHienNhomGoiYCacNutBuocVaGhiNhanQuaWeb() throws Exception {
         MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
         var owner = user("admin").roles("OWNER");
