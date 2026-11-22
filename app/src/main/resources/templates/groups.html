@@ -62,6 +62,12 @@
                             <input type="number" name="actual" min="0" max="1000" th:value="${g.actual}" style="width:100px"></label>
                         <button type="submit" class="btn secondary sm">Cập nhật số khách</button>
                     </form>
+                    <form class="inline" th:action="@{/groups/{id}/zalo-id(id=${g.id})}" method="post">
+                        <label class="inline-label">Mã nhóm trong Zalo (chỉ chữ số, dùng cho bộ nối Zalo tự động; để trống nếu không dùng)
+                            <input type="text" name="zaloGroupId" th:value="${g.zaloGroupId}" maxlength="32" inputmode="numeric" pattern="[0-9]*" style="width:220px"></label>
+                        <button type="submit" class="btn secondary sm">Lưu mã nhóm</button>
+                        <span class="badge ok" th:if="${g.hasZaloId()}">Có mã: bộ nối có thể thêm khách vào nhóm này</span>
+                    </form>
                     <form class="inline" th:action="@{/groups/{id}/status(id=${g.id})}" method="post">
                         <select name="status" aria-label="Trạng thái nhóm">
                             <option th:each="s : ${statuses}" th:value="${s.name()}" th:text="${s.label()}"

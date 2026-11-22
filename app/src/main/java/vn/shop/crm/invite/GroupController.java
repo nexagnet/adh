@@ -70,6 +70,15 @@ public class GroupController {
         return "redirect:/groups";
     }
 
+    /** Mã nhóm trong Zalo (chuỗi số) cho bộ nối D16. Để trống để gỡ: bộ nối không thêm ai vào nhóm đó nữa. */
+    @PostMapping("/groups/{id}/zalo-id")
+    public String zaloId(@PathVariable long id, @RequestParam(required = false) String zaloGroupId, RedirectAttributes redirect) {
+        groups.setZaloGroupId(id, zaloGroupId);
+        redirect.addFlashAttribute("flash", zaloGroupId == null || zaloGroupId.isBlank()
+                ? "Đã gỡ mã nhóm Zalo: bộ nối sẽ không thêm ai vào nhóm này." : "Đã lưu mã nhóm Zalo.");
+        return "redirect:/groups";
+    }
+
     @PostMapping("/groups/{id}/count")
     public String recount(@PathVariable long id, @RequestParam Integer actual, RedirectAttributes redirect) {
         groups.recount(id, actual);

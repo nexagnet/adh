@@ -12,6 +12,7 @@
     </header>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã ghi.</div>
+    <div th:replace="~{fragments :: zaloAlert}"></div>
     <div class="notice" th:if="${campaign != null}">
         Đang xem chiến dịch <strong th:text="${campaign.name}">Rét đợt 1</strong> (<span th:text="${campaign.scopeLabel}">Miền Nam</span>).
         <a th:href="@{/today}">Xem tất cả chiến dịch</a>

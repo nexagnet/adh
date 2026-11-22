@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Zalo tài khoản phụ')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Zalo tài khoản phụ</h1>
+            <p class="hint">Khách đồng ý kết bạn tài khoản phụ thì hệ thống ghép với lời mời và (tùy nấc) thêm vào nhóm Zalo của khu vực.
+                Chỉ dùng tài khoản phụ, không dùng tài khoản chính của mẹ.</p>
+        </div>
+    </header>
+
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
+
+    <div class="notice" th:unless="${enabled}">
+        <strong>Bộ nối Zalo đang tắt</strong>
+        Tính năng này mặc định tắt vì dùng thư viện không chính thức, trái điều khoản của Zalo và tài khoản phụ có thể bị khóa.
+        Muốn bật, người cài đặt cần làm đủ các bước trong hướng dẫn thử Zalo tự động; trang này chưa làm gì cho tới lúc đó.
+    </div>
+
+    <th:block th:if="${enabled}">
+    <div class="notice bad" th:if="${tripped}">
+        <strong>Bộ nối Zalo đang dừng</strong>
+        <span th:text="${@zaloLabels.reason(trippedReason)}">Có người bấm dừng</span>
+        <span th:if="${trippedAt != null}">(từ <span th:text="${#temporals.format(trippedAt, 'dd/MM/yyyy HH:mm')}">22/11/2026 10:00</span>)</span>.
+        Bộ nối không tự chạy lại. Hãy đọc nhật ký bên dưới rồi bấm <em>Mở lại</em> khi đã hiểu vì sao dừng.
+        <form class="inline" th:action="@{/zalo/reopen}" method="post"><button type="submit" class="btn sm">Mở lại</button></form>
+    </div>
+
+    <div class="cards c4">
+        <div class="card"><div class="big" th:text="${@zaloLabels.bridgeState(bridge.state.name())}">Đang nghe</div><div class="label">Cầu nối</div></div>
+        <div class="card"><div class="big" th:text="${effective.label()}">Tắt</div><div class="label">Nấc đang có hiệu lực</div></div>
+        <div class="card"><div class="big"><span th:text="${quota.usedToday}">0</span> / <span th:text="${quota.limits.daily}">50</span></div><div class="label">Đã thêm hôm nay</div></div>
+        <div class="card"><div class="big"><span th:text="${quota.usedLastHour}">0</span> / <span th:text="${quota.limits.hourly}">5</span></div><div class="label">Đã thêm trong 1 giờ qua</div></div>
+    </div>
+    <p class="muted" th:unless="${quota.inWindow}">Ngoài khung giờ thêm người (07:00 đến 22:00): bộ nối sẽ không thêm ai lúc này.</p>
+    <div class="notice bad" th:if="${bridge.accountOk != null and !bridge.accountOk}">
+        <strong>Đăng nhập nhầm tài khoản</strong>
+        Tài khoản vừa đăng nhập không phải tài khoản phụ đã khai báo. Bộ nối từ chối và đăng xuất tài khoản đó.
+    </div>
+
+    <section class="panel stack">
+        <h2>Đăng nhập tài khoản phụ</h2>
+        <p th:if="${bridge.state.name() == 'LOGIN_REQUIRED'}">Chưa có phiên Zalo hoặc phiên đã hết hạn. Bấm nút dưới, rồi dùng
+            <strong>điện thoại của tài khoản phụ</strong> quét mã QR. Không cần mật khẩu hay mã OTP, hệ thống không hỏi những thứ đó.</p>
+        <p th:unless="${bridge.state.name() == 'LOGIN_REQUIRED'}">Tài khoản phụ đang được nối. Chỉ cần quét lại khi hệ thống báo phiên hết hạn.</p>
+        <div class="formrow">
+            <form th:action="@{/zalo/login/start}" method="post"><button type="submit" class="btn"
+                  th:classappend="${bridge.state.name() != 'LOGIN_REQUIRED'} ? 'secondary'">Quét mã QR</button></form>
+            <form th:action="@{/zalo/stop}" method="post" th:unless="${tripped}"><button type="submit" class="btn secondary danger">Dừng ngay</button></form>
+            <form th:action="@{/zalo/logout}" method="post"><button type="submit" class="btn secondary danger">Đăng xuất tài khoản phụ</button></form>
+        </div>
+    </section>
+
+    <section class="panel stack">
+        <h2>Nấc hoạt động</h2>
+        <form class="stack" th:action="@{/zalo/mode}" method="post">
+            <label class="field" th:each="m : ${modes}">
+                <input type="radio" name="mode" th:value="${m.name()}" th:checked="${m == chosen}">
+                <span th:text="${m.label()}">Tắt</span>
+                <span class="sub-line" th:if="${m.name() == 'OFF'}">Không nghe, không làm gì.</span>
+                <span class="sub-line" th:if="${m.name() == 'LISTEN_ONLY'}">Chỉ nhận biết khách đã kết bạn và gợi ý nhóm. Mẹ tự thêm khách vào nhóm trên Zalo.</span>
+                <span class="sub-line" th:if="${m.name() == 'CONFIRM'}">Mỗi khách hiện nút Duyệt; mẹ bấm thì hệ thống mới thêm vào nhóm. Nên dừng ở nấc này.</span>
+                <span class="sub-line" th:if="${m.name() == 'AUTO'}">Tự thêm khi đủ điều kiện, trong hạn mức. Chỉ bật sau khi đã chạy thử xong ở nấc mẹ duyệt.</span>
+            </label>
+            <label class="field"><input type="checkbox" name="confirmedTested" value="true">
+                Tôi đã chạy thử xong ở nấc "Mẹ duyệt từng người" và thấy hoạt động đúng (bắt buộc để bật nấc tự thêm).</label>
+            <div><button type="submit" class="btn">Lưu nấc</button></div>
+        </form>
+    </section>
+
+    <section class="panel stack">
+        <h2>Hạn mức</h2>
+        <p class="hint">Mọi lần gọi Zalo đều tính, kể cả lần lỗi. Trần cứng: <span th:text="${props.maxDaily}">100</span> người mỗi ngày,
+            <span th:text="${props.maxHourly}">10</span> người mỗi giờ (đổi ở cấu hình triển khai). Không có cách nào làm cho giống người thật bấm.</p>
+        <form class="formrow" th:action="@{/zalo/limits}" method="post">
+            <label class="field">Số người mỗi ngày <input type="number" name="daily" th:value="${quota.limits.daily}" min="1" th:max="${props.maxDaily}"></label>
+            <label class="field">Số người mỗi giờ <input type="number" name="hourly" th:value="${quota.limits.hourly}" min="1" th:max="${props.maxHourly}"></label>
+            <label class="field">Cách nhau tối thiểu (phút) <input type="number" name="gap" th:value="${quota.limits.gapMinutes}" min="1" max="240"></label>
+            <button type="submit" class="btn">Lưu hạn mức</button>
+        </form>
+    </section>
+
+    <section>
+        <h2>Khách chờ vào nhóm</h2>
+        <p class="muted" th:if="${waiting.isEmpty()}">Chưa có khách nào chờ.</p>
+        <div class="table-wrap" th:if="${!waiting.isEmpty()}">
+            <table>
+                <tr><th>Khách</th><th>Khu vực</th><th>Nhóm dự kiến</th><th>Trạng thái</th><th>Thao tác</th></tr>
+                <tr th:each="w : ${waiting}">
+                    <td th:text="${w.customerName}">Nguyễn Văn A</td>
+                    <td th:text="${w.provinceName}">Cần Thơ</td>
+                    <td><span th:if="${w.groupReady}" th:text="${w.groupName}">Nhóm 1</span>
+                        <span class="warn-text" th:unless="${w.groupReady}">Chưa có nhóm hợp (cần mã nhóm Zalo ở trang Nhóm Zalo)</span></td>
+                    <td><span class="badge" th:classappend="${w.state == 'FAILED'} ? 'bad' : (${w.state == 'QUEUED'} ? 'info' : 'warn')"
+                              th:text="${@zaloLabels.addState(w.state)}">Chờ mẹ duyệt</span>
+                        <span class="sub-line" th:if="${w.code != null}" th:text="${@zaloLabels.addCode(w.code)}">lỗi</span></td>
+                    <td>
+                        <div class="formrow">
+                        <form th:action="@{/zalo/invitations/{id}/approve(id=${w.invitationId})}" method="post" th:if="${w.mayApprove and w.groupReady}">
+                            <button type="submit" class="btn sm">Duyệt thêm vào nhóm</button></form>
+                        <form th:action="@{/zalo/invitations/{id}/retry(id=${w.invitationId})}" method="post" th:if="${w.state == 'FAILED'}">
+                            <button type="submit" class="btn secondary sm">Cho thử lại</button></form>
+                        <form th:action="@{/zalo/invitations/{id}/release(id=${w.invitationId})}" method="post">
+                            <button type="submit" class="btn secondary sm">Mẹ tự thêm tay</button></form>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </section>
+
+    <section>
+        <h2>Kết bạn nhưng không biết là khách nào</h2>
+        <p class="hint">Người này đã kết bạn nhưng Zalo không cho biết số điện thoại. Hệ thống không lưu tên hay số. Mẹ nhìn tên trên Zalo rồi chọn đúng khách
+            trong danh sách đã nhắn mời.</p>
+        <p class="muted" th:if="${manual.isEmpty()}">Không có dòng nào cần xử lý.</p>
+        <div class="table-wrap" th:if="${!manual.isEmpty()}">
+            <table>
+                <tr><th>Lúc kết bạn</th><th>Mã cuối</th><th>Là khách nào?</th></tr>
+                <tr th:each="e : ${manual}">
+                    <td th:text="${#temporals.format(e.at, 'dd/MM HH:mm')}">22/11 10:00</td>
+                    <td th:text="${e.uidTail}">…1234</td>
+                    <td>
+                        <div class="formrow">
+                        <form class="inline" th:action="@{/zalo/manual/{id}/resolve(id=${e.id})}" method="post">
+                            <select name="invitationId" aria-label="Chọn khách" required>
+                                <option value="">Chọn khách…</option>
+                                <option th:each="c : ${candidates}" th:value="${c.invitationId}"
+                                        th:text="${c.customerName} + ' (' + ${c.provinceName} + ')'">Nguyễn Văn A (Cần Thơ)</option>
+                            </select>
+                            <button type="submit" class="btn sm">Ghép</button>
+                        </form>
+                        <form class="inline" th:action="@{/zalo/manual/{id}/dismiss(id=${e.id})}" method="post">
+                            <button type="submit" class="btn secondary sm">Bỏ qua</button></form>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </section>
+
+    <section>
+        <h2>Nhật ký gần đây</h2>
+        <p class="hint">Nhật ký không có số điện thoại, tên hay mã Zalo của khách.</p>
+        <div class="table-wrap">
+            <table>
+                <tr><th>Lúc</th><th>Việc</th><th>Kết quả</th><th>Chi tiết</th><th>Người làm</th></tr>
+                <tr th:each="r : ${log}">
+                    <td th:text="${#temporals.format(r.at, 'dd/MM HH:mm')}">22/11 10:00</td>
+                    <td th:text="${@zaloLabels.action(r.action)}">Thêm vào nhóm</td>
+                    <td th:text="${@zaloLabels.result(r.result)}">Thành công</td>
+                    <td th:text="${r.action == 'DUNG'} ? ${@zaloLabels.reason(r.code)} : ${@zaloLabels.addCode(r.code)}"></td>
+                    <td th:text="${r.actor == 'system'} ? 'Hệ thống' : ${r.actor}">Hệ thống</td>
+                </tr>
+                <tr th:if="${log.isEmpty()}"><td colspan="5" class="muted">Chưa có gì.</td></tr>
+            </table>
+        </div>
+    </section>
+    </th:block>
+</main>
+</body>
+</html>

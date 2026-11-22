@@ -57,6 +57,8 @@ public class ZaloAutoService {
     private final TransactionTemplate tx;
     private final Clock clock;
     private final ReentrantLock addLock = new ReentrantLock();
+    /** Trạng thái cầu nối lần hỏi gần nhất (do bộ hẹn giờ cập nhật) để các trang không gọi cầu nối mỗi lần mở. */
+    private volatile ZaloGateway.Status lastStatus;
 
     public ZaloAutoService(JdbcClient jdbc, ZaloGateway gateway, ZaloSession session, ZaloAutoSettings cfg,
                            InviteService invites, GroupService groups, ContactService contacts, TransactionTemplate tx,
@@ -94,6 +96,7 @@ public class ZaloAutoService {
             return 0;
         }
         ZaloGateway.Status st = gateway.status();
+        lastStatus = st;
         if (st.state() == ZaloGateway.State.TRIPPED) {
             tripAndStop("BRIDGE_" + (st.tripReason() == null ? "TRIPPED" : st.tripReason()), false);
             return 0;
@@ -478,7 +481,38 @@ public class ZaloAutoService {
     // ---------- để hiển thị ----------
 
     public ZaloGateway.Status bridgeStatus() {
-        return gateway.status();
+        ZaloGateway.Status st = gateway.status();
+        lastStatus = st;
+        return st;
+    }
+
+    /** Một dòng cảnh báo cho trang Tổng quan và Lô nhắn hôm nay. */
+    public record Alert(String level, String text) {
+    }
+
+    /**
+     * Cảnh báo cần người xử lý, hoặc rỗng nếu bộ nối tắt/đang ổn. KHÔNG gọi cầu nối: dùng trạng thái lần hỏi gần nhất,
+     * nên mở trang không làm tăng số lần gọi Zalo.
+     */
+    public java.util.Optional<Alert> alert() {
+        if (!cfg.props().enabled() || cfg.chosenMode() == ZaloMode.OFF) {
+            return java.util.Optional.empty();
+        }
+        if (cfg.tripped()) {
+            return java.util.Optional.of(new Alert("bad", "Bộ nối Zalo đã DỪNG"));
+        }
+        ZaloGateway.Status st = lastStatus;
+        if (st != null && st.state() == ZaloGateway.State.LOGIN_REQUIRED) {
+            return java.util.Optional.of(new Alert("bad", "Phiên Zalo của tài khoản phụ hết hạn, cần quét mã QR lại"));
+        }
+        if (st != null && st.state() == ZaloGateway.State.UNREACHABLE) {
+            return java.util.Optional.of(new Alert("warn", "Không gọi được tới cầu nối Zalo"));
+        }
+        long n = attentionCount();
+        if (n > 0) {
+            return java.util.Optional.of(new Alert("info", n + " việc Zalo đang chờ mẹ xử lý"));
+        }
+        return java.util.Optional.empty();
     }
 
     public List<WaitingRow> waiting() {
