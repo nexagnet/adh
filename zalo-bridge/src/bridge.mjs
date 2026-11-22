@@ -377,7 +377,8 @@ export class Bridge {
         clearTimeout(limit);
         if (this.config.mode === 'zca' && String(ownId) !== this.config.accountId) {
           // Quét nhầm tài khoản (ví dụ tài khoản chính): đăng xuất ĐÚNG phiên vừa quét, không lưu gì, không đụng phiên phụ đang chạy.
-          this.login = { state: 'ACCOUNT_MISMATCH', qr: null };
+          // Mã tài khoản vừa quét chỉ để người quản trị điền đúng ZALO_ACCOUNT_ID: nằm trong bộ nhớ, không log, không lưu đĩa.
+          this.login = { state: 'ACCOUNT_MISMATCH', qr: null, scannedId: String(ownId), scannedAt: this.now() };
           try {
             await this.adapter.discardLogin();
           } catch {
@@ -414,7 +415,7 @@ export class Bridge {
   }
 
   loginStatus() {
-    return { state: this.login.state, qr: this.login.qr };
+    return { state: this.login.state, qr: this.login.qr, scannedId: this.login.state === 'ACCOUNT_MISMATCH' && this.now() - this.login.scannedAt < 10 * 60 * 1000 ? this.login.scannedId ?? null : null };
   }
 
   // ---------- trạng thái ----------

@@ -16,7 +16,7 @@ Toàn bộ phần mã đã được kiểm bằng test với **bộ nối giả*
 1. Tạo ba giá trị bí mật, ghi vào file `.env` trên máy chủ (cạnh file docker-compose), **không** đưa vào Git và **không** đưa vào bản sao lưu:
    - `APP_ZALO_BRIDGE_KEY`: chuỗi ngẫu nhiên dài, ví dụ `openssl rand -hex 24`.
    - `ZALO_SESSION_KEY`: đúng 64 ký tự hex, `openssl rand -hex 32`. Khóa này mã hóa phiên Zalo lưu trên đĩa. Mất khóa thì chỉ cần quét QR lại.
-   - `ZALO_ACCOUNT_ID`: mã Zalo (chỉ chữ số) của **tài khoản phụ**. Bộ nối từ chối mọi tài khoản khác. Mã này người chạy thử đợt 0 đã lấy bằng `getOwnId()`; hiện **chưa có chỗ nào trong giao diện hiện mã này**, nếu không có thì báo để làm thêm.
+   - `ZALO_ACCOUNT_ID`: mã Zalo (chỉ chữ số) của **tài khoản phụ**. Bộ nối từ chối mọi tài khoản khác. **Chưa biết mã?** Đặt tạm `ZALO_ACCOUNT_ID=0`, chạy dịch vụ, vào trang **Zalo tài khoản phụ → Quét mã QR** và quét bằng điện thoại của **tài khoản phụ** (không phải tài khoản chính). Hệ thống sẽ báo "Sai tài khoản" nhưng **hiện mã Zalo của tài khoản vừa quét** ngay trên trang đó (chỉ admin thấy, không lưu, không ghi log); chép mã đó vào `ZALO_ACCOUNT_ID`, chạy lại dịch vụ rồi quét lần nữa. Không chụp màn hình trang đó.
 2. Thêm vào `.env`:
    ```
    APP_ZALO_AUTO_ENABLED=true
@@ -80,4 +80,4 @@ Bộ nối tự dừng khi gặp yêu cầu xác minh, captcha hay báo hạn ch
 | 50 người/ngày có bị Zalo hạn chế không | Chưa biết; ngưỡng của Zalo không công bố |
 | Thời gian sống của phiên Zalo | Chưa biết (đã thấy dùng lại được hơn 1 giờ) |
 | `getUserInfo` trên khách thật có trả số không | Chưa; mẫu nhỏ cho thấy phần đông không lộ số |
-| Cách lấy mã nhóm và mã tài khoản phụ trong giao diện | Chưa có công cụ hiển thị trong Adh |
+| Cách lấy mã nhóm Zalo trong giao diện Zalo | Chưa kiểm (mã tài khoản phụ thì đã có cách: xem mục cài đặt bước 1) |

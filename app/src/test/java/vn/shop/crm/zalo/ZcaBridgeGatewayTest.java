@@ -156,4 +156,14 @@ class ZcaBridgeGatewayTest {
         reply.set("{\"ok\":false}");
         assertThat(gateway.stop()).isFalse();
     }
+
+    @Test
+    void maTaiKhoanVuaQuetChiNhanKhiSaiTaiKhoanVaChiLaChuSo() {
+        reply.set("{\"state\":\"ACCOUNT_MISMATCH\",\"scannedId\":\"123456789\"}");
+        assertThat(gateway.loginStatus().scannedId()).isEqualTo("123456789");
+        reply.set("{\"state\":\"ACCOUNT_MISMATCH\",\"scannedId\":\"<script>1</script>\"}");
+        assertThat(gateway.loginStatus().scannedId()).isNull();
+        reply.set("{\"state\":\"WAITING_SCAN\",\"scannedId\":\"123456789\"}");
+        assertThat(gateway.loginStatus().scannedId()).isNull();
+    }
 }

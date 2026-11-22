@@ -121,6 +121,31 @@ class ZaloAdminPageTest extends AbstractPostgresTest {
     }
 
     @Test
+    void saiTaiKhoanHienMaDeDienZaloAccountIdChiChoAdminVaKhongLuuKhongGhiLog() throws Exception {
+        fake.login = new ZaloSession.Login(ZaloSession.LoginState.ACCOUNT_MISMATCH, null, "555123456");
+        mvc.perform(get("/zalo/login").with(owner())).andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", containsString("no-store")))
+                .andExpect(content().string(containsString("555123456")))
+                .andExpect(content().string(containsString("ZALO_ACCOUNT_ID")));
+        // người không phải admin hoặc chưa đăng nhập không thấy
+        mvc.perform(get("/zalo/login").with(user("nhanvien").roles("STAFF"))).andExpect(status().isForbidden())
+                .andExpect(content().string(not(containsString("555123456"))));
+        mvc.perform(get("/zalo/login")).andExpect(status().is3xxRedirection());
+        // trang chính, nhật ký và cơ sở dữ liệu không có mã
+        mvc.perform(get("/zalo").with(owner())).andExpect(content().string(not(containsString("555123456"))));
+        assertThat(cfg.recentLog(50)).noneMatch(r -> String.valueOf(r.code()).contains("555123456")
+                || String.valueOf(r.result()).contains("555123456"));
+        assertThat(new ZaloSession.Login(ZaloSession.LoginState.ACCOUNT_MISMATCH, null, "555123456").toString())
+                .doesNotContain("555123456");
+    }
+
+    @Test
+    void maTaiKhoanKhongHienKhiKhongPhaiSaiTaiKhoan() throws Exception {
+        fake.login = new ZaloSession.Login(ZaloSession.LoginState.WAITING_SCAN, PNG, "555123456");
+        mvc.perform(get("/zalo/login").with(owner())).andExpect(content().string(not(containsString("555123456"))));
+    }
+
+    @Test
     void chonNacVaNacTuThemCanTickXacNhan() throws Exception {
         mvc.perform(post("/zalo/mode").with(owner()).with(csrf()).param("mode", "CONFIRM"))
                 .andExpect(status().is3xxRedirection());

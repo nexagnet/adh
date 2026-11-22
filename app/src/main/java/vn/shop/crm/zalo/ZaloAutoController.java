@@ -133,6 +133,7 @@ public class ZaloAutoController {
             return "redirect:/zalo";
         }
         model.addAttribute("state", l.state().name());
+        model.addAttribute("scannedId", l.scannedId());
         model.addAttribute("waiting", l.state() == ZaloSession.LoginState.WAITING_SCAN
                 || l.state() == ZaloSession.LoginState.SCANNED);
         model.addAttribute("qr", l.qrPng() == null ? null

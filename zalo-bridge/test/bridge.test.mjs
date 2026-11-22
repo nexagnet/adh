@@ -37,6 +37,10 @@ test('quét nhầm tài khoản khác thì từ chối, đăng xuất, không l�
   c.adapter.loginResolve('9999');
   await flush(); await flush(); await flush();
   assert.equal(c.bridge.loginStatus().state, 'ACCOUNT_MISMATCH');
+  assert.equal(c.bridge.loginStatus().scannedId, '9999'); // để quản trị điền đúng ZALO_ACCOUNT_ID
+  assert.ok(!c.logs.join('\n').includes('9999'), 'mã tài khoản không được vào log');
+  c.clock.t += 11 * 60 * 1000; // quá 10 phút thì không còn trả mã
+  assert.equal(c.bridge.loginStatus().scannedId, null);
   assert.equal(c.bridge.status().state, 'LOGIN_REQUIRED');
   assert.equal(c.bridge.status().accountOk, false);
   assert.equal(c.adapter.logouts, 1);
