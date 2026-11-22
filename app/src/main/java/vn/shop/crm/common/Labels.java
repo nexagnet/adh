@@ -72,8 +72,8 @@ public class Labels {
     }
 
     /**
-     * Người thao tác hiển thị cho bố mẹ: hiện chỉ có một tài khoản đăng nhập nên "admin" là Bố/Mẹ.
-     * Khi có hai tài khoản riêng (câu hỏi Đ1) chỉ cần thêm tên vào đây.
+     * Người thao tác hiển thị cho bố mẹ: cửa hàng dùng MỘT tài khoản đăng nhập chung (quyết định D17), nên "admin" là
+     * "Bố/Mẹ"; nếu sau này có thêm tài khoản thì thêm tên vào đây.
      */
     public String person(String username) {
         if (username == null || username.isBlank()) {
