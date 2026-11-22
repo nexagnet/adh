@@ -23,6 +23,10 @@ public class StatusMappingController {
     @GetMapping
     public String view(Model model) {
         model.addAttribute("unmapped", statuses.unmapped());
+        var stuck = statuses.stuck();
+        model.addAttribute("stuck", stuck);
+        model.addAttribute("stuckTotal", stuck.stream().mapToLong(StatusMappingService.StuckRow::shipments).sum());
+        model.addAttribute("staleDays", vn.shop.crm.shipping.StaleOrders.AFTER_DAYS);
         model.addAttribute("mappings", statuses.all());
         model.addAttribute("options", CanonicalStatus.values());
         return "status-mappings";

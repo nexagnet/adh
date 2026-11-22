@@ -108,6 +108,7 @@ public class CustomerController {
         model.addAttribute("inviteState", contacts.inviteStates(java.util.List.of(id)).get(id));
         model.addAttribute("note", contacts.note(id));
         model.addAttribute("today", java.time.LocalDate.now());
+        model.addAttribute("staleDays", vn.shop.crm.shipping.StaleOrders.AFTER_DAYS);
         return "customers-detail";
     }
 
