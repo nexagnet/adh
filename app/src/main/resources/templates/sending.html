@@ -7,7 +7,7 @@
     <header class="page-head">
         <div class="titles">
             <h1>Cài đặt gửi tin</h1>
-            <p class="hint">Các giới hạn dưới đây chỉ để xem. Muốn đổi, chủ cửa hàng sửa cấu hình trên máy chủ rồi khởi động lại; không đổi được từ trình duyệt.</p>
+            <p class="hint">Các giới hạn dưới đây chỉ để xem. Muốn đổi (ví dụ APP_SENDING_DAILY_LIMIT, APP_SENDING_HOURLY_LIMIT), chủ cửa hàng sửa cấu hình trên máy chủ rồi khởi động lại; không đổi được từ trình duyệt.</p>
         </div>
         <div class="actions">
             <form th:action="@{/campaigns/pause-all}" method="post" th:unless="${status.paused}">
@@ -38,6 +38,14 @@
         <div class="setrow">
             <div><div class="t">Hạn mức mỗi ngày</div><div class="d">Gửi chậm, theo lô nhỏ. Mỗi khách chỉ nhận một lần. Hôm nay đã gửi <span th:text="${status.sentToday}">0</span>.</div></div>
             <div class="v"><span th:text="${status.dailyLimit}">20</span> tin</div>
+        </div>
+        <div class="setrow">
+            <div><div class="t">Hạn mức mỗi giờ</div><div class="d">Tối đa số tin trong 60 phút gần nhất; 0 là không giới hạn theo giờ. Trong 60 phút qua đã gửi <span th:text="${status.sentThisHour}">0</span>.</div></div>
+            <div class="v"><span th:text="${status.hourlyLimit}">6</span> tin</div>
+        </div>
+        <div class="setrow">
+            <div><div class="t">Nhịp gợi ý khi nhắn tay</div><div class="d">Hai tin cách nhau ít nhất bấy nhiêu phút (chỉ gợi ý ở mục Lô nhắn hôm nay, không ép buộc).</div></div>
+            <div class="v"><span th:text="${status.suggestedGapMinutes}">3</span> phút</div>
         </div>
         <div class="setrow">
             <div><div class="t">Trần chi SMS mỗi tháng</div><div class="d">Hết ngân sách thì tự dừng. Đã dùng tháng này: <span th:text="${#numbers.formatInteger(status.monthSpend, 1, 'POINT')}">0</span> đ.</div></div>

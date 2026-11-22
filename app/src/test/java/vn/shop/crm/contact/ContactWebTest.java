@@ -134,7 +134,7 @@ class ContactWebTest extends AbstractPostgresTest {
         var owner = user("admin").roles("OWNER");
 
         mvc.perform(post("/customers/" + id + "/privacy/open").with(owner).with(csrf())
-                .param("kind", "ERASE").param("receivedOn", "2026-11-01"))
+                .param("kind", "ERASE").param("receivedOn", java.time.LocalDate.now().toString()))
                 .andExpect(status().is3xxRedirection());
 
         mvc.perform(get("/privacy").with(owner)).andExpect(status().isOk())

@@ -42,6 +42,9 @@ services:
       APP_SHOP_PHONE: ${APP_SHOP_PHONE:-}
       # Gửi thật qua dịch vụ ngoài mặc định TẮT. Chỉ đổi sau khi đã chọn nhà cung cấp và có xác nhận pháp lý.
       APP_SENDING_ENABLED: ${APP_SENDING_ENABLED:-false}
+      # Thời tiết trên bản đồ (MET Norway). Mặc định TẮT; bật bằng APP_WEATHER_ENABLED=true trong file .env rồi chạy lại.
+      APP_WEATHER_ENABLED: ${APP_WEATHER_ENABLED:-false}
+      APP_WEATHER_USER_AGENT: ${APP_WEATHER_USER_AGENT:-adh-shop-crm/1.0}
     networks: [internal]
     mem_limit: 768m
 

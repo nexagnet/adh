@@ -63,7 +63,7 @@ Lựa chọn khác của người dùng trong các phiên: giao diện **100% ti
 - **Xếp nhóm theo khu vực:** cùng tỉnh > cùng vùng > cùng miền > nhóm chung; nhóm của miền khác bị loại (cấu hình `app.grouping.allow-other-region`, mặc định không). Nhóm mới mặc định là "Chung" cho tới khi mẹ gắn khu vực. Khách chưa rõ khu vực: nhóm chung trước, rồi mọi nhóm.
 - **Mã QR chung `/moi`** hỏi "Bạn ở tỉnh/thành nào?" (bỏ qua được). Khách chọn tỉnh mà chưa có nhóm hợp được ghi một dòng "chờ nhóm" (chỉ mã tỉnh + mã ngẫu nhiên của trình duyệt, **không SĐT/tên/địa chỉ mạng**) để mẹ biết cần mở nhóm ở đâu. Chống quét lặp bằng cookie `adh_moi` (90 ngày) và giới hạn 20 lượt mới/địa chỉ mạng/giờ.
 - **Thời tiết:** ngưỡng nhắc lạnh bất thường là nhiệt độ thấp nhất 48 giờ tới ≤13°C (Bắc), ≤16°C (Trung), ≤22°C (Nam); nóng khi cao nhất ≥37°C; chỉ nhắc ở tỉnh có từ 10 khách. Tất cả là giả định, chỉnh trong `application.yml` mục `app.weather`.
-- **Bản đồ** là sơ đồ minh họa tự vẽ (chấm theo tọa độ tỉnh lỵ trong đường viền đất liền gần đúng ở `map/MapService.java`), **không phải bản đồ ranh giới tỉnh**. Muốn bản đồ thật cần file GeoJSON có giấy phép rõ ràng rồi thay phần vẽ.
+- **Bản đồ** (từ 22/11/2026) là bản đồ thật: Leaflet 1.9.4 (giấy phép BSD-2, chép sẵn ở `static/vendor/leaflet/`) vẽ nền OpenStreetMap và ranh giới 63 tỉnh (`static/map/vn-provinces.geojson`, nguồn Natural Earth, miền công cộng, tạo bằng `tools/build-vn-geojson.mjs`). Ranh giới là của 63 tỉnh TRƯỚC sáp nhập 1/7/2025, khớp danh sách tỉnh trong `geo/VnGeo.java`. Nền ảnh tải thẳng từ `tile.openstreetmap.org` trên trình duyệt (CSP chỉ mở thêm đúng địa chỉ này cho ảnh; Referer chỉ gửi tên miền, đúng yêu cầu của OSM). Hoàng Sa, Trường Sa chỉ có nhãn, chưa vẽ ranh giới đảo. Lớp thời tiết chạy theo giờ lấy từ MET Norway, lưu ở cột `weather_forecast.hourly`.
 - Hạn phản hồi yêu cầu dữ liệu của khách hiện là 15 ngày cho mọi loại (`app.privacy.request-due-days`) và **chưa có xác nhận pháp lý**. Thiết kế Penpot muốn hạn theo loại (ngừng liên hệ/xuất dữ liệu 2 ngày làm việc, xóa 20 ngày theo file 03 mục 1; nguồn phụ, cần đối chiếu Công báo).
 
 ---
@@ -74,6 +74,8 @@ Lựa chọn khác của người dùng trong các phiên: giao diện **100% ti
 - **Nội dung tin** soạn ở trang Chiến dịch mời (khung "Nội dung tin mặc định", lưu trong cài đặt `invite.template`, tối đa 800 ký tự). `{link}` không còn bắt buộc; có `{ten}`, `{cua_hang}`.
 - **Giữ nguyên:** hệ thống không tự gửi, không đăng nhập Zalo, tài khoản phụ không kết nối vào hệ thống (BR-11); chỉ khách mua 1 lần đã duyệt (BR-06); cổng chặn, danh sách từ chối, hạn mức lô và giờ gửi; đường QR trên giấy in (D10) vẫn chạy song song.
 - **Mâu thuẫn cần chủ shop biết:** (1) tin **tư vấn sản phẩm** là tin quảng cáo, khác với quy tắc cũ BR-16 "chỉ kết nối, không quảng cáo" (quy tắc đó vẫn áp dụng cho chữ trên giấy in và trang quét QR); (2) nhắn cho người **chưa đồng ý nhận tin** (chỉ để lại số khi nhận hàng) có rủi ro pháp lý về dữ liệu cá nhân và tin nhắn rác; chủ shop đã nhận rủi ro (D3), nên nên có câu cho khách biết cách xin ngừng nhận tin; (3) Zalo có thể **hạn chế tài khoản phụ** nếu nhắn hoặc gửi kết bạn cho nhiều người lạ, nên giữ lô nhỏ, chậm, và tuyệt đối không dùng công cụ tự động gửi tin lên tài khoản này; (4) người gửi phải tự đánh dấu các bước, hệ thống không biết khách có thật sự kết bạn hay vào nhóm.
+- **Chiến dịch theo khu vực + lô nhắn hôm nay (22/11/2026, V14):** tạo chiến dịch chỉ cho khách một miền/vùng/tỉnh hoặc "chưa rõ" (`invitation_campaign.geo_scope`, cùng cách ghi mã với nhóm: `R:NAM`, `S:...`, `P:...`, `U`); tối đa `app.invitations.max-campaign` (300) khách mỗi chiến dịch. Trang **Lô nhắn hôm nay** (`/today`, `SendService.today`) chỉ gợi ý đủ hạn mức còn lại của ngày (`daily-limit`) và giờ (`hourly-limit`, 60 phút gần nhất), trong giờ 07–22, không khi tạm dừng; người thật nhắn tay rồi bấm *Đã nhắn* (`SendService.markMessaged`, kênh `ZALO_PHU`, ghi nhật ký gửi). Ghi nhận *Đã nhắn* **không bị chặn theo giờ/hạn mức** vì việc đã xảy ra (chặn thì hệ thống không biết và có thể nhắn lại), nhưng vẫn từ chối khách không còn đủ điều kiện liên hệ. Nhịp gợi ý `suggested-gap-minutes` (3 phút) chỉ để hiển thị, **không ép buộc, không ngẫu nhiên hóa** để giả người thật. Hệ thống vẫn không tự gửi, không đăng nhập Zalo.
+- **Chạy thử trên Zalo thật (22/11/2026, V14):** `/test-runs` (`testrun/TestRunService`). Vài số điện thoại do người dùng tự nhập, lưu ở bảng riêng `test_run`/`test_target` (không khóa ngoại tới khách thật), có đánh dấu tay Đã nhắn/Đã kết bạn/Đã vào nhóm/Từ chối và gợi ý nhóm theo tỉnh đã chọn. **Không** đổi trạng thái lời mời của khách thật, không ghi `send_log`/`contact_event`/danh sách từ chối, không tăng số khách của nhóm (có test `TestRunTest.chayHetQuyTrinhMaDuLieuThatKhongDoi` so ảnh chụp dữ liệu trước/sau). Hướng dẫn thử từng bước cho người dùng: [`HUONG-DAN-THU-ZALO.md`](HUONG-DAN-THU-ZALO.md).
 - **Chưa làm:** gợi ý chọn nhóm khác với nhóm được gợi ý khi đánh dấu *Đã vào nhóm*; xuất file Excel có cột nhóm gợi ý; nhắc theo dõi khách đã nhắn mà quá lâu chưa kết bạn.
 
 ## 3. Cấu hình và công tắc
@@ -89,11 +91,14 @@ Biến môi trường (xem `app/src/main/resources/application.yml`; mặc đị
 | `APP_SHOP_NAME`, `APP_SHOP_PHONE` | Tên và số điện thoại cửa hàng hiện trên trang khách và giấy in. Chạy ngoài Docker nên đặt `LC_ALL=C.UTF-8` để tên có dấu hiện đúng | `Cửa hàng`, trống |
 | `APP_SENDING_ENABLED` | Gửi thật qua dịch vụ ngoài. Hiện **chưa có bộ gửi thật** nên bật cũng chưa gửi gì | `false` |
 | `app.sending.*` | Giờ gửi 07:00–22:00, hạn mức 20/ngày, nghỉ 30–120 giây, ngân sách tháng, tự dừng khi lỗi/từ chối cao; `scheduler-enabled: false` | xem yml |
-| `APP_WEATHER_ENABLED` | Bật thời tiết (MET Norway). Chỉ gửi tọa độ tỉnh lỵ của tỉnh có khách | `false` |
+| `APP_WEATHER_ENABLED` | Bật thời tiết (MET Norway) và lớp thời tiết chạy trên bản đồ. Chỉ gửi tọa độ tỉnh lỵ; mặc định hỏi cả 63 tỉnh (`app.weather.all-provinces`) | `false` |
+| `APP_MAP_TILE_URL` | Địa chỉ ô bản đồ nền (mặc định OpenStreetMap công cộng; chỉ dùng cho lượng truy cập nhỏ). Đổi thì sửa luôn `app.map.tile-attribution` | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` |
 | `APP_WEATHER_USER_AGENT` | Tên ứng dụng gửi cho MET Norway (họ yêu cầu có định danh; có thể thêm tên miền cửa hàng) | `adh-shop-crm/1.0` |
 | `app.grouping.allow-other-region` | Cho xếp khách vào nhóm miền khác khi hết nhóm hợp | `false` |
 | `app.entry.max-new-per-ip-per-hour` | Giới hạn lượt mới của mã QR chung | 20 |
-| `app.invitations.max-batch` | Tối đa khách mỗi lô mời | 20 |
+| `app.invitations.max-batch` | Tối đa khách mỗi lần chạy thử/xuất danh sách | 20 |
+| `app.invitations.max-campaign` | Tối đa khách trong một chiến dịch (mỗi ngày chỉ nhắn theo hạn mức) | 300 |
+| `APP_SENDING_DAILY_LIMIT`, `APP_SENDING_HOURLY_LIMIT` | Hạn mức tin mỗi ngày và mỗi 60 phút (0 = không giới hạn theo giờ) | 20, 6 |
 | `app.security.max-login-failures`, `lock-minutes` | Sai 5 lần khóa 15 phút theo cặp (IP, tên đăng nhập) | 5, 15 |
 | `app.bot.*` | Bot im lặng 30 phút sau khi mẹ trả lời; tối đa 3 trả lời/5 phút | xem yml |
 
@@ -111,9 +116,9 @@ Công tắc trên giao diện: **Tạm dừng tất cả chiến dịch** (`/cam
 - **Công nghệ:** Java 25, Spring Boot 4.2, Spring Security, JdbcClient (SQL thuần), Thymeleaf, Flyway, PostgreSQL; zxing sinh mã QR trên máy chủ; Jackson 3 (`tools.jackson`). Chính sách bảo mật nội dung (CSP): **không script hay style nội tuyến** (`default-src 'self'; style-src 'self'`), nên tương tác phải làm bằng liên kết/biểu mẫu hoặc file `.js` riêng.
 
 ### Bản đồ mã nguồn (`app/src/main/java/vn/shop/crm`)
-`imports` (nhập file), `shipping` (hãng, trạng thái chuẩn), `customers` (phân loại, danh sách), `contact` (cơ sở liên hệ, từ chối, yêu cầu dữ liệu), `invite` (nhóm Zalo, chiến dịch, lời mời, trang khách `/i`, mã QR chung `/moi`, in giấy `/print`), `send` (cổng chặn, chạy thử, xuất cho mẹ gửi tay), `bot` (lõi bot trợ lý), `geo` (63 tỉnh, vùng, đoán tỉnh), `map` (bản đồ, thời tiết), `security`, `common` (nhãn tiếng Việt `Labels`, SĐT, QR), `web` (tổng quan, trạng thái đơn, lỗi).
+`imports` (nhập file), `shipping` (hãng, trạng thái chuẩn), `customers` (phân loại, danh sách), `contact` (cơ sở liên hệ, từ chối, yêu cầu dữ liệu), `invite` (nhóm Zalo, chiến dịch, lời mời, trang khách `/i`, mã QR chung `/moi`, in giấy `/print`), `send` (cổng chặn, chạy thử, xuất cho mẹ gửi tay, lô nhắn hôm nay), `testrun` (đợt chạy thử tách khỏi khách thật), `bot` (lõi bot trợ lý), `geo` (63 tỉnh, vùng, đoán tỉnh), `map` (bản đồ, thời tiết), `security`, `common` (nhãn tiếng Việt `Labels`, SĐT, QR), `web` (tổng quan, trạng thái đơn, lỗi).
 
-Đường dẫn chính (cần đăng nhập, trừ `/login`, `/moi`, `/i/**`): `/` tổng quan, `/imports`, `/customers`, `/contacts`, `/campaigns`, `/groups`, `/print`, `/sending`, `/bot`, `/handoffs`, `/status-mappings`, `/privacy`, `/map`.
+Đường dẫn chính (cần đăng nhập, trừ `/login`, `/moi`, `/i/**`): `/` tổng quan, `/imports`, `/customers`, `/contacts`, `/campaigns`, `/today` (lô nhắn hôm nay), `/test-runs` (chạy thử Zalo), `/groups`, `/print`, `/sending`, `/bot`, `/handoffs`, `/status-mappings`, `/privacy`, `/map`.
 
 ---
 

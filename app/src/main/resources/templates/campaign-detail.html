@@ -6,7 +6,7 @@
 <main>
     <h1 th:text="${campaign.name}">Chiến dịch</h1>
     <p class="hint"><a th:href="@{/campaigns}">‹ Tất cả chiến dịch</a> · tạo bởi <span th:text="${@labels.person(campaign.createdBy)}">Bố/Mẹ</span> lúc
-        <span th:text="${#temporals.format(campaign.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</span></p>
+        <span th:text="${#temporals.format(campaign.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</span> · khu vực: <strong th:text="${campaign.scopeLabel}">Miền Nam</strong></p>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã tạo.</div>
     <div class="notice">Hệ thống <strong>không tự gửi tin</strong>. Cách làm hiện nay: xuất danh sách, nhắn từng khách <strong>một lần duy nhất</strong> bằng
@@ -26,11 +26,12 @@
     <p th:text="${campaign.template}" class="mono">mẫu</p>
 
     <div class="actions" th:if="${campaign.ready > 0}">
+        <a class="btn" th:href="@{/today(campaign=${campaign.id})}">Mở lô nhắn hôm nay</a>
         <form th:action="@{/campaigns/{id}/dry-run(id=${campaign.id})}" method="post">
             <button type="submit" class="btn secondary">Chạy thử (không gửi gì)</button>
         </form>
         <form th:action="@{/campaigns/{id}/export.csv(id=${campaign.id})}" method="post">
-            <button type="submit" class="btn" th:disabled="${paused}">Xuất danh sách để mẹ gửi tay</button>
+            <button type="submit" class="btn secondary" th:disabled="${paused}">Xuất danh sách để mẹ gửi tay</button>
         </form>
         <form th:action="@{/campaigns/{id}/cancel-unsent(id=${campaign.id})}" method="post">
             <button type="submit" class="btn secondary">Hủy các lời mời chưa gửi</button>

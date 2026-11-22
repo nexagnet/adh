@@ -83,7 +83,7 @@ public class CustomerController {
     }
 
     /** Bộ lọc khu vực: miền, vùng, rồi từng tỉnh. */
-    private static List<AreaGroup> areaGroups() {
+    public static List<AreaGroup> areaGroups() {
         List<AreaGroup> groups = new java.util.ArrayList<>();
         groups.add(new AreaGroup("Miền", java.util.Arrays.stream(vn.shop.crm.geo.Region.values())
                 .map(r -> new AreaOption(vn.shop.crm.geo.GeoArea.region(r).code(), r.label())).toList()));
