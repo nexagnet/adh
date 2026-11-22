@@ -1,6 +1,6 @@
 # ADR-0002: Bộ nối Zalo không chính thức cho luồng "kết bạn → vào nhóm" (D16)
 
-Ngày: 22/11/2026. Trạng thái: **đã chọn hướng, CHƯA CODE; đợt chạy thử 0 đã xong ngày 22/11/2026, kết quả ở mục 9.** Quyết định D16 ở `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md`; phạm vi nghiệp vụ ở mục 1I của file đó.
+Ngày: 22/11/2026. Trạng thái: **đã chọn hướng; đợt chạy thử 0 đã xong ngày 22/11/2026 (mục 9); đang code theo giai đoạn, xem mục 10.** Quyết định D16 ở `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md`; phạm vi nghiệp vụ ở mục 1I của file đó.
 
 ## 1. Bối cảnh và quyết định
 
@@ -184,3 +184,23 @@ Kết luận: **`ADD` phát đúng lúc người kia chấp nhận, khác hẳn 
 
 ### 9.5 Cập nhật nghiệm thu
 Mục 6 điểm 8 (a), (b), (c) đã thử một lần với tài khoản thử tự nguyện: (a) có, (b) có điều kiện (9.2), (c) có (9.3). Vẫn cần chạy lại ở nấc `LISTEN_ONLY`/`CONFIRM` với khách thật tự nguyện trước khi bật `AUTO`.
+
+## 10. Tiến độ code và các quyết định khi code (22/11/2026)
+
+Làm theo ba giai đoạn nhỏ, mỗi giai đoạn một PR có test, CI xanh. **Chưa chạy với tài khoản Zalo thật** trong quá trình code (không có thiết bị); mọi test dùng bộ nối giả (`FakeZaloGateway`, và chế độ giả của dịch vụ Node). Hướng dẫn chạy thử thật: `docs/HUONG-DAN-THU-ZALO-TU-DONG.md`.
+
+| Giai đoạn | Nội dung | Trạng thái |
+|---|---|---|
+| 1 | Lõi trong Adh: `ZaloGateway`/`ZaloSession`, `ManualZaloGateway`, `ZcaBridgeGateway` (HTTP, `docs/ZALO-BRIDGE-API.md`), nấc, hạn mức, cầu dao, ghép khách, hàng đợi tay, nhật ký (V17) | Đã code |
+| 2 | Dịch vụ Node `zalo-bridge/` (zca-js 2.3.0 ghim, phiên mã hóa, tự nối lại, trần riêng), profile compose `zalo-auto` | Chưa |
+| 3 | Trang quản trị "Zalo tài khoản phụ": nấc, hạn mức, quét QR, duyệt, hàng đợi tay, băng cảnh báo | Chưa |
+
+Các quyết định khi code (nói rõ để chủ shop biết, đổi được nếu không hợp):
+1. **Hàng đợi tay (khách không lộ số, cỡ 27/32 theo mục 9.2).** Hàng đợi chỉ giữ mã Zalo và giờ kết bạn, **không** tên, **không** số. Người xử lý thấy giờ kết bạn và vài số cuối của mã, tự đối chiếu với bạn mới trên điện thoại rồi chọn đó là khách nào trong danh sách "đã nhắn, chưa ghép". Việc ghép tay vẫn qua cùng cổng điều kiện (R2, từ chối, `REPEAT`). Người lạ có số mà không khớp lời mời nào: chỉ ghi nhật ký, **không** lưu mã Zalo.
+2. **Số điện thoại chỉ đi qua bộ nhớ lúc ghép**, không lưu ở bảng nào. Cầu nối chỉ hỏi số của đúng mã Zalo trong sự kiện `ADD`, không dò người khác, và chỉ trả `phone` khi người đó cho thấy.
+3. **Mã nhóm Zalo nhập tay** ở cột mới `zalo_group.zalo_group_id` (khác link mời). Nhóm không có mã thì **không bao giờ** được thêm tự động; không có nhóm hợp khu vực thì khách giữ hàng chờ, không đẩy sang miền khác (R7).
+4. **Mất phiên khi bộ nối đang rảnh** (`LOGIN_REQUIRED`) chỉ hiện cảnh báo, không làm cầu dao nhảy (không có thao tác nào đang diễn ra để dừng). Mất phiên **trong lúc thêm** người, đăng xuất, cảnh báo của Zalo, mã đóng `DuplicateConnection`, sai tài khoản phụ, lỗi lạ, hết giờ chờ không biết kết quả: **dừng ngay** (không đợi 3 lỗi), không tự thử lại, khách đó để người kiểm tra tay. Quét QR đúng tài khoản xong sau khi mất phiên hoặc đăng xuất thì tự mở lại; các lý do khác chỉ người bấm "Mở lại" mới thoát.
+5. **Lỗi theo từng người** chỉ do cầu nối phân loại bằng danh sách mã đã biết. Nhóm bật "chỉ quản trị viên được thêm" **chưa thử**, nên dạng lỗi chưa biết: gặp lỗi chưa có trong danh sách thì bị coi là lỗi lạ và dừng ngay (thất bại kín). Sau lần thử thật đầu tiên, thêm mã lỗi đã thấy vào danh sách để các lỗi cùng loại về sau chỉ là lỗi theo người.
+6. **Nấc `AUTO`** cũng thêm cả những khách đang "chờ duyệt" từ lúc còn ở nấc `CONFIRM`. Chọn `AUTO` cần tick xác nhận đã chạy thử xong; mặc định không chọn nấc nào (`OFF`) cho đến khi người bật.
+7. Mỗi lần gọi Zalo để thêm người (kể cả lỗi) được ghi vào nhật ký **trước khi gọi** và tính vào hạn mức ngày, giờ và khoảng cách; riêng lần không nối được tới cầu nối (chưa chạm Zalo) thì không tính.
+8. Ngoài ba việc của Zalo, cầu nối có thêm các lệnh **quản lý phiên** (quét QR, đăng xuất, dừng, nghe lại) cho trang quản trị; chúng không gửi gì cho ai. Hình dạng giao diện được khóa bằng test (`ZaloGatewayShapeTest`).

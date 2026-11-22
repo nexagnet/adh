@@ -95,6 +95,16 @@ app:
     stop-after-consecutive-failures: 3
     stop-failure-rate: 0.3
     stop-opt-out-rate: 0.05
+  zalo:
+    auto:
+      # Bộ nối Zalo không chính thức (D16, docs/ADR-0002). MẶC ĐỊNH TẮT. Muốn bật cần CẢ HAI: biến môi trường này VÀ chọn nấc ở
+      # trang quản trị "Zalo tài khoản phụ". Chạy cùng profile Docker "zalo-auto" (dịch vụ zalo-bridge).
+      enabled: ${APP_ZALO_AUTO_ENABLED:false}
+      bridge-url: ${APP_ZALO_BRIDGE_URL:http://zalo-bridge:3100}
+      # Khóa chung giữa Adh và dịch vụ cầu nối (bắt buộc khi bật; ứng dụng không khởi động nếu để trống).
+      bridge-key: ${APP_ZALO_BRIDGE_KEY:}
+      # Trần cứng của số người thêm mỗi ngày; trang quản trị chỉ chỉnh được đến mức này. Mặc định 50/ngày, 5/giờ, cách nhau 2 phút.
+      max-daily: ${APP_ZALO_AUTO_MAX_DAILY:100}
   bot:
     # Mẹ vừa trả lời trong nhóm thì bot im lặng bao nhiêu phút (tránh trả lời trùng).
     human-quiet-minutes: 30

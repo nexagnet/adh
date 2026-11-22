@@ -231,7 +231,7 @@ Nếu sau này chủ shop có OA/ZBS và chọn GMF (mục 2.1, 2.2; ADR-0001 ch
 
 **1I.8 Không thuộc mốc này:** tự động gửi tin, tự kết bạn, bộ gửi SMS/ZBS (D9), bot trong nhóm (1E), khách `REPEAT`. (Tự thêm khách đã kết bạn vào nhóm và đăng nhập tài khoản phụ **chỉ** thuộc bộ nối D16 ở 1I.9, mặc định tắt.)
 
-**1I.9 Bộ nối Zalo không chính thức (D16) — CHỈ GHI KIẾN TRÚC, CHƯA CODE**
+**1I.9 Bộ nối Zalo không chính thức (D16) — ĐANG CODE THEO GIAI ĐOẠN (tiến độ và quyết định khi code: ADR-0002 mục 10)**
 Chi tiết, khảo sát thư viện và mức kiểm chứng: `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md`. Tóm tắt:
 - **Thư viện:** `zca-js` (npm, MIT, 2.3.0, ghim phiên bản; không dùng fork/bản đăng lại). Là mã Node nên chạy thành **dịch vụ riêng `zalo-bridge`** (Docker profile `zalo-auto`, không khởi động mặc định), Adh (Java) gọi qua giao diện `ZaloGateway`; bản mặc định `ManualZaloGateway` không làm gì (giữ D13/D15 tay).
 - **Bộ nối chỉ có ba việc:** trạng thái; đọc sự kiện kết bạn (`friend_event` loại `ADD`); thêm **một** người vào **một** nhóm. **Không có** gửi tin, gửi lời mời kết bạn, tra số hàng loạt.
