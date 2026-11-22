@@ -26,7 +26,7 @@ Mã nguồn trên nhánh `main` của `nexagnet/adh`, đã gộp các PR #3, #4,
 | 1G | Phân vùng khách Bắc/Trung/Nam theo địa chỉ, nhóm Zalo theo khu vực | Xong (PR #4) |
 | 1H | Bản đồ khách theo tỉnh `/map` + nhắc việc thời tiết | Xong (PR #5) |
 | Giao diện Penpot | Làm lại giao diện theo thiết kế đã duyệt | **Đã code** (PR #8 thanh bên + việc hôm nay; PR kế tiếp: thuật ngữ tiếng Việt, chi tiết khách 2 cột, chiến dịch, giấy in A5, `/n`). Chưa xem bằng mắt trên trình duyệt thật (xem mục 9) |
-| 1I | Kết bạn → vào nhóm ngay (D15, D16) | **Mới ghi phạm vi và kiến trúc (22/11/2026), CHƯA CODE.** Đặc tả ở file 03 mục 1I; câu hỏi mở Q1–Q7 và Q8 chờ chủ shop (Q9, Q10 đã trả lời). **D16:** bộ nối Zalo không chính thức (`zca-js`) tùy chọn, mặc định tắt, thiết kế ở `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md`; phải chạy thử trước khi code |
+| 1I | Kết bạn → vào nhóm ngay (D15, D16) | **Mới ghi phạm vi và kiến trúc (22/11/2026), CHƯA CODE.** Đặc tả ở file 03 mục 1I; câu hỏi mở Q1–Q7 chờ chủ shop; D16: Q8–Q10 đã trả lời trừ "ai quét QR khi phiên hết hạn". **D16:** bộ nối Zalo không chính thức (`zca-js`) tùy chọn, mặc định tắt, thiết kế ở `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md`; phải chạy thử trước khi code |
 | 2F | Đồng bộ đơn mới từ J&T | Phương án A đã code (PR #9): nhập nhiều file, gộp theo mã vận đơn, Địa chỉ hành chính, trạng thái J&T, nhắc nhập file. **Chưa chạy với file J&T thật.** Cổng nạp chung `ShipmentIngest` chưa làm (chưa có nguồn thứ hai) |
 
 ### PR và nhánh
@@ -150,7 +150,7 @@ Công tắc trên giao diện: **Tạm dừng tất cả chiến dịch** (`/cam
 6. **SMS**: khi nào làm lại, nhà cung cấp nào (eSMS/SpeedSMS), cá nhân chưa có hộ kinh doanh có đăng ký brandname được không.
 7. **J&T**: xem mục 8.
 8. **D15, D16 (kết bạn → vào nhóm ngay)**: trả lời Q1–Q7 ở file 03 mục 1I.6 (quan trọng nhất: Q1 ai là người thêm khách vào nhóm, Q2 cách báo khách trong tin đầu, Q3 khi chưa có nhóm khu vực).
-9. **D16 (bộ nối Zalo không chính thức)**: còn mở **Q8** (dừng ở `CONFIRM` hay `AUTO`; tạm giữ `CONFIRM`). Đã trả lời 22/11/2026: **Q9** hạn mức 50 người/ngày rải từ sáng đến tối, chỉnh được trên giao diện (có trần cứng cấu hình, mặc định 100); **Q10** chấp nhận mất tài khoản phụ nếu bị khóa. Xem `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md` mục 8.
+9. **D16 (bộ nối Zalo không chính thức)**: còn mở: **ai quét QR đăng nhập khi phiên hết hạn**. Đã trả lời 22/11/2026: **Q8** chọn `AUTO` (bật bằng công tắc trên giao diện, **mặc định `CONFIRM`** đến khi chạy thử xong các điểm chưa kiểm chứng); **Q9** hạn mức 50 người/ngày rải từ sáng đến tối, chỉnh được trên giao diện (có trần cứng cấu hình, mặc định 100); **Q10** chấp nhận mất tài khoản phụ nếu bị khóa. Xem `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md` mục 8.
 
 ---
 
