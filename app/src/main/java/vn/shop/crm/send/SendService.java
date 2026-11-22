@@ -4,6 +4,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import vn.shop.crm.common.ImportException;
 import vn.shop.crm.common.AppSettings;
 import vn.shop.crm.common.PhoneHash;
 import vn.shop.crm.common.PhoneNormalizer;
@@ -44,6 +46,7 @@ public class SendService {
         DISABLED("Gửi thật đang TẮT (cấu hình app.sending.enabled)"),
         OUTSIDE_WINDOW("Ngoài giờ được phép gửi"),
         DAILY_LIMIT("Đã đạt hạn mức gửi trong ngày"),
+        HOURLY_LIMIT("Đã đạt hạn mức gửi trong giờ vừa qua"),
         BUDGET("Đã đạt trần ngân sách tháng");
 
         private final String label;
@@ -83,7 +86,40 @@ public class SendService {
 
     public record Status(boolean enabled, boolean paused, String pausedReason, int sentToday, int dailyLimit,
                          long monthSpend, long monthlyBudget, LocalTime windowStart, LocalTime windowEnd,
-                         LocalDateTime nextAt, List<LogRow> recent) {
+                         LocalDateTime nextAt, List<LogRow> recent, int sentThisHour, int hourlyLimit,
+                         int suggestedGapMinutes) {
+    }
+
+    /** Kênh ghi vào nhật ký khi người nhắn tay bằng tài khoản Zalo phụ bấm "Đã nhắn" (hệ thống không tự gửi). */
+    public static final String CHANNEL_ZALO_PHU = "ZALO_PHU";
+
+    /**
+     * "Lô nhắn hôm nay": những lời mời hệ thống GỢI Ý nhắn ngay lúc này, đủ cho hạn mức còn lại trong ngày và trong giờ.
+     * Người thật nhắn tay rồi bấm "Đã nhắn"; hệ thống không gửi gì.
+     */
+    public record Today(boolean paused, String pausedReason, boolean outsideWindow, LocalTime windowStart,
+                        LocalTime windowEnd, int sentToday, int dailyLimit, int sentThisHour, int hourlyLimit,
+                        int allowedNow, LocalDateTime nextSuggestedAt, int suggestedGapMinutes, long readyTotal,
+                        List<Long> invitationIds) {
+        /** Lý do chưa có ai để nhắn, bằng tiếng Việt; rỗng nếu có người. */
+        public String emptyReason() {
+            if (paused) {
+                return "Đang tạm dừng tất cả chiến dịch.";
+            }
+            if (outsideWindow) {
+                return "Ngoài giờ nhắn (" + windowStart + " đến " + windowEnd + "). Mời quay lại trong giờ.";
+            }
+            if (sentToday >= dailyLimit) {
+                return "Hôm nay đã đủ hạn mức (" + dailyLimit + " tin). Mai nhắn tiếp.";
+            }
+            if (hourlyLimit > 0 && sentThisHour >= hourlyLimit) {
+                return "Giờ này đã đủ hạn mức (" + hourlyLimit + " tin trong 60 phút). Nghỉ chút rồi nhắn tiếp.";
+            }
+            if (invitationIds.isEmpty()) {
+                return "Không còn khách nào chưa nhắn trong chiến dịch.";
+            }
+            return "";
+        }
     }
 
     private record Candidate(long id, long campaignId, long customerId, String phone, String name, String token,
@@ -225,6 +261,97 @@ public class SendService {
         return new BatchResult(sent, failed, skipped, dry, stopped, auto, false, delivered);
     }
 
+
+    // ---------- lô nhắn hôm nay (người thật nhắn tay bằng tài khoản Zalo phụ) ----------
+
+    /**
+     * Danh sách gợi ý để nhắn ngay lúc này: không quá hạn mức còn lại của ngày và của giờ, chỉ trong giờ nhắn,
+     * chỉ khi không tạm dừng. {@code campaignId} rỗng = mọi chiến dịch (hạn mức ngày dùng chung cho tất cả).
+     * Nhịp nghỉ chỉ là gợi ý hiển thị (cách nhau ít nhất {@code suggestedGapMinutes} phút), không ép buộc.
+     */
+    public Today today(Long campaignId) {
+        LocalTime now = LocalTime.now(clock);
+        boolean outside = now.isBefore(props.windowStart()) || !now.isBefore(props.windowEnd());
+        boolean paused = settings.paused();
+        int sentToday = sentToday();
+        int sentHour = sentLastHour();
+        int allowed = Math.max(0, props.dailyLimit() - sentToday);
+        if (props.hourlyLimit() > 0) {
+            allowed = Math.min(allowed, Math.max(0, props.hourlyLimit() - sentHour));
+        }
+        if (paused || outside) {
+            allowed = 0;
+        }
+        String scope = campaignId == null ? "" : " AND i.campaign_id = :camp";
+        long readyTotal = bindCamp(jdbc.sql("SELECT count(*) FROM invitation i WHERE i.status = 'READY'" + scope), campaignId)
+                .query(Long.class).single();
+        List<Long> ids = new ArrayList<>();
+        if (allowed > 0) {
+            List<Candidate> candidates = bindCamp(jdbc.sql(CANDIDATE_SELECT + " WHERE i.status = 'READY'" + scope
+                    + " ORDER BY i.campaign_id, i.id LIMIT :limit"), campaignId)
+                    .param("limit", allowed * 3 + 10).query((rs, n) -> candidate(rs)).list();
+            for (Candidate c : candidates) {
+                if (ids.size() >= allowed) {
+                    break;
+                }
+                if (c.expiresAt().isBefore(OffsetDateTime.now(clock)) || !contacts.stillEligible(c.customerId())) {
+                    continue;
+                }
+                ids.add(c.id());
+            }
+        }
+        LocalDateTime next = null;
+        OffsetDateTime last = jdbc.sql("SELECT max(recorded_at) FROM send_log WHERE outcome = 'SENT'")
+                .query(OffsetDateTime.class).optional().orElse(null);
+        if (last != null) {
+            LocalDateTime t = last.plusMinutes(props.suggestedGapMinutes()).atZoneSameInstant(clock.getZone())
+                    .toLocalDateTime();
+            if (t.isAfter(LocalDateTime.now(clock))) {
+                next = t;
+            }
+        }
+        return new Today(paused, settings.pausedReason(), outside, props.windowStart(), props.windowEnd(), sentToday,
+                props.dailyLimit(), sentHour, props.hourlyLimit(), allowed, next, props.suggestedGapMinutes(),
+                readyTotal, ids);
+    }
+
+    private static JdbcClient.StatementSpec bindCamp(JdbcClient.StatementSpec spec, Long campaignId) {
+        return campaignId == null ? spec : spec.param("camp", campaignId);
+    }
+
+    /**
+     * Người nhắn tay bấm "Đã nhắn" sau khi đã nhắn xong cho khách này bằng tài khoản Zalo phụ. Đây là GHI NHẬN việc đã
+     * xảy ra nên không chặn theo hạn mức hay giờ (chặn thì tin đã gửi mà hệ thống không biết, có thể nhắn lần nữa);
+     * hạn mức chỉ quyết định hệ thống gợi ý ai ở {@link #today}. Vẫn từ chối khách không còn đủ điều kiện liên hệ.
+     */
+    @Transactional
+    public void markMessaged(long invitationId) {
+        Candidate c = jdbc.sql(CANDIDATE_SELECT + " WHERE i.id = :id").param("id", invitationId)
+                .query((rs, n) -> candidate(rs)).optional()
+                .orElseThrow(() -> new ImportException("Không tìm thấy lời mời."));
+        if (!contacts.stillEligible(c.customerId())) {
+            throw new ImportException("Khách này không còn đủ điều kiện liên hệ (đã từ chối, bị chặn hoặc bị xóa). "
+                    + "Đừng nhắn khách này.");
+        }
+        int claimed = jdbc.sql("""
+                        UPDATE invitation SET status = 'SENT', sent_at = :at, sent_channel = :ch
+                        WHERE id = :id AND status = 'READY'""")
+                .param("at", OffsetDateTime.now(clock)).param("ch", CHANNEL_ZALO_PHU).param("id", invitationId).update();
+        if (claimed == 0) {
+            String current = jdbc.sql("SELECT status FROM invitation WHERE id = :id").param("id", invitationId)
+                    .query(String.class).optional().orElse("");
+            throw new ImportException(switch (current) {
+                case "CANCELLED" -> "Lời mời này đã bị hủy, không nhắn khách này.";
+                case "FAILED" -> "Lời mời này đã bị đánh dấu lỗi, không đánh dấu nhắn được.";
+                default -> "Khách này đã được đánh dấu nhắn rồi (mỗi khách chỉ nhắn một lần).";
+            });
+        }
+        log(c, CHANNEL_ZALO_PHU, "SENT", "Nhắn tay bằng tài khoản Zalo phụ", 0);
+        contacts.event(c.customerId(), c.phone(), "INVITATION_SENT",
+                "Kênh: " + vn.shop.crm.common.Labels.channelLabel(CHANNEL_ZALO_PHU));
+        evaluateAutoStop();
+    }
+
     // ---------- cổng chặn ----------
 
     /** Lý do KHÔNG được gửi ngay lúc này; rỗng nghĩa là được phép. */
@@ -244,6 +371,9 @@ public class SendService {
         if (sender.realDelivery()) {
             if (sentToday() >= props.dailyLimit()) {
                 return Optional.of(StopReason.DAILY_LIMIT);
+            }
+            if (props.hourlyLimit() > 0 && sentLastHour() >= props.hourlyLimit()) {
+                return Optional.of(StopReason.HOURLY_LIMIT);
             }
             if (sender.costPerMessageVnd() > 0
                     && monthSpend() + sender.costPerMessageVnd() > props.monthlyBudgetVnd()) {
@@ -298,6 +428,12 @@ public class SendService {
         return (int) count("SELECT count(*) FROM send_log WHERE outcome = 'SENT' AND recorded_at >= :t", start);
     }
 
+    /** Số tin đã gửi trong 60 phút gần nhất. */
+    public int sentLastHour() {
+        return (int) count("SELECT count(*) FROM send_log WHERE outcome = 'SENT' AND recorded_at > :t",
+                OffsetDateTime.now(clock).minusHours(1));
+    }
+
     public long monthSpend() {
         OffsetDateTime start = OffsetDateTime.now(clock).toLocalDate().withDayOfMonth(1)
                 .atStartOfDay(clock.getZone()).toOffsetDateTime();
@@ -318,7 +454,8 @@ public class SendService {
                 .list();
         return new Status(props.enabled(), settings.paused(), settings.pausedReason(), sentToday(),
                 props.dailyLimit(), monthSpend(), props.monthlyBudgetVnd(), props.windowStart(), props.windowEnd(),
-                next.map(t -> LocalDateTime.ofInstant(t, clock.getZone())).orElse(null), recent);
+                next.map(t -> LocalDateTime.ofInstant(t, clock.getZone())).orElse(null), recent,
+                sentLastHour(), props.hourlyLimit(), props.suggestedGapMinutes());
     }
 
     private long count(String sql, OffsetDateTime t) {
@@ -326,12 +463,16 @@ public class SendService {
     }
 
     private void log(Candidate c, InvitationSender sender, String outcome, String reason, int cost) {
+        log(c, sender.channel(), outcome, reason, cost);
+    }
+
+    private void log(Candidate c, String channel, String outcome, String reason, int cost) {
         jdbc.sql("""
                         INSERT INTO send_log (invitation_id, campaign_id, customer_id, phone_tail, channel, outcome,
                                               reason, cost_vnd, template_sha, recorded_by, recorded_at)
                         VALUES (:inv, :camp, :cust, :tail, :ch, :outcome, :reason, :cost, :sha, :by, :at)""")
                 .param("inv", c.id()).param("camp", c.campaignId()).param("cust", c.customerId())
-                .param("tail", PhoneHash.tail(c.phone())).param("ch", sender.channel()).param("outcome", outcome)
+                .param("tail", PhoneHash.tail(c.phone())).param("ch", channel).param("outcome", outcome)
                 .param("reason", reason).param("cost", cost).param("sha", sha(c.template()))
                 .param("by", ContactService.actor()).param("at", OffsetDateTime.now(clock)).update();
     }

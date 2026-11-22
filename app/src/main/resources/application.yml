@@ -72,6 +72,8 @@ app:
   invitations:
     # Mỗi lô mời tối đa bao nhiêu khách (gửi chậm, theo lô nhỏ).
     max-batch: 20
+    # Một chiến dịch theo khu vực có thể gồm nhiều khách hơn một lô; mỗi ngày chỉ nhắn theo hạn mức ngày/giờ (mục Lô nhắn hôm nay).
+    max-campaign: 300
     # Tỷ lệ giả định khách bấm rồi vào nhóm, CHỈ dùng để chia nhóm; không phải số người thật.
     assumed-accept-rate: 0.5
   sending:
@@ -81,7 +83,11 @@ app:
     enabled: ${APP_SENDING_ENABLED:false}
     window-start: "07:00"
     window-end: "22:00"
-    daily-limit: 20
+    daily-limit: ${APP_SENDING_DAILY_LIMIT:20}
+    # Tối đa bao nhiêu tin trong 60 phút gần nhất; 0 = không giới hạn theo giờ.
+    hourly-limit: ${APP_SENDING_HOURLY_LIMIT:6}
+    # Nhịp gợi ý khi nhắn tay: hai tin cách nhau ít nhất bấy nhiêu phút (chỉ hiển thị, không ép buộc).
+    suggested-gap-minutes: 3
     min-gap-seconds: 30
     max-gap-seconds: 120
     scheduler-enabled: false

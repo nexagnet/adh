@@ -79,10 +79,14 @@ public enum FieldKey {
     }
 
     private static boolean isSenderColumn(FieldKey field, String header) {
-        if (field != RECEIVER_PHONE && field != RECEIVER_NAME && field != RECEIVER_ADDRESS) {
+        if (field != RECEIVER_PHONE && field != RECEIVER_NAME && field != RECEIVER_ADDRESS && field != ADMIN_AREA) {
             return false;
         }
         String key = StatusKey.of(header);
-        return key.contains("nguoi gui") || key.contains("sender");
+        if (key.contains("nguoi gui") || key.contains("sender")) {
+            return true;
+        }
+        // "Tỉnh/Thành phố gửi", "Quận/Huyện gửi", "Địa chỉ gửi": nơi gửi hàng (cửa hàng), không phải nơi nhận.
+        return List.of(key.split(" ")).contains("gui");
     }
 }
