@@ -123,6 +123,24 @@ cp .env.example .env && chmod 600 .env     # sửa DB_PASSWORD, APP_ADMIN_PASSWO
 ```
   Chạy `caddy validate` rồi `systemctl reload caddy`. Chưa có tên miền thì KHÔNG mở ra ngoài và KHÔNG in giấy QR: hồ sơ `prod` đặt cookie đăng nhập chỉ qua HTTPS nên truy cập bằng IP/HTTP sẽ không giữ được phiên.
 
+### 2c. Tự cập nhật bằng cron (máy chủ dùng chung)
+`infra/auto-deploy.sh` thay cho việc gõ tay `./deploy.sh deploy`: mỗi lượt cron hỏi GitHub commit mới nhất của `main` và **chỉ triển khai khi** (1) workflow `ci` của đúng commit đó đã xanh, (2) ảnh `ghcr.io/nexagnet/adh-app:<commit>` đã có trên ghcr, (3) RAM trống ≥ 250 MB và đĩa trống ≥ 1500 MB, (4) bản đang chạy đang khỏe. Việc triển khai thật vẫn là `deploy.sh deploy <commit>`: sao lưu cơ sở dữ liệu **trước** khi ứng dụng mới chạy migration (sao lưu lỗi thì dừng, không đổi gì), chờ ứng dụng khỏe tối đa 3 phút, không khỏe thì lùi ảnh về thẻ trước. Không đụng container hay ảnh của dự án khác; chỉ dọn ảnh `adh-app` cũ (giữ thẻ đang chạy và thẻ trước).
+- **Khóa:** `flock` trên `infra/.auto-deploy.lock`; lượt trước chưa xong thì lượt sau thoát im lặng. **Không chạy lần triển khai đầu tiên:** phải có `.current-tag` do `./deploy.sh deploy` tạo bằng tay.
+- **Lỗi:** bản đã khởi động rồi mà không khỏe (đã lùi) bị **chặn, không thử lại** vì migration có thể đã chạy một phần; lỗi tạm (mạng, kéo ảnh) thử lại tối đa 3 lượt. Có commit mới thì tự thử bản mới; muốn thử lại cùng commit: `./auto-deploy.sh unblock`.
+- **Lưu ý cơ sở dữ liệu:** lùi ảnh KHÔNG lùi migration Flyway. Nếu bản mới đã đổi cấu trúc rồi mới hỏng, bản cũ có thể không chạy được với cấu trúc mới; log ghi đường dẫn bản sao lưu trước khi cập nhật để khôi phục (mục 4 và `infra/restore-test.sh`). Việc khôi phục này làm bằng tay, script không tự khôi phục vì sẽ mất dữ liệu ghi sau lúc sao lưu.
+- **Log:** `infra/auto-deploy.log` (tự cắt khi quá 1 MB); chỉ ghi khi trạng thái đổi, kèm RAM/swap/đĩa và bộ nhớ từng container `adh` trước và sau mỗi lần triển khai. Xem nhanh: `./auto-deploy.sh status`.
+- **Tạm dừng / bật lại:** `./auto-deploy.sh pause` và `./auto-deploy.sh resume` (cron vẫn chạy nhưng không làm gì khi đang tạm dừng). Thử không đổi gì: `./auto-deploy.sh --dry-run`.
+- **Cài (người có quyền trên máy chủ làm, sau khi đã deploy tay lần đầu thành công):**
+```bash
+cd ~/adh/infra && git pull
+./auto-deploy.sh --dry-run          # xem nó sẽ quyết định gì, không đổi gì
+crontab -e                          # thêm MỘT dòng (10 phút một lần, ưu tiên thấp cho máy nhỏ):
+*/10 * * * * nice -n 10 ionice -c 3 /home/ubuntu/adh/infra/auto-deploy.sh >/dev/null 2>&1
+```
+  Muốn chỉ cập nhật ban đêm (ít khách dùng, ứng dụng ngừng khoảng 1 phút khi khởi động lại): đổi `*/10 * * * *` thành `*/10 1-4 * * *`. Người chạy cron phải chạy được `docker` (thuộc nhóm docker, hoặc `sudo` không hỏi mật khẩu cho docker) và ghi được vào `infra/` và `BACKUP_DIR`. Repo công khai nên không cần token; nếu repo riêng tư, đặt `ADH_AUTO_GITHUB_TOKEN` (quyền đọc Actions) trong `infra/.env` (chmod 600). Muốn được báo khi có lỗi: đặt `ADH_AUTO_NOTIFY_CMD` trong dòng cron (lệnh nhận nội dung ở tham số cuối), nếu không thì xem `status`/log.
+- **Gỡ:** xóa dòng cron (`crontab -e`) hoặc `./auto-deploy.sh pause`.
+- **Thử script (không cần Docker):** `infra/test-auto-deploy.sh` dùng `git`, `curl`, `docker`, `deploy.sh` giả.
+
 ### 3. Cập nhật phiên bản
 ```bash
 cd adh && git pull && cd infra
