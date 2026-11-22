@@ -7,3 +7,8 @@
 .env.*
 !.env.example
 /zalo-bridge/node_modules/
+# Trạng thái và log do infra/auto-deploy.sh tạo trên máy chủ
+/infra/.auto-*
+/infra/.current-tag
+/infra/.previous-tag
+/infra/auto-deploy.log*
