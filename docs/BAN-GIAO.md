@@ -166,7 +166,7 @@ Việc giao diện Penpot, bộ nhập J&T, bản đồ, phân vùng, D13 và b�
 
 **A. Còn phải CODE, không cần chờ ai quyết**
 1. ~~Đường bán tự động D15~~ **Đã code (22/11/2026)**: gợi ý nhóm khi bấm *Đã kết bạn*, nút gộp, giữ chỗ 24 giờ, nhắc quá hạn 2 ngày và "không phản hồi" 14 ngày, "chờ nhóm", khách rời nhóm, trang Chờ vào nhóm. Còn phải **thử với khách thật**.
-2. Việc nhỏ còn sót: chọn nhóm khác nhóm gợi ý khi đánh dấu *Đã vào nhóm*; xuất Excel có cột nhóm gợi ý; "Khách đổi nhóm" ở màn xem trước nhập file; cảnh báo khi file J&T đúng 500 dòng.
+2. ~~Việc nhỏ còn sót~~ **Đã code (22/11/2026)**: chọn nhóm khác nhóm gợi ý khi đánh dấu *Đã vào nhóm* (ô chọn nhóm ở trang chiến dịch và trang Chờ vào nhóm); file xuất gửi tay có thêm cột `khu_vuc` và `nhom_goi_y` (không có link nhóm); "Khách đổi nhóm" (mua 1 lần ↔ từ 2 lần) hiện ở màn *Đã nhập xong* (đếm sau khi nhập, lưu ở `import_batch.segment_changes`, V20); cảnh báo đỏ ở màn xem trước khi file J&T có đúng 500 dòng.
 3. Workflow CI build ảnh Docker cho `zalo-bridge` (hiện chỉ ảnh ứng dụng; compose dùng `build:` cục bộ).
 4. Sau lần chạy thử Zalo thật đầu tiên: thêm mã lỗi đã thấy vào `ZALO_PERSON_ERROR_CODES` (ADR-0002 mục 10 điểm 5).
 
@@ -238,7 +238,7 @@ Chỉ khi người dùng **hiểu rủi ro và đồng ý rõ ràng bằng lời
 
 ## 9. Giao diện Penpot đã duyệt (đã code, chưa xem bằng mắt)
 
-> Cập nhật: các mục (a)–(e) của mục 7.1 đã code. Còn thiếu: cách báo việc cho mẹ (đã chọn Zalo, chưa code; không làm hai tài khoản Bố/Mẹ theo D17), xem thử bằng trình duyệt thật và in thử giấy A5, "Khách đổi nhóm" ở màn xem trước nhập file. Giấy in mặc định A5; chữ mặc định theo kiểu "anh/chị" (đổi được ở trang In giấy giới thiệu).
+> Cập nhật: các mục (a)–(e) của mục 7.1 đã code. Còn thiếu: cách báo việc cho mẹ (đã chọn Zalo, chưa code; không làm hai tài khoản Bố/Mẹ theo D17), xem thử bằng trình duyệt thật và in thử giấy A5. Giấy in mặc định A5; chữ mặc định theo kiểu "anh/chị" (đổi được ở trang In giấy giới thiệu).
 
 - Người dùng **đã duyệt** thiết kế (21/11/2026) và dặn "sửa xong Penpot thì code luôn".
 - Bản sao trong repo: `docs/thiet-ke-penpot/`

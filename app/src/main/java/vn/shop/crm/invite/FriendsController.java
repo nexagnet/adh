@@ -25,6 +25,7 @@ public class FriendsController {
         model.addAttribute("overdueDays", invites.overdueDays());
         model.addAttribute("noReplyDays", invites.noReplyDays());
         model.addAttribute("reserveHours", invites.reserveHours());
+        model.addAttribute("joinGroups", invites.joinableGroups());
         return "friends";
     }
 }

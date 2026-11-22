@@ -405,6 +405,22 @@ public class InviteService {
                 }).list();
     }
 
+    /** Tên tỉnh của mã tỉnh (rỗng nếu chưa rõ khu vực). */
+    public String areaLabel(String provinceCode) {
+        return vn.shop.crm.geo.VnGeo.byCode(provinceCode).map(vn.shop.crm.geo.Province::name).orElse("");
+    }
+
+    /** Tên nhóm nên thêm vào cho khách ở tỉnh này (chỉ đọc, không giữ chỗ); rỗng nếu chưa có nhóm hợp. */
+    public Optional<String> suggestGroupName(String provinceCode) {
+        return groups.pickGroup(vn.shop.crm.geo.VnGeo.byCode(provinceCode).orElse(null)).map(GroupService.Group::name);
+    }
+
+    /** Các nhóm mẹ có thể chọn khi báo "đã vào nhóm" (đang nhận hoặc tạm dừng, đã có link): mẹ đã thêm khách thật vào đó. */
+    public List<GroupService.Group> joinableGroups() {
+        return groups.list().stream().filter(g -> g.hasLink() && (g.status() == GroupStatus.OPEN || g.status() == GroupStatus.PAUSED))
+                .toList();
+    }
+
     /** Khách đã kết bạn quá {@code overdueDays} ngày mà chưa vào nhóm (R6). Chỉ là nhắc trên web, không nhắn khách. */
     private boolean isOverdue(String status, OffsetDateTime friendedAt) {
         return "FRIENDED".equals(status) && friendedAt != null
@@ -530,11 +546,17 @@ public class InviteService {
      */
     @Transactional
     public void markFriendedAndJoined(long invitationId) {
+        markFriendedAndJoined(invitationId, null);
+    }
+
+    /** Như trên, người gửi chọn đúng nhóm đã thêm khách vào ({@code null} = nhóm gợi ý). */
+    @Transactional
+    public void markFriendedAndJoined(long invitationId, Long chosenGroupId) {
         StepRow r = stepRow(invitationId);
         if (List.of("SENT", "CLICKED").contains(r.status())) {
             markFriended(invitationId);
         }
-        markJoined(invitationId);
+        markJoined(invitationId, chosenGroupId);
     }
 
     /**
@@ -595,9 +617,28 @@ public class InviteService {
      */
     @Transactional
     public void markJoined(long invitationId) {
+        markJoined(invitationId, null);
+    }
+
+    /**
+     * Như {@link #markJoined(long)}, nhưng người gửi chọn đúng nhóm mình đã thêm khách vào ({@code chosenGroupId}), khác
+     * nhóm gợi ý. Nhóm phải có link và đang nhận hoặc tạm dừng; không kiểm khu vực hay chỗ trống vì khách ĐÃ ở trong nhóm đó
+     * thật (người gửi quyết). {@code null} = dùng nhóm gợi ý như thường.
+     */
+    @Transactional
+    public void markJoined(long invitationId, Long chosenGroupId) {
         StepRow r = stepRow(invitationId);
         if (!List.of("SENT", "CLICKED", "FRIENDED").contains(r.status())) {
             throw new ImportException("Chỉ đánh dấu \"đã vào nhóm\" cho khách đã được nhắn và chưa bị hủy.");
+        }
+        if (chosenGroupId != null) {
+            GroupService.Group chosen = groups.find(chosenGroupId)
+                    .filter(g -> g.hasLink() && (g.status() == GroupStatus.OPEN || g.status() == GroupStatus.PAUSED))
+                    .orElseThrow(() -> new ImportException("Nhóm đã chọn không còn dùng được (đã đóng hoặc chưa có link). Hãy tải lại trang."));
+            jdbc.sql("SELECT 1 FROM (SELECT pg_advisory_xact_lock(:k)) AS locked").param("k", GROUP_PICK_LOCK)
+                    .query(Integer.class).single();
+            finishJoin(invitationId, r, chosen, "đánh dấu tay, người gửi chọn nhóm");
+            return;
         }
         jdbc.sql("SELECT 1 FROM (SELECT pg_advisory_xact_lock(:k)) AS locked").param("k", GROUP_PICK_LOCK)
                 .query(Integer.class).single();

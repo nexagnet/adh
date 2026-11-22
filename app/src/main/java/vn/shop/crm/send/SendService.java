@@ -123,7 +123,7 @@ public class SendService {
     }
 
     private record Candidate(long id, long campaignId, long customerId, String phone, String name, String token,
-                             OffsetDateTime expiresAt, String template) {
+                             OffsetDateTime expiresAt, String template, String province) {
     }
 
     private final JdbcClient jdbc;
@@ -183,14 +183,14 @@ public class SendService {
     }
 
     private static final String CANDIDATE_SELECT = """
-            SELECT i.id, i.campaign_id, i.customer_id, c.phone, c.name, i.token, i.expires_at, k.message_template
+            SELECT i.id, i.campaign_id, i.customer_id, c.phone, c.name, c.province, i.token, i.expires_at, k.message_template
             FROM invitation i JOIN customer c ON c.id = i.customer_id
             JOIN invitation_campaign k ON k.id = i.campaign_id""";
 
     private static Candidate candidate(java.sql.ResultSet rs) throws java.sql.SQLException {
         return new Candidate(rs.getLong("id"), rs.getLong("campaign_id"), rs.getLong("customer_id"),
                 rs.getString("phone"), rs.getString("name"), rs.getString("token"),
-                rs.getObject("expires_at", OffsetDateTime.class), rs.getString("message_template"));
+                rs.getObject("expires_at", OffsetDateTime.class), rs.getString("message_template"), rs.getString("province"));
     }
 
     private BatchResult process(List<Candidate> candidates, InvitationSender sender) {
@@ -217,7 +217,8 @@ public class SendService {
                 continue;
             }
             OutboundInvite invite = new OutboundInvite(c.id(), c.customerId(), c.phone(), c.name(),
-                    invites.render(c.template(), c.name(), invites.linkFor(c.token())));
+                    invites.render(c.template(), c.name(), invites.linkFor(c.token())),
+                    invites.areaLabel(c.province()), invites.suggestGroupName(c.province()).orElse(""));
             if (!sender.realDelivery()) {
                 log(c, sender, "DRY_RUN", "Chạy thử: sẽ gửi", 0);
                 delivered.add(invite);
@@ -493,11 +494,15 @@ public class SendService {
         return s.length() > 200 ? s.substring(0, 200) : s;
     }
 
-    /** CSV cho mẹ gửi tay: số điện thoại (dạng 09...), tên, nội dung tin đã ghép sẵn link riêng. */
+    /**
+     * CSV cho mẹ gửi tay: số điện thoại (dạng 09...), tên, nội dung tin đã ghép sẵn link riêng, khu vực của khách và nhóm
+     * Zalo nên thêm vào nếu khách kết bạn (gợi ý, mẹ vẫn chọn lại được ở trang chiến dịch).
+     */
     public static byte[] exportCsv(List<OutboundInvite> invites) {
         List<List<String>> rows = invites.stream()
-                .map(i -> List.of(PhoneNormalizer.toDisplay(i.phone()).replaceAll("\\s", ""), i.name() == null ? "" : i.name(), i.message()))
+                .map(i -> List.of(PhoneNormalizer.toDisplay(i.phone()).replaceAll("\\s", ""), i.name() == null ? "" : i.name(), i.message(),
+                        i.area() == null ? "" : i.area(), i.groupName() == null ? "" : i.groupName()))
                 .toList();
-        return vn.shop.crm.common.CsvOut.write(List.of("so_dien_thoai", "ten", "noi_dung_tin"), rows);
+        return vn.shop.crm.common.CsvOut.write(List.of("so_dien_thoai", "ten", "noi_dung_tin", "khu_vuc", "nhom_goi_y"), rows);
     }
 }
