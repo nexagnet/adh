@@ -160,6 +160,15 @@ class TodayQueueTest extends AbstractPostgresTest {
     }
 
     @Test
+    void loiMoiDaHuyBaoDungLyDoKhongNoiLaDaNhan() {
+        SendService send = service(5, 5);
+        long inv = send.today(null).invitationIds().get(0);
+        jdbc.sql("UPDATE invitation SET status = 'CANCELLED' WHERE id = :i").param("i", inv).update();
+        assertThatThrownBy(() -> send.markMessaged(inv)).isInstanceOf(ImportException.class)
+                .hasMessageContaining("đã bị hủy");
+    }
+
+    @Test
     void khachDaTuChoiThiLoiMoiChuaNhanBiXoaVaKhongConTrongLo() {
         SendService send = service(5, 5);
         long inv = send.today(null).invitationIds().get(0);

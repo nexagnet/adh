@@ -338,7 +338,13 @@ public class SendService {
                         WHERE id = :id AND status = 'READY'""")
                 .param("at", OffsetDateTime.now(clock)).param("ch", CHANNEL_ZALO_PHU).param("id", invitationId).update();
         if (claimed == 0) {
-            throw new ImportException("Khách này đã được đánh dấu nhắn rồi (mỗi khách chỉ nhắn một lần).");
+            String current = jdbc.sql("SELECT status FROM invitation WHERE id = :id").param("id", invitationId)
+                    .query(String.class).optional().orElse("");
+            throw new ImportException(switch (current) {
+                case "CANCELLED" -> "Lời mời này đã bị hủy, không nhắn khách này.";
+                case "FAILED" -> "Lời mời này đã bị đánh dấu lỗi, không đánh dấu nhắn được.";
+                default -> "Khách này đã được đánh dấu nhắn rồi (mỗi khách chỉ nhắn một lần).";
+            });
         }
         log(c, CHANNEL_ZALO_PHU, "SENT", "Nhắn tay bằng tài khoản Zalo phụ", 0);
         contacts.event(c.customerId(), c.phone(), "INVITATION_SENT",
