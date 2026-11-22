@@ -22,7 +22,7 @@ jobs:
       matrix:
         include:
           - name: adh-app
-            context: ${{ matrix.context }}
+            context: app
           - name: adh-zalo-bridge
             context: zalo-bridge
     runs-on: ubuntu-24.04
