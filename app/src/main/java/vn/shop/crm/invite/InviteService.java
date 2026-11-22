@@ -31,7 +31,16 @@ public class InviteService {
             + "nhóm Zalo nhỏ để hướng dẫn sử dụng và giải đáp thắc mắc cho khách đã mua. Bạn không bắt buộc tham gia. "
             + "Nếu muốn, mời bạn bấm: {link}";
 
+    /**
+     * Tin gửi link nhóm cho khách ĐÃ đồng ý kết bạn (người gửi dán tay, hệ thống không tự gửi). Khách tự bấm link nếu muốn
+     * vào nhóm; không vào cũng không sao.
+     */
+    public static final String DEFAULT_GROUP_LINK_TEMPLATE = "Chào {ten}, cảm ơn bạn đã kết bạn với {cua_hang}. Mời bạn "
+            + "vào nhóm Zalo nhỏ của cửa hàng ({nhom}) để hỏi cách dùng sản phẩm. Bạn bấm vào link này nếu muốn tham gia: "
+            + "{link_nhom} . Không vào cũng không sao, và bạn có thể ra khỏi nhóm bất cứ lúc nào.";
+
     static final String SETTING_TEMPLATE = "invite.template";
+    static final String SETTING_GROUP_LINK_TEMPLATE = "invite.group-link-template";
     static final int MAX_TEMPLATE = 800;
 
     private static final ZoneId VN = ZoneId.of("Asia/Ho_Chi_Minh");
@@ -58,7 +67,8 @@ public class InviteService {
                                 int clickCount, LocalDateTime expiresAt, boolean expired, LocalDateTime sentAt,
                                 String sentChannel, String message, long groupId, String groupLink, boolean suggested,
                                 java.time.LocalDateTime friendedAt, java.time.LocalDateTime joinedAt,
-                                String provinceName, long campaignId, String campaignName) {
+                                String provinceName, long campaignId, String campaignName,
+                                String groupLinkMessage, LocalDateTime groupLinkSentAt, boolean autoHold) {
     }
 
     public record Stats(long campaigns, long invitations, long sent, long clicked, long openGroups) {
@@ -105,6 +115,24 @@ public class InviteService {
             throw new ImportException("Nội dung tin quá dài (tối đa " + MAX_TEMPLATE + " ký tự).");
         }
         settings.set(SETTING_TEMPLATE, tpl, ContactService.actor());
+    }
+
+    /** Mẫu tin gửi link nhóm cho khách đã kết bạn: chủ shop soạn ở trang Chiến dịch mời, chưa soạn thì dùng mẫu có sẵn. */
+    public String groupLinkTemplate() {
+        return settings.get(SETTING_GROUP_LINK_TEMPLATE).filter(t -> !t.isBlank()).orElse(DEFAULT_GROUP_LINK_TEMPLATE);
+    }
+
+    /** Lưu mẫu tin gửi link nhóm (để trống = dùng lại mẫu có sẵn). Phải có {link_nhom} hoặc {link}, không thì tin vô ích. */
+    public void saveGroupLinkTemplate(String template) {
+        String tpl = template == null ? "" : template.strip();
+        if (tpl.length() > MAX_TEMPLATE) {
+            throw new ImportException("Nội dung tin quá dài (tối đa " + MAX_TEMPLATE + " ký tự).");
+        }
+        if (!tpl.isEmpty() && !tpl.contains("{link_nhom}") && !tpl.contains("{link}")) {
+            throw new ImportException("Tin gửi link nhóm phải có {link_nhom} (link nhóm Zalo) hoặc {link} (link riêng của khách) "
+                    + "để khách có chỗ bấm.");
+        }
+        settings.set(SETTING_GROUP_LINK_TEMPLATE, tpl, ContactService.actor());
     }
 
     public int maxBatch() {
@@ -265,10 +293,12 @@ public class InviteService {
 
     private List<InvitationRow> loadRows(String where, Object param, String templateOverride) {
         List<GroupService.Group> allGroups = groups.list();
+        String linkTemplate = groupLinkTemplate();
         var spec = jdbc.sql("""
                         SELECT i.id, i.customer_id, c.name, c.phone, c.province, i.status, i.token, i.group_id,
                                g.name AS group_name, g.invite_link AS group_link,
                                i.click_count, i.expires_at, i.sent_at, i.sent_channel, i.friended_at, i.joined_at,
+                               i.group_link_sent_at, i.zalo_add_state,
                                k.id AS campaign_id, k.name AS campaign_name, k.message_template
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
                         JOIN invitation_campaign k ON k.id = i.campaign_id
@@ -295,6 +325,14 @@ public class InviteService {
                         }
                     }
                     String template = templateOverride != null ? templateOverride : rs.getString("message_template");
+                    LocalDateTime linkSentAt = local(rs.getObject("group_link_sent_at", OffsetDateTime.class));
+                    // Chỉ gợi ý tin link nhóm cho khách ĐÃ kết bạn, chưa vào nhóm, chưa được gửi link, và có nhóm còn chỗ có link.
+                    final long shownGroup = groupId;
+                    boolean groupOpen = allGroups.stream().anyMatch(g -> g.id() == shownGroup && g.status() == GroupStatus.OPEN && g.hasLink());
+                    String linkMessage = "FRIENDED".equals(status) && linkSentAt == null && groupName != null && groupOpen
+                            ? renderGroupLink(linkTemplate, rs.getString("name"), groupName, groupLink, link) : null;
+                    String addState = rs.getString("zalo_add_state");
+                    boolean autoHold = "WAITING_APPROVAL".equals(addState) || "QUEUED".equals(addState) || "FAILED".equals(addState);
                     return new InvitationRow(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("name"),
                             status, link, groupName, rs.getInt("click_count"),
                             local(exp), exp.isBefore(OffsetDateTime.now()),
@@ -303,7 +341,7 @@ public class InviteService {
                             local(rs.getObject("friended_at", OffsetDateTime.class)),
                             local(rs.getObject("joined_at", OffsetDateTime.class)),
                             province == null ? "Chưa rõ khu vực" : province.name(),
-                            rs.getLong("campaign_id"), rs.getString("campaign_name"));
+                            rs.getLong("campaign_id"), rs.getString("campaign_name"), linkMessage, linkSentAt, autoHold);
                 }).list();
     }
 
@@ -313,18 +351,29 @@ public class InviteService {
         return template.replace("{ten}", who).replace("{cua_hang}", shopName).replace("{link}", link);
     }
 
+    /**
+     * Ghép tin gửi link nhóm: {ten}, {cua_hang}, {nhom} (tên nhóm), {link_nhom} (link nhóm Zalo, khách bấm là vào) và
+     * {link} (link riêng /i/ của khách, có trang xin ngừng nhận tin). Không đưa SĐT/địa chỉ vào tin.
+     */
+    public String renderGroupLink(String template, String customerName, String groupName, String groupLink, String personalLink) {
+        return render(template, customerName, personalLink).replace("{nhom}", groupName).replace("{link_nhom}", groupLink);
+    }
+
     // ---------- đường nhắn bằng tài khoản Zalo phụ (D13): người gửi tay đánh dấu từng bước ----------
 
-    private record StepRow(long customerId, String phone, String status, Long groupId, String province, boolean clicked) {
+    private record StepRow(long customerId, String phone, String status, Long groupId, String province, boolean clicked,
+                           boolean linkSent) {
     }
 
     private StepRow stepRow(long invitationId) {
         return jdbc.sql("""
-                        SELECT i.customer_id, c.phone, i.status, i.group_id, c.province, i.first_clicked_at IS NOT NULL AS clicked
+                        SELECT i.customer_id, c.phone, i.status, i.group_id, c.province, i.first_clicked_at IS NOT NULL AS clicked,
+                               i.group_link_sent_at IS NOT NULL AS link_sent
                         FROM invitation i JOIN customer c ON c.id = i.customer_id WHERE i.id = :id""")
                 .param("id", invitationId)
                 .query((rs, n) -> new StepRow(rs.getLong("customer_id"), rs.getString("phone"), rs.getString("status"),
-                        (Long) rs.getObject("group_id"), rs.getString("province"), rs.getBoolean("clicked")))
+                        (Long) rs.getObject("group_id"), rs.getString("province"), rs.getBoolean("clicked"),
+                        rs.getBoolean("link_sent")))
                 .optional().orElseThrow(() -> new ImportException("Không tìm thấy lời mời."));
     }
 
@@ -347,6 +396,35 @@ public class InviteService {
     }
 
     /**
+     * Người gửi đã dán tin kèm link nhóm cho khách ĐÃ kết bạn để khách tự bấm vào nhóm. Chỉ ghi lại, không gửi gì.
+     * Ghi nhớ nhóm của link (để lần "Đã vào nhóm" sau tính đúng nhóm đó) và gỡ khách khỏi hàng thêm tự động của bộ nối
+     * Zalo (D16) vì khách sẽ tự vào, tránh thêm hai lần. Mỗi khách chỉ ghi một lần.
+     */
+    @Transactional
+    public void markGroupLinkSent(long invitationId, long groupId) {
+        StepRow r = stepRow(invitationId);
+        if (!"FRIENDED".equals(r.status())) {
+            throw new ImportException("Chỉ ghi \"đã gửi link nhóm\" cho khách đã kết bạn và chưa vào nhóm.");
+        }
+        GroupService.Group group = groups.find(groupId)
+                .filter(g -> g.hasLink() && g.status() == GroupStatus.OPEN)
+                .orElseThrow(() -> new ImportException("Nhóm này không còn nhận khách hoặc chưa có link. Hãy tải lại trang."));
+        int n = jdbc.sql("""
+                        UPDATE invitation SET group_link_sent_at = now(), group_id = :g,
+                               zalo_add_state = CASE WHEN zalo_add_state IN ('WAITING_APPROVAL', 'QUEUED', 'FAILED')
+                                                     THEN NULL ELSE zalo_add_state END,
+                               zalo_add_code = CASE WHEN zalo_add_state IN ('WAITING_APPROVAL', 'QUEUED', 'FAILED')
+                                                    THEN NULL ELSE zalo_add_code END
+                        WHERE id = :id AND status = 'FRIENDED' AND group_link_sent_at IS NULL""")
+                .param("g", group.id()).param("id", invitationId).update();
+        if (n == 0) {
+            throw new ImportException("Đã ghi gửi link nhóm cho khách này rồi.");
+        }
+        contacts.event(r.customerId(), r.phone(), "GROUP_LINK_SENT",
+                "Đã gửi link nhóm " + group.name() + " cho khách tự bấm (người gửi dán tay)");
+    }
+
+    /**
      * Người gửi đã thêm khách vào nhóm Zalo cùng khu vực. Dùng nhóm đã gợi ý (cùng tỉnh, vùng, miền); chưa có nhóm nào
      * còn chỗ thì báo lỗi, không ghi gì. Tăng số khách thật của nhóm thêm 1 (người đó chính là người thêm vào).
      */
@@ -360,10 +438,11 @@ public class InviteService {
                 .query(Integer.class).single();
         GroupService.Group group = null;
         if (r.groupId() != null) {
-            // nhóm đã cấp phải còn nhận khách (đang mở, có link); khách chưa từng bấm link còn cần nhóm chưa đầy
-            boolean clicked = r.clicked();
+            // nhóm đã cấp phải còn nhận khách (đang mở, có link); khách chưa từng bấm link còn cần nhóm chưa đầy.
+            // Khách đã được gửi link nhóm này thì có thể đã vào đúng nhóm đó dù nhóm vừa đầy: ghi đúng nhóm đó.
+            boolean committed = r.clicked() || r.linkSent();
             group = groups.find(r.groupId()).filter(g -> g.hasLink() && g.status() == GroupStatus.OPEN
-                    && (clicked || !g.full())).orElse(null);
+                    && (committed || !g.full())).orElse(null);
         }
         if (group == null) {
             group = groups.pickGroup(vn.shop.crm.geo.VnGeo.byCode(r.province()).orElse(null)).orElse(null);

@@ -40,6 +40,6 @@ Trang Penpot: **"Bản chỉnh sửa (đã rà soát)"** (20 board) và **"Giấ
 ## Còn cần chủ shop quyết (không đổi được bằng thiết kế)
 
 1. SMS làm kênh chính hay mẹ gửi tay trước (D4 so với file 03 mục 1).
-2. Bố và mẹ có hai tài khoản web riêng không (Đ1); thiết kế đang vẽ hai tài khoản.
+2. Bố và mẹ có hai tài khoản web riêng không (Đ1)? **Đã trả lời 22/11/2026: không** (D17); thiết kế vẽ hai tài khoản nhưng code giữ một.
 3. Mẹ nhận báo việc từ trợ lý bằng đường nào (màn 14 đang ghi "chưa chọn").
 4. Địa chỉ ngắn và tên miền cho mã QR (cần HTTPS, mốc 1F).

@@ -11,7 +11,7 @@
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã tạo.</div>
     <div class="notice">Hệ thống <strong>không tự gửi tin</strong>. Cách làm hiện nay: xuất danh sách, nhắn từng khách <strong>một lần duy nhất</strong> bằng
         tài khoản Zalo phụ của cửa hàng. Khách đồng ý kết bạn thì bấm <em>Đã kết bạn</em>; thêm họ vào nhóm cùng khu vực (cột "Nhóm Zalo") rồi bấm
-        <em>Đã vào nhóm</em>. Khách từ chối thì bấm <em>Khách từ chối</em>, số đó không bao giờ được nhắn lại. Bạn có thể chạy thử trước để xem sẽ gửi gì.</div>
+        <em>Đã vào nhóm</em>, hoặc gửi link nhóm cho khách tự bấm (mục <em>Gửi link nhóm</em> ở cột Bước tiếp theo) rồi bấm <em>Đã gửi link nhóm</em>. Khách từ chối thì bấm <em>Khách từ chối</em>, số đó không bao giờ được nhắn lại. Bạn có thể chạy thử trước để xem sẽ gửi gì.</div>
 
     <div class="cards">
         <div class="card"><div class="big" th:text="${campaign.total}">0</div><div class="label">Lời mời</div></div>
@@ -79,6 +79,22 @@
                           th:action="@{/campaigns/{id}/invitations/{iid}/declined(id=${campaign.id},iid=${r.id})}">
                         <button type="submit" class="btn danger">Khách từ chối</button>
                     </form>
+                    <details th:if="${r.status == 'FRIENDED' and r.groupLinkMessage != null}" class="stack">
+                        <summary><strong>Gửi link nhóm cho khách tự bấm</strong></summary>
+                        <textarea readonly rows="5" th:id="'gl-' + ${r.id}" th:text="${r.groupLinkMessage}">Chào ...</textarea>
+                        <div class="actions">
+                            <button type="button" class="btn secondary" data-copy-target="" th:attr="data-copy-target='gl-' + ${r.id}">Sao chép tin</button>
+                            <form class="inline" method="post"
+                                  th:action="@{/campaigns/{id}/invitations/{iid}/group-link-sent(id=${campaign.id},iid=${r.id})}">
+                                <input type="hidden" name="groupId" th:value="${r.groupId}">
+                                <button type="submit" class="btn">Đã gửi link nhóm</button>
+                            </form>
+                        </div>
+                        <p class="muted small" th:if="${r.autoHold}">Bộ nối Zalo đang giữ khách này trong hàng thêm vào nhóm. Bấm <em>Đã gửi link nhóm</em> thì bộ nối thôi không thêm khách này nữa (khách tự vào bằng link).</p>
+                    </details>
+                    <span class="muted small" th:if="${r.status == 'FRIENDED' and r.groupLinkSentAt != null}"
+                          th:text="'Đã gửi link nhóm ' + ${#temporals.format(r.groupLinkSentAt, 'dd/MM HH:mm')} + '. Khách vào nhóm thì bấm Đã vào nhóm.'">Đã gửi link nhóm</span>
+                    <span class="muted small" th:if="${r.status == 'FRIENDED' and r.groupLinkMessage == null and r.groupLinkSentAt == null}">Chưa có nhóm còn chỗ để gửi link. Hãy mở nhóm ở mục Nhóm Zalo.</span>
                     <span class="muted" th:if="${r.status == 'READY'}">Chưa nhắn</span>
                     <span class="muted" th:if="${r.status == 'JOINED'}" th:text="'Xong ' + ${#temporals.format(r.joinedAt, 'dd/MM/yyyy')}">Xong</span>
                 </td>
@@ -95,5 +111,6 @@
         <p class="mono" th:text="${r.message}">Chào ...</p>
     </details>
 </main>
+<script th:src="@{/copy.js}" defer></script>
 </body>
 </html>

@@ -57,7 +57,7 @@ class BotWebTest extends AbstractPostgresTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("TẮT")))
                 .andExpect(content().string(containsString("chưa kết nối")))
-                .andExpect(content().string(containsString("Chưa chọn cách nào")));
+                .andExpect(content().string(containsString("Chưa chọn cách nối cụ thể")));
     }
 
     @Test

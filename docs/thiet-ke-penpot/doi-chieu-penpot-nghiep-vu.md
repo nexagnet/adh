@@ -75,7 +75,7 @@ Chỗ cần sửa chủ yếu là: số liệu mâu thuẫn giữa các màn, tr
 12. **Dữ liệu mẫu tự mâu thuẫn (đọc trực tiếp).** Ba người xuất hiện ở cả màn 2 (mua 1 lần) và màn 16 (mua từ 2 lần): 0366 111 222 (Le Van C), 0905 000 111 (Pham Thi D), 0372 999 888 (Hoang E). Le Van C "Bị chặn" ở màn 2 nhưng nằm trong "danh sách đủ điều kiện mời" ở màn 4. Hai danh sách 1 lần và 2+ lần không được trùng nhau (BR-04). Nên đổi dữ liệu mẫu để người xem không hiểu nhầm.
 13. **Cỡ chữ (đọc trực tiếp).** File 03 mục 4B nói chữ ≥ 17px, nhưng cỡ nhỏ nhất đo được là 15px (màn 2, 3, 5, 8, 10, 11, 12, 14, 15, 16) và 16px ở các màn còn lại. Với bố mẹ lớn tuổi nên nâng chữ bảng và chữ phụ lên ≥ 17px, hoặc sửa lại quy tắc cho khớp.
 14. **Tên bot (suy luận).** BR-11 và mục tiêu 5: bot giới thiệu rõ là "trợ lý AI của cửa hàng". Màn 8 đặt tên "Trợ lý cửa hàng" (đúng tên mà chủ shop muốn công khai). Nếu muốn khách hiểu ngay là AI thì đổi thành "Trợ lý AI cửa hàng...". Trang khách (màn 13) cũng chưa cho biết trong nhóm có mẹ và trợ lý AI.
-15. **Đăng nhập (màn 7).** Thiết kế có hai tài khoản Bố/Mẹ nhưng file 03 mục 4B (câu hỏi Đ1) chưa được chủ shop xác nhận và code chỉ có một tài khoản. PR #3 mục 1F có khóa đăng nhập sai nhưng màn 7 chưa có trạng thái "đã bị khóa vài phút". Chờ chủ shop trả lời Đ1.
+15. **Đăng nhập (màn 7).** Thiết kế có hai tài khoản Bố/Mẹ nhưng file 03 mục 4B (câu hỏi Đ1) chưa được chủ shop xác nhận và code chỉ có một tài khoản. PR #3 mục 1F có khóa đăng nhập sai nhưng màn 7 chưa có trạng thái "đã bị khóa vài phút". **Đã trả lời 22/11/2026 (D17): không làm hai tài khoản**, giữ một.
 
 ## Những chỗ thiết kế đã đúng (đọc trực tiếp)
 
@@ -90,7 +90,7 @@ Chỗ cần sửa chủ yếu là: số liệu mâu thuẫn giữa các màn, tr
 ## Câu hỏi cho chủ shop
 
 1. Giữ SMS làm kênh chính (D4) hay đổi sang "mẹ gửi tay" cho đến khi có nhà cung cấp và xác nhận pháp lý?
-2. Bố và mẹ có cần hai tài khoản web riêng không (câu Đ1)?
+2. Bố và mẹ có cần hai tài khoản web riêng không (câu Đ1)? **Đã trả lời 22/11/2026: không.**
 3. Khi bot báo "khách muốn mua", mẹ nhận thông báo bằng đường nào?
 
 ## Bổ sung: kiểm tra yêu cầu "giao diện 100% tiếng Việt"

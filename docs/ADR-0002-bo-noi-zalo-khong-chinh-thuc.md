@@ -1,6 +1,6 @@
 # ADR-0002: Bộ nối Zalo không chính thức cho luồng "kết bạn → vào nhóm" (D16)
 
-Ngày: 22/11/2026. Trạng thái: **đã chọn hướng; đợt chạy thử 0 đã xong ngày 22/11/2026 (mục 9); đang code theo giai đoạn, xem mục 10.** Quyết định D16 ở `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md`; phạm vi nghiệp vụ ở mục 1I của file đó.
+Ngày: 22/11/2026. Trạng thái: **đã chọn hướng; đợt chạy thử 0 đã xong ngày 22/11/2026 (mục 9); đang code theo giai đoạn, xem mục 10; chủ shop chốt thêm hai đường vào nhóm, xem mục 11.** Quyết định D16 ở `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md`; phạm vi nghiệp vụ ở mục 1I của file đó.
 
 ## 1. Bối cảnh và quyết định
 
@@ -204,3 +204,14 @@ Các quyết định khi code (nói rõ để chủ shop biết, đổi được
 6. **Nấc `AUTO`** cũng thêm cả những khách đang "chờ duyệt" từ lúc còn ở nấc `CONFIRM`. Chọn `AUTO` cần tick xác nhận đã chạy thử xong; mặc định không chọn nấc nào (`OFF`) cho đến khi người bật.
 7. Mỗi lần gọi Zalo để thêm người (kể cả lỗi) được ghi vào nhật ký **trước khi gọi** và tính vào hạn mức ngày, giờ và khoảng cách; riêng lần không nối được tới cầu nối (chưa chạm Zalo) thì không tính.
 8. Ngoài ba việc của Zalo, cầu nối có thêm các lệnh **quản lý phiên** (quét QR, đăng xuất, dừng, nghe lại) cho trang quản trị; chúng không gửi gì cho ai. Hình dạng giao diện được khóa bằng test (`ZaloGatewayShapeTest`).
+
+## 11. Hai đường vào nhóm cùng tồn tại (chủ shop chốt 22/11/2026, D17)
+
+Chủ shop chọn **làm cả hai**: khách tự bấm link nhóm, **hoặc** khi khách đồng ý kết bạn thì tài khoản Zalo phụ tự thêm vào nhóm (máy chủ làm, qua bộ nối này). Bộ nối vẫn **tắt mặc định**, vẫn ba việc, không có hàm gửi tin hay lời mời, không né phát hiện (mục 4 không đổi).
+
+Đường link không đi qua bộ nối: sau khi khách kết bạn (tay hoặc do bộ nối ghép), trang chiến dịch đưa sẵn tin kèm link nhóm (R14, file 03 mục 1I); người gửi dán tay rồi bấm *Đã gửi link nhóm*. Hai đường **loại trừ nhau theo từng khách** để không thêm hai lần:
+- Bấm *Đã gửi link nhóm* khi khách đang ở hàng của bộ nối (`WAITING_APPROVAL`, `QUEUED`, `FAILED`) thì xóa trạng thái đó: bộ nối thôi không thêm khách này.
+- Nếu `group_link_sent_at` đã có mà sự kiện kết bạn của bộ nối tới sau, `attach` chỉ gắn uid, không xếp vào hàng thêm.
+- Còn một khe hẹp: bộ nối đang gọi Zalo thêm khách ngay lúc người gửi bấm *Đã gửi link nhóm*. Khi đó khách có thể được thêm một lần và còn nhận link; kết quả lành tính (Zalo báo đã ở trong nhóm hoặc không đổi gì), không làm cầu dao nhảy vì là lỗi theo người.
+
+"tk trợ lý" trong lời chủ shop được hiểu là **tài khoản Zalo phụ đang nối vào bộ nối** (D13/D16). Tài khoản Zalo riêng cho trợ lý AI trong nhóm (ADR-0001) là việc khác, chưa làm.

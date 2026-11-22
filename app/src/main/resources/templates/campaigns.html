@@ -101,6 +101,20 @@
         </form>
     </section>
 
+    <section class="panel stack">
+        <h2>Tin gửi link nhóm (sau khi khách đã kết bạn)</h2>
+        <form th:action="@{/campaigns/group-link-template}" method="post" class="stack">
+            <p class="muted">Khi khách đã đồng ý kết bạn, trang chiến dịch đưa sẵn tin này kèm link nhóm Zalo cùng khu vực. Mẹ bấm sao chép,
+                dán vào cuộc trò chuyện với khách, rồi bấm <em>Đã gửi link nhóm</em>. Khách tự bấm link nếu muốn vào. Hệ thống không tự gửi.
+                Có thể dùng: <code>{ten}</code>, <code>{cua_hang}</code>, <code>{nhom}</code> (tên nhóm), <code>{link_nhom}</code> (link nhóm Zalo),
+                <code>{link}</code> (link riêng của khách, có nút xin ngừng nhận tin; chỉ dùng khi địa chỉ web của cửa hàng đã chạy thật). Phải có <code>{link_nhom}</code> hoặc <code>{link}</code>.
+                Để trống rồi lưu thì dùng lại nội dung có sẵn.</p>
+            <label class="field">Nội dung
+                <textarea name="template" rows="5" maxlength="800" th:text="${groupLinkTemplate}"></textarea></label>
+            <div class="actions"><button type="submit" class="btn">Lưu tin gửi link nhóm</button></div>
+        </form>
+    </section>
+
     <section>
         <h2>Các chiến dịch</h2>
         <div class="table-wrap" th:if="${!campaigns.isEmpty()}">
