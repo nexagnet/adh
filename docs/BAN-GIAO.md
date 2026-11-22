@@ -57,6 +57,7 @@ Mã nguồn trên nhánh `main` của `nexagnet/adh`, đã gộp các PR #3 đ�
 | D13 | **Nghiệp vụ giai đoạn 1 (chốt 21/11/2026):** dùng **tài khoản Zalo cá nhân phụ** nhắn tin tư vấn sản phẩm cho khách mua **đúng 1 lần**; ai đồng ý **kết bạn** thì thêm vào **nhóm Zalo cùng khu vực**; chỉ nhắn **một lần duy nhất** mỗi người; **nội dung tin do chủ shop soạn ở trang quản trị**. Hệ thống **vẫn không tự gửi tin** và không đăng nhập Zalo |
 | D15 | **Bổ sung D13 (chốt 22/11/2026, chưa code):** khách đồng ý kết bạn từ tin của tài khoản phụ thì **thêm vào nhóm phù hợp luôn** theo phân vùng D11. Vẫn bán tự động: mẹ thêm khách bằng Zalo, hệ thống gợi ý nhóm, giữ chỗ, nhắc việc, ghi lại. Quy tắc, trạng thái, phụ thuộc, câu hỏi mở: file 03 mục 1I |
 | D16 | **Bổ sung D15 (chốt 22/11/2026, đã code bằng bộ nối ở PR #29–#31, mặc định tắt):** chủ shop chọn dùng **thư viện Zalo không chính thức `zca-js`** để nhận biết khách đã kết bạn và thêm vào nhóm, **dù biết trái điều khoản Zalo và tài khoản phụ có thể bị khóa**. Bộ nối riêng (Node) sau giao diện `ZaloGateway`, **mặc định tắt**, bật từng nấc, nhật ký, hạn mức, cầu dao dừng ngay, phiên mã hóa, chỉ tài khoản phụ. **Không** làm giả hành vi để né phát hiện, **không** gửi tin hàng loạt. Chi tiết: `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md`, file 03 mục 1I.9 |
+| D17 | **Chốt 22/11/2026 (sau D16):** (1) **không** làm hai tài khoản web Bố/Mẹ, giữ một tài khoản đăng nhập; (2) kênh trợ lý trong nhóm và cách báo việc cho mẹ: **Zalo** (chưa chọn phương án kỹ thuật, chưa chạy thử); (3) vào nhóm theo **cả hai đường**: khách tự bấm link nhóm (**đã code**, PR "gửi link nhóm") hoặc bộ nối D16 tự thêm khi khách kết bạn (mặc định tắt); (4) code luôn các việc 1I bán tự động còn thiếu (theo đề xuất, các PR kế tiếp); (5) máy chủ và deploy để sau. Chi tiết: file 03 mục 1I.10, ADR-0001, ADR-0002 mục 11 |
 
 Lựa chọn khác của người dùng trong các phiên: giao diện **100% tiếng Việt**; "trợ lý AI" thay cho chữ "bot" (theo thiết kế Penpot); bố mẹ không rành kỹ thuật nên chữ to, mỗi màn một việc; người dùng đã **duyệt thiết kế Penpot** (21/11/2026) và dặn "sửa xong Penpot thì code luôn"; chọn **phương án A cho J&T** (nhập file tăng dần).
 
@@ -82,6 +83,7 @@ Lựa chọn khác của người dùng trong các phiên: giao diện **100% ti
 - **Chạy thử trên Zalo thật (22/11/2026, V14):** `/test-runs` (`testrun/TestRunService`). Vài số điện thoại do người dùng tự nhập, lưu ở bảng riêng `test_run`/`test_target` (không khóa ngoại tới khách thật), có đánh dấu tay Đã nhắn/Đã kết bạn/Đã vào nhóm/Từ chối và gợi ý nhóm theo tỉnh đã chọn. **Không** đổi trạng thái lời mời của khách thật, không ghi `send_log`/`contact_event`/danh sách từ chối, không tăng số khách của nhóm (có test `TestRunTest.chayHetQuyTrinhMaDuLieuThatKhongDoi` so ảnh chụp dữ liệu trước/sau). Hướng dẫn thử từng bước cho người dùng: [`HUONG-DAN-THU-ZALO.md`](HUONG-DAN-THU-ZALO.md).
 - **Phạm vi bổ sung D15 (chỉ ghi tài liệu, chưa code):** gộp bước kết bạn và vào nhóm thành một luồng "kết bạn xong thì thêm vào nhóm ngay": gợi ý nhóm ngay lúc bấm *Đã kết bạn*, nút gộp một lần, giữ chỗ nhóm, ghi "chờ nhóm" khi chưa có nhóm hợp (không đẩy sang nhóm miền khác), việc nhắc khách đã kết bạn mà chưa vào nhóm, giảm số khách khi khách ra khỏi nhóm. Đặc tả đầy đủ ở file 03 mục 1I (quy tắc R1–R13, bảng trạng thái, tiêu chí nghiệm thu). **Câu hỏi chủ shop cần trả lời trước khi code:** Q1 ai thêm khách vào nhóm (tài khoản phụ hay mẹ, và quyền thêm thành viên trên Zalo chưa kiểm chứng), Q2 kết bạn đã đủ để vào nhóm chưa, Q3 hết nhóm khu vực thì làm gì.
 - **D16 (bộ nối Zalo không chính thức): đã code, mặc định tắt.** Đợt thử 0 đã chạy (ADR-0002 mục 9): sự kiện `ADD` phát đúng; khoảng 27/32 bạn thật không lộ số nên phần lớn khách sẽ rơi vào hàng đợi ghép tay; thành viên thường thêm được người vào nhóm; kết nối nghe đứt mã 1006 sau khoảng 40 phút. Còn **chưa biết**: ngưỡng thao tác an toàn mỗi ngày, lỗi khi nhóm bật "chỉ quản trị viên được thêm", nhóm đầy hay khách chặn, thời gian sống của phiên. Không dùng bản fork/đăng lại của zca-js. Nếu không bật, mọi thứ vẫn chạy tay như D13/D15.
+- **Gửi link nhóm cho khách tự bấm (D17, đã code):** khách ở trạng thái *Đã kết bạn* có khung "Gửi link nhóm cho khách tự bấm" ở trang chiến dịch: tin soạn sẵn kèm link nhóm cùng khu vực (mẫu sửa ở trang Chiến dịch mời, `invite.group-link-template`; có `{ten}`, `{cua_hang}`, `{nhom}`, `{link_nhom}`, `{link}`), nút *Sao chép tin* và nút *Đã gửi link nhóm* (V18 `invitation.group_link_sent_at`, sự kiện `GROUP_LINK_SENT`). Hệ thống không gửi. Mỗi khách một lần; gửi link thì khách thôi nằm trong hàng thêm tự động của bộ nối D16.
 - **Chưa làm:** gợi ý chọn nhóm khác với nhóm được gợi ý khi đánh dấu *Đã vào nhóm*; xuất file Excel có cột nhóm gợi ý; nhắc theo dõi khách đã nhắn mà quá lâu chưa kết bạn.
 
 ## 3. Cấu hình và công tắc
@@ -145,10 +147,10 @@ Công tắc trên giao diện: **Tạm dừng tất cả chiến dịch** (`/cam
 
 ## 6. Việc phải hỏi chủ shop (đang mở)
 
-1. **Đ1**: bố và mẹ có cần **hai tài khoản web riêng** không (nhật ký ghi đúng người)? Thiết kế Penpot vẽ hai tài khoản; code mới có một.
-2. **Đ2**: "đăng nhập của AI bot" = tài khoản Zalo riêng của trợ lý (không phải đăng nhập web), đúng không?
-3. **Kênh trợ lý trong nhóm Zalo**: chưa chọn (Zalo Bot chính thức, Zalo OA/GMF, tài khoản cá nhân riêng có rủi ro khóa). Xem ADR-0001.
-4. **Mẹ nhận báo việc từ trợ lý bằng đường nào** (màn "Việc cần mẹ xử lý" đang ghi "chưa chọn").
+1. ~~**Đ1**: hai tài khoản web Bố/Mẹ~~ **Đã trả lời 22/11/2026: không** (D17). Giữ một tài khoản.
+2. **Đ2**: "đăng nhập của AI bot" = tài khoản Zalo riêng của trợ lý (không phải đăng nhập web), đúng không? Chưa có câu trả lời riêng; vẫn hiểu như vậy.
+3. **Kênh trợ lý trong nhóm Zalo**: **đã chọn Zalo** (22/11/2026, D17). Còn mở: phương án kỹ thuật (Zalo Bot chính thức, Zalo OA/GMF, tài khoản cá nhân riêng có rủi ro khóa) và các spike. Xem ADR-0001.
+4. **Mẹ nhận báo việc từ trợ lý**: **đã chọn Zalo** (D17). Thiết kế đề xuất (trợ lý nhắc mẹ ngay trong nhóm, không cần đường gửi riêng) ở ADR-0001 mục "Báo việc cho mẹ"; chưa code, chờ phương án kênh trợ lý.
 5. **Địa chỉ ngắn và tên miền cho mã QR** (cần HTTPS; thiết kế dùng đường ngắn `/n`).
 6. **SMS**: khi nào làm lại, nhà cung cấp nào (eSMS/SpeedSMS), cá nhân chưa có hộ kinh doanh có đăng ký brandname được không.
 7. **J&T**: xem mục 8.
@@ -169,7 +171,7 @@ Việc giao diện Penpot, bộ nhập J&T, bản đồ, phân vùng, D13 và b�
 4. Sau lần chạy thử Zalo thật đầu tiên: thêm mã lỗi đã thấy vào `ZALO_PERSON_ERROR_CODES` (ADR-0002 mục 10 điểm 5).
 
 **B. Phải code nhưng chờ chủ shop quyết (mục 6)**
-- Hai tài khoản Bố/Mẹ riêng (Đ1); kênh trợ lý và cách báo việc cho mẹ (Đ2, ADR-0001); hạn trả lời yêu cầu dữ liệu theo loại (cần xác nhận pháp lý); bộ gửi SMS/ZBS (D9, đang hoãn); importer file "Lịch sử đối soát" J&T (cần file mẫu thật).
+- Phương án kỹ thuật cho kênh trợ lý và báo việc cho mẹ (kênh Zalo đã chọn, D17; ADR-0001); hạn trả lời yêu cầu dữ liệu theo loại (cần xác nhận pháp lý); bộ gửi SMS/ZBS (D9, đang hoãn); importer file "Lịch sử đối soát" J&T (cần file mẫu thật).
 
 **C. KHÔNG phải code, cần kiểm thật hoặc làm ngoài code**
 - Xác nhận VPS đang chạy gì; sao lưu và khôi phục trên máy chủ thật; tên miền cho mã QR rồi in thử một tờ giấy A5 và quét bằng điện thoại.
@@ -236,7 +238,7 @@ Chỉ khi người dùng **hiểu rủi ro và đồng ý rõ ràng bằng lời
 
 ## 9. Giao diện Penpot đã duyệt (đã code, chưa xem bằng mắt)
 
-> Cập nhật: các mục (a)–(e) của mục 7.1 đã code. Còn thiếu: tài khoản Bố và Mẹ riêng (chờ Đ1), cách báo việc cho mẹ (chờ chọn), xem thử bằng trình duyệt thật và in thử giấy A5, "Khách đổi nhóm" ở màn xem trước nhập file. Giấy in mặc định A5; chữ mặc định theo kiểu "anh/chị" (đổi được ở trang In giấy giới thiệu).
+> Cập nhật: các mục (a)–(e) của mục 7.1 đã code. Còn thiếu: cách báo việc cho mẹ (đã chọn Zalo, chưa code; không làm hai tài khoản Bố/Mẹ theo D17), xem thử bằng trình duyệt thật và in thử giấy A5, "Khách đổi nhóm" ở màn xem trước nhập file. Giấy in mặc định A5; chữ mặc định theo kiểu "anh/chị" (đổi được ở trang In giấy giới thiệu).
 
 - Người dùng **đã duyệt** thiết kế (21/11/2026) và dặn "sửa xong Penpot thì code luôn".
 - Bản sao trong repo: `docs/thiet-ke-penpot/`

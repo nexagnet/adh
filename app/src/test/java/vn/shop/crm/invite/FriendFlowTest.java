@@ -265,4 +265,131 @@ class FriendFlowTest extends AbstractPostgresTest {
         mvc.perform(get("/campaigns").with(owner)).andExpect(content().string(containsString("Chào {ten}")))
                 .andExpect(content().string(containsString("Đã vào nhóm")));
     }
+
+    // ---------- gửi link nhóm cho khách tự bấm (sau khi đã kết bạn) ----------
+
+    private InviteService.InvitationRow row(long inv) {
+        return invites.invitations(campaign, invites.campaign(campaign).orElseThrow().template()).stream()
+                .filter(r -> r.id() == inv).findFirst().orElseThrow();
+    }
+
+    @Test
+    void tinLinkNhomChiDuaRaChoKhachDaKetBanChuaVaoNhom() {
+        long inv = invitationOf("0900000001");
+        assertThat(row(inv).groupLinkMessage()).isNull(); // chưa nhắn
+        markSent(inv);
+        assertThat(row(inv).groupLinkMessage()).isNull(); // chưa kết bạn
+        invites.markFriended(inv);
+        String msg = row(inv).groupLinkMessage();
+        assertThat(msg).contains("Khach Bac").contains("Nhóm miền Bắc").contains("https://zalo.me/g/bac")
+                .doesNotContain("{").doesNotContain("0900000001");
+        invites.markJoined(inv);
+        assertThat(row(inv).groupLinkMessage()).isNull(); // đã vào nhóm
+    }
+
+    @Test
+    void khongCoNhomConChoThiKhongCoTinLinkNhom() {
+        long inv = invitationOf("0900000001");
+        markSent(inv);
+        invites.markFriended(inv);
+        groups.setStatus(north, GroupStatus.PAUSED);
+        assertThat(row(inv).groupLinkMessage()).isNull();
+        assertThatThrownBy(() -> invites.markGroupLinkSent(inv, north)).isInstanceOf(ImportException.class)
+                .hasMessageContaining("không còn nhận khách");
+    }
+
+    @Test
+    void daGuiLinkNhomThiGhiNhomVaMotLanDuyNhat() {
+        long inv = invitationOf("0900000001");
+        assertThatThrownBy(() -> invites.markGroupLinkSent(inv, north)).isInstanceOf(ImportException.class)
+                .hasMessageContaining("đã kết bạn");
+        markSent(inv);
+        assertThatThrownBy(() -> invites.markGroupLinkSent(inv, north)).isInstanceOf(ImportException.class);
+        invites.markFriended(inv);
+
+        invites.markGroupLinkSent(inv, north);
+        var r = row(inv);
+        assertThat(r.groupLinkSentAt()).isNotNull();
+        assertThat(r.groupLinkMessage()).isNull();
+        assertThat(r.groupId()).isEqualTo(north);
+        assertThat(statusOf(inv)).isEqualTo("FRIENDED"); // vẫn chờ người bấm "Đã vào nhóm"
+        assertThat(jdbc.sql("SELECT count(*) FROM contact_event WHERE event = 'GROUP_LINK_SENT'").query(Long.class).single())
+                .isEqualTo(1);
+        assertThatThrownBy(() -> invites.markGroupLinkSent(inv, north)).isInstanceOf(ImportException.class)
+                .hasMessageContaining("rồi");
+        assertThat(jdbc.sql("SELECT count(*) FROM contact_event WHERE event = 'GROUP_LINK_SENT'").query(Long.class).single())
+                .isEqualTo(1);
+    }
+
+    @Test
+    void daGuiLinkNhomRoiVaoNhomThiTinhDungNhomCuaLinkDuNhomVuaDay() {
+        long inv = invitationOf("0900000001");
+        markSent(inv);
+        invites.markFriended(inv);
+        invites.markGroupLinkSent(inv, north);
+        long north2 = groups.create("Nhóm miền Bắc 2", "https://zalo.me/g/bac2", 5, "R:BAC");
+        groups.setStatus(north2, GroupStatus.OPEN);
+        groups.recount(north, 5); // nhóm vừa đầy sau khi gửi link
+
+        invites.markJoined(inv);
+
+        assertThat(jdbc.sql("SELECT group_id FROM invitation WHERE id = :id").param("id", inv).query(Long.class).single())
+                .isEqualTo(north);
+        assertThat(groups.find(north).orElseThrow().actual()).isEqualTo(6);
+        assertThat(groups.find(north2).orElseThrow().actual()).isZero();
+    }
+
+    @Test
+    void guiLinkNhomGoKhachKhoiHangThemTuDongCuaBoNoi() {
+        long inv = invitationOf("0900000001");
+        markSent(inv);
+        invites.markFriended(inv);
+        jdbc.sql("UPDATE invitation SET zalo_uid = '7001', zalo_add_state = 'WAITING_APPROVAL', zalo_add_code = 'X' WHERE id = :id")
+                .param("id", inv).update();
+        assertThat(row(inv).autoHold()).isTrue();
+
+        invites.markGroupLinkSent(inv, north);
+
+        assertThat(jdbc.sql("SELECT zalo_add_state FROM invitation WHERE id = :id").param("id", inv)
+                .query(String.class).optional()).isEmpty();
+        assertThat(row(inv).autoHold()).isFalse();
+    }
+
+    @Test
+    void soanTinGuiLinkNhomPhaiCoChoKhachBam() {
+        assertThat(invites.groupLinkTemplate()).isEqualTo(InviteService.DEFAULT_GROUP_LINK_TEMPLATE);
+        assertThatThrownBy(() -> invites.saveGroupLinkTemplate("Chào {ten}, mời bạn vào nhóm."))
+                .isInstanceOf(ImportException.class).hasMessageContaining("{link_nhom}");
+        assertThatThrownBy(() -> invites.saveGroupLinkTemplate("{link_nhom} " + "x".repeat(800)))
+                .hasMessageContaining("quá dài");
+        invites.saveGroupLinkTemplate("{ten}: nhóm {nhom} ở {link_nhom}");
+        long inv = invitationOf("0900000002");
+        markSent(inv);
+        invites.markFriended(inv);
+        assertThat(row(inv).groupLinkMessage()).isEqualTo("Khach Nam: nhóm Nhóm miền Nam ở https://zalo.me/g/nam");
+        invites.saveGroupLinkTemplate("  ");
+        assertThat(invites.groupLinkTemplate()).isEqualTo(InviteService.DEFAULT_GROUP_LINK_TEMPLATE);
+    }
+
+    @Test
+    void trangChienDichHienTinLinkNhomVaGhiNhanQuaWeb() throws Exception {
+        MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+        var owner = user("admin").roles("OWNER");
+        long inv = invitationOf("0900000001");
+        markSent(inv);
+        invites.markFriended(inv);
+        mvc.perform(get("/campaigns/" + campaign).with(owner))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Gửi link nhóm cho khách tự bấm")))
+                .andExpect(content().string(containsString("https://zalo.me/g/bac")));
+        mvc.perform(post("/campaigns/" + campaign + "/invitations/" + inv + "/group-link-sent").param("groupId", String.valueOf(north))
+                        .with(csrf()).with(owner))
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/campaigns/" + campaign));
+        mvc.perform(get("/campaigns/" + campaign).with(owner))
+                .andExpect(content().string(containsString("Đã gửi link nhóm")));
+        mvc.perform(post("/campaigns/group-link-template").param("template", "Mời {ten}: {link_nhom}").with(csrf()).with(owner))
+                .andExpect(status().is3xxRedirection());
+        assertThat(invites.groupLinkTemplate()).isEqualTo("Mời {ten}: {link_nhom}");
+        mvc.perform(get("/campaigns").with(owner)).andExpect(content().string(containsString("Mời {ten}: {link_nhom}")));
+    }
 }

@@ -40,6 +40,7 @@ public class CampaignController {
                         contacts.countEligibleNotInvited(vn.shop.crm.geo.GeoArea.region(r).code()))).toList());
         model.addAttribute("unknownAvailable", contacts.countEligibleNotInvited(vn.shop.crm.geo.GeoArea.UNKNOWN));
         model.addAttribute("defaultTemplate", invites.defaultTemplate());
+        model.addAttribute("groupLinkTemplate", invites.groupLinkTemplate());
         return "campaigns";
     }
 
@@ -65,6 +66,14 @@ public class CampaignController {
         return "redirect:/campaigns";
     }
 
+    /** Chủ shop soạn mẫu tin gửi link nhóm cho khách đã kết bạn (để trống = dùng lại mẫu có sẵn). */
+    @PostMapping("/campaigns/group-link-template")
+    public String saveGroupLinkTemplate(@RequestParam(required = false) String template, RedirectAttributes redirect) {
+        invites.saveGroupLinkTemplate(template);
+        redirect.addFlashAttribute("flash", "Đã lưu nội dung tin gửi link nhóm.");
+        return "redirect:/campaigns";
+    }
+
     @GetMapping("/campaigns/{id}")
     public String detail(@PathVariable long id, Model model) {
         var campaign = invites.campaign(id).orElseThrow(() -> new ImportException("Không tìm thấy chiến dịch."));
@@ -86,6 +95,15 @@ public class CampaignController {
     public String joined(@PathVariable long id, @PathVariable long invitationId, RedirectAttributes redirect) {
         invites.markJoined(invitationId);
         redirect.addFlashAttribute("flash", "Đã ghi: khách đã được thêm vào nhóm. Số khách thật của nhóm tăng thêm 1.");
+        return "redirect:/campaigns/" + id;
+    }
+
+    /** Người gửi đã dán tin kèm link nhóm cho khách đã kết bạn (khách tự bấm). Hệ thống không gửi gì. */
+    @PostMapping("/campaigns/{id}/invitations/{invitationId}/group-link-sent")
+    public String groupLinkSent(@PathVariable long id, @PathVariable long invitationId, @RequestParam long groupId,
+                                RedirectAttributes redirect) {
+        invites.markGroupLinkSent(invitationId, groupId);
+        redirect.addFlashAttribute("flash", "Đã ghi: đã gửi link nhóm cho khách. Khi thấy khách vào nhóm, bấm \"Đã vào nhóm\".");
         return "redirect:/campaigns/" + id;
     }
 

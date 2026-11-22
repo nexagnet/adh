@@ -204,14 +204,16 @@ public class ZaloAutoService {
     /**
      * Gắn uid vào lời mời, đánh dấu đã kết bạn nếu chưa, và đặt việc "thêm vào nhóm" theo nấc hiện tại:
      * AUTO = hàng đợi luôn; CONFIRM và LISTEN_ONLY = chờ người duyệt (LISTEN_ONLY thì người thêm tay).
-     * Trả false nếu uid này đã gắn vào lời mời khác.
+     * Trả false nếu uid này đã gắn vào lời mời khác. Khách đã được gửi link nhóm tay (group_link_sent_at) thì chỉ gắn uid,
+     * không xếp vào hàng thêm: khách sẽ tự vào bằng link, bộ nối không thêm lần nữa.
      */
     private boolean attach(long invitationId, String uid, String via) {
         ZaloMode mode = cfg.effectiveMode();
         String state = mode == ZaloMode.AUTO ? "QUEUED" : "WAITING_APPROVAL";
         // Kiểm trùng ngay trong câu lệnh: một lỗi vi phạm unique trong giao dịch làm Postgres hủy cả giao dịch.
         int n = jdbc.sql("""
-                        UPDATE invitation SET zalo_uid = :u, zalo_add_state = :s, zalo_add_code = NULL, zalo_add_at = NULL
+                        UPDATE invitation SET zalo_uid = :u, zalo_add_code = NULL, zalo_add_at = NULL,
+                               zalo_add_state = CASE WHEN group_link_sent_at IS NULL THEN CAST(:s AS TEXT) END
                         WHERE id = :id AND zalo_uid IS NULL
                           AND NOT EXISTS (SELECT 1 FROM invitation o WHERE o.zalo_uid = :u)""")
                 .param("u", uid).param("s", state).param("id", invitationId).update();

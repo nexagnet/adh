@@ -647,4 +647,20 @@ class ZaloAutoTest extends AbstractPostgresTest {
         zalo.tick();
         assertThat(fake.adds).hasSize(1);
     }
+
+    @Test
+    void khachDaDuocGuiLinkNhomTayThiKetBanSauNayKhongXepVaoHangThem() {
+        mode(ZaloMode.AUTO);
+        sent(1);
+        invites.markFriended(inv(1)); // mẹ đã đánh dấu kết bạn tay trước khi sự kiện của bộ nối tới
+        invites.markGroupLinkSent(inv(1), north);
+
+        friend(1, 1);
+        zalo.poll();
+
+        assertThat(status(1)).isEqualTo("FRIENDED");
+        assertThat(addState(1)).isNull();
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.NOTHING);
+        assertThat(fake.adds).isEmpty(); // không có lệnh thêm nhóm nào
+    }
 }

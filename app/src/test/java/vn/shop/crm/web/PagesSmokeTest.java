@@ -92,11 +92,11 @@ class PagesSmokeTest extends AbstractPostgresTest {
     void trangTroLyAiVaViecCanMeKhongConChuBotVaNoiRoChuaChonCachKetNoi() throws Exception {
         var owner = user("admin").roles("OWNER");
         mvc.perform(get("/bot").with(owner)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("Chưa chọn cách nào")))
+                .andExpect(content().string(containsString("Chưa chọn cách nối cụ thể")))
                 .andExpect(content().string(containsString("Kết nối (chọn một cách trước)")))
                 .andExpect(content().string(not(containsString("Bot trợ lý"))));
         mvc.perform(get("/handoffs").with(owner)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("Chưa chọn cách báo cho mẹ")));
+                .andExpect(content().string(containsString("Cách báo cho mẹ: sẽ qua Zalo")));
     }
 
     @Test

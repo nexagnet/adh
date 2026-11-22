@@ -30,6 +30,7 @@ Mục này **ghi đè** mọi chỗ khác trong file khi có mâu thuẫn (ví d
 | D14 | **22/11/2026: bản đồ khách dùng bản đồ thật, thêm lớp thời tiết chạy theo giờ** | Thay sơ đồ tự vẽ của D12 bằng Leaflet (đóng gói sẵn, không CDN) + nền OpenStreetMap + ranh giới 63 tỉnh Natural Earth (miền công cộng). Ô nền tải từ `tile.openstreetmap.org` ngay trên trình duyệt: chỉ lượng dùng nhỏ, có ghi nguồn, giới hạn zoom 12; máy chủ cửa hàng không gọi OSM và không có dữ liệu khách nào đi ra. Lớp thời tiết chạy 48 giờ (nhiệt độ/mưa/mây) dùng lại MET Norway của D12, hỏi cả 63 tỉnh (chỉ tọa độ tỉnh lỵ). Không dùng RainViewer (chỉ miễn phí cho cá nhân/học tập, chỉ 2 giờ đã qua, phóng to tối đa mức 7, giới hạn 100 lượt/phút/địa chỉ mạng) và Open-Meteo (bản miễn phí chỉ phi thương mại). Vẫn MẶC ĐỊNH TẮT thời tiết |
 | D15 | **22/11/2026: khách đồng ý kết bạn từ tin nhắn của tài khoản phụ thì thêm vào nhóm phù hợp ngay** (mục 1I) | Chủ shop chốt: bước "kết bạn" và bước "vào nhóm" của D13 gộp thành một luồng, không để khách đã kết bạn nằm chờ. Vẫn **bán tự động**: người thật (mẹ) thêm khách vào nhóm bằng Zalo; hệ thống gợi ý nhóm đúng khu vực (D11), giữ chỗ, nhắc việc và ghi lại. **Chưa code.** Hệ thống không tự gửi tin, không tự kết bạn, không tự thêm vào nhóm, không đăng nhập Zalo; nếu sau này có kênh chính thức thì thay các bước tay, giữ nguyên quy tắc. Còn câu hỏi mở cần chủ shop trả lời (mục 1I.6) |
 | D16 | **22/11/2026: dùng thư viện Zalo không chính thức (zca-js) để nhận biết khách đã kết bạn và thêm vào nhóm** (mục 1I.9, `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md`) | Chủ shop chọn dù đã được báo: cách này **trái điều khoản Zalo, tài khoản phụ có thể bị khóa**. Chọn `zca-js` bản gốc (MIT, ghim phiên bản). Làm thành **bộ nối riêng (dịch vụ Node) sau giao diện `ZaloGateway`, mặc định TẮT**, bật từng nấc `LISTEN_ONLY` → `CONFIRM` → `AUTO`, có nhật ký, hạn mức thêm nhóm mỗi ngày/giờ, **cầu dao dừng ngay** khi tài khoản bị cảnh báo hay lỗi lạ, phiên Zalo mã hóa, chỉ tài khoản phụ. Bộ nối chỉ có ba việc: báo trạng thái, đọc sự kiện kết bạn, thêm một người đã kết bạn vào một nhóm; **không có** gửi tin, gửi lời mời, tra số hàng loạt. **Ngoài phạm vi:** làm giả hành vi người dùng để né phát hiện của Zalo, gửi tin hàng loạt, tác động khách chưa đồng ý. **Chưa code**; phải chạy thử bằng tài khoản phụ trước (sự kiện kết bạn, số điện thoại, quyền thêm nhóm chưa kiểm chứng). Thay một phần R13/D15 ("không dùng công cụ tự động") nhưng giữ D5 |
+| D17 | **22/11/2026: chốt các câu hỏi mở sau D16** (mục 1I.10, `docs/ADR-0001-chon-kenh-bot.md`, `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md` mục 11) | Chủ shop trả lời: (1) **KHÔNG làm hai tài khoản web Bố/Mẹ riêng**, giữ một tài khoản đăng nhập như hiện tại (bỏ câu Đ1; nhật ký vẫn ghi tên tài khoản gốc). (2) **Kênh của trợ lý trong nhóm và cách báo việc cho mẹ: Zalo** (loại kênh đã chọn; phương án kỹ thuật cụ thể P1/P2/P3 của ADR-0001 và việc chạy thử vẫn CHƯA làm). (3) **"Thêm vào nhóm" và "gửi link nhóm" làm CẢ HAI:** khách tự bấm link nhóm, hoặc khi khách đồng ý kết bạn thì tài khoản Zalo phụ tự thêm vào nhóm (máy chủ làm, qua bộ nối D16, vẫn tắt mặc định, bật từng nấc). (4) **Code luôn các việc 1I bán tự động còn thiếu** (gợi ý nhóm khi bấm *Đã kết bạn* kèm nút gộp, giữ chỗ nhóm, nhắc việc, "chờ nhóm", khách rời nhóm) theo đề xuất. (5) Máy chủ chạy gì, deploy: **để sau**, chưa trả lời |
 
 **Việc chủ cửa hàng đang giữ:** (1) đăng ký hộ kinh doanh; (2) hỏi eSMS và SpeedSMS: mẫu "mời vào nhóm Zalo" thuộc loại tin nào, có gắn link được không, giá mỗi tin, phí brandname, và **cá nhân chưa đăng ký hộ kinh doanh có đăng ký brandname được không**; (3) xuất file mẫu Viettel Post và J&T. Nhà cung cấp SMS chưa được chọn.
 
@@ -191,6 +192,8 @@ Mục tiêu: dữ liệu khách sạch → mời đúng người, đúng luật 
 | R12 | **Quyền riêng tư trong nhóm:** các khách trong nhóm thấy tên Zalo của nhau. Không đăng SĐT, địa chỉ hay thông tin đơn hàng của ai trong nhóm; hệ thống không hiện tên đầy đủ khách khác ở trang của một khách. Nhóm giữ nhỏ (~5 khách, BR-07). |
 | R13 | **Việc cấm:** hệ thống không tự gửi tin hay kết bạn, không dùng tài khoản của mẹ làm tài khoản gửi, không dùng công cụ tự động ngoài những gì D16 cho phép (mục 1I.9), không giả lập hành vi người dùng để né phát hiện. **Từ D16:** bộ nối không chính thức được phép **đọc sự kiện kết bạn và thêm khách đủ điều kiện vào nhóm**, khi người dùng bật, chỉ bằng tài khoản phụ; mọi thứ khác trong R13 giữ nguyên. Nếu sau này có kênh chính thức (xem 1I.5), nó chỉ thay các bước tay mà **không đổi** R1–R12. |
 
+| R14 | **Gửi link nhóm cho khách tự bấm (D17, đã code):** sau khi khách ĐÃ đồng ý kết bạn (`FRIENDED`) mà chưa vào nhóm, hệ thống đưa sẵn một tin kèm link nhóm Zalo cùng khu vực (soạn ở trang Chiến dịch mời); người gửi dán tay vào cuộc trò chuyện rồi bấm *Đã gửi link nhóm*. Đây là **tin trả lời trong cuộc trò chuyện khách đã chủ động mở bằng cách kết bạn**, mỗi khách **một lần** (ghi `group_link_sent_at`), không phải tin chiến dịch thứ hai nên không vi phạm R9. Hệ thống không tự gửi. Gửi link thì khách đó **thôi nằm trong hàng thêm tự động của bộ nối D16** (không thêm hai lần). |
+
 **1I.3 Trạng thái khách trong luồng**
 | Trạng thái | Nghĩa | Chuyển khi | Hệ thống ghi |
 |---|---|---|---|
@@ -205,7 +208,7 @@ Khách vào bằng mã QR chung (D10) có đường riêng (`CLICKED`); hai đư
 - Code D13 hiện có (`InviteService.markFriended/markJoined`, V12, V14, `SendService.today`, `TestRunService`) và gợi ý nhóm của D11 (`GroupService.pickGroup`, khu vực nhóm).
 - **Có nhóm Zalo thật theo từng khu vực**, đang mở, có link: nếu không, khách rơi vào "chờ nhóm" (R7). Mẹ phải mở nhóm trước khi chạy chiến dịch cho khu vực đó.
 - **Người thêm khách vào nhóm phải có quyền thêm thành viên** (xem câu hỏi Q1). **[CHƯA KIỂM CHỨNG]** thành viên thường của nhóm Zalo cá nhân có thêm được người khác không, và Zalo có giới hạn số lần kết bạn/thêm người mỗi ngày không. Phải thử bằng đợt chạy thử `/test-runs` với số điện thoại tự nguyện trước khi dùng cho khách thật; không đoán.
-- Sổ từ chối, cổng chặn gửi, hạn mức lô và giờ nhắn (D5), chiến dịch theo khu vực (V14). Hai tài khoản web Bố/Mẹ (Đ1) giúp nhật ký ghi đúng người bấm, nhưng không chặn mốc này.
+- Sổ từ chối, cổng chặn gửi, hạn mức lô và giờ nhắn (D5), chiến dịch theo khu vực (V14). Chủ shop chốt (D17) giữ MỘT tài khoản đăng nhập nên nhật ký ghi tên tài khoản gốc; không làm hai tài khoản Bố/Mẹ.
 
 **1I.5 Hướng kênh chính thức (nếu có, không làm bây giờ)**
 Nếu sau này chủ shop có OA/ZBS và chọn GMF (mục 2.1, 2.2; ADR-0001 chưa quyết): tin mời đi qua ZBS có duyệt mẫu, khách đồng ý thì OA mời vào nhóm GMF. Khi đó "kết bạn" được thay bằng "khách quan tâm OA" hoặc "khách bấm đồng ý vào nhóm", bằng chứng đồng ý ghi theo `contact_basis`. Nhưng GMF làm lệch BR-08/BR-11 (OA sở hữu nhóm, phê duyệt từng người), nên **chủ shop quyết** trước. Trạng thái và quy tắc R1–R12 giữ nguyên, chỉ đổi người thực hiện từ tay sang kênh chính thức. Hiện **không xây** gì cho hướng này.
@@ -215,7 +218,7 @@ Nếu sau này chủ shop có OA/ZBS và chọn GMF (mục 2.1, 2.2; ADR-0001 ch
 - **Q2. Khách chỉ đồng ý kết bạn đã đủ để thêm vào nhóm chưa?** Thêm người vào nhóm cùng các khách lạ khác là bước lớn hơn kết bạn. Đề xuất: tin đầu nói rõ "kết bạn xong sẽ mời vào nhóm cùng khu vực (tối đa vài người), muốn ra thì nhắn một câu" (R12, R8) và người gửi không thêm nếu khách có ý ngần ngại. Chủ shop xác nhận cách làm và soạn lại mẫu tin.
 - **Q3. Khi chưa có nhóm khu vực:** chờ mẹ mở nhóm (đề xuất, R7), hay cho vào nhóm chung/miền khác (trái D11 mặc định)? Mẹ mở nhóm mới trong khoảng bao lâu thì chấp nhận được?
 - **Q4. Các mốc thời gian giả định:** giữ chỗ 24 giờ, nhắc sau 2 ngày, đóng "không phản hồi" sau 14 ngày: có hợp với nhịp của mẹ không?
-- **Q5. Ai cầm tài khoản phụ hằng ngày** (bố, mẹ hay cả hai) và có cần ghi theo người không (Đ1)?
+- **Q5. Ai cầm tài khoản phụ hằng ngày** (bố, mẹ hay cả hai) và có cần ghi theo người không? Phần "ghi theo người": **đã trả lời 22/11/2026, không** (D17, giữ một tài khoản). Còn lại (ai cầm) không ảnh hưởng code.
 - **Q6. Khách rời nhóm hoặc bị mời ra:** báo hệ thống bằng tay (đề xuất, R8) hay chỉ dựa vào đếm lại hằng tuần?
 - **Q7. Tin chào trong nhóm:** mẹ tự viết mỗi lần, hay hệ thống đưa sẵn một câu chào mẫu để mẹ dán? (Không tự đăng.)
 
@@ -230,6 +233,13 @@ Nếu sau này chủ shop có OA/ZBS và chọn GMF (mục 2.1, 2.2; ADR-0001 ch
 8. Khi D16 chưa được code hoặc đang tắt: không có mã gọi Zalo hay đăng nhập Zalo chạy trong ứng dụng. Từ khi code D16: mã Zalo chỉ nằm trong bộ nối và `ZaloGateway`, mặc định không khởi động; tiêu chí riêng ở `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md` mục 6.
 
 **1I.8 Không thuộc mốc này:** tự động gửi tin, tự kết bạn, bộ gửi SMS/ZBS (D9), bot trong nhóm (1E), khách `REPEAT`. (Tự thêm khách đã kết bạn vào nhóm và đăng nhập tài khoản phụ **chỉ** thuộc bộ nối D16 ở 1I.9, mặc định tắt.)
+
+**1I.10 Chốt ngày 22/11/2026 (D17)** — hai đường vào nhóm cùng tồn tại, khách chỉ đi một trong hai:
+- **Đường link (đã code, không cần bộ nối):** `FRIENDED` → tin link nhóm (R14) → khách tự bấm → người gửi thấy khách trong nhóm rồi bấm *Đã vào nhóm* (nhóm được ghi đúng là nhóm trong link, kể cả khi nhóm vừa đầy). Mặc định, chạy được ngay cả khi bộ nối tắt.
+- **Đường tự thêm (đã code ở D16, mặc định tắt):** khách đồng ý kết bạn → bộ nối nhận biết → Adh kiểm điều kiện → thêm vào nhóm (nấc `CONFIRM`/`AUTO`). Chủ shop gọi tài khoản này là "tk trợ lý"; về kỹ thuật đây là **tài khoản Zalo phụ** của D13/D16. Tài khoản Zalo riêng cho trợ lý AI trong nhóm (mốc 1E) là việc khác, chưa làm.
+- Hai đường **loại trừ nhau theo từng khách**: bấm *Đã gửi link nhóm* gỡ khách khỏi hàng thêm của bộ nối; khách đã được gửi link mà sự kiện kết bạn tới muộn thì chỉ ghép uid, không xếp vào hàng thêm.
+- **Chưa kiểm chứng:** khách có thật sự bấm link và vào nhóm hay không (hệ thống không biết; mẹ đối chiếu trên Zalo và bấm *Đã vào nhóm*); tin kèm link Zalo có bị coi là spam hay không.
+- Các việc 1I còn lại (gợi ý nhóm ngay khi bấm *Đã kết bạn* kèm nút gộp, giữ chỗ 24 giờ, nhắc 2 ngày và "không phản hồi" 14 ngày, "chờ nhóm", khách rời nhóm) chủ shop đã chọn **làm theo đề xuất** (D17): code ở các PR kế tiếp.
 
 **1I.9 Bộ nối Zalo không chính thức (D16) — ĐANG CODE THEO GIAI ĐOẠN (tiến độ và quyết định khi code: ADR-0002 mục 10)**
 Chi tiết, khảo sát thư viện và mức kiểm chứng: `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md`. Tóm tắt:
@@ -334,8 +344,8 @@ Thiết kế dựa trên file 01 (BR-01..BR-16, mục 6–9, 11) và quyết đ�
 6. Không có giao diện hội thoại cho nhân viên (V1 không xây, BR-13). Giao diện nhân viên thuộc GĐ2.
 
 **Câu hỏi chờ chủ shop (ảnh hưởng thiết kế/code):**
-- (Đ1) "Đăng nhập tài khoản cá nhân của bố mẹ": bố và mẹ có cần **hai tài khoản web riêng** (để nhật ký ghi đúng người duyệt/xóa) không? Thiết kế màn 7 đang đề xuất có. Hiện code chỉ có 1 tài khoản.
-- (Đ2) "Đăng nhập của AI bot": hiểu là **kết nối tài khoản Zalo riêng của bot** (màn 8, mốc 1E) chứ không phải tài khoản đăng nhập web. Đúng không?
+- (Đ1) **Đã trả lời 22/11/2026 (D17): KHÔNG** làm hai tài khoản web Bố/Mẹ riêng. Giữ một tài khoản đăng nhập; màn 7 của thiết kế Penpot (vẽ hai tài khoản) không cần code theo hướng đó.
+- (Đ2) "Đăng nhập của AI bot": hiểu là **kết nối tài khoản Zalo riêng của bot** (màn 8, mốc 1E) chứ không phải tài khoản đăng nhập web. Kênh đã chọn là **Zalo** (D17); chưa có câu trả lời riêng cho "đúng không", vẫn hiểu như trên.
 
 ## 5. Rủi ro chính và biện pháp
 
