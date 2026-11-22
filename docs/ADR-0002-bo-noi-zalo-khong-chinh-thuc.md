@@ -81,20 +81,20 @@ Nguyên tắc: **Adh (Java) là nơi quyết định, cầu nối (Node) chỉ l
 
 ### 3.3 Công tắc và cầu dao
 - Mặc định **`OFF`**. Bật phải làm ở hai nơi: biến môi trường `APP_ZALO_AUTO_ENABLED=true` **và** công tắc trên trang quản trị (ghi vào bảng cài đặt, ghi người bấm).
-- **Bật từng nấc, mỗi nấc chạy thử trước nấc sau:** `LISTEN_ONLY` (chỉ nhận sự kiện và gợi ý, người thêm tay) → `CONFIRM` (hiện nút "thêm người này", bấm là cầu nối thêm) → `AUTO` (tự thêm trong hạn mức). **Đề xuất dừng ở `CONFIRM`** cho tới khi chạy ổn nhiều tuần.
+- **Bật từng nấc, mỗi nấc chạy thử trước nấc sau:** `LISTEN_ONLY` (chỉ nhận sự kiện và gợi ý, người thêm tay) → `CONFIRM` (hiện nút "thêm người này", bấm là cầu nối thêm) → `AUTO` (tự thêm trong hạn mức). **Chủ shop chọn nấc `AUTO` (22/11/2026)**, nhưng **mặc định vẫn ở `CONFIRM`**: nấc `AUTO` chỉ được bật bằng công tắc riêng trên trang quản trị (người bật được ghi nhật ký) **sau khi đợt chạy thử (mục 7, đợt 0) xong các điểm chưa kiểm chứng ở 2.3**, rồi đợt 3 chạy ổn ở `CONFIRM`. Công tắc `AUTO` tắt được ngay lúc nào cũng được; cầu dao `TRIPPED` và hạn mức (3.4) luôn có hiệu lực ở `AUTO`.
 - **Dừng ngay (`TRIPPED`)** khi có một trong: phiên hết hạn/bị đăng xuất; mã đóng `DuplicateConnection`; Zalo trả yêu cầu xác minh/captcha hoặc thông báo hạn chế/khóa; **bất kỳ lỗi cấp hệ thống không nhận ra** (thất bại kín: chưa biết mã lỗi khóa thật nên cái gì lạ thì dừng); ≥ 3 lỗi hệ thống liên tiếp; vượt hạn mức; đồng hồ ngoài khung giờ. Khi `TRIPPED`: cầu nối **đóng kết nối nghe và ngừng mọi thao tác**, Adh hiện băng cảnh báo đỏ và ghi `DUNG`. **Không tự thử lại, không tự đăng nhập lại.** Chỉ người đọc nhật ký rồi bấm "Mở lại" mới thoát; phiên bị hết hạn thì người quét QR lại.
 - Lỗi theo từng người (khách đã ở trong nhóm, khách chặn bị thêm, nhóm đầy) **không** làm cầu dao nhảy.
 
-### 3.4 Hạn mức (giả định thận trọng, chủ shop chỉnh)
-- Thêm vào nhóm: **tối đa 10 người/ngày, 3 người/giờ, cách nhau ít nhất 2 phút**, chỉ 07:00–22:00 (D5). Đây là **trần khối lượng**, không phải màn che: không giả lập gõ phím, không thời gian ngẫu nhiên cho giống người, không đổi dấu vân tay hay địa chỉ mạng. Không có số nào được chứng minh là an toàn; bản chất thư viện là giả lập trình duyệt nên Zalo vẫn có thể phát hiện.
+### 3.4 Hạn mức (chủ shop chốt 22/11/2026: 50 người/ngày, rải từ sáng đến tối, chỉnh được trên giao diện)
+- Thêm vào nhóm: **mặc định 50 người/ngày**, **rải đều trong khung 07:00–22:00 (D5)** bằng trần theo giờ (**tối đa 5 người/giờ**, vì 50 người chia 15 giờ là khoảng 3–4 người/giờ) và **cách nhau ít nhất 2 phút**; khách đủ điều kiện mà hết hạn mức thì xếp hàng sang giờ/ngày sau, không dồn một lúc. Các con số này **chỉnh được trên trang quản trị** (người chỉnh và giá trị cũ/mới được ghi nhật ký); trang chỉ cho chỉnh **đến một trần cứng** đặt bằng biến môi trường (`APP_ZALO_AUTO_MAX_DAILY`, mặc định 100) để gõ nhầm không vượt trần; muốn nâng trần phải đổi cấu hình triển khai. **Lưu ý:** 50 người/ngày gấp 5 lần con số thận trọng đề xuất ban đầu (10); chủ shop đã chọn, Zalo không công bố ngưỡng nên **chưa biết 50 có an toàn không**. Cầu dao (3.3) vẫn dừng ngay khi Zalo cảnh báo. Có thể tự đặt thấp hơn trong tuần chạy đầu rồi tăng dần nếu muốn, đó là lựa chọn của chủ shop. Đây là **trần khối lượng**, không phải màn che: không giả lập gõ phím, không thời gian ngẫu nhiên cho giống người, không đổi dấu vân tay hay địa chỉ mạng. Không có số nào được chứng minh là an toàn; bản chất thư viện là giả lập trình duyệt nên Zalo vẫn có thể phát hiện.
 - Số thao tác chỉ tính **thêm vào nhóm** (nghe không tính). Đếm cả lần lỗi.
-- Hạn mức nằm trong Adh (một nơi), cầu nối kiểm lại bằng một hạn mức cứng của chính nó (gấp đôi) để lỗi của Adh không vượt trần.
+- Hạn mức nằm trong Adh (một nơi), cầu nối kiểm lại bằng một hạn mức cứng của chính nó (gấp đôi trần cứng ở trên) để lỗi của Adh không vượt trần.
 
 ### 3.5 Phiên Zalo: lưu thế nào cho an toàn
 Phiên gồm `imei + cookie + userAgent`; ai có phiên là **chiếm được tài khoản phụ** (đọc tin, nghe, thêm nhóm).
 - **Không bao giờ lưu dạng rõ** trên đĩa, trong DB, trong git, trong log, trong sao lưu. Mã hóa **AES-256-GCM** trước khi ghi; khóa nằm ở **bí mật Docker/biến môi trường tách khỏi tệp phiên và khỏi bản sao lưu** (sao lưu có tệp phiên mà không có khóa thì vô dụng).
 - Tệp phiên ở volume riêng của cầu nối, quyền 600, cầu nối chạy bằng người dùng không phải root, container không công bố cổng ra ngoài, mạng nội bộ chỉ với Adh.
-- Đăng nhập bằng **quét QR ở trang quản trị** (chỉ người đã đăng nhập thấy, ảnh QR không lưu đĩa, hết hạn nhanh). Mật khẩu Zalo và mã OTP **không bao giờ** qua Adh.
+- Đăng nhập bằng **quét QR ở trang quản trị** (chỉ người đã đăng nhập thấy, ảnh QR không lưu đĩa, hết hạn nhanh). Mật khẩu Zalo và mã OTP **không bao giờ** qua Adh. **Chủ shop chốt (22/11/2026):** mẹ hoặc chủ shop quét khi phiên hết hạn, làm ngay trên trang quản trị bằng tài khoản admin. Trang quản trị có mục "Zalo tài khoản phụ" hiện **trạng thái phiên** (đang chạy / hết hạn / `TRIPPED`), nút "Đăng nhập lại" hiện mã QR để quét bằng điện thoại của tài khoản phụ, và **nhắc trên web** (băng cảnh báo trên trang việc hôm nay) khi phiên hết hạn hay cầu dao nhảy; khi chưa quét thì bộ nối đứng yên, khách rơi về chạy tay. Chỉ tài khoản admin thấy mục này và mã QR; mã QR không lưu đĩa. Phiên mới sau khi quét vẫn bị kiểm đúng mã tài khoản phụ đã khai báo (3.6).
 - Không có đường đăng nhập lại tự động; khi nghi lộ phiên: bấm "Đăng xuất" (hủy phiên cả hai phía) và đổi khóa mã hóa.
 - Giới hạn còn lại phải nói thẳng: lúc đang chạy, phiên đã giải mã nằm trong bộ nhớ cầu nối; ai chiếm được VPS thì vẫn lấy được. Cách giảm: VPS cập nhật, tài khoản phụ **không** dùng chung số điện thoại hay mật khẩu với tài khoản chính, không chứa gì nhạy cảm.
 - Bản thân kho `zca-js` có `SECURITY.md` và nhận báo lỗi riêng; vẫn nên chạy `npm audit` và ghim lockfile khi code.
@@ -106,6 +106,7 @@ Phiên gồm `imei + cookie + userAgent`; ai có phiên là **chiếm được t
 ## 4. Ranh giới: ngoài phạm vi
 Không làm, và nếu có yêu cầu thì ghi "ngoài phạm vi" rồi báo lại chủ shop:
 - Bất kỳ thứ gì để **giả dạng người dùng bình thường nhằm né phát hiện của Zalo**: giả lập gõ/click, độ trễ ngẫu nhiên giả người, đổi dấu vân tay thiết bị/`imei`/`userAgent` hoặc xoay vòng, proxy xoay, nhiều tài khoản luân phiên, đăng ký tài khoản mới để thay thế tự động.
+- **"Làm sao cho giống người thật làm"** (chủ shop hỏi 22/11/2026): **không làm** như một tính năng thêm. Phần được làm chỉ là **giới hạn tốc độ và khung giờ** của 3.4 (trần theo ngày/giờ, khoảng cách tối thiểu, chỉ 07:00–22:00, xếp hàng sang sau khi hết hạn mức). Đó là giới hạn khối lượng, **không** nhằm làm cho Zalo không phân biệt được với người. Bản thân zca-js vốn đã giả lập trình duyệt Zalo Web (đó là cách nó hoạt động); ta không thêm lớp nào phía trên để che. Nếu có yêu cầu thêm, ghi "ngoài phạm vi" và báo lại.
 - **Gửi tin hàng loạt tự động**, tự gửi lời mời kết bạn, tự tra số điện thoại hàng loạt, tự nhắn cho khách chưa đồng ý nhận tin. Cầu nối không có các hàm này (3.1.2).
 - Tự thêm vào nhóm người **chưa chủ động chấp nhận kết bạn** (hoặc chưa vào bằng QR) và người trong danh sách từ chối.
 - Dùng tài khoản chính của bố mẹ.
@@ -137,7 +138,7 @@ Không làm, và nếu có yêu cầu thì ghi "ngoài phạm vi" rồi báo l�
 4. **Đợt 3:** nấc `CONFIRM`; chạy ổn nhiều tuần mới cân nhắc `AUTO`.
 
 ## 8. Câu hỏi cho chủ shop
-- **Q8.** Chấp nhận dừng ở nấc `CONFIRM` (người bấm "thêm", máy làm phần thao tác) hay muốn `AUTO`? Đề xuất `CONFIRM`.
-- **Q9.** Hạn mức mở đầu 10 người/ngày, 3 người/giờ có hợp với số khách kết bạn thật mỗi ngày không?
-- **Q10.** Ai quét QR đăng nhập khi phiên hết hạn, và chấp nhận mất tài khoản phụ khi bị khóa (nhóm do tài khoản mẹ làm chủ để không mất nhóm)?
+- **Q8 (đã trả lời 22/11/2026).** Chủ shop chọn **`AUTO`** (máy tự thêm khi khách đủ điều kiện, không cần bấm). Cách làm: bật bằng công tắc trên giao diện, **mặc định ở `CONFIRM`** cho tới khi chạy thử xong các điểm chưa kiểm chứng (2.3). Hạn mức 50 người/ngày (3.4) và cầu dao (3.3) áp dụng như nhau cho cả hai nấc.
+- **Q9 (đã trả lời 22/11/2026).** Hạn mức mở đầu **50 người/ngày**, rải từ sáng đến tối (07:00–22:00), **chỉnh được trên giao diện** (3.4).
+- **Q10 (đã trả lời 22/11/2026).** Chủ shop **chấp nhận mất tài khoản phụ nếu bị khóa**. **Mẹ hoặc chủ shop quét QR khi phiên hết hạn**, thao tác trên trang quản trị bằng tài khoản admin (3.5); hệ thống nhắc trên web khi cần quét. Cần viết hướng dẫn quét cho mẹ vào runbook khi code. Nhóm vẫn nên do tài khoản của mẹ làm chủ để không mất nhóm khi tài khoản phụ bị khóa.
 - **Q1 (cũ, còn nguyên):** tài khoản phụ có quyền thêm thành viên vào nhóm không — chỉ biết qua đợt 0.
