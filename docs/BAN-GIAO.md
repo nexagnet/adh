@@ -167,7 +167,7 @@ Việc giao diện Penpot, bộ nhập J&T, bản đồ, phân vùng, D13 và b�
 **A. Còn phải CODE, không cần chờ ai quyết**
 1. ~~Đường bán tự động D15~~ **Đã code (22/11/2026)**: gợi ý nhóm khi bấm *Đã kết bạn*, nút gộp, giữ chỗ 24 giờ, nhắc quá hạn 2 ngày và "không phản hồi" 14 ngày, "chờ nhóm", khách rời nhóm, trang Chờ vào nhóm. Còn phải **thử với khách thật**.
 2. ~~Việc nhỏ còn sót~~ **Đã code (22/11/2026)**: chọn nhóm khác nhóm gợi ý khi đánh dấu *Đã vào nhóm* (ô chọn nhóm ở trang chiến dịch và trang Chờ vào nhóm); file xuất gửi tay có thêm cột `khu_vuc` và `nhom_goi_y` (không có link nhóm); "Khách đổi nhóm" (mua 1 lần ↔ từ 2 lần) hiện ở màn *Đã nhập xong* (đếm sau khi nhập, lưu ở `import_batch.segment_changes`, V20); cảnh báo đỏ ở màn xem trước khi file J&T có đúng 500 dòng.
-3. Workflow CI build ảnh Docker cho `zalo-bridge` (hiện chỉ ảnh ứng dụng; compose dùng `build:` cục bộ).
+3. ~~Workflow CI build ảnh Docker cho `zalo-bridge`~~ **Đã làm (22/11/2026)**: workflow `image` dựng và đẩy cả `ghcr.io/nexagnet/adh-zalo-bridge:<mã commit>` lẫn ảnh ứng dụng khi gộp vào main. Compose vẫn dùng `build:` cục bộ cho cầu nối (cầu nối tắt mặc định); khi triển khai thật sẽ đổi sang kéo ảnh dựng sẵn để khỏi build Node trên máy chủ 2 GB.
 4. Sau lần chạy thử Zalo thật đầu tiên: thêm mã lỗi đã thấy vào `ZALO_PERSON_ERROR_CODES` (ADR-0002 mục 10 điểm 5).
 
 **B. Phải code nhưng chờ chủ shop quyết (mục 6)**
