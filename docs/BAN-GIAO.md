@@ -1,7 +1,7 @@
 # Bàn giao dự án Adh (ngày 21/11/2026)
 
 Tài liệu này gom mọi thứ phiên làm việc trước biết, để phiên sau (người hoặc Claude) làm tiếp mà không phải hỏi lại. Đọc kèm:
-`01_DAC_TA_NGHIEP_VU.md` (nghiệp vụ, nguồn sự thật), `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md` (quyết định D1–D15, kế hoạch),
+`01_DAC_TA_NGHIEP_VU.md` (nghiệp vụ, nguồn sự thật), `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md` (quyết định D1–D16, kế hoạch),
 `docs/RUNBOOK.md` (vận hành), `docs/thiet-ke-penpot/` (thiết kế giao diện đã duyệt).
 
 **Người dùng (chủ dự án): Phùng Việt. Luôn trả lời bằng tiếng Việt, ngắn gọn, dễ hiểu cho người không rành kỹ thuật.**
@@ -26,7 +26,7 @@ Mã nguồn trên nhánh `main` của `nexagnet/adh`, đã gộp các PR #3, #4,
 | 1G | Phân vùng khách Bắc/Trung/Nam theo địa chỉ, nhóm Zalo theo khu vực | Xong (PR #4) |
 | 1H | Bản đồ khách theo tỉnh `/map` + nhắc việc thời tiết | Xong (PR #5) |
 | Giao diện Penpot | Làm lại giao diện theo thiết kế đã duyệt | **Đã code** (PR #8 thanh bên + việc hôm nay; PR kế tiếp: thuật ngữ tiếng Việt, chi tiết khách 2 cột, chiến dịch, giấy in A5, `/n`). Chưa xem bằng mắt trên trình duyệt thật (xem mục 9) |
-| 1I | Kết bạn → vào nhóm ngay (D15) | **Mới ghi phạm vi (22/11/2026), CHƯA CODE.** Đặc tả ở file 03 mục 1I; câu hỏi mở Q1–Q7 chờ chủ shop |
+| 1I | Kết bạn → vào nhóm ngay (D15, D16) | **Mới ghi phạm vi và kiến trúc (22/11/2026), CHƯA CODE.** Đặc tả ở file 03 mục 1I; câu hỏi mở Q1–Q7 và Q8–Q10 chờ chủ shop. **D16:** bộ nối Zalo không chính thức (`zca-js`) tùy chọn, mặc định tắt, thiết kế ở `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md`; phải chạy thử trước khi code |
 | 2F | Đồng bộ đơn mới từ J&T | Phương án A đã code (PR #9): nhập nhiều file, gộp theo mã vận đơn, Địa chỉ hành chính, trạng thái J&T, nhắc nhập file. **Chưa chạy với file J&T thật.** Cổng nạp chung `ShipmentIngest` chưa làm (chưa có nguồn thứ hai) |
 
 ### PR và nhánh
@@ -55,6 +55,7 @@ Mã nguồn trên nhánh `main` của `nexagnet/adh`, đã gộp các PR #3, #4,
 | D12 | Bản đồ phân bố khách + nhắc việc thời tiết (chỉ nhắc trên web, không tự nhắn khách) |
 | D13 | **Nghiệp vụ giai đoạn 1 (chốt 21/11/2026):** dùng **tài khoản Zalo cá nhân phụ** nhắn tin tư vấn sản phẩm cho khách mua **đúng 1 lần**; ai đồng ý **kết bạn** thì thêm vào **nhóm Zalo cùng khu vực**; chỉ nhắn **một lần duy nhất** mỗi người; **nội dung tin do chủ shop soạn ở trang quản trị**. Hệ thống **vẫn không tự gửi tin** và không đăng nhập Zalo |
 | D15 | **Bổ sung D13 (chốt 22/11/2026, chưa code):** khách đồng ý kết bạn từ tin của tài khoản phụ thì **thêm vào nhóm phù hợp luôn** theo phân vùng D11. Vẫn bán tự động: mẹ thêm khách bằng Zalo, hệ thống gợi ý nhóm, giữ chỗ, nhắc việc, ghi lại. Quy tắc, trạng thái, phụ thuộc, câu hỏi mở: file 03 mục 1I |
+| D16 | **Bổ sung D15 (chốt 22/11/2026, chưa code):** chủ shop chọn dùng **thư viện Zalo không chính thức `zca-js`** để nhận biết khách đã kết bạn và thêm vào nhóm, **dù biết trái điều khoản Zalo và tài khoản phụ có thể bị khóa**. Bộ nối riêng (Node) sau giao diện `ZaloGateway`, **mặc định tắt**, bật từng nấc, nhật ký, hạn mức, cầu dao dừng ngay, phiên mã hóa, chỉ tài khoản phụ. **Không** làm giả hành vi để né phát hiện, **không** gửi tin hàng loạt. Chi tiết: `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md`, file 03 mục 1I.9 |
 
 Lựa chọn khác của người dùng trong các phiên: giao diện **100% tiếng Việt**; "trợ lý AI" thay cho chữ "bot" (theo thiết kế Penpot); bố mẹ không rành kỹ thuật nên chữ to, mỗi màn một việc; người dùng đã **duyệt thiết kế Penpot** (21/11/2026) và dặn "sửa xong Penpot thì code luôn"; chọn **phương án A cho J&T** (nhập file tăng dần).
 
@@ -79,6 +80,7 @@ Lựa chọn khác của người dùng trong các phiên: giao diện **100% ti
 - **Chiến dịch theo khu vực + lô nhắn hôm nay (22/11/2026, V14):** tạo chiến dịch chỉ cho khách một miền/vùng/tỉnh hoặc "chưa rõ" (`invitation_campaign.geo_scope`, cùng cách ghi mã với nhóm: `R:NAM`, `S:...`, `P:...`, `U`); tối đa `app.invitations.max-campaign` (300) khách mỗi chiến dịch. Trang **Lô nhắn hôm nay** (`/today`, `SendService.today`) chỉ gợi ý đủ hạn mức còn lại của ngày (`daily-limit`) và giờ (`hourly-limit`, 60 phút gần nhất), trong giờ 07–22, không khi tạm dừng; người thật nhắn tay rồi bấm *Đã nhắn* (`SendService.markMessaged`, kênh `ZALO_PHU`, ghi nhật ký gửi). Ghi nhận *Đã nhắn* **không bị chặn theo giờ/hạn mức** vì việc đã xảy ra (chặn thì hệ thống không biết và có thể nhắn lại), nhưng vẫn từ chối khách không còn đủ điều kiện liên hệ. Nhịp gợi ý `suggested-gap-minutes` (3 phút) chỉ để hiển thị, **không ép buộc, không ngẫu nhiên hóa** để giả người thật. Hệ thống vẫn không tự gửi, không đăng nhập Zalo.
 - **Chạy thử trên Zalo thật (22/11/2026, V14):** `/test-runs` (`testrun/TestRunService`). Vài số điện thoại do người dùng tự nhập, lưu ở bảng riêng `test_run`/`test_target` (không khóa ngoại tới khách thật), có đánh dấu tay Đã nhắn/Đã kết bạn/Đã vào nhóm/Từ chối và gợi ý nhóm theo tỉnh đã chọn. **Không** đổi trạng thái lời mời của khách thật, không ghi `send_log`/`contact_event`/danh sách từ chối, không tăng số khách của nhóm (có test `TestRunTest.chayHetQuyTrinhMaDuLieuThatKhongDoi` so ảnh chụp dữ liệu trước/sau). Hướng dẫn thử từng bước cho người dùng: [`HUONG-DAN-THU-ZALO.md`](HUONG-DAN-THU-ZALO.md).
 - **Phạm vi bổ sung D15 (chỉ ghi tài liệu, chưa code):** gộp bước kết bạn và vào nhóm thành một luồng "kết bạn xong thì thêm vào nhóm ngay": gợi ý nhóm ngay lúc bấm *Đã kết bạn*, nút gộp một lần, giữ chỗ nhóm, ghi "chờ nhóm" khi chưa có nhóm hợp (không đẩy sang nhóm miền khác), việc nhắc khách đã kết bạn mà chưa vào nhóm, giảm số khách khi khách ra khỏi nhóm. Đặc tả đầy đủ ở file 03 mục 1I (quy tắc R1–R13, bảng trạng thái, tiêu chí nghiệm thu). **Câu hỏi chủ shop cần trả lời trước khi code:** Q1 ai thêm khách vào nhóm (tài khoản phụ hay mẹ, và quyền thêm thành viên trên Zalo chưa kiểm chứng), Q2 kết bạn đã đủ để vào nhóm chưa, Q3 hết nhóm khu vực thì làm gì.
+- **Phạm vi bổ sung D16 (chỉ ghi tài liệu, chưa code):** bộ nối Zalo không chính thức. Đã đọc mã `zca-js` 2.3.0: có sự kiện `friend_event` loại `ADD` và hàm `addUserToGroup`/`inviteUserToGroups`, nhưng **chưa thử thật** nên chưa biết: sự kiện có phát đủ không, có đổi được ra số điện thoại không, tài khoản phụ có quyền thêm thành viên không, Zalo cho bao nhiêu thao tác mỗi ngày. **Việc đầu tiên khi làm tiếp: chạy thử riêng** với tài khoản phụ và 2–3 số tự nguyện (ADR-0002 mục 7, đợt 0), chưa viết mã trong Adh. Không dùng bản fork/đăng lại của zca-js. Nếu không bật, mọi thứ vẫn chạy tay như D13/D15.
 - **Chưa làm:** gợi ý chọn nhóm khác với nhóm được gợi ý khi đánh dấu *Đã vào nhóm*; xuất file Excel có cột nhóm gợi ý; nhắc theo dõi khách đã nhắn mà quá lâu chưa kết bạn.
 
 ## 3. Cấu hình và công tắc
@@ -147,7 +149,8 @@ Công tắc trên giao diện: **Tạm dừng tất cả chiến dịch** (`/cam
 5. **Địa chỉ ngắn và tên miền cho mã QR** (cần HTTPS; thiết kế dùng đường ngắn `/n`).
 6. **SMS**: khi nào làm lại, nhà cung cấp nào (eSMS/SpeedSMS), cá nhân chưa có hộ kinh doanh có đăng ký brandname được không.
 7. **J&T**: xem mục 8.
-8. **D15 (kết bạn → vào nhóm ngay)**: trả lời Q1–Q7 ở file 03 mục 1I.6 (quan trọng nhất: Q1 ai là người thêm khách vào nhóm, Q2 cách báo khách trong tin đầu, Q3 khi chưa có nhóm khu vực).
+8. **D15, D16 (kết bạn → vào nhóm ngay)**: trả lời Q1–Q7 ở file 03 mục 1I.6 (quan trọng nhất: Q1 ai là người thêm khách vào nhóm, Q2 cách báo khách trong tin đầu, Q3 khi chưa có nhóm khu vực).
+9. **D16 (bộ nối Zalo không chính thức)**: trả lời Q8 (dừng ở `CONFIRM` hay `AUTO`), Q9 (hạn mức mở đầu 10 người/ngày, 3/giờ), Q10 (ai quét QR khi phiên hết hạn; chấp nhận mất tài khoản phụ nếu bị khóa). Xem `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md` mục 8.
 
 ---
 
