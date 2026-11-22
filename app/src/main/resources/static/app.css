@@ -485,3 +485,20 @@ tr:has(details.rowedit[open]) + tr.editrow { display: table-row; }
 tr.editrow > td { background: #f8fafc; }
 details.rowedit > summary { list-style: none; display: inline-block; }
 details.rowedit > summary::-webkit-details-marker { display: none; }
+
+/* Bảng danh sách khách: tiêu đề bấm để sắp xếp, hàng lọc ngay dưới tiêu đề */
+.table-tools { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; margin: 0; }
+.table-wrap > table.grid { min-width: 860px; }
+table.grid th, table.grid td { padding-left: 10px; padding-right: 10px; }
+th a.sort { display: inline-flex; align-items: center; gap: 6px; color: inherit; text-decoration: none; white-space: nowrap; }
+th a.sort:hover { color: var(--primary); }
+th a.sort .arrow { color: var(--faint); font-size: 14px; }
+th a.sort .arrow.on { color: var(--primary); }
+th[aria-sort=ascending], th[aria-sort=descending] { background: #e3ecf6; }
+tr.filter-row > td { background: #f8fafc; padding: 8px 10px; vertical-align: top; }
+tr.filter-row input, tr.filter-row select { font-size: 15px; padding: 7px 8px; width: 100%; max-width: none; min-width: 84px; }
+tr.filter-row input[type=date] { font-size: 14px; padding: 6px; min-width: 128px; }
+tr.filter-row .range { display: flex; flex-direction: column; gap: 6px; }
+tr.filter-row .range input[type=date] { width: 100%; }
+tr.filter-row label.small-label { font-size: 14px; font-weight: 600; color: var(--muted); margin: 0; }
+tr.filter-row label.small-label input { display: block; margin-top: 2px; }
