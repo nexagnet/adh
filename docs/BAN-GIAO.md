@@ -1,4 +1,4 @@
-# Bàn giao dự án Adh (ngày 21/11/2026)
+# Bàn giao dự án Adh (lập 21/11/2026, cập nhật 22/11/2026)
 
 Tài liệu này gom mọi thứ phiên làm việc trước biết, để phiên sau (người hoặc Claude) làm tiếp mà không phải hỏi lại. Đọc kèm:
 `01_DAC_TA_NGHIEP_VU.md` (nghiệp vụ, nguồn sự thật), `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md` (quyết định D1–D16, kế hoạch),
@@ -11,7 +11,7 @@ Hệ thống phục vụ cửa hàng của bố mẹ người dùng: chăm sóc 
 
 ## 1. Trạng thái tổng quát
 
-Mã nguồn trên nhánh `main` của `nexagnet/adh`, đã gộp các PR #3, #4, #5. **225 test đạt**, CI (`test`, `lint`) xanh.
+Mã nguồn trên nhánh `main` của `nexagnet/adh`, đã gộp các PR #3 đến #32 (trừ #25 đã đóng vì lỗi thời). Hơn 380 test Java và khoảng 50 test Node; CI (`test`, `lint`, và `image` build ảnh ứng dụng) xanh ở các lần gộp gần nhất. Số chính xác xem kết quả CI, bảng này không ghi số cứng nữa vì số test tăng theo từng PR.
 
 | Mốc | Nội dung | Trạng thái |
 |---|---|---|
@@ -20,19 +20,20 @@ Mã nguồn trên nhánh `main` của `nexagnet/adh`, đã gộp các PR #3, #4,
 | 1C | Nhóm Zalo, chiến dịch mời theo lô nhỏ, link riêng `/i/{token}`, đếm lượt bấm | Xong, có test |
 | 1D | Cổng chặn gửi, chạy thử, xuất danh sách cho mẹ gửi tay, nhật ký gửi | Xong. **Chỉ có đường "mẹ gửi tay"**. Không có bộ gửi SMS/ZBS |
 | 1E | Lõi bot trợ lý (hỏi đáp thường gặp, báo mẹ, chạy thử, tắt khẩn cấp) | Xong phần lõi. **Chưa có kênh Zalo thật** (xem `docs/ADR-0001-chon-kenh-bot.md`) |
-| 1F | Docker, HTTPS (Caddy), sao lưu/khôi phục, giới hạn đăng nhập sai | Xong phần mã và script; **Docker chưa chạy thử** |
+| 1F | Docker, HTTPS (Caddy), sao lưu/khôi phục, giới hạn đăng nhập sai | Xong phần mã và script. Có thêm bản cài lên **máy chủ dùng chung** không Caddy riêng (`infra/docker-compose.shared.yml`, `infra/deploy.sh`, ảnh `ghcr.io/nexagnet/adh-app` build bằng GitHub Actions, PR #11, #12). Theo PR #12 và `tools/jt-edge-sync/README.md`, ứng dụng đã được dựng trên một VPS; **việc sao lưu/khôi phục trên máy chủ thật, quét QR từ giấy in thật chưa có bằng chứng đã thử** |
 | Việt hóa | Giao diện 100% tiếng Việt (bean `labels`, trang lỗi tiếng Việt) | Xong (PR #3) |
 | Giấy in | Trang `/print` + trang khách `/moi` dùng một mã QR tĩnh chung | Xong (PR #3) |
 | 1G | Phân vùng khách Bắc/Trung/Nam theo địa chỉ, nhóm Zalo theo khu vực | Xong (PR #4) |
 | 1H | Bản đồ khách theo tỉnh `/map` + nhắc việc thời tiết | Xong (PR #5) |
-| Giao diện Penpot | Làm lại giao diện theo thiết kế đã duyệt | **Đã code** (PR #8 thanh bên + việc hôm nay; PR kế tiếp: thuật ngữ tiếng Việt, chi tiết khách 2 cột, chiến dịch, giấy in A5, `/n`). Chưa xem bằng mắt trên trình duyệt thật (xem mục 9) |
-| 1I | Kết bạn → vào nhóm ngay (D15, D16) | **D16 đã code (22/11/2026, PR #29, #30, #31), mặc định TẮT, CHƯA chạy với Zalo thật.** Bộ nối Zalo không chính thức (`zca-js` 2.3.0) là dịch vụ Node `zalo-bridge/` riêng sau giao diện `ZaloGateway`; trang quản trị `/zalo` (nấc, hạn mức, quét QR, duyệt, hàng đợi tay, nhật ký). Thiết kế ở `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md` (mục 9 kết quả đợt thử 0, mục 10 quyết định khi code), hợp đồng `docs/ZALO-BRIDGE-API.md`, thử thật theo `docs/HUONG-DAN-THU-ZALO-TU-DONG.md`. Phần D15 không dùng bộ nối (mẹ thêm tay) vẫn theo file 03 mục 1I; câu hỏi Q1–Q7 xem mục 6 |
+| Giao diện Penpot | Làm lại giao diện theo thiết kế đã duyệt | **Đã code** (PR #8 thanh bên + việc hôm nay; PR #10 thuật ngữ tiếng Việt, chi tiết khách 2 cột, chiến dịch, giấy in A5, `/n`; PR #17 chỉnh khớp thiết kế). Chưa xem bằng mắt trên trình duyệt thật và chưa in thử giấy A5 (xem mục 9) |
+| 1I | Kết bạn → vào nhóm ngay (D15, D16) | **D16 đã code (22/11/2026, PR #29, #30, #31), mặc định TẮT, CHƯA chạy với Zalo thật.** Bộ nối Zalo không chính thức (`zca-js` 2.3.0) là dịch vụ Node `zalo-bridge/` riêng sau giao diện `ZaloGateway`; trang quản trị `/zalo` (nấc, hạn mức, quét QR, duyệt, hàng đợi tay, nhật ký). Thiết kế ở `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md` (mục 9 kết quả đợt thử 0, mục 10 quyết định khi code), hợp đồng `docs/ZALO-BRIDGE-API.md`, thử thật theo `docs/HUONG-DAN-THU-ZALO-TU-DONG.md`. **Đường bán tự động của D15 (mẹ thêm tay) CHƯA code**: gợi ý nhóm ngay lúc bấm *Đã kết bạn* và nút gộp, giữ chỗ nhóm, nhắc khách kết bạn quá 2 ngày chưa vào nhóm, "chờ nhóm", nút báo khách rời nhóm (file 03 mục 1I.1 a–e, R3–R8); câu hỏi Q1–Q7 xem mục 6 |
 | 2F | Đồng bộ đơn mới từ J&T | Phương án A đã code (PR #9): nhập nhiều file, gộp theo mã vận đơn, Địa chỉ hành chính, trạng thái J&T, nhắc nhập file. **Chưa chạy với file J&T thật.** Cổng nạp chung `ShipmentIngest` chưa làm (chưa có nguồn thứ hai) |
 
 ### PR và nhánh
-- Đã gộp: **#3** (giai đoạn 1C–1F, Việt hóa, giấy in QR chung), **#4** (phân vùng), **#5** (bản đồ + thời tiết).
-- Nhánh làm việc của phiên này: `claude/project-thread-b00yjf`. Sau mỗi lần gộp phải khởi lại từ `main` (`git checkout -B <nhánh> origin/main`), rồi đẩy lên (nhánh cũ đã bị xóa phía xa nên đẩy thường là được).
-- **Không đụng vào**: PR #1 của `nexagnet/adh` và các bản nháp ở repo `nexagnet/.github` (#11, #42, #43, #45). Đó là của người dùng, không phải của phiên này.
+- Đã gộp **#3 đến #32** (gồm #1 và #2, hai PR đầu về CI). Mốc chính: #3 giai đoạn 1C–1F, #4 phân vùng, #5 và #19 bản đồ/thời tiết, #8 #10 #17 giao diện Penpot, #9 #13 #14 #22 J&T, #11 #12 triển khai, #16 #18 D13, #21 #23 danh sách khách, #24 #26 #27 #28 ghi D15/D16/ADR-0002, #29 đến #32 bộ nối Zalo D16.
+- **#25** (nghiên cứu kết bạn → nhóm Zalo, bản nháp) **đã đóng không gộp (22/11/2026)**: kết luận "không dùng thư viện không chính thức" và "chưa thấy sự kiện kết bạn" đã bị thay bởi D16 và kết quả đợt thử 0 (ADR-0002 mục 9). Phần còn hữu ích của nó chưa được đưa vào tài liệu nào mà chỉ còn trên nhánh `claude/project-thread-6102cc` (gửi link nhóm cho khách tự bấm thay vì thêm hộ; mời sau khi đơn "Giao thành công"; tin hậu mãi ZBS khi có hộ kinh doanh và OA); đã ghi thành câu hỏi 10 ở mục 6.
+- Nhánh làm việc: mỗi phiên dùng một nhánh `claude/project-thread-*`. Sau mỗi lần gộp phải khởi lại từ `main` (`git checkout -B <nhánh> origin/main`), rồi đẩy lên.
+- **Không đụng vào** các bản nháp ở repo `nexagnet/.github` (#11, #42, #43, #45). Đó là của người dùng.
 - Người dùng đã cho phép Claude **tự gộp PR của `nexagnet/adh`** khi CI xanh và không xung đột (không áp dụng cho `nexagnet/.github` hay PR của người khác). Việc mới thì mở PR mới từ `main`, gộp rồi báo lại.
 
 ---
@@ -80,7 +81,7 @@ Lựa chọn khác của người dùng trong các phiên: giao diện **100% ti
 - **Chiến dịch theo khu vực + lô nhắn hôm nay (22/11/2026, V14):** tạo chiến dịch chỉ cho khách một miền/vùng/tỉnh hoặc "chưa rõ" (`invitation_campaign.geo_scope`, cùng cách ghi mã với nhóm: `R:NAM`, `S:...`, `P:...`, `U`); tối đa `app.invitations.max-campaign` (300) khách mỗi chiến dịch. Trang **Lô nhắn hôm nay** (`/today`, `SendService.today`) chỉ gợi ý đủ hạn mức còn lại của ngày (`daily-limit`) và giờ (`hourly-limit`, 60 phút gần nhất), trong giờ 07–22, không khi tạm dừng; người thật nhắn tay rồi bấm *Đã nhắn* (`SendService.markMessaged`, kênh `ZALO_PHU`, ghi nhật ký gửi). Ghi nhận *Đã nhắn* **không bị chặn theo giờ/hạn mức** vì việc đã xảy ra (chặn thì hệ thống không biết và có thể nhắn lại), nhưng vẫn từ chối khách không còn đủ điều kiện liên hệ. Nhịp gợi ý `suggested-gap-minutes` (3 phút) chỉ để hiển thị, **không ép buộc, không ngẫu nhiên hóa** để giả người thật. Hệ thống vẫn không tự gửi, không đăng nhập Zalo.
 - **Chạy thử trên Zalo thật (22/11/2026, V14):** `/test-runs` (`testrun/TestRunService`). Vài số điện thoại do người dùng tự nhập, lưu ở bảng riêng `test_run`/`test_target` (không khóa ngoại tới khách thật), có đánh dấu tay Đã nhắn/Đã kết bạn/Đã vào nhóm/Từ chối và gợi ý nhóm theo tỉnh đã chọn. **Không** đổi trạng thái lời mời của khách thật, không ghi `send_log`/`contact_event`/danh sách từ chối, không tăng số khách của nhóm (có test `TestRunTest.chayHetQuyTrinhMaDuLieuThatKhongDoi` so ảnh chụp dữ liệu trước/sau). Hướng dẫn thử từng bước cho người dùng: [`HUONG-DAN-THU-ZALO.md`](HUONG-DAN-THU-ZALO.md).
 - **Phạm vi bổ sung D15 (chỉ ghi tài liệu, chưa code):** gộp bước kết bạn và vào nhóm thành một luồng "kết bạn xong thì thêm vào nhóm ngay": gợi ý nhóm ngay lúc bấm *Đã kết bạn*, nút gộp một lần, giữ chỗ nhóm, ghi "chờ nhóm" khi chưa có nhóm hợp (không đẩy sang nhóm miền khác), việc nhắc khách đã kết bạn mà chưa vào nhóm, giảm số khách khi khách ra khỏi nhóm. Đặc tả đầy đủ ở file 03 mục 1I (quy tắc R1–R13, bảng trạng thái, tiêu chí nghiệm thu). **Câu hỏi chủ shop cần trả lời trước khi code:** Q1 ai thêm khách vào nhóm (tài khoản phụ hay mẹ, và quyền thêm thành viên trên Zalo chưa kiểm chứng), Q2 kết bạn đã đủ để vào nhóm chưa, Q3 hết nhóm khu vực thì làm gì.
-- **D16 (bộ nối Zalo không chính thức): đã code, mặc định tắt.** Phần dưới là ghi chú trước khi code, còn đúng về điều chưa kiểm chứng: Đã đọc mã `zca-js` 2.3.0: có sự kiện `friend_event` loại `ADD` và hàm `addUserToGroup`/`inviteUserToGroups`, nhưng **chưa thử thật** nên chưa biết: sự kiện có phát đủ không, có đổi được ra số điện thoại không, tài khoản phụ có quyền thêm thành viên không, Zalo cho bao nhiêu thao tác mỗi ngày. **Việc đầu tiên khi làm tiếp: chạy thử riêng** với tài khoản phụ và 2–3 số tự nguyện (ADR-0002 mục 7, đợt 0), chưa viết mã trong Adh. Không dùng bản fork/đăng lại của zca-js. Nếu không bật, mọi thứ vẫn chạy tay như D13/D15.
+- **D16 (bộ nối Zalo không chính thức): đã code, mặc định tắt.** Đợt thử 0 đã chạy (ADR-0002 mục 9): sự kiện `ADD` phát đúng; khoảng 27/32 bạn thật không lộ số nên phần lớn khách sẽ rơi vào hàng đợi ghép tay; thành viên thường thêm được người vào nhóm; kết nối nghe đứt mã 1006 sau khoảng 40 phút. Còn **chưa biết**: ngưỡng thao tác an toàn mỗi ngày, lỗi khi nhóm bật "chỉ quản trị viên được thêm", nhóm đầy hay khách chặn, thời gian sống của phiên. Không dùng bản fork/đăng lại của zca-js. Nếu không bật, mọi thứ vẫn chạy tay như D13/D15.
 - **Chưa làm:** gợi ý chọn nhóm khác với nhóm được gợi ý khi đánh dấu *Đã vào nhóm*; xuất file Excel có cột nhóm gợi ý; nhắc theo dõi khách đã nhắn mà quá lâu chưa kết bạn.
 
 ## 3. Cấu hình và công tắc
@@ -118,7 +119,7 @@ Công tắc trên giao diện: **Tạm dừng tất cả chiến dịch** (`/cam
 - **Kiểm thử:** `cd app && ./mvnw verify` (PostgreSQL nhúng thật, JaCoCo ngưỡng 80% dòng). CI chạy đúng lệnh này, cộng một job `lint` chặn file Excel, `data_product/`, `.env`, build output trong git.
 - **Môi trường cloud/sandbox:** cần **JDK 25** (đã có ở `/opt/jdk25`; Adoptium bị chặn proxy, tải từ download.oracle.com nếu thiếu). PostgreSQL nhúng **không chạy bằng root**: chạy Maven bằng `runuser -u ubuntu -- env JAVA_HOME=/opt/jdk25 PATH=/opt/jdk25/bin:$PATH ./mvnw ...` và `chown -R ubuntu` thư mục repo; thêm `git config --global --add safe.directory <repo>` nếu git báo quyền sở hữu. Không có daemon Docker trong sandbox.
 - **Triển khai máy chủ:** `infra/docker-compose.prod.yml` (ứng dụng + PostgreSQL + Caddy HTTPS, giới hạn bộ nhớ cho VPS 2 GB), `infra/backup.sh`, `infra/restore-test.sh`. Hướng dẫn từng bước: `docs/RUNBOOK.md` mục B.
-- **Cơ sở dữ liệu:** Flyway, migration `V1`…`V10` ở `app/src/main/resources/db/migration` (V9 phân vùng, V10 thời tiết). Việc mới dùng `V11`. Khi thêm bảng mới, **nhớ thêm vào danh sách `TRUNCATE` trong `AbstractPostgresTest`** (test dùng chung một cơ sở dữ liệu).
+- **Cơ sở dữ liệu:** Flyway, migration `V1`…`V17` ở `app/src/main/resources/db/migration` (V9 phân vùng, V10 thời tiết, V12 luồng kết bạn, V14 chiến dịch theo khu vực và chạy thử, V17 bộ nối Zalo). Việc mới dùng `V18` (hiện có V1 đến V17). Khi thêm bảng mới, **nhớ thêm vào danh sách `TRUNCATE` trong `AbstractPostgresTest`** (test dùng chung một cơ sở dữ liệu).
 - **Công nghệ:** Java 25, Spring Boot 4.2, Spring Security, JdbcClient (SQL thuần), Thymeleaf, Flyway, PostgreSQL; zxing sinh mã QR trên máy chủ; Jackson 3 (`tools.jackson`). Chính sách bảo mật nội dung (CSP): **không script hay style nội tuyến** (`default-src 'self'; style-src 'self'`), nên tương tác phải làm bằng liên kết/biểu mẫu hoặc file `.js` riêng.
 
 ### Bản đồ mã nguồn (`app/src/main/java/vn/shop/crm`)
@@ -130,7 +131,7 @@ Công tắc trên giao diện: **Tạm dừng tất cả chiến dịch** (`/cam
 
 ## 5. Phần CHƯA kiểm chứng (đừng coi là đã chạy được)
 
-- **Docker/Caddy/HTTPS** chưa được chạy thử (sandbox không có Docker). `infra/` và `docs/RUNBOOK.md` mục B mới ở mức viết xong, chưa dựng thật. Sao lưu/khôi phục (`backup.sh`, `restore-test.sh`) cũng chưa thử trên máy chủ thật.
+- **Triển khai:** bản cài máy chủ dùng chung (`deploy.sh`, `docker-compose.shared.yml`) đã được dùng để dựng ứng dụng trên một VPS (PR #11, #12 sửa lỗi gặp khi deploy thật; tool J&T ghi đã chạy với địa chỉ của ứng dụng đó ngày 22/11/2026), nhưng sandbox của AI không có Docker, SSH hay quyền vào VPS nên **bản ghi chính xác về VPS (tên miền, HTTPS, phiên bản đang chạy) không nằm trong repo**: hỏi chủ shop. `docker-compose.prod.yml` (Caddy riêng) chưa có bằng chứng đã chạy. Sao lưu tự động và khôi phục (`backup.sh`, `restore-test.sh`) chưa có bằng chứng đã thử trên máy chủ thật. Chưa có workflow tự deploy: người có SSH chạy `infra/deploy.sh deploy`.
 - **In giấy và quét mã QR thật**: PDF khổ A6/A5/4 tờ A4 đã kiểm tra kích thước, mã QR đã giải mã lại bằng test, nhưng chưa in ra giấy và quét bằng điện thoại thật. **Chỉ in khi `APP_PUBLIC_BASE_URL` là địa chỉ thật.**
 - **Kênh Zalo thật cho bot**: chưa chạy spike nào (ADR-0001 ghi "CHƯA QUYẾT").
 - **Bộ gửi SMS/ZBS**: không có, và chưa chọn nhà cung cấp. Đừng viết khi chưa có chủ shop quyết.
@@ -153,24 +154,36 @@ Công tắc trên giao diện: **Tạm dừng tất cả chiến dịch** (`/cam
 7. **J&T**: xem mục 8.
 8. **D15, D16 (kết bạn → vào nhóm ngay)**: trả lời Q1–Q7 ở file 03 mục 1I.6 (quan trọng nhất: Q1 ai là người thêm khách vào nhóm, Q2 cách báo khách trong tin đầu, Q3 khi chưa có nhóm khu vực).
 9. **D16 (bộ nối Zalo không chính thức)**: không còn câu hỏi mở riêng cho D16. Đã trả lời 22/11/2026: **Q8** chọn `AUTO` (bật bằng công tắc trên giao diện, **mặc định `CONFIRM`** đến khi chạy thử xong các điểm chưa kiểm chứng); **Q9** hạn mức 50 người/ngày rải từ sáng đến tối, chỉnh được trên giao diện (có trần cứng cấu hình, mặc định 100); **Q10** chấp nhận mất tài khoản phụ nếu bị khóa; mẹ hoặc chủ shop quét QR khi phiên hết hạn, ngay trên trang quản trị bằng tài khoản admin. Xem `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md` mục 8.
+10. **Từ nghiên cứu PR #25 (đã đóng), nếu chủ shop muốn bớt rủi ro**: (a) đổi bước "thêm khách vào nhóm" thành "gửi link nhóm cho khách tự bấm" (khách tự đồng ý rõ ràng, ít bị báo cáo, nhưng thêm một bước cho khách); (b) chỉ mời khách khi đơn đã "Giao thành công" vài ngày; (c) khi có hộ kinh doanh và OA xác thực, thử tin hậu mãi ZBS có nút vào nhóm. Các điều khoản và điều kiện OA/ZBS trong bản nghiên cứu đó chưa đọc được từ tài liệu gốc của Zalo, cần đối chiếu.
 
 ---
 
-## 7. Việc tiếp theo, theo thứ tự ưu tiên
+## 7. Việc tiếp theo, theo thứ tự ưu tiên (cập nhật 22/11/2026)
 
-1. **Làm giao diện theo Penpot đã duyệt** (mục 9). Đây là việc người dùng đã bảo "code luôn". Chia PR nhỏ: (a) thanh bên trái + số việc cần làm + "Việc cần làm hôm nay"; (b) thuật ngữ 100% tiếng Việt ("bot"→"trợ lý AI", "CSV"→"Excel", bỏ mã nội bộ, `admin`→"Bố/Mẹ"); (c) chi tiết khách 2 cột + khung xóa dữ liệu màu đỏ; (d) trang khách + 3 trạng thái phụ + chiến dịch + cài đặt gửi tin; (e) giấy in A5 + đường `/n`.
-2. **Bộ nhập J&T** (mục 8): đọc theo tên cột, tải nhiều file cùng lúc (mỗi lần xuất tối đa 500 dòng), gộp theo mã vận đơn, tách tỉnh từ "Địa chỉ hành chính"; cổng nạp chung `ShipmentIngest`; nhắc nhập file định kỳ. Không làm đăng nhập tự động hay đọc email OTP.
-3. Chạy thử **Docker/HTTPS thật** trên VPS theo RUNBOOK, đặt `APP_PUBLIC_BASE_URL`, in thử một tờ giấy và quét bằng điện thoại.
-4. Hai tài khoản bố/mẹ (sau khi trả lời Đ1).
-5. Chọn kênh trợ lý và chạy spike ADR-0001; chọn cách báo việc cho mẹ.
-6. Bản đồ ranh giới tỉnh thật (cần file GeoJSON có giấy phép), nếu chủ shop muốn.
-7. Giai đoạn 2 (file 03): tài khoản nhân viên (2B), nhiệm vụ theo nhóm (2C), ghi đơn thủ công (2D), báo cáo (2E).
+Việc giao diện Penpot, bộ nhập J&T, bản đồ, phân vùng, D13 và bộ nối D16 đã code. Phần còn lại chia ba loại:
+
+**A. Còn phải CODE, không cần chờ ai quyết**
+1. Đường bán tự động D15 (file 03 mục 1I.1 a–e, R3–R8, R10–R11): gợi ý nhóm ngay lúc bấm *Đã kết bạn* và nút gộp *Đã kết bạn và đã thêm vào nhóm*; giữ chỗ nhóm 24 giờ (code hiện ghi "chưa giữ chỗ" ở `InviteService`); nhắc khách kết bạn quá 2 ngày chưa vào nhóm và nhãn "không phản hồi" sau 14 ngày trên "Việc cần làm hôm nay"; ghi "chờ nhóm" theo tỉnh khi kết bạn mà chưa có nhóm hợp; nút báo khách rời nhóm để số khách giảm 1.
+2. Việc nhỏ còn sót: chọn nhóm khác nhóm gợi ý khi đánh dấu *Đã vào nhóm*; xuất Excel có cột nhóm gợi ý; nhắc khách nhắn lâu chưa kết bạn (cùng với R10); "Khách đổi nhóm" ở màn xem trước nhập file; cảnh báo khi file J&T đúng 500 dòng.
+3. Workflow CI build ảnh Docker cho `zalo-bridge` (hiện chỉ ảnh ứng dụng; compose dùng `build:` cục bộ).
+4. Sau lần chạy thử Zalo thật đầu tiên: thêm mã lỗi đã thấy vào `ZALO_PERSON_ERROR_CODES` (ADR-0002 mục 10 điểm 5).
+
+**B. Phải code nhưng chờ chủ shop quyết (mục 6)**
+- Hai tài khoản Bố/Mẹ riêng (Đ1); kênh trợ lý và cách báo việc cho mẹ (Đ2, ADR-0001); hạn trả lời yêu cầu dữ liệu theo loại (cần xác nhận pháp lý); bộ gửi SMS/ZBS (D9, đang hoãn); importer file "Lịch sử đối soát" J&T (cần file mẫu thật).
+
+**C. KHÔNG phải code, cần kiểm thật hoặc làm ngoài code**
+- Xác nhận VPS đang chạy gì; sao lưu và khôi phục trên máy chủ thật; tên miền cho mã QR rồi in thử một tờ giấy A5 và quét bằng điện thoại.
+- Chạy thử bộ nối Zalo từng nấc (Chỉ nghe → Mẹ duyệt → nhiều tuần mới AUTO) theo `docs/HUONG-DAN-THU-ZALO-TU-DONG.md`.
+- Chạy bộ nhập J&T với một file J&T thật; bật thử thời tiết với mạng thật.
+- Xem giao diện bằng trình duyệt thật (chữ cỡ, thanh bên).
+- Mốc 0: đăng ký hộ kinh doanh (D1), hỏi pháp lý/kế toán về cơ sở liên hệ.
+- Giai đoạn 2 (file 03): tài khoản nhân viên (2B), nhiệm vụ theo nhóm (2C), ghi đơn thủ công (2D), báo cáo (2E).
 
 ---
 
 ## 8. Đồng bộ đơn mới từ J&T (mục 2F file 03)
 
-**Người dùng đã chọn phương án A: nhập file tăng dần.** Người dùng muốn hệ thống **mỗi ngày tự động xuất file đơn từ J&T rồi nhập vào**, thay vì mẹ tải tay. Chưa có code cho phần này.
+**Người dùng đã chọn phương án A: nhập file tăng dần.** Người dùng muốn hệ thống **mỗi ngày tự động xuất file đơn từ J&T rồi nhập vào**, thay vì mẹ tải tay. Hệ thống **không** tự đăng nhập J&T; phần đã có: bộ nhập J&T (PR #9), báo "cần xuất từ ngày nào" (PR #13), và `tools/jt-edge-sync` (PR #22) để Claude trong Edge hoặc tool Node chạy trên máy người dùng tải file rồi nhập (người dùng vẫn đăng nhập J&T và adh).
 
 **Đã kiểm chứng (21/11/2026):** trang tài liệu API chính thức `api-docs.jtexpress.vn` có các mục Tạo đơn, Hủy đơn, Tra hành trình, Tra giá tiền, Mã hóa API, F.A.Q. **Không thấy mục "liệt kê đơn theo thời gian"** (chỉ thấy tên mục từ kết quả tìm kiếm). Công cụ đọc web bị chặn bởi `robots` nên **chưa đọc được nội dung** (xác thực, giới hạn, trường dữ liệu, có SĐT hay không, webhook, môi trường thử). Trustsales nói phải tạo tài khoản jtexpress.vn rồi liên hệ J&T lấy token và mã khách hàng. Webhook của Goship là của Goship, không phải của J&T.
 

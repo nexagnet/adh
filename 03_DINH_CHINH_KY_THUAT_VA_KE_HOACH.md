@@ -167,7 +167,7 @@ Mục tiêu: dữ liệu khách sạch → mời đúng người, đúng luật 
 - Rà soát bảo mật (không public SĐT/địa chỉ, giới hạn file upload, đăng nhập, rate limit).
 - **Cổng kết thúc GĐ1:** ổn định liên tục một thời gian do chủ cửa hàng quyết; chỉ khi đó mới bắt đầu GĐ2.
 
-## 1I. Kết bạn → vào nhóm ngay (D15) (S–M) — CHỈ GHI PHẠM VI, CHƯA CODE
+## 1I. Kết bạn → vào nhóm ngay (D15) (S–M) — đường bán tự động CHƯA CODE; bộ nối D16 (1I.9) ĐÃ CODE, mặc định tắt (cập nhật 22/11/2026)
 **Nghiệp vụ (chủ shop chốt 22/11/2026):** khi khách đồng ý kết bạn với **tài khoản Zalo phụ** (sau tin tư vấn của D13), khách được **thêm vào nhóm Zalo phù hợp luôn**, theo phân vùng đã có (D11). Mốc này là phần mở rộng của D13, nằm trong phạm vi giai đoạn 1, và **dùng đúng cách bán tự động của D13**: người thật thao tác trên Zalo, hệ thống chỉ gợi ý, giữ chỗ, nhắc việc và ghi lại. Không xây tự gửi tin, tự kết bạn hay tự thêm vào nhóm; không đăng nhập Zalo; không làm thủ thuật né phát hiện (D5). **Cập nhật D16 (22/11/2026):** chủ shop chọn thêm một **bộ nối Zalo không chính thức tùy chọn, mặc định tắt**, chỉ để nhận biết khách đã kết bạn và thêm vào nhóm (mục 1I.9). Khi bộ nối tắt, mục này vẫn là bán tự động như trên.
 
 **1I.1 Hiện đã có (D13, đã code) và phần còn thiếu**
