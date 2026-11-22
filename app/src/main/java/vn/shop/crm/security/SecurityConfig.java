@@ -11,6 +11,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import vn.shop.crm.map.MapSettings;
 
 /**
  * Một tài khoản quản trị (bố mẹ/chủ cửa hàng). Mật khẩu bắt buộc đặt qua biến môi trường.
@@ -21,7 +22,9 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, LoginThrottle throttle) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, LoginThrottle throttle,
+                                            @Value("${app.map.tile-url:" + MapSettings.DEFAULT_TILE_URL + "}") String tileUrl)
+            throws Exception {
         http
                 // Trang mời công khai: chỉ POST "vào nhóm"/"ngừng nhận tin", idempotent và chỉ dùng token ngẫu nhiên,
                 // không có phiên đăng nhập nên miễn CSRF để khách không phải mang cookie.
@@ -40,8 +43,22 @@ public class SecurityConfig {
                                 org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter
                                         .ReferrerPolicy.NO_REFERRER))
                         .contentSecurityPolicy(csp -> csp.policyDirectives(
-                                "default-src 'self'; style-src 'self'; form-action 'self'; frame-ancestors 'none'")));
+                                "default-src 'self'; style-src 'self'; img-src 'self' data:" + tileOrigin(tileUrl)
+                                        + "; form-action 'self'; frame-ancestors 'none'")));
         return http.build();
+    }
+
+    /** Ô bản đồ là ảnh tải từ máy chủ bản đồ: chỉ mở đúng địa chỉ đó cho ảnh, không mở thêm gì khác. */
+    public static String tileOrigin(String tileUrl) {
+        try {
+            java.net.URI uri = java.net.URI.create(tileUrl.replace("{", "").replace("}", ""));
+            if (uri.getScheme() != null && uri.getScheme().equals("https") && uri.getHost() != null) {
+                return " " + uri.getScheme() + "://" + uri.getHost() + (uri.getPort() > 0 ? ":" + uri.getPort() : "");
+            }
+        } catch (IllegalArgumentException e) {
+            // địa chỉ lạ: không mở thêm gì
+        }
+        return "";
     }
 
     @Bean

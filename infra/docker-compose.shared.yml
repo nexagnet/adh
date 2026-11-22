@@ -42,6 +42,9 @@ services:
       APP_SHOP_NAME: ${APP_SHOP_NAME:-Cửa hàng}
       APP_SHOP_PHONE: ${APP_SHOP_PHONE:-}
       APP_SENDING_ENABLED: ${APP_SENDING_ENABLED:-false}
+      # Thời tiết trên bản đồ (MET Norway). Mặc định TẮT; bật bằng APP_WEATHER_ENABLED=true trong file .env rồi chạy lại.
+      APP_WEATHER_ENABLED: ${APP_WEATHER_ENABLED:-false}
+      APP_WEATHER_USER_AGENT: ${APP_WEATHER_USER_AGENT:-adh-shop-crm/1.0}
       # Trần Java thấp hơn bản mặc định (512m) vì máy dùng chung; ghi đè được bằng ADH_JAVA_OPTS.
       JAVA_TOOL_OPTIONS: ${ADH_JAVA_OPTS:--Xms96m -Xmx320m -XX:+ExitOnOutOfMemoryError}
     ports:
