@@ -21,15 +21,26 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, LoginThrottle throttle) throws Exception {
         http
+                // Trang mời công khai: chỉ POST "vào nhóm"/"ngừng nhận tin", idempotent và chỉ dùng token ngẫu nhiên,
+                // không có phiên đăng nhập nên miễn CSRF để khách không phải mang cookie.
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/i/**", "/moi/**"))
+                // Giới hạn đăng nhập sai (mốc 1F). Không đăng ký thành @Bean để khỏi bị nạp hai lần.
+                .addFilterBefore(new LoginThrottleFilter(throttle),
+                        org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/login", "/app.css", "/error").permitAll()
+                        .requestMatchers("/login", "/app.css", "/error", "/i/**", "/n", "/moi", "/moi/**").permitAll()
                         .anyRequest().authenticated())
                 .formLogin(form -> form.loginPage("/login").defaultSuccessUrl("/", true).permitAll())
                 .logout(logout -> logout.logoutSuccessUrl("/login?logout"))
-                .headers(headers -> headers.contentSecurityPolicy(csp -> csp.policyDirectives(
-                        "default-src 'self'; style-src 'self'; form-action 'self'; frame-ancestors 'none'")));
+                .headers(headers -> headers
+                        // Token nằm trong URL: không gửi Referer sang trang khác (ví dụ zalo.me).
+                        .referrerPolicy(r -> r.policy(
+                                org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter
+                                        .ReferrerPolicy.NO_REFERRER))
+                        .contentSecurityPolicy(csp -> csp.policyDirectives(
+                                "default-src 'self'; style-src 'self'; form-action 'self'; frame-ancestors 'none'")));
         return http.build();
     }
 

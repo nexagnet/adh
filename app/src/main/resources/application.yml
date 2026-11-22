@@ -8,13 +8,16 @@ spring:
   servlet:
     multipart:
       max-file-size: 10MB
-      max-request-size: 11MB
+      max-request-size: 60MB   # tổng các file tải lên cùng lúc (nhập nhiều file J&T)
   thymeleaf:
     cache: true
 
 server:
+  # Chạy sau reverse proxy (Caddy): lấy địa chỉ khách thật từ X-Forwarded-For (Tomcat chỉ tin proxy trong mạng nội bộ).
+  forward-headers-strategy: native
   servlet:
     session:
+      timeout: 8h
       cookie:
         http-only: true
         same-site: lax
@@ -30,3 +33,61 @@ app:
   imports:
     max-rows: 50000
     max-uncompressed-bytes: 104857600
+    # Nhắc trên Tổng quan khi một hãng đã nhập file mà quá chừng này ngày chưa có file mới (thay cho tự động hóa).
+    remind-days: 7
+    # File xuất lần tới lùi lại chừng này ngày so với đơn mới nhất đã nhập (trạng thái đơn đổi sau khi tạo). Đề xuất, chưa đo thực tế.
+    overlap-days: 14
+    # Đơn chưa có kết quả cuối chỉ kéo mốc xuất lùi tối đa chừng này ngày (đơn "Đã lấy hàng" từ nhiều tháng trước không kéo mãi).
+    lookback-days: 30
+  # Địa chỉ công khai của ứng dụng, dùng để ghép link mời /i/<token>. Đặt APP_PUBLIC_BASE_URL khi chạy thật.
+  public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:8080}
+  shop-name: ${APP_SHOP_NAME:Cửa hàng}
+  # Số điện thoại cửa hàng hiển thị trên trang khách bấm link (có thể để trống).
+  shop-phone: ${APP_SHOP_PHONE:}
+  entry:
+    # Giấy in bỏ vào gói hàng dùng MỘT mã QR chung (/moi). Mỗi địa chỉ mạng chỉ được tạo tối đa chừng này lượt MỚI mỗi giờ.
+    max-new-per-ip-per-hour: 20
+  grouping:
+    # Cho phép xếp khách vào nhóm của miền khác khi không còn nhóm nào hợp (mặc định không).
+    allow-other-region: false
+  weather:
+    # Dự báo thời tiết theo tỉnh để nhắc việc cho mẹ (nguồn MET Norway, CC BY 4.0). MẶC ĐỊNH TẮT; bật bằng biến môi trường.
+    # Chỉ gửi ra ngoài tọa độ thành phố tỉnh lỵ, không bao giờ gửi dữ liệu khách. Không tự nhắn khách.
+    enabled: ${APP_WEATHER_ENABLED:false}
+    # Tên ứng dụng gửi cho MET Norway (họ yêu cầu có định danh). Có thể thêm tên miền của cửa hàng nếu muốn.
+    user-agent: ${APP_WEATHER_USER_AGENT:adh-shop-crm/1.0}
+    refresh-hours: 3
+    # Ngưỡng nhắc việc: nhiệt độ thấp nhất trong 48 giờ tới (lạnh) và cao nhất (nóng), theo từng miền.
+    cold-bac: 13
+    cold-trung: 16
+    cold-nam: 22
+    hot: 37
+    alert-min-customers: 10
+  invitations:
+    # Mỗi lô mời tối đa bao nhiêu khách (gửi chậm, theo lô nhỏ).
+    max-batch: 20
+    # Tỷ lệ giả định khách bấm rồi vào nhóm, CHỈ dùng để chia nhóm; không phải số người thật.
+    assumed-accept-rate: 0.5
+  sending:
+    # Gửi thật qua dịch vụ bên ngoài. MẶC ĐỊNH TẮT; chỉ chủ cửa hàng bật bằng biến môi trường.
+    # Đường gửi hiện dùng: Zalo, mẹ gửi tay từ danh sách xuất ra (không qua cờ này). SMS/ZBS chưa dùng, chưa có bộ gửi,
+    # nên bật cờ này cũng chưa gửi được gì qua dịch vụ ngoài.
+    enabled: ${APP_SENDING_ENABLED:false}
+    window-start: "07:00"
+    window-end: "22:00"
+    daily-limit: 20
+    min-gap-seconds: 30
+    max-gap-seconds: 120
+    scheduler-enabled: false
+    monthly-budget-vnd: 1000000
+    stop-after-consecutive-failures: 3
+    stop-failure-rate: 0.3
+    stop-opt-out-rate: 0.05
+  bot:
+    # Mẹ vừa trả lời trong nhóm thì bot im lặng bao nhiêu phút (tránh trả lời trùng).
+    human-quiet-minutes: 30
+    max-replies-per-5-min: 3
+  security:
+    # Sai quá số lần này liên tiếp thì khóa cặp (IP, tên đăng nhập) trong lock-minutes phút.
+    max-login-failures: 5
+    lock-minutes: 15

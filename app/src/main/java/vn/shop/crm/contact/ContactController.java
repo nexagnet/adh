@@ -134,9 +134,27 @@ public class ContactController {
     }
 
     @GetMapping("/privacy")
-    public String requests(Model model) {
-        model.addAttribute("requests", privacy.requests(false));
-        model.addAttribute("dueDays", privacy.dueDays());
+    public String requests(@RequestParam(defaultValue = "open") String tab, Model model) {
+        var all = privacy.requests(false);
+        boolean done = "done".equals(tab);
+        model.addAttribute("tab", done ? "done" : "open");
+        model.addAttribute("requests", all.stream().filter(r -> r.open() != done).toList());
+        model.addAttribute("openCount", all.stream().filter(PrivacyService.RequestRow::open).count());
+        model.addAttribute("doneCount", all.stream().filter(r -> !r.open()).count());
+        model.addAttribute("quickDays", privacy.quickWorkingDays());
+        model.addAttribute("eraseDays", privacy.eraseDays());
+        model.addAttribute("kinds", PrivacyService.Kind.values());
+        model.addAttribute("today", LocalDate.now());
         return "privacy";
+    }
+
+    @PostMapping("/privacy/new")
+    public String newRequest(@RequestParam String phone, @RequestParam PrivacyService.Kind kind,
+                             @RequestParam(required = false)
+                             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate receivedOn,
+                             @RequestParam(required = false) String note, RedirectAttributes redirect) {
+        privacy.openRequestByPhone(phone, kind, receivedOn, note);
+        redirect.addFlashAttribute("flash", "Đã ghi nhận yêu cầu \"" + kind.label() + "\".");
+        return "redirect:/privacy";
     }
 }

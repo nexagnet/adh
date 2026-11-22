@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Bản đồ khách')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <h1>Bản đồ khách theo tỉnh</h1>
+    <p class="hint">Mỗi chấm là một tỉnh/thành, chấm càng to và đậm càng nhiều khách. Bấm vào chấm (hoặc tên tỉnh ở bảng bên cạnh) để xem số khách,
+        nhóm Zalo phù hợp và thời tiết. Chỉ hiện <strong>số đếm</strong>, không có địa chỉ hay số điện thoại. Đây là sơ đồ minh họa vị trí, không phải bản đồ hành chính.</p>
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã cập nhật.</div>
+
+    <div class="cards">
+        <div class="card" th:each="r : ${data.regions}">
+            <div class="big" th:text="${r.count}">0</div><div class="label" th:text="${r.label}">Miền Nam</div></div>
+        <a class="card" th:href="@{/customers(area='U')}">
+            <div class="big" th:text="${data.unknown}">0</div><div class="label">Chưa rõ khu vực</div></a>
+    </div>
+
+    <div class="notice warn" th:if="${!alerts.isEmpty()}">
+        <strong>Nhắc việc thời tiết</strong>
+        <ul>
+            <li th:each="a : ${alerts}"><strong th:text="${a.kindLabel()}">Lạnh bất thường</strong>: <span th:text="${a.message()}">Cần Thơ...</span></li>
+        </ul>
+        <p class="hint">Chỉ là nhắc việc cho mẹ trên web, hệ thống không tự nhắn gì cho khách.</p>
+    </div>
+    <div class="notice" th:if="${weatherOn and alerts.isEmpty()}">
+        Hiện chưa có tỉnh nào đông khách mà thời tiết bất thường (lạnh hoặc nóng) trong 48 giờ tới.
+    </div>
+    <div class="notice" th:unless="${weatherOn}">
+        Thời tiết đang <strong>tắt</strong>. Để bật, đặt <code>APP_WEATHER_ENABLED=true</code> rồi khởi động lại. Chỉ tọa độ thành phố tỉnh lỵ được gửi ra ngoài, không có dữ liệu khách.
+    </div>
+
+    <div class="map-layout">
+        <svg class="vnmap" viewBox="0 0 420 820" role="img" aria-label="Sơ đồ phân bố khách theo tỉnh">
+            <path class="map-land" th:attr="d=${data.outline}"></path>
+            <a th:each="d : ${data.dots}" th:href="@{/map(province=${d.code})}">
+                <title th:text="${d.name} + ': ' + ${d.count} + ' khách'">Hà Nội: 3 khách</title>
+                <circle th:attr="cx=${d.cx()},cy=${d.cy()},r=${d.radius()}"
+                        th:class="'map-dot ' + ${d.levelClass()} + (${selected != null and selected.code == d.code} ? ' sel' : '')"></circle>
+            </a>
+            <text th:each="d, st : ${data.ranking}" th:if="${st.index < 6}" class="map-label"
+                  th:attr="x=${d.cx()},y=${d.cy()}" th:text="${d.name}" dx="20" dy="4">Hà Nội</text>
+        </svg>
+
+        <div>
+            <div class="card" th:if="${selected != null}">
+                <h2 th:text="${selected.name}">Cần Thơ</h2>
+                <p><span class="big" th:text="${selected.count}">0</span> khách
+                    <span class="muted" th:text="'(' + ${selected.regionLabel} + ')'">(Miền Nam)</span></p>
+                <p><a th:href="@{/customers(area='P:' + ${selected.code})}">Xem danh sách khách ở tỉnh này</a></p>
+                <p th:if="${forecast != null}">Thời tiết 48 giờ tới: <strong th:text="${forecast.description()}">Ít mây</strong>,
+                    thấp nhất <strong th:text="${#numbers.formatDecimal(forecast.minTemp, 1, 0)} + '°C'">24°C</strong>,
+                    cao nhất <strong th:text="${#numbers.formatDecimal(forecast.maxTemp, 1, 0)} + '°C'">33°C</strong>
+                    <span class="muted" th:text="'(cập nhật ' + ${#temporals.format(forecast.fetchedAt, 'dd/MM HH:mm')} + ')'"></span></p>
+                <p class="muted" th:if="${forecast == null}">Chưa có dự báo cho tỉnh này.</p>
+                <h3>Nhóm Zalo phù hợp</h3>
+                <ul th:if="${!fits.isEmpty()}">
+                    <li th:each="f : ${fits}"><strong th:text="${f.name}">Nhóm 1</strong> – <span th:text="${f.scopeLabel}">Chung</span>,
+                        <span th:text="${f.statusLabel}">Đang nhận khách</span><span th:if="${f.openNow}">, còn khoảng <span th:text="${f.spotsLeft}">3</span> chỗ</span></li>
+                </ul>
+                <p class="muted" th:if="${fits.isEmpty()}">Chưa có nhóm nào hợp với tỉnh này. Hãy mở nhóm mới ở mục <a th:href="@{/groups}">Nhóm Zalo</a>.</p>
+            </div>
+            <p class="muted" th:if="${selected == null}">Chọn một chấm trên bản đồ hoặc một tỉnh trong bảng để xem chi tiết.</p>
+
+            <h2>Số khách theo tỉnh</h2>
+            <div class="table-wrap" th:if="${!data.ranking.isEmpty()}">
+                <table>
+                    <tr><th>Tỉnh/thành</th><th>Miền</th><th class="num">Số khách</th></tr>
+                    <tr th:each="d : ${data.ranking}">
+                        <td><a th:href="@{/map(province=${d.code})}" th:text="${d.name}">Hà Nội</a></td>
+                        <td th:text="${d.regionLabel}">Miền Bắc</td>
+                        <td class="num" th:text="${d.count}">1</td>
+                    </tr>
+                </table>
+            </div>
+            <p class="muted" th:if="${data.ranking.isEmpty()}">Chưa có khách nào có khu vực rõ. Hãy nhập đơn hoặc bấm "Tính lại" ở <a th:href="@{/customers}">danh sách khách</a>.</p>
+
+            <h2>Thời tiết</h2>
+            <p class="hint">Ngưỡng nhắc việc (chỉnh trong cấu hình): lạnh bất thường khi thấp nhất ≤ <span th:text="${coldBac}">13</span>°C ở miền Bắc,
+                ≤ <span th:text="${coldTrung}">16</span>°C ở miền Trung, ≤ <span th:text="${coldNam}">22</span>°C ở miền Nam;
+                nóng bất thường khi cao nhất ≥ <span th:text="${hot}">37</span>°C; chỉ nhắc ở tỉnh có từ <span th:text="${minCustomers}">10</span> khách trở lên.</p>
+            <form th:action="@{/map/weather}" method="post">
+                <button type="submit" class="btn secondary">Cập nhật thời tiết ngay</button>
+            </form>
+            <p class="small muted">Dữ liệu thời tiết:
+                <a href="https://api.met.no/doc/License" rel="noopener noreferrer" target="_blank">MET Norway</a>, giấy phép CC BY 4.0.</p>
+        </div>
+    </div>
+</main>
+</body>
+</html>

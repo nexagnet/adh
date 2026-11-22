@@ -4,16 +4,24 @@ Tài liệu gốc: [`01_DAC_TA_NGHIEP_VU.md`](01_DAC_TA_NGHIEP_VU.md) (nghiệp 
 [`02_NGHIEN_CUU_KY_THUAT.md`](02_NGHIEN_CUU_KY_THUAT.md) (nghiên cứu cũ, có chỗ sai),
 [`03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md`](03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md) (đính chính + kế hoạch hai giai đoạn).
 
+> **Đang bàn giao (21/11/2026): đọc [`docs/BAN-GIAO.md`](docs/BAN-GIAO.md) trước.** Có trạng thái từng mốc, các quyết định, giả định, công tắc cấu hình, phần chưa kiểm chứng, kết quả xác nhận J&T và danh sách việc tiếp theo. Thiết kế giao diện đã duyệt nằm ở [`docs/thiet-ke-penpot/`](docs/thiet-ke-penpot/).
+
 ## Trạng thái
 
 | Mốc | Nội dung | Trạng thái |
 |---|---|---|
 | **1A** | Nền tảng, nhập file Viettel Post/J&T, chuẩn hóa SĐT, phân loại `ONE_TIME`/`REPEAT`, xuất CSV | **Xong, đã kiểm chứng bằng test** |
 | **1B** | Sổ cơ sở liên hệ, danh sách từ chối, danh sách mời, quyền dữ liệu của khách (xem/xuất/ngừng liên hệ/xóa + hạn phản hồi), ghi chú tay | **Xong, đã kiểm chứng bằng test** |
-| 1C | Nhóm Zalo + lời mời ở chế độ thử (DRY_RUN) | Chưa làm |
-| 1D–1F | Gửi thật lô nhỏ, bot AI, đóng gói bàn giao | Chưa làm |
+| **1C** | Nhóm Zalo, chiến dịch mời theo lô nhỏ, link riêng + trang khách bấm link, đếm lượt bấm (chế độ thử) | **Xong, đã kiểm chứng bằng test** |
+| **1D** | Cổng chặn gửi, bộ gửi chạy thử và xuất danh sách cho mẹ gửi tay, nhật ký gửi, tự dừng | **Xong, đã kiểm chứng bằng test.** Đường mời hiện dùng: Zalo, mẹ gửi tay. SMS/ZBS chưa dùng, chưa có bộ gửi |
+| **1E** | Lõi bot (FAQ, báo mẹ khi khách muốn mua/khiếu nại, DRY_RUN, tắt khẩn cấp) | **Xong phần lõi, đã kiểm chứng bằng test.** Chưa có kênh Zalo thật: cần chạy thử chọn phương án (`docs/ADR-0001-chon-kenh-bot.md`) |
+| **1F** | Đóng gói Docker + HTTPS, sao lưu và thử khôi phục, giới hạn đăng nhập sai, hướng dẫn vận hành | **Xong phần mã và script.** Docker chưa được chạy thử trong môi trường phát triển (xem `docs/RUNBOOK.md`) |
 
-Mốc 1A **không gửi tin, không đăng nhập Zalo, không gọi dịch vụ ngoài nào**. Chỉ đọc file bạn tải lên.
+Đã thêm sau giai đoạn 1C–1F (đã gộp vào `main`): giấy giới thiệu với mã QR chung `/moi` và `/print` (PR #3), phân vùng khách theo miền/tỉnh và xếp nhóm Zalo theo khu vực (PR #4), bản đồ khách và nhắc việc thời tiết, mặc định tắt (PR #5). Giao diện theo thiết kế Penpot đã duyệt **chưa code**.
+
+Hệ thống **không gửi tin tự động, không đăng nhập Zalo, không gọi dịch vụ ngoài nào (trừ thời tiết nếu bạn bật `APP_WEATHER_ENABLED`, chỉ gửi tọa độ tỉnh)**. Chỉ đọc file bạn tải lên; muốn mời khách thì xuất danh sách cho mẹ gửi tay.
+
+Hướng dẫn dùng và cài máy chủ: [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 
 ## Thử ngay trên máy (không cần Docker, không cần cài PostgreSQL)
 
@@ -47,7 +55,7 @@ $env:APP_ADMIN_PASSWORD = "<mật khẩu quản trị>"
 ```
 
 Ứng dụng **từ chối khởi động** nếu chưa đặt `APP_ADMIN_PASSWORD`. Không có mật khẩu mặc định.
-Việc đóng gói chạy thật (HTTPS, sao lưu, VPS tại Việt Nam) thuộc mốc 1F.
+Chạy thật trên máy chủ (HTTPS, sao lưu, giới hạn bộ nhớ cho VPS 2 GB): dùng `infra/docker-compose.prod.yml`, xem `docs/RUNBOOK.md`.
 
 ## Kiểm thử
 
@@ -56,7 +64,7 @@ cd app
 ./mvnw test
 ```
 
-86 test, chạy trên PostgreSQL nhúng thật (không giả lập), gồm:
+225 test, chạy trên PostgreSQL nhúng thật (không giả lập), gồm:
 
 | Tiêu chí nghiệm thu (file 01, mục 12) | Test |
 |---|---|
@@ -106,12 +114,12 @@ người duyệt theo quy tắc của Reviewer dùng chung.
   nhận là "ĐT Nhận", dòng tiêu đề ở dòng 9). Ô SĐT có hai số ("a, b") thì lấy số hợp lệ đầu tiên; số còn lại vẫn nằm trong
   dữ liệu gốc của vận đơn. Trạng thái "Đã hủy giao" chưa gán nghĩa, chủ shop tự chọn trong **Trạng thái đơn**.
   File thật nằm ở `data_product/` (chứa dữ liệu khách thật, **không đưa lên git/chia sẻ**).
-- **J&T chưa kiểm chứng.** File mẫu `fixtures/jt_sample.csv` là giả lập; tên cột và trạng thái của J&T là **suy đoán**,
-  cần một file mẫu thật (đã ẩn thông tin cá nhân) để xác nhận.
+- **J&T:** cấu trúc file xuất trên cổng khách hàng J&T đã được xác nhận (14 cột, SĐT đầy đủ, tỉnh nằm trong "Địa chỉ hành chính"; chi tiết ở `docs/BAN-GIAO.md` mục 8), nhưng `fixtures/jt_sample.csv` vẫn là file giả lập có cột khác và importer chưa được chạy với file J&T thật.
+  Cần một file mẫu thật (đã ẩn thông tin cá nhân) để chắc chắn.
   Chọn cột và gán nghĩa trạng thái làm được ngay trên giao diện, không cần sửa code.
 - Ánh xạ trạng thái Viettel Post lấy từ hướng dẫn "Quản lý vận đơn" của hãng. "Chờ xử lý" cố ý **chưa gán** vì chưa rõ nghĩa.
 - Chỉ đọc `.xlsx` (sheet đầu tiên) và CSV UTF-8. File `.xls` cũ phải lưu lại sang `.xlsx`.
 - Nhập một file **cũ hơn** sau file mới có thể ghi đè trạng thái mới bằng trạng thái cũ; màn xem trước báo số vận đơn "đổi trạng thái" để bạn nhận ra.
-- Chưa có giới hạn thử đăng nhập sai nhiều lần, chưa có HTTPS: thuộc mốc 1F. **Không đưa ứng dụng ra Internet ở trạng thái này.**
-- Dữ liệu khách (SĐT, địa chỉ) lưu trong PostgreSQL (chưa mã hóa đĩa: thuộc mốc 1F).
+- Đăng nhập sai quá 5 lần liên tiếp bị khóa 15 phút theo cặp (IP, tên đăng nhập). HTTPS do Caddy trong `infra/docker-compose.prod.yml`; chạy ứng dụng trực tiếp (không qua Caddy) thì **không đưa ra Internet**.
+- Dữ liệu khách (SĐT, địa chỉ) lưu trong PostgreSQL, **chưa mã hóa đĩa hay mã hóa dữ liệu**; bản sao lưu mã hóa được bằng `age` (tùy chọn).
 - Hiện chỉ có **một** tài khoản đăng nhập (OWNER). Tài khoản riêng cho bố và mẹ đang chờ chủ shop xác nhận (xem mục 4B file 03).

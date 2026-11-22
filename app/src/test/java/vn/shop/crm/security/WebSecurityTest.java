@@ -89,7 +89,7 @@ class WebSecurityTest extends AbstractPostgresTest {
         // 2. trang chọn cột có đoán sẵn đúng cột
         String mappingHtml = mvc.perform(get(mappingUrl).with(owner)).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertThat(mappingHtml).contains("Chọn cột dữ liệu").contains("SĐT người nhận");
+        assertThat(mappingHtml).contains(": chọn cột").contains("SĐT người nhận");
         assertThat(mappingHtml).containsPattern("<option value=\"SĐT người nhận\"[^>]*selected");
 
         // 3. xem trước
@@ -100,7 +100,7 @@ class WebSecurityTest extends AbstractPostgresTest {
                         .param("col_RECEIVER_ADDRESS", "Địa chỉ người nhận").param("col_STATUS", "Trạng thái")
                         .param("col_CREATED_ON", "Ngày tạo"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertThat(previewHtml).contains("Xem trước kết quả nhập").contains("Chờ xử lý").contains("Thiếu số điện thoại");
+        assertThat(previewHtml).contains("Xem trước:").contains("Chờ xử lý").contains("Thiếu số điện thoại");
 
         // 4. xác nhận
         mvc.perform(post("/imports/" + id + "/commit").with(csrf()).with(owner)

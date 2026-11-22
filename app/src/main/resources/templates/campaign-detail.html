@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Chiến dịch')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <h1 th:text="${campaign.name}">Chiến dịch</h1>
+    <p class="hint"><a th:href="@{/campaigns}">‹ Tất cả chiến dịch</a> · tạo bởi <span th:text="${@labels.person(campaign.createdBy)}">Bố/Mẹ</span> lúc
+        <span th:text="${#temporals.format(campaign.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</span></p>
+
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã tạo.</div>
+    <div class="notice">Hệ thống <strong>không tự gửi tin</strong>. Cách làm hiện nay: xuất danh sách, nhắn từng khách <strong>một lần duy nhất</strong> bằng
+        tài khoản Zalo phụ của cửa hàng. Khách đồng ý kết bạn thì bấm <em>Đã kết bạn</em>; thêm họ vào nhóm cùng khu vực (cột "Nhóm Zalo") rồi bấm
+        <em>Đã vào nhóm</em>. Khách từ chối thì bấm <em>Khách từ chối</em>, số đó không bao giờ được nhắn lại. Bạn có thể chạy thử trước để xem sẽ gửi gì.</div>
+
+    <div class="cards">
+        <div class="card"><div class="big" th:text="${campaign.total}">0</div><div class="label">Lời mời</div></div>
+        <div class="card"><div class="big" th:text="${campaign.ready}">0</div><div class="label">Chưa gửi</div></div>
+        <div class="card"><div class="big" th:text="${campaign.sent}">0</div><div class="label">Đã gửi</div></div>
+        <div class="card"><div class="big" th:text="${campaign.friended}">0</div><div class="label">Đã kết bạn</div></div>
+        <div class="card"><div class="big" th:text="${campaign.joined}">0</div><div class="label">Đã vào nhóm</div></div>
+        <div class="card"><div class="big" th:text="${campaign.clicked}">0</div><div class="label">Đã bấm link</div></div>
+    </div>
+
+    <h2>Nội dung tin (mẫu)</h2>
+    <p th:text="${campaign.template}" class="mono">mẫu</p>
+
+    <div class="actions" th:if="${campaign.ready > 0}">
+        <form th:action="@{/campaigns/{id}/dry-run(id=${campaign.id})}" method="post">
+            <button type="submit" class="btn secondary">Chạy thử (không gửi gì)</button>
+        </form>
+        <form th:action="@{/campaigns/{id}/export.csv(id=${campaign.id})}" method="post">
+            <button type="submit" class="btn" th:disabled="${paused}">Xuất danh sách để mẹ gửi tay</button>
+        </form>
+        <form th:action="@{/campaigns/{id}/cancel-unsent(id=${campaign.id})}" method="post">
+            <button type="submit" class="btn secondary">Hủy các lời mời chưa gửi</button>
+        </form>
+        <button type="button" class="btn secondary" disabled
+                title="Chưa chọn nhà cung cấp gửi tin nhắn">Gửi tự động (đang khóa)</button>
+    </div>
+    <p class="hint" th:if="${campaign.ready > 0}">Gửi tự động đang khóa vì chưa chọn nhà cung cấp tin nhắn (SMS hay Zalo thông báo).
+        Hiện chỉ có đường xuất danh sách để mẹ gửi tay.</p>
+    <p class="hint" th:if="${campaign.ready > 0}">Xuất danh sách sẽ đánh dấu các lời mời trong file là "đã gửi" (kênh gửi tay).
+        Hệ thống không biết tin có tới khách hay chưa. Mỗi ngày chỉ xuất tối đa theo hạn mức ở mục Gửi tin.</p>
+
+    <h2>Lời mời</h2>
+    <div class="table-wrap">
+        <table>
+            <tr><th>Khách</th><th>Tình trạng</th><th>Nhóm Zalo</th><th>Bước tiếp theo</th><th class="num">Lượt bấm</th><th>Hết hạn</th></tr>
+            <tr th:each="r : ${rows}">
+                <td><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.name != null ? r.name : 'Khách #' + r.customerId}">Nguyen Van A</a></td>
+                <td>
+                    <span class="badge" th:if="${r.status == 'READY'}">Chưa gửi</span>
+                    <span class="badge ok" th:if="${r.status == 'SENT'}">Đã gửi</span>
+                    <span class="badge ok" th:if="${r.status == 'CLICKED'}">Đã bấm link</span>
+                    <span class="badge ok" th:if="${r.status == 'FRIENDED'}">Đã kết bạn</span>
+                    <span class="badge ok" th:if="${r.status == 'JOINED'}">Đã vào nhóm</span>
+                    <span class="badge bad" th:if="${r.status == 'CANCELLED'}">Đã hủy</span>
+                    <span class="badge bad" th:if="${r.status == 'FAILED'}">Gửi lỗi</span>
+                    <span class="badge warn" th:if="${r.expired}">Hết hạn</span>
+                </td>
+                <td>
+                    <span th:if="${r.groupName != null}" th:text="${r.groupName}">Nhóm 1</span>
+                    <span class="muted" th:if="${r.groupName != null and r.suggested}"> (nên thêm vào)</span>
+                    <span class="muted" th:if="${r.groupName == null and r.status != 'CANCELLED'}">Chưa có nhóm còn chỗ</span>
+                    <div class="muted mono" th:if="${r.groupLink != null and r.status != 'JOINED' and r.status != 'CANCELLED'}" th:text="${r.groupLink}">https://zalo.me/g/x</div>
+                </td>
+                <td>
+                    <form class="inline" method="post" th:if="${r.status == 'SENT' or r.status == 'CLICKED'}"
+                          th:action="@{/campaigns/{id}/invitations/{iid}/friended(id=${campaign.id},iid=${r.id})}">
+                        <button type="submit" class="btn secondary">Đã kết bạn</button>
+                    </form>
+                    <form class="inline" method="post" th:if="${r.status == 'SENT' or r.status == 'CLICKED' or r.status == 'FRIENDED'}"
+                          th:action="@{/campaigns/{id}/invitations/{iid}/joined(id=${campaign.id},iid=${r.id})}">
+                        <button type="submit" class="btn">Đã vào nhóm</button>
+                    </form>
+                    <form class="inline" method="post" th:if="${r.status == 'SENT' or r.status == 'CLICKED' or r.status == 'FRIENDED'}"
+                          th:action="@{/campaigns/{id}/invitations/{iid}/declined(id=${campaign.id},iid=${r.id})}">
+                        <button type="submit" class="btn danger">Khách từ chối</button>
+                    </form>
+                    <span class="muted" th:if="${r.status == 'READY'}">Chưa nhắn</span>
+                    <span class="muted" th:if="${r.status == 'JOINED'}" th:text="'Xong ' + ${#temporals.format(r.joinedAt, 'dd/MM/yyyy')}">Xong</span>
+                </td>
+                <td class="num" th:text="${r.clickCount}">0</td>
+                <td th:text="${#temporals.format(r.expiresAt, 'dd/MM/yyyy')}">15/01/2026</td>
+            </tr>
+            <tr th:if="${rows.isEmpty()}"><td colspan="6" class="muted">Không còn lời mời nào.</td></tr>
+        </table>
+    </div>
+
+    <h2>Xem trước tin gửi cho từng khách</h2>
+    <details th:each="r : ${rows}">
+        <summary th:text="${r.name != null ? r.name : 'Khách #' + r.customerId}">Nguyen Van A</summary>
+        <p class="mono" th:text="${r.message}">Chào ...</p>
+    </details>
+</main>
+</body>
+</html>

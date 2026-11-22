@@ -4,44 +4,48 @@
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
-    <h1>Kết quả nhập</h1>
-    <p class="hint">
-        <span th:text="${batch.carrier.label()}">Viettel Post</span> —
-        <strong th:text="${batch.filename}">file.csv</strong>
-        <span th:if="${batch.committedAt != null}">
-            — nhập lúc <span th:text="${#temporals.format(batch.committedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</span>
-        </span>
-    </p>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Đã nhập xong</h1>
+            <p class="hint"><span th:text="${batch.carrier.label()}">Viettel Post</span> —
+                <strong th:text="${batch.filename}">file.csv</strong>
+                <span th:if="${batch.committedAt != null}">— nhập lúc <span th:text="${#temporals.format(batch.committedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</span></span></p>
+        </div>
+    </header>
+    <ol th:replace="~{fragments :: steps(4)}"></ol>
 
-    <div class="cards">
-        <div class="card"><div class="big" th:text="${batch.totalRows}">0</div><div class="label">Dòng dữ liệu</div></div>
+    <div class="cards c5">
+        <div class="card"><div class="big" th:text="${batch.totalRows}">0</div><div class="label">Tổng số dòng</div></div>
         <div class="card"><div class="big" th:text="${batch.newShipments}">0</div><div class="label">Vận đơn mới</div></div>
-        <div class="card"><div class="big" th:text="${batch.updatedShipments}">0</div><div class="label">Vận đơn đã có</div></div>
-        <div class="card"><div class="big" th:text="${batch.statusChanges}">0</div><div class="label">Đổi trạng thái</div></div>
+        <div class="card"><div class="big" th:text="${batch.updatedShipments}">0</div><div class="label">Đã có từ trước</div></div>
+        <div class="card" th:classappend="${batch.statusChanges != null and batch.statusChanges > 0} ? 'warn'"><div class="big" th:text="${batch.statusChanges}">0</div><div class="label">Đơn đổi trạng thái</div></div>
         <div class="card" th:classappend="${batch.errorRows != null and batch.errorRows > 0} ? 'warn'"><div class="big" th:text="${batch.errorRows}">0</div><div class="label">Dòng lỗi</div></div>
     </div>
 
     <div class="notice" th:if="${batch.unmappedStatuses != null and batch.unmappedStatuses > 0}">
-        Có trạng thái chưa rõ nghĩa. Hãy vào <a th:href="@{/status-mappings}">Trạng thái đơn</a> để chọn nghĩa.
+        <strong>Có trạng thái chưa rõ nghĩa</strong>
+        Hãy vào <a th:href="@{/status-mappings}">Trạng thái đơn</a> để chọn nghĩa.
     </div>
 
     <div class="actions">
         <a class="btn" th:href="@{/customers(segment=ONE_TIME)}">Xem khách mua 1 lần</a>
         <a class="btn secondary" th:href="@{/customers(segment=REPEAT)}">Xem khách mua từ 2 lần</a>
-        <a class="btn secondary" th:if="${!errors.isEmpty()}" th:href="@{/imports/{id}/errors.csv(id=${batch.id})}">Tải danh sách lỗi (CSV)</a>
+        <a class="btn secondary" th:if="${!errors.isEmpty()}" th:href="@{/imports/{id}/errors.csv(id=${batch.id})}">Tải danh sách lỗi (mở bằng Excel)</a>
     </div>
 
-    <h2 th:if="${!errors.isEmpty()}">Dòng lỗi (đã bỏ qua)</h2>
-    <div class="table-wrap" th:if="${!errors.isEmpty()}">
-        <table>
-            <tr><th class="num">Dòng</th><th>Lỗi</th><th>Dữ liệu</th></tr>
-            <tr th:each="e : ${errors}">
-                <td class="num" th:text="${e.rowNumber}">2</td>
-                <td th:text="${e.message}">Lỗi</td>
-                <td class="mono" th:text="${e.rawRow}">...</td>
-            </tr>
-        </table>
-    </div>
+    <section th:if="${!errors.isEmpty()}">
+        <h2>Dòng bị loại (đã bỏ qua)</h2>
+        <div class="table-wrap">
+            <table>
+                <tr><th>Dòng</th><th>Lỗi</th><th>Nội dung</th></tr>
+                <tr th:each="e : ${errors}">
+                    <td th:text="${e.rowNumber}">2</td>
+                    <td th:text="${e.message}">Lỗi</td>
+                    <td class="mono" th:text="${e.rawRow}">...</td>
+                </tr>
+            </table>
+        </div>
+    </section>
 </main>
 </body>
 </html>

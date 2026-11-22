@@ -1,0 +1,5 @@
+/* Bốn tờ A6 trên một tờ A4: in xong cắt theo nét đứt */
+@page { size: A4 portrait; margin: 0; }
+.sheets-a4x4 { display: grid; grid-template-columns: 105mm 105mm; grid-auto-rows: 148mm; width: 210mm; }
+.sheets-a4x4 .sheet { --u: 0.1774mm; width: 105mm; height: 148mm; margin: 0; border: 0.2mm dashed #888; break-after: auto; }
+@media print { .sheets-a4x4 { height: 296mm; overflow: hidden; } }

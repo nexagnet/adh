@@ -29,9 +29,11 @@ public class ImportController {
     private static final String COLUMN_PREFIX = "col_";
 
     private final ImportService imports;
+    private final ExportWindowService exportWindow;
 
-    public ImportController(ImportService imports) {
+    public ImportController(ImportService imports, ExportWindowService exportWindow) {
         this.imports = imports;
+        this.exportWindow = exportWindow;
     }
 
     @GetMapping
@@ -43,13 +45,20 @@ public class ImportController {
     @GetMapping("/new")
     public String form(Model model) {
         model.addAttribute("carriers", Carrier.values());
+        model.addAttribute("advice", exportWindow.all());
         return "imports-new";
     }
 
     @PostMapping
-    public String upload(@RequestParam Carrier carrier, @RequestParam("file") MultipartFile file)
+    public String upload(@RequestParam Carrier carrier, @RequestParam("file") List<MultipartFile> files)
             throws IOException {
-        long id = imports.createBatch(carrier, file.getOriginalFilename(), file.getBytes());
+        List<ImportService.UploadedFile> uploaded = new java.util.ArrayList<>();
+        for (MultipartFile file : files) {
+            if (!file.isEmpty()) {
+                uploaded.add(new ImportService.UploadedFile(file.getOriginalFilename(), file.getBytes()));
+            }
+        }
+        long id = imports.createBatch(carrier, uploaded);
         return "redirect:/imports/" + id + "/mapping";
     }
 

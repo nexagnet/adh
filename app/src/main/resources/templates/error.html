@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Có lỗi - Chăm sóc khách</title>
+    <link rel="stylesheet" th:href="@{/app.css}">
+</head>
+<body>
+<main>
+    <h1>Chưa thực hiện được</h1>
+    <div class="notice bad" th:switch="${status}">
+        <span th:case="403">Bạn không có quyền làm việc này, hoặc trang đã để quá lâu. Hãy tải lại trang rồi thử lại.</span>
+        <span th:case="404">Không tìm thấy trang này.</span>
+        <span th:case="400">Yêu cầu không hợp lệ. Hãy quay lại, kiểm tra thông tin đã nhập rồi thử lại.</span>
+        <span th:case="405">Thao tác này không được hỗ trợ.</span>
+        <span th:case="*">Hệ thống gặp lỗi. Hãy thử lại sau ít phút; nếu vẫn lỗi, báo cho người quản trị.</span>
+    </div>
+    <div class="actions">
+        <a class="btn" th:href="@{/}">Về trang chủ</a>
+    </div>
+</main>
+</body>
+</html>

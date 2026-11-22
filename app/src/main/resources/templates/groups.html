@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Nhóm Zalo')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Nhóm Zalo</h1>
+            <p class="hint">Mục tiêu khoảng 5 khách mỗi nhóm, lệch một chút cũng được. Số khách không tính tài khoản của mẹ và trợ lý AI
+                (mỗi nhóm thường khoảng <span th:text="${5 + storeAccounts}">7</span> tài khoản).</p>
+        </div>
+    </header>
+
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
+
+    <div class="cards c4">
+        <div class="card"><div class="big" th:text="${groups.?[status.name() == 'OPEN'].size()}">0</div><div class="label">Nhóm đang nhận khách</div></div>
+        <div class="card"><div class="big" th:text="${spotsLeft}">0</div><div class="label">Chỗ trống trong các nhóm</div></div>
+        <div class="card"><div class="big" th:text="${#aggregates.sum(groups.![actual])}">0</div><div class="label">Khách ước tính trong các nhóm</div></div>
+        <div class="card"><div class="big" th:text="${groups.?[status.name() != 'OPEN' or full()].size()}">0</div><div class="label">Nhóm đã đầy hoặc tạm đóng</div></div>
+    </div>
+
+    <div class="notice info" th:if="${next != null}">
+        <strong>Khách quét mã QR chung lúc này sẽ vào: <span th:text="${next.name}">Nhóm 1</span></strong>
+        Xem <a th:href="@{/print}">In giấy giới thiệu</a>. Tổng chỗ còn lại ước lượng: <span th:text="${spotsLeft}">3</span>.
+    </div>
+    <div class="notice bad" th:if="${next == null}">
+        <strong>Chưa có nhóm nào còn chỗ</strong>
+        Khách quét mã QR sẽ thấy "chưa có chỗ". Hãy thêm nhóm mới bên dưới hoặc mở nhóm đang tạm dừng.
+    </div>
+    <div class="notice" th:if="${!waiting.isEmpty()}">
+        <strong>Khách đã chọn tỉnh nhưng chưa có nhóm hợp (30 ngày qua)</strong>
+        <span th:each="w, st : ${waiting}"><span th:text="${w.provinceName} + ' (' + ${w.count} + ')'">Hà Nội (3)</span><span th:unless="${st.last}">, </span></span>.
+        Hãy mở thêm nhóm cho khu vực này. Khách quét lại mã sẽ được xếp vào nhóm mới.
+    </div>
+
+    <div class="table-wrap" th:if="${!groups.isEmpty()}">
+        <table class="groups">
+            <tr><th>Tên nhóm</th><th>Link nhóm Zalo</th><th>Khách / mục tiêu</th><th>Trạng thái</th><th>Thao tác</th></tr>
+            <th:block th:each="g : ${groups}">
+            <tr>
+                <td><strong th:text="${g.name}">Nhóm 1</strong>
+                    <span class="sub-line">Khu vực: <span th:text="${g.scopeLabel()}">Chung</span></span>
+                    <span class="sub-line" th:if="${g.note != null}" th:text="${g.note}">ghi chú</span></td>
+                <td><span th:if="${g.hasLink()}" th:text="${g.inviteLink}">https://zalo.me/g/x</span><span class="muted" th:unless="${g.hasLink()}">Chưa có link</span></td>
+                <td><span th:text="${g.actual}">0</span> / <span th:text="${g.target}">5</span>
+                    <span class="sub-line" th:if="${g.pendingClicks > 0}" th:text="${g.pendingClicks} + ' lượt bấm chờ'">2 lượt bấm chờ</span>
+                    <span class="sub-line warn-text" th:if="${g.needsRecount()}">Cần đếm lại (quá 7 ngày)</span></td>
+                <td>
+                    <span class="badge ok" th:if="${g.status.name() == 'OPEN' and !g.full()}">Đang nhận</span>
+                    <span class="badge warn" th:if="${g.status.name() == 'OPEN' and g.full()}">Đã đầy</span>
+                    <span class="badge" th:if="${g.status.name() != 'OPEN'}" th:text="${g.status.name() == 'PAUSED'} ? 'Tạm đóng' : ${g.status.label()}">Tạm đóng</span>
+                </td>
+                <td><details class="rowedit"><summary class="btn secondary sm">Sửa</summary></details></td>
+            </tr>
+            <tr class="editrow">
+                <td colspan="5">
+                    <div class="stack">
+                    <form class="inline" th:action="@{/groups/{id}/count(id=${g.id})}" method="post">
+                        <label class="inline-label">Số khách thật (không tính mẹ và trợ lý AI)
+                            <input type="number" name="actual" min="0" max="1000" th:value="${g.actual}" style="width:100px"></label>
+                        <button type="submit" class="btn secondary sm">Cập nhật số khách</button>
+                    </form>
+                    <form class="inline" th:action="@{/groups/{id}/status(id=${g.id})}" method="post">
+                        <select name="status" aria-label="Trạng thái nhóm">
+                            <option th:each="s : ${statuses}" th:value="${s.name()}" th:text="${s.label()}"
+                                    th:selected="${s == g.status}">Đang nhận khách</option>
+                        </select>
+                        <button type="submit" class="btn secondary sm">Đổi trạng thái</button>
+                    </form>
+                    <form class="inline" th:action="@{/groups/{id}/update(id=${g.id})}" method="post">
+                        <input type="text" name="name" th:value="${g.name}" required maxlength="100" aria-label="Tên nhóm">
+                        <input type="text" name="link" th:value="${g.inviteLink}" maxlength="300" placeholder="https://zalo.me/g/..." aria-label="Link nhóm">
+                        <select name="scope" title="Khu vực nhóm nhận khách" aria-label="Khu vực nhóm nhận khách">
+                            <option value="" th:selected="${g.scope == null}">Chung (nhận khách mọi nơi)</option>
+                            <optgroup label="Miền"><option th:each="o : ${scopes[0]}" th:value="${o.code}" th:text="${o.label}" th:selected="${o.code == g.scopeCode()}">Miền Nam</option></optgroup>
+                            <optgroup label="Vùng"><option th:each="o : ${scopes[1]}" th:value="${o.code}" th:text="${o.label}" th:selected="${o.code == g.scopeCode()}">Vùng Đông Nam Bộ</option></optgroup>
+                            <optgroup label="Tỉnh/thành"><option th:each="o : ${scopes[2]}" th:value="${o.code}" th:text="${o.label}" th:selected="${o.code == g.scopeCode()}">Cần Thơ</option></optgroup>
+                        </select>
+                        <input type="number" name="target" th:value="${g.target}" min="1" max="500" aria-label="Mục tiêu số khách" style="width:90px">
+                        <input type="text" name="note" th:value="${g.note}" placeholder="Ghi chú" maxlength="200" aria-label="Ghi chú">
+                        <button type="submit" class="btn sm">Lưu</button>
+                    </form>
+                    </div>
+                </td>
+            </tr>
+            </th:block>
+        </table>
+    </div>
+    <p class="muted" th:if="${groups.isEmpty()}">Chưa có nhóm nào. Nên bắt đầu với 2–3 nhóm nhỏ, không tạo sẵn hàng chục nhóm.</p>
+
+    <form class="panel stack" th:action="@{/groups}" method="post">
+        <h2>Thêm nhóm mới</h2>
+        <div class="formrow">
+            <label class="field grow">Tên nhóm <input type="text" name="name" placeholder="Nhóm 5" required maxlength="100"></label>
+            <label class="field grow2">Link nhóm (dán từ Zalo) <input type="text" name="link" placeholder="https://zalo.me/g/..." maxlength="300"></label>
+            <label class="field">Mục tiêu số khách <input type="number" name="target" value="5" min="1" max="500"></label>
+            <button type="submit" class="btn">Thêm nhóm</button>
+        </div>
+        <label class="field">Khu vực nhóm nhận khách (không bắt buộc)
+            <select name="scope" title="Khu vực nhóm nhận khách" aria-label="Khu vực nhóm nhận khách">
+                    <option value="">Chung (nhận khách mọi nơi)</option>
+                    <optgroup label="Miền"><option th:each="o : ${scopes[0]}" th:value="${o.code}" th:text="${o.label}">Miền Nam</option></optgroup>
+                    <optgroup label="Vùng"><option th:each="o : ${scopes[1]}" th:value="${o.code}" th:text="${o.label}">Vùng Đông Nam Bộ</option></optgroup>
+                    <optgroup label="Tỉnh/thành"><option th:each="o : ${scopes[2]}" th:value="${o.code}" th:text="${o.label}">Cần Thơ</option></optgroup>
+                </select></label>
+    </form>
+
+    <div class="notice info">
+        <strong>Số khách thật do bố mẹ tự đếm và nhập</strong>
+        Hệ thống không đọc được ai đã vào nhóm. Lượt bấm link chỉ là lượt bấm, không phải số người đã vào.
+        Khách được xếp ưu tiên: cùng tỉnh, rồi cùng vùng, rồi cùng miền, rồi nhóm chung.
+    </div>
+
+    <details class="more">
+        <summary>Cách đóng nhóm đã đầy và mở nhóm mới</summary>
+        <ol>
+            <li><strong>Mỗi tuần</strong> (hoặc khi thấy nhóm gần đủ), mẹ mở nhóm trên Zalo, đếm số khách thật (không tính mẹ và trợ lý AI),
+                rồi bấm <em>Sửa</em> và nhập vào ô "Số khách thật". Hệ thống tự tính nhóm nào còn chỗ.</li>
+            <li>Khi nhóm đủ khoảng 5 khách, hệ thống tự ngừng đưa khách mới vào nhóm đó. Mẹ có thể đổi trạng thái sang <em>Đã đóng</em> cho gọn.</li>
+            <li>Tạo nhóm mới trên Zalo, lấy link mời nhóm, bấm <em>Thêm nhóm mới</em> và dán link vào.
+                Nhóm mới ở trạng thái <em>Đang chuẩn bị</em>: đổi sang <em>Đang nhận khách</em> khi sẵn sàng.</li>
+            <li>Khách quét mã QR từ giờ sẽ tự vào nhóm mới. Không cần in lại giấy.</li>
+        </ol>
+    </details>
+</main>
+</body>
+</html>

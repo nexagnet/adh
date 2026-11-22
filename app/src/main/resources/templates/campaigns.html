@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Chiến dịch mời')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Chiến dịch mời vào nhóm</h1>
+            <p class="hint">Mỗi chiến dịch là một lô nhỏ khách đã được duyệt. Mỗi khách chỉ được mời một lần.</p>
+        </div>
+        <div class="actions">
+            <form th:action="@{/campaigns/pause-all}" method="post" th:unless="${paused}">
+                <button type="submit" class="btn danger">Tạm dừng tất cả chiến dịch</button>
+            </form>
+            <form th:action="@{/campaigns/resume-all}" method="post" th:if="${paused}">
+                <button type="submit" class="btn">Bỏ tạm dừng</button>
+            </form>
+        </div>
+    </header>
+    <div class="notice">
+        <strong>Cách làm hiện nay (tài khoản Zalo phụ):</strong>
+        <ol>
+            <li>Tạo chiến dịch, xuất danh sách, nhắn tin tư vấn cho từng khách bằng tài khoản Zalo phụ (lô nhỏ, theo hạn mức ngày).</li>
+            <li>Khách nào đồng ý kết bạn thì vào chiến dịch bấm <em>Đã kết bạn</em>.</li>
+            <li>Thêm khách vào nhóm Zalo cùng khu vực (hệ thống gợi ý nhóm) rồi bấm <em>Đã vào nhóm</em>.</li>
+            <li>Khách từ chối hoặc nhắn xin ngừng nhận tin thì bấm <em>Khách từ chối</em>: số này không bao giờ được nhắn lại.</li>
+        </ol>
+        Gửi tin tư vấn cho khách chưa đồng ý nhận tin có thể bị Zalo hạn chế tài khoản và có rủi ro pháp lý; chủ cửa hàng đã nhận rủi ro này,
+        nên giữ lô nhỏ, một lần duy nhất, và tôn trọng ngay mọi lời xin ngừng nhận tin.
+    </div>
+
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã tạo.</div>
+    <div class="notice bad" th:if="${paused}">
+        <strong>Đang TẠM DỪNG tất cả chiến dịch</strong>
+        <span th:if="${!pausedReason.isEmpty()}" th:text="'Lý do: ' + ${pausedReason}">Lý do</span>
+    </div>
+    <div class="notice bad" th:unless="${paused}">
+        <strong>Gửi tự động đang TẮT</strong>
+        Hiện chỉ có hai cách: chạy thử (không gửi gì) hoặc xuất danh sách để mẹ gửi tay. Chưa chọn nhà cung cấp SMS.
+    </div>
+
+    <div class="cards c4">
+        <div class="card"><div class="big" th:text="${contact.eligible}">0</div><div class="label">Đã duyệt, đủ điều kiện mời</div></div>
+        <div class="card"><div class="big" th:text="${stats.invitations}">0</div><div class="label">Lời mời đã tạo</div></div>
+        <div class="card"><div class="big" th:text="${stats.clicked}">0</div><div class="label">Lượt bấm link (không phải số người đã vào nhóm)</div></div>
+        <a class="card" th:href="@{/groups}"><div class="big" th:text="${stats.openGroups}">0</div><div class="label">Nhóm đang nhận khách</div></a>
+    </div>
+
+    <form th:action="@{/campaigns}" method="post" th:unless="${paused}" class="stack">
+        <div class="panel stack">
+            <h2>Bước 1. Chọn lô nhỏ</h2>
+            <div class="formrow">
+                <label class="field grow2">Tên chiến dịch <input type="text" name="name" required maxlength="100" placeholder="Đợt thử 1"></label>
+                <label class="field grow">Số khách trong lô (tối đa <span th:text="${maxBatch}">20</span>)
+                    <input type="number" name="count" value="10" min="1" th:max="${maxBatch}" required></label>
+                <label class="field grow">Link có hiệu lực (ngày) <input type="number" name="expiresDays" value="14" min="1" max="90" required></label>
+            </div>
+            <p class="muted">Có <span th:text="${contact.eligible}">3</span> khách đã duyệt, đủ điều kiện mời. Các nhóm còn <span th:text="${stats.openGroups}">2</span> nhóm đang nhận khách. Lô lấy khách được duyệt sớm nhất.</p>
+        </div>
+
+        <div class="panel stack">
+            <h2>Bước 2. Xem trước tin nhắn</h2>
+            <label class="field">Nội dung tin (có thể dùng {ten} và {cua_hang}; {link} chỉ cần khi gửi link mời riêng)
+                <textarea name="template" rows="5" maxlength="800" th:text="${defaultTemplate}"></textarea></label>
+            <p class="muted">Tin tư vấn sản phẩm là tin quảng cáo (khác với chữ trên giấy in và trang quét QR, vẫn chỉ để kết nối). Cần có câu cho khách biết cách xin ngừng nhận tin.</p>
+        </div>
+
+        <div class="panel strong stack">
+            <h2>Bước 3. Làm gì với lô này?</h2>
+            <div class="actions">
+                <button type="submit" class="btn">Tạo lô (chạy thử, chưa gửi gì)</button>
+                <button type="button" class="btn" disabled title="Chưa chọn nhà cung cấp SMS">Gửi tự động (đang khóa)</button>
+            </div>
+            <p class="muted">Sau khi tạo lô, mở lô để <strong>xuất danh sách cho người gửi nhắn tay</strong> rồi đánh dấu các bước (đã kết bạn, đã vào nhóm). Hệ thống không tự gửi tin cho ai.</p>
+        </div>
+    </form>
+
+
+    <section class="panel stack">
+        <h2>Nội dung tin mặc định</h2>
+        <form th:action="@{/campaigns/default-template}" method="post" class="stack">
+            <p class="muted">Soạn một lần ở đây, các chiến dịch mới sẽ điền sẵn nội dung này (vẫn sửa được cho từng chiến dịch). Để trống rồi lưu thì dùng lại nội dung có sẵn.</p>
+            <label class="field">Nội dung
+                <textarea name="template" rows="5" maxlength="800" th:text="${defaultTemplate}"></textarea></label>
+            <div class="actions"><button type="submit" class="btn">Lưu nội dung mặc định</button></div>
+        </form>
+    </section>
+
+    <section>
+        <h2>Kết quả các lô gần nhất</h2>
+        <div class="table-wrap" th:if="${!campaigns.isEmpty()}">
+            <table>
+                <tr><th>Lô</th><th>Tạo lúc</th><th>Lời mời</th><th>Chưa gửi</th><th>Đã nhắn</th><th>Đã kết bạn</th><th>Đã vào nhóm</th><th>Đã bấm link</th></tr>
+                <tr th:each="c : ${campaigns}">
+                    <td><a th:href="@{/campaigns/{id}(id=${c.id})}" th:text="${c.name}">Đợt 1</a></td>
+                    <td th:text="${#temporals.format(c.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
+                    <td th:text="${c.total}">0</td>
+                    <td th:text="${c.ready}">0</td>
+                    <td th:text="${c.sent}">0</td>
+                    <td th:text="${c.friended}">0</td>
+                    <td th:text="${c.joined}">0</td>
+                    <td th:text="${c.clicked}">0</td>
+                </tr>
+            </table>
+        </div>
+        <p class="muted" th:if="${campaigns.isEmpty()}">Chưa có chiến dịch nào.</p>
+        <p class="muted small" style="margin-top:10px">Lượt bấm link không phải số người đã vào nhóm.</p>
+    </section>
+</main>
+</body>
+</html>

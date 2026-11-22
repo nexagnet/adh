@@ -43,7 +43,10 @@ public class ContactService {
     }
 
     public record InviteRow(long id, String phone, String name, String address, LocalDateTime lastOrderOn,
-                            String evidenceRef, LocalDateTime approvedAt) {
+                            String evidenceRef, LocalDateTime approvedAt, String province) {
+        public String provinceLabel() {
+            return vn.shop.crm.geo.VnGeo.byCode(province).map(vn.shop.crm.geo.Province::name).orElse("Chưa rõ");
+        }
     }
 
     public record Basis(String basis, ContactStatus status, String evidenceRef, String statement, String note,
@@ -93,6 +96,59 @@ public class ContactService {
         return new Stats(oneTime, eligible, candidates, blocked, optedOut, erased, review);
     }
 
+    /** Trạng thái duyệt mời và lời mời của một khách, dạng chữ tiếng Việt để hiện trong danh sách khách. */
+    public record InviteState(String approval, String invitation) {
+    }
+
+    /**
+     * Gộp trạng thái duyệt mời (cơ sở liên hệ, sổ từ chối) và lời mời của nhiều khách bằng vài truy vấn, không truy vấn
+     * từng dòng. Khách không có trong kết quả thì chưa duyệt và chưa được mời.
+     */
+    public java.util.Map<Long, InviteState> inviteStates(java.util.Collection<Long> ids) {
+        java.util.Map<Long, InviteState> result = new java.util.HashMap<>();
+        if (ids.isEmpty()) {
+            return result;
+        }
+        java.util.Map<Long, String> basis = new java.util.HashMap<>();
+        jdbc.sql("SELECT customer_id, status FROM contact_basis WHERE purpose = :p AND customer_id IN (:ids)")
+                .param("p", PURPOSE).param("ids", ids)
+                .query((rs, i) -> java.util.Map.entry(rs.getLong("customer_id"), rs.getString("status")))
+                .list().forEach(e -> basis.put(e.getKey(), e.getValue()));
+        java.util.Set<Long> suppressed = new java.util.HashSet<>(jdbc.sql(
+                        "SELECT c.id FROM customer c WHERE c.id IN (:ids) AND EXISTS (SELECT 1 FROM suppression s "
+                                + "WHERE s.phone_hash = " + SUPPRESSED_HASH + ")")
+                .param("ids", ids).query(Long.class).list());
+        java.util.Map<Long, String> invites = new java.util.HashMap<>();
+        jdbc.sql("SELECT customer_id, status FROM invitation WHERE customer_id IN (:ids)").param("ids", ids)
+                .query((rs, i) -> java.util.Map.entry(rs.getLong("customer_id"), rs.getString("status")))
+                .list().forEach(e -> invites.put(e.getKey(), e.getValue()));
+        for (Long id : ids) {
+            String approval;
+            if (suppressed.contains(id)) {
+                approval = "Không được liên hệ";
+            } else if (!basis.containsKey(id)) {
+                approval = "Chưa duyệt";
+            } else {
+                approval = switch (basis.get(id)) {
+                    case "ELIGIBLE" -> "Đã duyệt";
+                    case "BLOCKED" -> "Bị chặn";
+                    default -> "Không được liên hệ";
+                };
+            }
+            String invitation = switch (invites.getOrDefault(id, "")) {
+                case "READY" -> "Chưa gửi";
+                case "SENT" -> "Đã gửi";
+                case "CLICKED" -> "Đã bấm link";
+                case "FRIENDED" -> "Đã kết bạn";
+                case "JOINED" -> "Đã vào nhóm";
+                case "CANCELLED" -> "Đã hủy";
+                default -> "Chưa mời";
+            };
+            result.put(id, new InviteState(approval, invitation));
+        }
+        return result;
+    }
+
     private long count(String sql) {
         return jdbc.sql(sql).query(Long.class).single();
     }
@@ -115,14 +171,36 @@ public class ContactService {
         int p = Math.max(1, page);
         long total = count(inviteCountSql());
         List<InviteRow> items = jdbc.sql("""
-                        SELECT c.id, c.phone, c.name, c.address, c.last_order_on, b.evidence_ref, b.recorded_at
+                        SELECT c.id, c.phone, c.name, c.address, c.last_order_on, b.evidence_ref, b.recorded_at, c.province
                         """ + inviteFrom() + " ORDER BY b.recorded_at, c.id LIMIT :limit OFFSET :offset")
                 .param("limit", size).param("offset", (long) (p - 1) * size)
                 .query((rs, i) -> new InviteRow(rs.getLong("id"), rs.getString("phone"), rs.getString("name"),
                         rs.getString("address"), rs.getObject("last_order_on", LocalDateTime.class),
-                        rs.getString("evidence_ref"), local(rs.getObject("recorded_at", OffsetDateTime.class))))
+                        rs.getString("evidence_ref"), local(rs.getObject("recorded_at", OffsetDateTime.class)),
+                        rs.getString("province")))
                 .list();
         return new InvitePage(items, total, p, size);
+    }
+
+    public record Invitee(long id, String phone, String name) {
+    }
+
+    /**
+     * Khách đủ điều kiện mời mà CHƯA từng được mời (mỗi khách một lần). Đây là cửa duy nhất để tạo lời mời: dùng
+     * đúng điều kiện của danh sách mời, nên khách REPEAT, cần kiểm tra, bị chặn hay từ chối không bao giờ lọt vào.
+     */
+    public List<Invitee> eligibleNotInvited(int limit) {
+        return jdbc.sql("SELECT c.id, c.phone, c.name " + inviteFrom()
+                        + " AND NOT EXISTS (SELECT 1 FROM invitation i WHERE i.customer_id = c.id)"
+                        + " ORDER BY b.recorded_at, c.id LIMIT :limit")
+                .param("limit", limit)
+                .query((rs, i) -> new Invitee(rs.getLong("id"), rs.getString("phone"), rs.getString("name")))
+                .list();
+    }
+
+    /** Khách này CÒN đủ điều kiện mời ngay lúc này không (kiểm lại ở thời điểm khách bấm link và trước khi gửi). */
+    public boolean stillEligible(long customerId) {
+        return count("SELECT count(*) " + inviteFrom() + " AND c.id = " + customerId) > 0;
     }
 
     // ---------- duyệt / chặn / từ chối ----------
@@ -175,6 +253,7 @@ public class ContactService {
                            WHERE contact_basis.status <> 'OPTED_OUT'""")
                 .param("id", customerId).param("purpose", PURPOSE).param("statement", "Chặn thủ công")
                 .param("note", blankToNull(note)).param("by", actor()).update();
+        cancelInvitations(customerId, "Khách bị chặn thủ công");
         event(customerId, phone, "BLOCKED", blankToNull(note));
     }
 
@@ -195,8 +274,14 @@ public class ContactService {
      */
     @Transactional
     public void suppress(long customerId, String source) {
+        suppressAs(customerId, source, actor());
+    }
+
+    /** Như {@link #suppress} nhưng ghi rõ "ai làm" (ví dụ khách tự bấm "ngừng nhận tin" trên trang mời). */
+    @Transactional
+    public void suppressAs(long customerId, String source, String by) {
         String phone = phoneOf(customerId);
-        suppressPhone(phone, "OPT_OUT", source);
+        suppressPhone(phone, "OPT_OUT", source, by);
         jdbc.sql("""
                         INSERT INTO contact_basis (customer_id, purpose, basis, status, statement, note, recorded_by)
                         VALUES (:id, :purpose, 'NONE', 'OPTED_OUT', :statement, :note, :by)
@@ -204,18 +289,54 @@ public class ContactService {
                            SET basis = 'NONE', status = 'OPTED_OUT', note = EXCLUDED.note,
                                recorded_by = EXCLUDED.recorded_by, recorded_at = now()""")
                 .param("id", customerId).param("purpose", PURPOSE).param("statement", "Khách yêu cầu ngừng liên hệ")
-                .param("note", blankToNull(source)).param("by", actor()).update();
-        event(customerId, phone, "OPTED_OUT", blankToNull(source));
+                .param("note", blankToNull(source)).param("by", by).update();
+        cancelInvitations(customerId, "Khách yêu cầu ngừng liên hệ");
+        eventAs(customerId, phone, "OPTED_OUT", blankToNull(source), by);
+    }
+
+    /**
+     * Hủy lời mời của khách: lời mời chưa gửi thì xóa hẳn, lời mời đã gửi thì giữ lại và đánh dấu CANCELLED để còn
+     * dấu vết. Landing page cũng kiểm lại điều kiện khi khách bấm nên link đã gửi không còn dùng được.
+     */
+    void cancelInvitations(long customerId, String reason) {
+        jdbc.sql("DELETE FROM invitation WHERE customer_id = :id AND status = 'READY'")
+                .param("id", customerId).update();
+        jdbc.sql("""
+                        UPDATE invitation SET status = 'CANCELLED', cancelled_reason = :reason
+                        WHERE customer_id = :id AND status IN ('SENT', 'CLICKED', 'FRIENDED')""")
+                .param("id", customerId).param("reason", reason).update();
+    }
+
+    /**
+     * Khách tự xin ngừng nhận tin bằng số điện thoại (trang giấy giới thiệu dùng mã QR chung, không có link riêng).
+     * Số hợp lệ nào cũng được ghi vào danh sách từ chối (chỉ lưu băm); nếu số đó đã là khách thì xử lý như
+     * "ngừng liên hệ" đầy đủ. Trả lỗi tiếng Việt nếu số không hợp lệ.
+     */
+    @Transactional
+    public void optOutByPhone(String rawPhone, String source) {
+        String phone = vn.shop.crm.common.PhoneNormalizer.toE164(rawPhone)
+                .orElseThrow(() -> new ImportException("Số điện thoại chưa đúng. Hãy nhập số 10 chữ số, ví dụ 0912345678."));
+        Optional<Long> customer = jdbc.sql("SELECT id FROM customer WHERE phone = :p").param("p", phone)
+                .query(Long.class).optional();
+        if (customer.isPresent()) {
+            suppressAs(customer.get(), source, "khach-tu-bam");
+        } else {
+            suppressPhone(phone, "OPT_OUT", source, "khach-tu-bam");
+        }
     }
 
     /** Ghi SĐT vào danh sách từ chối (chỉ lưu băm). Gọi lặp lại không sao. */
     void suppressPhone(String phone, String reason, String source) {
+        suppressPhone(phone, reason, source, actor());
+    }
+
+    void suppressPhone(String phone, String reason, String source, String by) {
         jdbc.sql("""
                         INSERT INTO suppression (phone_hash, reason, source, recorded_by)
                         VALUES (:hash, :reason, :source, :by)
                         ON CONFLICT (phone_hash) DO NOTHING""")
                 .param("hash", PhoneHash.of(phone)).param("reason", reason)
-                .param("source", blankToNull(source)).param("by", actor()).update();
+                .param("source", blankToNull(source)).param("by", by).update();
     }
 
     public boolean isSuppressed(String phone) {
@@ -251,6 +372,18 @@ public class ContactService {
                 .query(String.class).optional().orElse("");
     }
 
+    /** Ghi chú của nhiều khách bằng một truy vấn (khách không có ghi chú thì không có trong kết quả). */
+    public java.util.Map<Long, String> notes(java.util.Collection<Long> ids) {
+        java.util.Map<Long, String> result = new java.util.HashMap<>();
+        if (ids.isEmpty()) {
+            return result;
+        }
+        jdbc.sql("SELECT customer_id, note FROM customer_note WHERE customer_id IN (:ids)").param("ids", ids)
+                .query((rs, i) -> java.util.Map.entry(rs.getLong("customer_id"), rs.getString("note")))
+                .list().forEach(e -> result.put(e.getKey(), e.getValue()));
+        return result;
+    }
+
     @Transactional
     public void saveNote(long customerId, String note) {
         phoneOf(customerId); // báo lỗi nếu khách không tồn tại
@@ -270,18 +403,22 @@ public class ContactService {
 
     // ---------- nội bộ ----------
 
-    String phoneOf(long customerId) {
+    public String phoneOf(long customerId) {
         return jdbc.sql("SELECT phone FROM customer WHERE id = :id").param("id", customerId)
                 .query(String.class).optional()
                 .orElseThrow(() -> new ImportException("Không tìm thấy khách."));
     }
 
-    void event(Long customerId, String phone, String event, String detail) {
+    public void event(Long customerId, String phone, String event, String detail) {
+        eventAs(customerId, phone, event, detail, actor());
+    }
+
+    void eventAs(Long customerId, String phone, String event, String detail, String by) {
         jdbc.sql("""
                         INSERT INTO contact_event (customer_id, phone_tail, event, detail, recorded_by)
                         VALUES (:id, :tail, :event, :detail, :by)""")
                 .param("id", customerId).param("tail", PhoneHash.tail(phone)).param("event", event)
-                .param("detail", detail).param("by", actor()).update();
+                .param("detail", detail).param("by", by).update();
     }
 
     private static String blankToNull(String s) {

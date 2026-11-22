@@ -4,58 +4,132 @@
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
-    <h1>
-        <span th:if="${segment == null and !review}">Tất cả khách</span>
-        <span th:if="${segment != null}" th:text="${segment.label()}">Mua 1 lần</span>
-        <span th:if="${review}" th:text="${segment == null} ? 'Khách cần kiểm tra' : '— cần kiểm tra'">Khách cần kiểm tra</span>
-    </h1>
-    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã xóa.</div>
-    <p class="hint" th:if="${segment != null and segment.name() == 'REPEAT'}">
-        Danh sách này dành cho bố mẹ chủ động tư vấn riêng. Không đưa vào chiến dịch mời nhóm.
-    </p>
+    <header class="page-head">
+        <div class="titles">
+            <h1>
+                <span th:if="${segment == null and !review}">Tất cả khách</span>
+                <span th:if="${segment != null}" th:text="${segment.label()}">Mua 1 lần</span>
+                <span th:if="${review}" th:text="${segment == null} ? 'Khách cần kiểm tra' : '— cần kiểm tra'">Khách cần kiểm tra</span>
+            </h1>
+            <p class="hint" th:if="${segment != null and segment.name() == 'REPEAT'}">Danh sách để bố mẹ chủ động tư vấn riêng.</p>
+            <p class="hint" th:unless="${segment != null and segment.name() == 'REPEAT'}">Gộp theo số điện thoại nhận hàng, chỉ tính đơn giao thành công.</p>
+        </div>
+        <div class="actions">
+            <a class="btn secondary" th:href="@{/customers/export.csv(segment=${segment}, review=${review}, area=${area})}">Tải bảng tính Excel</a>
+        </div>
+    </header>
 
-    <form class="inline" th:action="@{/customers}" method="get">
-        <select name="segment">
-            <option value="">Tất cả phân loại</option>
-            <option th:each="s : ${segments}" th:value="${s.name()}" th:text="${s.label()}"
-                    th:selected="${segment == s}">Mua 1 lần</option>
-        </select>
-        <input type="text" name="q" th:value="${q}" placeholder="Số điện thoại hoặc tên">
-        <label><input type="checkbox" name="review" value="true" th:checked="${review}"> Chỉ khách cần kiểm tra</label>
-        <button type="submit" class="btn">Lọc</button>
-        <a class="btn secondary" th:href="@{/customers/export.csv(segment=${segment}, review=${review})}">Tải CSV</a>
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã xóa.</div>
+    <div class="notice info" th:if="${segment != null and segment.name() == 'REPEAT'}">
+        <strong>Không có nút mời vào nhóm</strong>
+        Khách ở đây không được đưa vào chiến dịch mời hay quảng cáo hàng loạt. Bố mẹ gọi điện hoặc nhắn theo cách khách đồng ý.
+    </div>
+
+    <div class="chips" aria-label="Lọc khách">
+        <a class="chip" th:classappend="${!review} ? 'on'" th:href="@{/customers(segment=${segment}, area=${area}, q=${q})}">Tất cả
+            <span class="n" th:text="${segment == null} ? ${totalCustomers} : ${segmentCounts.get(segment)}">0</span></a>
+        <a class="chip" th:classappend="${review} ? 'on'" th:href="@{/customers(segment=${segment}, area=${area}, q=${q}, review=true)}">Cần kiểm tra
+            <span class="n" th:text="${reviewCount}">0</span></a>
+    </div>
+
+    <form th:action="@{/customers}" method="get" role="search">
+        <input type="hidden" name="segment" th:value="${segment}" th:if="${segment != null}">
+        <input type="hidden" name="area" th:value="${area}" th:if="${!area.isEmpty()}">
+        <input type="hidden" name="review" value="true" th:if="${review}">
+        <input type="search" class="search" name="q" th:value="${q}" placeholder="Tìm theo số điện thoại hoặc tên" aria-label="Tìm khách">
     </form>
 
-    <p><strong th:text="${page.total}">0</strong> khách</p>
     <div class="table-wrap">
-        <table>
+        <table th:if="${segment == null or segment.name() != 'REPEAT'}">
             <tr>
-                <th>Số điện thoại</th><th>Tên</th><th>Địa chỉ</th>
-                <th class="num">Lần mua</th><th>Gần nhất</th><th>Ghi chú</th>
+                <th>Số điện thoại</th><th>Khách</th><th>Mua gần nhất</th>
+                <th th:if="${segment != null and segment.name() == 'ONE_TIME'}">Duyệt mời</th>
+                <th th:if="${segment != null and segment.name() == 'ONE_TIME'}">Lời mời</th>
+                <th th:unless="${segment != null and segment.name() == 'ONE_TIME'}">Phân loại</th>
+                <th th:unless="${segment != null and segment.name() == 'ONE_TIME'}">Ghi chú</th>
             </tr>
             <tr th:each="c : ${page.items}">
                 <td><a th:href="@{/customers/{id}(id=${c.id})}" th:text="${c.displayPhone()}">0912 345 678</a></td>
-                <td th:text="${c.name}">Nguyen Van A</td>
-                <td th:text="${c.address}">Địa chỉ</td>
-                <td class="num" th:text="${c.successfulPurchases}">1</td>
+                <td><strong th:text="${c.name}">Nguyễn Văn An</strong><span class="sub-line" th:text="${c.address}">Xóm 3, Hà Nam</span></td>
                 <td th:text="${c.lastOrderOn != null} ? ${#temporals.format(c.lastOrderOn, 'dd/MM/yyyy')} : ''">01/01/2026</td>
-                <td><span class="badge warn" th:if="${c.needsReview}">Cần kiểm tra</span></td>
+                <th:block th:if="${segment != null and segment.name() == 'ONE_TIME'}">
+                    <td>
+                        <span class="badge warn" th:if="${c.needsReview}">Cần kiểm tra</span>
+                        <th:block th:unless="${c.needsReview}" th:with="a=${states.get(c.id).approval}">
+                            <span class="badge ok" th:if="${a == 'Đã duyệt'}">Đã duyệt</span>
+                            <span class="badge" th:if="${a == 'Chưa duyệt'}">Chờ duyệt</span>
+                            <span class="badge bad" th:if="${a == 'Bị chặn'}">Đã chặn</span>
+                            <span class="badge bad" th:if="${a == 'Không được liên hệ'}">Đã từ chối</span>
+                        </th:block>
+                    </td>
+                    <td>
+                        <span class="badge" th:if="${states.get(c.id).approval == 'Đã duyệt' or states.get(c.id).invitation != 'Chưa mời'}"
+                              th:text="${states.get(c.id).invitation}">Chưa mời</span>
+                        <span class="muted" th:unless="${states.get(c.id).approval == 'Đã duyệt' or states.get(c.id).invitation != 'Chưa mời'}">—</span>
+                    </td>
+                </th:block>
+                <th:block th:unless="${segment != null and segment.name() == 'ONE_TIME'}">
+                    <td th:text="${c.segment.label()}">Mua 1 lần</td>
+                    <td><span class="badge warn" th:if="${c.needsReview}">Cần kiểm tra</span></td>
+                </th:block>
             </tr>
-            <tr th:if="${page.items.isEmpty()}"><td colspan="6" class="muted">Không có khách nào.</td></tr>
+            <tr th:if="${page.items.isEmpty()}"><td colspan="5" class="muted">Không có khách nào.</td></tr>
+        </table>
+        <table th:if="${segment != null and segment.name() == 'REPEAT'}">
+            <tr><th>Số điện thoại</th><th>Khách</th><th>Số đơn thành công</th><th>Mua gần nhất</th><th>Ghi chú của bố mẹ</th></tr>
+            <tr th:each="c : ${page.items}">
+                <td><a th:href="@{/customers/{id}(id=${c.id})}" th:text="${c.displayPhone()}">0912 345 678</a></td>
+                <td><strong th:text="${c.name}">Lê Văn Cần</strong><span class="sub-line" th:text="${c.address}">Đà Nẵng</span></td>
+                <td th:text="${c.successfulPurchases}">3</td>
+                <td th:text="${c.lastOrderOn != null} ? ${#temporals.format(c.lastOrderOn, 'dd/MM/yyyy')} : ''">01/01/2026</td>
+                <td>
+                    <span class="badge warn" th:if="${c.needsReview}">Cần kiểm tra</span>
+                    <span th:unless="${c.needsReview}" th:text="${notes.get(c.id)}"></span>
+                </td>
+            </tr>
+            <tr th:if="${page.items.isEmpty()}"><td colspan="5" class="muted">Không có khách nào.</td></tr>
         </table>
     </div>
 
     <div class="pager">
+        <span class="muted">Hiển thị <span th:text="${shown}">5</span> trong <span th:text="${page.total}">0</span> khách<span
+            th:if="${page.totalPages() > 1}"> (trang <span th:text="${page.page}">1</span>/<span th:text="${page.totalPages()}">1</span>)</span></span>
         <a class="btn secondary" th:if="${page.hasPrevious()}"
-           th:href="@{/customers(segment=${segment}, review=${review}, q=${q}, page=${page.page - 1})}">‹ Trước</a>
-        <span>Trang <span th:text="${page.page}">1</span>/<span th:text="${page.totalPages()}">1</span></span>
+           th:href="@{/customers(segment=${segment}, review=${review}, area=${area}, q=${q}, page=${page.page - 1})}">‹ Trước</a>
         <a class="btn secondary" th:if="${page.hasNext()}"
-           th:href="@{/customers(segment=${segment}, review=${review}, q=${q}, page=${page.page + 1})}">Sau ›</a>
+           th:href="@{/customers(segment=${segment}, review=${review}, area=${area}, q=${q}, page=${page.page + 1})}">Sau ›</a>
     </div>
 
-    <form th:action="@{/customers/recalculate}" method="post">
-        <button type="submit" class="btn secondary">Tính lại phân loại tất cả khách</button>
-    </form>
+    <details class="more">
+        <summary>Lọc theo khu vực và công cụ khác</summary>
+        <p class="hint">Khu vực suy ra từ địa chỉ trên vận đơn (tên tỉnh/thành). Địa chỉ không ghi rõ tỉnh thì để "Chưa rõ", hệ thống không đoán bừa.</p>
+        <div class="cards c4">
+            <a class="card" th:each="r : ${regions}" th:href="@{/customers(area=${r.code}, segment=${segment})}">
+                <div class="big" th:text="${r.count}">0</div><div class="label" th:text="${r.label}">Miền Nam</div></a>
+            <a class="card" th:href="@{/customers(area='U', segment=${segment})}">
+                <div class="big" th:text="${unknownCount}">0</div><div class="label">Chưa rõ khu vực</div></a>
+        </div>
+        <form class="inline" th:action="@{/customers}" method="get">
+            <select name="segment">
+                <option value="">Tất cả phân loại</option>
+                <option th:each="s : ${segments}" th:value="${s.name()}" th:text="${s.label()}"
+                        th:selected="${segment == s}">Mua 1 lần</option>
+            </select>
+            <select name="area">
+                <option value="">Tất cả khu vực</option>
+                <option value="U" th:selected="${area == 'U'}">Chưa rõ khu vực</option>
+                <optgroup th:each="g : ${areaGroups}" th:label="${g.label}">
+                    <option th:each="o : ${g.options}" th:value="${o.code}" th:text="${o.label}" th:selected="${area == o.code}">Hà Nội</option>
+                </optgroup>
+            </select>
+            <input type="text" name="q" th:value="${q}" placeholder="Số điện thoại hoặc tên">
+            <label class="inline-label"><input type="checkbox" name="review" value="true" th:checked="${review}"> Chỉ khách cần kiểm tra</label>
+            <button type="submit" class="btn sm">Lọc</button>
+        </form>
+        <form th:action="@{/customers/recalculate}" method="post">
+            <button type="submit" class="btn secondary sm">Tính lại phân loại và khu vực của tất cả khách</button>
+        </form>
+    </details>
 </main>
 </body>
 </html>
