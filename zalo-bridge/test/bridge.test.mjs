@@ -465,3 +465,23 @@ test('hạn mức hỏi thông tin mỗi giờ: quá hạn thì vẫn nhận s�
   assert.equal(asked, 3);
   c.cleanup();
 });
+
+test('liệt kê nhóm: chỉ đọc, chỉ khi đang nghe, giữ kết quả 30 giây, lỗi không làm cầu dao nhảy, log không có tên nhóm', async () => {
+  const c = setup();
+  await c.bridge.start();
+  assert.deepEqual(await c.bridge.listGroups(), { ok: false, code: 'LOGIN_REQUIRED' });
+  await loginAndListen(c);
+  c.adapter.groups = [{ id: '111', name: 'Khách miền Nam', members: 7, adminOnlyAdd: false, isAdmin: true }];
+  const a = await c.bridge.listGroups();
+  assert.equal(a.ok, true);
+  assert.equal(a.groups[0].id, '111');
+  await c.bridge.listGroups();
+  assert.equal(c.adapter.groupListCalls, 1); // lần hai dùng kết quả giữ 30 giây
+  c.clock.t += 31_000;
+  c.adapter.groupsError = new Error('hỏng');
+  assert.deepEqual(await c.bridge.listGroups(), { ok: false, code: 'LIST_FAILED' });
+  assert.equal(c.bridge.status().state, 'LISTENING'); // lỗi đọc không dừng cầu nối
+  assert.ok(!c.logs.some((l) => l.includes('Khách miền Nam') || l.includes('111')));
+  assert.equal(c.adapter.adds.length, 0);
+  c.cleanup();
+});

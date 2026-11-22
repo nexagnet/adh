@@ -41,6 +41,23 @@ public interface ZaloSession {
         }
     }
 
+    /** Một nhóm Zalo mà tài khoản phụ đang tham gia. {@code adminOnlyAdd}: nhóm bật "chỉ quản trị viên được thêm thành viên". */
+    record ZaloGroup(String id, String name, int members, boolean adminOnlyAdd, boolean admin) {
+    }
+
+    /** @param code khi {@code ok} là false: mã ngắn nói vì sao (LOGIN_REQUIRED, NOT_ACTIVE, BUSY, LIST_FAILED, BRIDGE_DOWN, DISABLED) */
+    record GroupList(boolean ok, String code, java.util.List<ZaloGroup> groups) {
+        public static GroupList failed(String code) {
+            return new GroupList(false, code, java.util.List.of());
+        }
+    }
+
+    /**
+     * Chỉ ĐỌC: các nhóm tài khoản phụ đang tham gia (mã, tên, số thành viên), để quản trị chọn "mã nhóm Zalo" cho nhóm của Adh.
+     * Không liệt kê bạn bè, không dò ai. Chỉ trang quản trị (admin) gọi; tên nhóm không vào nhật ký.
+     */
+    GroupList listGroups();
+
     /** Bắt đầu đăng nhập bằng QR. */
     Login startLogin();
 

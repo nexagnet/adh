@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Nhóm Zalo của tài khoản phụ')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Nhóm Zalo của tài khoản phụ</h1>
+            <p class="hint">Danh sách các nhóm Zalo mà tài khoản phụ đang tham gia (chỉ đọc, hệ thống không đổi gì trên Zalo).
+                Chọn nhóm của Adh rồi bấm Gán để lưu mã nhóm. <a th:href="@{/zalo}">Quay lại trang Zalo tài khoản phụ</a>.</p>
+        </div>
+    </header>
+
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
+
+    <div class="notice bad" th:unless="${ok}">
+        <strong>Chưa đọc được danh sách nhóm</strong>
+        <span th:if="${failCode == 'LOGIN_REQUIRED'}">Tài khoản phụ chưa đăng nhập. Hãy quét mã QR ở trang Zalo tài khoản phụ.</span>
+        <span th:if="${failCode == 'NOT_ACTIVE'}">Bộ nối đang dừng hoặc chưa nghe. Chọn nấc "Chỉ nghe" hoặc bấm Mở lại ở trang Zalo tài khoản phụ.</span>
+        <span th:if="${failCode == 'BUSY'}">Bộ nối đang bận, thử lại sau ít giây.</span>
+        <span th:if="${failCode == 'BRIDGE_DOWN'}">Không nối được tới bộ nối.</span>
+        <span th:if="${failCode == 'DISABLED'}">Bộ nối đang tắt.</span>
+        <span th:if="${failCode == 'LIST_FAILED'}">Zalo không trả danh sách (lỗi lạ). Thử lại; nếu vẫn lỗi, nhập mã nhóm tay ở trang Nhóm Zalo.</span>
+    </div>
+
+    <section th:if="${ok}">
+        <p class="muted" th:if="${zaloGroups.isEmpty()}">Tài khoản phụ chưa ở trong nhóm Zalo nào. Hãy thêm tài khoản phụ vào các nhóm khách hàng rồi tải lại trang.</p>
+        <div class="table-wrap" th:if="${!zaloGroups.isEmpty()}">
+            <table>
+                <tr><th>Nhóm trên Zalo</th><th>Mã nhóm</th><th>Thành viên</th><th>Lưu ý</th><th>Gán cho nhóm của Adh</th></tr>
+                <tr th:each="z : ${zaloGroups}">
+                    <td th:text="${z.name}">Khách hàng Miền Nam</td>
+                    <td><code th:text="${z.id}">123456789</code></td>
+                    <td th:text="${z.members}">12</td>
+                    <td>
+                        <span class="badge warn" th:if="${z.adminOnlyAdd and !z.admin}">Nhóm chỉ cho quản trị viên thêm người, mà tài khoản phụ không phải quản trị viên: sẽ không thêm được</span>
+                        <span class="badge ok" th:if="${z.admin}">Tài khoản phụ là quản trị viên</span>
+                        <span class="sub-line" th:if="${assigned.containsKey(z.id)}">Đã gán cho nhóm "<span th:text="${assigned.get(z.id)}">Nhóm 1</span>"</span>
+                    </td>
+                    <td>
+                        <form class="formrow" th:action="@{/zalo/groups/assign}" method="post">
+                            <input type="hidden" name="zaloGroupId" th:value="${z.id}">
+                            <select name="adhGroupId" aria-label="Nhóm của Adh" required>
+                                <option th:each="g : ${adhGroups}" th:value="${g.id}" th:text="${g.name}" th:selected="${g.zaloGroupId == z.id}">Nhóm 1</option>
+                            </select>
+                            <button type="submit" class="btn sm">Gán</button>
+                        </form>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <p class="muted" th:if="${adhGroups.isEmpty()}">Adh chưa có nhóm nào. Tạo nhóm ở trang Nhóm Zalo trước.</p>
+    </section>
+</main>
+</body>
+</html>

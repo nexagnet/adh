@@ -24,8 +24,8 @@ class ZaloGatewayShapeTest {
     }
 
     @Test
-    void phienChiCoQuanLyDangNhap() {
-        assertThat(names(ZaloSession.class)).containsExactly("loginStatus", "logout", "resume", "startLogin", "stop");
+    void phienChiCoQuanLyDangNhapVaDocDanhSachNhom() {
+        assertThat(names(ZaloSession.class)).containsExactly("listGroups", "loginStatus", "logout", "resume", "startLogin", "stop");
     }
 
     @Test

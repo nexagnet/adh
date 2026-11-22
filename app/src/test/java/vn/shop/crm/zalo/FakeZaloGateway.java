@@ -42,6 +42,8 @@ public class FakeZaloGateway implements ZaloLink {
         resumeResult = true;
         eventsFail = false;
         logouts = 0;
+        groupList = GroupList.failed("LOGIN_REQUIRED");
+        groupListCalls = 0;
     }
 
     public void push(FriendEvent e) {
@@ -79,6 +81,15 @@ public class FakeZaloGateway implements ZaloLink {
     public AddResult addToGroup(String uid, String zaloGroupId) {
         adds.add(new String[]{uid, zaloGroupId});
         return results.isEmpty() ? defaultResult : results.poll();
+    }
+
+    public GroupList groupList = GroupList.failed("LOGIN_REQUIRED");
+    public int groupListCalls;
+
+    @Override
+    public GroupList listGroups() {
+        groupListCalls++;
+        return groupList;
     }
 
     @Override

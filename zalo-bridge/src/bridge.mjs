@@ -345,6 +345,33 @@ export class Bridge {
     }
   }
 
+  // ---------- đọc danh sách nhóm (chỉ đọc) ----------
+
+  /**
+   * Nhóm tài khoản phụ đang tham gia, để trang quản trị chọn "mã nhóm Zalo". Chỉ đọc nên lỗi không làm cầu dao nhảy; chỉ hỏi khi
+   * đang nghe bình thường, không hỏi dồn (giữ kết quả 30 giây). Tên nhóm không vào log.
+   */
+  async listGroups() {
+    if (this.state === 'LOGIN_REQUIRED') return { ok: false, code: 'LOGIN_REQUIRED' };
+    if (this.state !== 'LISTENING') return { ok: false, code: 'NOT_ACTIVE' };
+    const t = this.now();
+    if (this.groupsCache && t - this.groupsCache.at < 30_000) return this.groupsCache.result;
+    if (this.busy) return { ok: false, code: 'BUSY' };
+    this.busy = true;
+    try {
+      const groups = await withTimeout(this.adapter.listGroups(), this.config.addTimeoutMs * 2);
+      const result = { ok: true, groups };
+      this.groupsCache = { at: t, result };
+      this.log('đọc danh sách nhóm: xong');
+      return result;
+    } catch (e) {
+      this.log(isSessionDead(e) ? 'đọc danh sách nhóm: phiên có vẻ đã hỏng' : 'đọc danh sách nhóm: lỗi');
+      return { ok: false, code: 'LIST_FAILED' };
+    } finally {
+      this.busy = false;
+    }
+  }
+
   // ---------- đăng nhập bằng QR ----------
 
   startLogin() {

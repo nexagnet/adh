@@ -166,4 +166,23 @@ class ZcaBridgeGatewayTest {
         reply.set("{\"state\":\"WAITING_SCAN\",\"scannedId\":\"123456789\"}");
         assertThat(gateway.loginStatus().scannedId()).isNull();
     }
+
+    @Test
+    void danhSachNhomDocDuocBoDongHongVaKhongLoMaLa() {
+        reply.set("""
+                {"ok":true,"groups":[
+                  {"id":"222","name":"Nhóm B","members":3,"adminOnlyAdd":true,"isAdmin":false},
+                  {"id":"x; DROP","name":"Hỏng","members":1},
+                  {"id":"111","name":"nhóm a","members":7,"adminOnlyAdd":false,"isAdmin":true}]}""");
+        ZaloSession.GroupList l = gateway.listGroups();
+        assertThat(requests).containsExactly("GET /groups");
+        assertThat(keys).containsExactly("khoa-chung");
+        assertThat(l.ok()).isTrue();
+        assertThat(l.groups()).extracting(ZaloSession.ZaloGroup::id).containsExactly("111", "222");
+        assertThat(l.groups().get(1).adminOnlyAdd()).isTrue();
+        reply.set("{\"ok\":false,\"code\":\"LOGIN_REQUIRED\"}");
+        assertThat(gateway.listGroups().code()).isEqualTo("LOGIN_REQUIRED");
+        httpStatus = 500;
+        assertThat(gateway.listGroups().code()).isEqualTo("LIST_FAILED");
+    }
 }
