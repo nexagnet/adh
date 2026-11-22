@@ -64,7 +64,7 @@ Chỗ cần sửa chủ yếu là: số liệu mâu thuẫn giữa các màn, tr
 
 ### 10. Báo cáo nhập file (màn 9) không nói đơn đổi trạng thái
 - **Đọc trực tiếp.** Màn 9 chỉ có "Vận đơn mới / Đã có từ trước / Dòng lỗi". File 03 mốc 1A cần xử lý ca "đơn giao thành công rồi chuyển hoàn" và cập nhật phân loại khi nhập đợt mới (cũng là rủi ro cao ở mục 5).
-- **Sửa:** thêm số "Đơn đổi trạng thái so với lần nhập trước" và "Khách đổi nhóm (mua 1 lần ↔ 2+ lần)".
+- **Sửa:** thêm số "Đơn đổi trạng thái so với lần nhập trước" và "Khách đổi nhóm (mua 1 lần ↔ 2+ lần)". **Đã code:** số "Khách đổi nhóm" nằm ở màn *Đã nhập xong* (chỉ đếm được sau khi nhập, vì cần tính lại phân loại), màn xem trước có cảnh báo khi file J&T đúng 500 dòng.
 
 ### 11. Màn 8 (bot) giả định đã chọn `zca-js`
 - **Đọc trực tiếp.** Màn 8 có nút "Kết nối: quét mã QR" và cảnh báo "tài khoản Zalo cá nhân không chính thức". `ADR-0001` ghi trạng thái CHƯA QUYẾT, chưa chạy spike nào; file 03 mục 2.2 nói đây là phương án cuối cùng, mặc định là không bot hoặc P1/P3.

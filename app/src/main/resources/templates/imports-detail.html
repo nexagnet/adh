@@ -22,6 +22,11 @@
         <div class="card" th:classappend="${batch.errorRows != null and batch.errorRows > 0} ? 'warn'"><div class="big" th:text="${batch.errorRows}">0</div><div class="label">Dòng lỗi</div></div>
     </div>
 
+    <div class="notice" th:if="${batch.segmentChanges != null and batch.segmentChanges > 0}">
+        <strong><span th:text="${batch.segmentChanges}">0</span> khách đổi nhóm (mua 1 lần ↔ từ 2 lần)</strong>
+        Do lần nhập này có đơn giao thành công mới hoặc đơn đổi trạng thái. Danh sách mời sẽ tự bỏ khách đã mua từ 2 lần.
+    </div>
+
     <div class="notice" th:if="${batch.unmappedStatuses != null and batch.unmappedStatuses > 0}">
         <strong>Có trạng thái chưa rõ nghĩa</strong>
         Hãy vào <a th:href="@{/status-mappings}">Trạng thái đơn</a> để chọn nghĩa.

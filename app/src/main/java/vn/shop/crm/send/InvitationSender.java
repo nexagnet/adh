@@ -20,7 +20,12 @@ public interface InvitationSender {
 
     SendResult send(OutboundInvite invite);
 
-    record OutboundInvite(long invitationId, long customerId, String phone, String name, String message) {
+    /**
+     * {@code area} và {@code groupName}: khu vực của khách và nhóm Zalo nên thêm vào nếu khách kết bạn (gợi ý, chưa giữ chỗ);
+     * rỗng nếu chưa rõ hoặc chưa có nhóm hợp. Chỉ dùng cho file xuất để mẹ gửi tay.
+     */
+    record OutboundInvite(long invitationId, long customerId, String phone, String name, String message,
+                          String area, String groupName) {
     }
 
     record SendResult(boolean ok, String error) {

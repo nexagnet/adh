@@ -49,7 +49,8 @@ public class ImportService {
     public record BatchSummary(long id, Carrier carrier, String filename, String status,
                                LocalDateTime uploadedAt, LocalDateTime committedAt, Integer totalRows,
                                Integer validRows, Integer newShipments, Integer updatedShipments,
-                               Integer statusChanges, Integer errorRows, Integer unmappedStatuses) {
+                               Integer statusChanges, Integer errorRows, Integer unmappedStatuses,
+                               Integer segmentChanges) {
         public boolean committed() {
             return "COMMITTED".equals(status);
         }
@@ -65,7 +66,11 @@ public class ImportService {
 
     public record Report(int totalRows, int validRows, int errorRows, int duplicatesInFile, int newShipments,
                          int existingShipments, int unchangedShipments, int statusChanges,
-                         Map<String, Long> unmappedStatuses, List<RowError> sampleErrors) {
+                         Map<String, Long> unmappedStatuses, List<RowError> sampleErrors, int fileLimit) {
+        /** File có đúng bằng hạn mức xuất của hãng (J&T: 500): nhiều khả năng cổng đã cắt bớt đơn. */
+        public boolean atFileLimit() {
+            return fileLimit > 0 && totalRows == fileLimit;
+        }
     }
 
     private record ParsedRow(int rowNumber, String trackingNo, String orderRef, String phoneRaw, String phone,
@@ -367,8 +372,36 @@ public class ImportService {
                 .param("errors", report.errorRows()).param("dups", report.duplicatesInFile())
                 .param("unmapped", report.unmappedStatuses().size()).param("id", batchId).update();
 
+        Map<String, String> before = segmentsOf(touchedPhones);
         customers.recalculate(touchedPhones);
+        Map<String, String> after = segmentsOf(touchedPhones);
+        int segmentChanges = 0;
+        for (Map.Entry<String, String> e : before.entrySet()) {
+            String now = after.get(e.getKey());
+            if (isBuyer(e.getValue()) && isBuyer(now) && !e.getValue().equals(now)) {
+                segmentChanges++;
+            }
+        }
+        jdbc.sql("UPDATE import_batch SET segment_changes = :n WHERE id = :id")
+                .param("n", segmentChanges).param("id", batchId).update();
         return report;
+    }
+
+    private static boolean isBuyer(String segment) {
+        return "ONE_TIME".equals(segment) || "REPEAT".equals(segment);
+    }
+
+    /** Nhóm hiện tại của các SĐT (chỉ những khách đã có hồ sơ). */
+    private Map<String, String> segmentsOf(Collection<String> phones) {
+        List<String> list = phones.stream().filter(p -> p != null && !p.isBlank()).distinct().toList();
+        Map<String, String> result = new HashMap<>();
+        for (int from = 0; from < list.size(); from += CHUNK) {
+            List<String> chunk = list.subList(from, Math.min(from + CHUNK, list.size()));
+            jdbc.sql("SELECT phone, segment FROM customer WHERE phone IN (:list)").param("list", chunk)
+                    .query((rs, i) -> Map.entry(rs.getString("phone"), rs.getString("segment")))
+                    .list().forEach(e -> result.put(e.getKey(), e.getValue()));
+        }
+        return result;
     }
 
     // ================= nhắc nhập file định kỳ =================
@@ -415,7 +448,7 @@ public class ImportService {
 
     private static final String SUMMARY_SQL = """
             SELECT id, carrier, filename, status, uploaded_at, committed_at, total_rows, valid_rows,
-                   new_shipments, updated_shipments, status_changes, error_rows, unmapped_statuses
+                   new_shipments, updated_shipments, status_changes, error_rows, unmapped_statuses, segment_changes
             FROM import_batch""";
 
     private static BatchSummary mapSummary(ResultSet rs, int i) throws SQLException {
@@ -426,7 +459,7 @@ public class ImportService {
                 rs.getObject("total_rows", Integer.class), rs.getObject("valid_rows", Integer.class),
                 rs.getObject("new_shipments", Integer.class), rs.getObject("updated_shipments", Integer.class),
                 rs.getObject("status_changes", Integer.class), rs.getObject("error_rows", Integer.class),
-                rs.getObject("unmapped_statuses", Integer.class));
+                rs.getObject("unmapped_statuses", Integer.class), rs.getObject("segment_changes", Integer.class));
     }
 
     // ================= phân tích file =================
@@ -551,7 +584,7 @@ public class ImportService {
                 ? parsed.errors().subList(0, SAMPLE_ERRORS) : parsed.errors();
         return new Report(parsed.totalRows(), parsed.rows().size(), parsed.errors().size(),
                 parsed.duplicatesInFile(), newCount, existingCount, existingCount - changes, changes,
-                unmapped, List.copyOf(sample));
+                unmapped, List.copyOf(sample), ExportWindowService.fileLimit(carrier));
     }
 
     private Map<String, Existing> loadExisting(Carrier carrier, Collection<ParsedRow> rows) {

@@ -195,6 +195,70 @@ class FriendQueueTest extends AbstractPostgresTest {
         assertThat(jdbc.sql("SELECT count(*) FROM contact_event WHERE event = 'FRIENDED'").query(Long.class).single()).isZero();
     }
 
+    // ---------- chọn nhóm khác nhóm gợi ý, cột gợi ý trong file xuất ----------
+
+    private long groupOf(int n) {
+        return jdbc.sql("SELECT group_id FROM invitation WHERE id = :id").param("id", inv(n)).query(Long.class).single();
+    }
+
+    @Test
+    void daVaoNhomKhacNhomGoiYThiGhiDungNhomMeChonVaNhomGoiYKhongBiTinh() {
+        sent(1);
+        invites.markFriended(inv(1)); // gợi ý và giữ chỗ ở Nhóm Bắc 1
+        invites.markJoined(inv(1), bacTwo);
+        assertThat(groupOf(1)).isEqualTo(bacTwo);
+        assertThat(actual(bacTwo)).isEqualTo(1);
+        assertThat(actual(bacOne)).isZero();
+        assertThat(groups.find(bacOne).orElseThrow().reserved()).isZero(); // chỗ giữ được trả lại
+    }
+
+    @Test
+    void nutGopCungChonDuocNhomKhacVaNhomKhongDungDuocThiBaoLoiKhongGhiGi() {
+        sent(1);
+        sent(2);
+        long closed = groups.create("Nhóm đóng", "https://zalo.me/g/dong", 5, "R:BAC");
+        groups.setStatus(closed, GroupStatus.CLOSED);
+        assertThatThrownBy(() -> invites.markFriendedAndJoined(inv(1), closed)).isInstanceOf(ImportException.class);
+        assertThat(statusOf(1)).isEqualTo("SENT");
+        assertThatThrownBy(() -> invites.markJoined(inv(2), 999_999L)).isInstanceOf(ImportException.class);
+
+        invites.markFriendedAndJoined(inv(1), bacTwo);
+        assertThat(statusOf(1)).isEqualTo("JOINED");
+        assertThat(groupOf(1)).isEqualTo(bacTwo);
+    }
+
+    @Test
+    void trangChienDichCoONhonChonNhomVaNhanDuocNhomChon() throws Exception {
+        sent(1);
+        MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+        mvc.perform(get("/campaigns/" + campaign).with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("name=\"groupId\"")))
+                .andExpect(content().string(containsString("Nhóm Bắc 2")));
+        mvc.perform(post("/campaigns/" + campaign + "/invitations/" + inv(1) + "/joined").param("groupId", String.valueOf(bacTwo))
+                        .with(user("admin").roles("ADMIN")).with(csrf()))
+                .andExpect(status().is3xxRedirection());
+        assertThat(groupOf(1)).isEqualTo(bacTwo);
+    }
+
+    @Test
+    void fileXuatGuiTayCoCotKhuVucVaNhomGoiY() {
+        String province = jdbc.sql("SELECT province FROM customer WHERE phone = '+84900000001'").query(String.class).single();
+        assertThat(invites.areaLabel(province)).isEqualTo("Hà Nội");
+        assertThat(invites.suggestGroupName(province)).contains("Nhóm Bắc 1");
+        assertThat(invites.areaLabel(null)).isEmpty();
+        // chưa rõ khu vực: gợi ý đúng như nút "Đã kết bạn" sẽ gợi ý, không gợi ý khác đi
+        assertThat(invites.suggestGroupName(null)).isEqualTo(groups.pickGroup(null).map(GroupService.Group::name));
+
+        var csv = new String(vn.shop.crm.send.SendService.exportCsv(java.util.List.of(
+                new vn.shop.crm.send.InvitationSender.OutboundInvite(1, 1, "+84900000001", "Khach 1", "Chào",
+                        "Hà Nội", "Nhóm Bắc 1"),
+                new vn.shop.crm.send.InvitationSender.OutboundInvite(2, 2, "+84900000002", "Khach 2", "Chào", "", ""))),
+                StandardCharsets.UTF_8);
+        assertThat(csv).contains("khu_vuc").contains("nhom_goi_y").contains("Hà Nội").contains("Nhóm Bắc 1");
+        assertThat(csv).doesNotContain("zalo.me"); // file xuất không lộ link nhóm
+    }
+
     // ---------- R7: chờ nhóm ----------
 
     @Test

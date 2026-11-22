@@ -80,6 +80,7 @@ public class CampaignController {
         model.addAttribute("campaign", campaign);
         model.addAttribute("rows", invites.invitations(id, campaign.template()));
         model.addAttribute("paused", settings.paused());
+        model.addAttribute("joinGroups", invites.joinableGroups());
         return "campaign-detail";
     }
 
@@ -99,16 +100,18 @@ public class CampaignController {
     /** Một lần bấm cho trường hợp đã thêm khách vào nhóm ngay trong lúc làm (R5). */
     @PostMapping("/campaigns/{id}/invitations/{invitationId}/friended-joined")
     public String friendedJoined(@PathVariable long id, @PathVariable long invitationId,
+                                 @RequestParam(required = false) Long groupId,
                                  @RequestParam(required = false) String back, RedirectAttributes redirect) {
-        invites.markFriendedAndJoined(invitationId);
+        invites.markFriendedAndJoined(invitationId, groupId);
         redirect.addFlashAttribute("flash", "Đã ghi: khách đã kết bạn và đã được thêm vào nhóm. Số khách thật của nhóm tăng thêm 1.");
         return redirectTo(id, back);
     }
 
     @PostMapping("/campaigns/{id}/invitations/{invitationId}/joined")
     public String joined(@PathVariable long id, @PathVariable long invitationId,
+                         @RequestParam(required = false) Long groupId,
                          @RequestParam(required = false) String back, RedirectAttributes redirect) {
-        invites.markJoined(invitationId);
+        invites.markJoined(invitationId, groupId);
         redirect.addFlashAttribute("flash", "Đã ghi: khách đã được thêm vào nhóm. Số khách thật của nhóm tăng thêm 1.");
         return redirectTo(id, back);
     }

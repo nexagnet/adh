@@ -36,11 +36,19 @@
     <form class="inline" method="post" th:if="${r.status == 'SENT' or r.status == 'CLICKED'}"
           th:action="@{/campaigns/{id}/invitations/{iid}/friended-joined(id=${r.campaignId},iid=${r.id})}">
         <input type="hidden" name="back" th:if="${back != null}" th:value="${back}">
+        <select name="groupId" aria-label="Nhóm đã thêm khách vào" th:if="${joinGroups != null and !joinGroups.isEmpty()}">
+            <option value="">Nhóm gợi ý</option>
+            <option th:each="g : ${joinGroups}" th:value="${g.id}" th:text="${g.name} + ' (' + ${g.scopeLabel()} + ')'">Nhóm miền Bắc</option>
+        </select>
         <button type="submit" class="btn" title="Dùng khi bạn vừa thêm khách vào nhóm ngay trong lúc làm">Đã kết bạn và đã vào nhóm</button>
     </form>
     <form class="inline" method="post" th:if="${r.status == 'FRIENDED'}"
           th:action="@{/campaigns/{id}/invitations/{iid}/joined(id=${r.campaignId},iid=${r.id})}">
         <input type="hidden" name="back" th:if="${back != null}" th:value="${back}">
+        <select name="groupId" aria-label="Nhóm đã thêm khách vào" th:if="${joinGroups != null and !joinGroups.isEmpty()}">
+            <option value="">Nhóm gợi ý</option>
+            <option th:each="g : ${joinGroups}" th:value="${g.id}" th:text="${g.name} + ' (' + ${g.scopeLabel()} + ')'">Nhóm miền Bắc</option>
+        </select>
         <button type="submit" class="btn">Đã vào nhóm</button>
     </form>
     <form class="inline" method="post" th:if="${r.status == 'SENT' or r.status == 'CLICKED' or r.status == 'FRIENDED'}"

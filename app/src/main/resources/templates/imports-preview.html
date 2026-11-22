@@ -34,6 +34,11 @@
         </div>
     </section>
 
+    <div class="notice bad" th:if="${report.atFileLimit}">
+        <strong>File có đúng <span th:text="${report.fileLimit}">500</span> dòng: có thể cổng của hãng đã cắt bớt đơn</strong>
+        Hãy xuất lại với khoảng ngày ngắn hơn (chia đôi khoảng ngày), rồi nhập thêm file còn lại. Nhập lại không bị trùng.
+    </div>
+
     <div class="notice" th:if="${report.duplicatesInFile > 0}">
         <strong>Có dòng trùng mã vận đơn trong file</strong>
         <span th:text="${report.duplicatesInFile}">0</span> dòng trùng; dòng sau cùng được giữ lại.
