@@ -72,10 +72,12 @@ services:
       ZALO_ACCOUNT_ID: ${ZALO_ACCOUNT_ID:-}
       APP_ZALO_AUTO_MAX_DAILY: ${APP_ZALO_AUTO_MAX_DAILY:-100}
       BRIDGE_PERSON_ERROR_CODES: ${ZALO_PERSON_ERROR_CODES:-}
+      # Máy dùng chung chỉ có 2 GB: giới hạn vùng nhớ của Node để bộ nối không phình ra.
+      NODE_OPTIONS: --max-old-space-size=80
     volumes:
       - zalo-bridge-data:/data
     networks: [zalo]
-    mem_limit: 192m
+    mem_limit: 160m
     read_only: true
     tmpfs: ["/tmp"]
     cap_drop: [ALL]
