@@ -35,6 +35,19 @@
                 <span><span class="todo-num blue" th:text="${contact.candidates}">0</span>khách mua 1 lần đang chờ bạn duyệt để được mời vào nhóm</span>
                 <a class="btn" th:href="@{/contacts}">Duyệt danh sách mời</a>
             </li>
+            <li th:if="${friend.readyToAdd > 0}">
+                <span><span class="todo-num" th:classappend="${friend.overdue > 0} ? 'red'" th:text="${friend.readyToAdd}">0</span><th:block
+                    th:text="${friend.overdue > 0} ? 'khách đã kết bạn đang chờ thêm vào nhóm (' + ${friend.overdue} + ' khách quá ' + ${overdueDays} + ' ngày)' : 'khách đã kết bạn đang chờ thêm vào nhóm'">khách đã kết bạn đang chờ thêm vào nhóm</th:block></span>
+                <a class="btn" th:href="@{/friends}">Thêm vào nhóm</a>
+            </li>
+            <li th:if="${friend.waitingGroup > 0}">
+                <span><span class="todo-num red" th:text="${friend.waitingGroup}">0</span>khách đã kết bạn mà chưa có nhóm hợp khu vực. Hãy mở nhóm Zalo mới ở khu vực đó, khách sẽ hiện thành việc thêm vào nhóm</span>
+                <a class="btn secondary" th:href="@{/groups}">Mở nhóm</a>
+            </li>
+            <li th:if="${friend.noReply > 0}">
+                <span><span class="todo-num" th:text="${friend.noReply}">0</span><th:block th:text="'khách đã nhắn quá ' + ${noReplyDays} + ' ngày chưa kết bạn (không nhắn lại)'">khách đã nhắn lâu chưa kết bạn</th:block></span>
+                <a class="btn secondary" th:href="@{/friends}">Xem</a>
+            </li>
             <li th:if="${privacyOpen > 0}">
                 <span><span class="todo-num" th:classappend="${privacyOverdue > 0} ? 'red'" th:text="${privacyOverdue > 0} ? ${privacyOverdue} : ${privacyOpen}">0</span><th:block
                     th:text="${privacyOverdue > 0} ? 'yêu cầu của khách đã quá hạn phản hồi' : 'yêu cầu của khách đang chờ xử lý'">yêu cầu của khách đã quá hạn phản hồi</th:block></span>
@@ -63,7 +76,7 @@
                 <a class="btn secondary" th:href="@{/imports/new}">Nhập file mới</a>
             </li>
             <li class="todo-empty"
-                th:if="${contact.candidates == 0 and privacyOpen == 0 and handoffOpen == 0 and unmapped == 0 and review == 0 and groupsNeedRecount == 0 and exportDue.isEmpty()}">
+                th:if="${contact.candidates == 0 and friend.friended == 0 and friend.noReply == 0 and privacyOpen == 0 and handoffOpen == 0 and unmapped == 0 and review == 0 and groupsNeedRecount == 0 and exportDue.isEmpty()}">
                 Hôm nay chưa có việc nào cần làm.
             </li>
         </ul>

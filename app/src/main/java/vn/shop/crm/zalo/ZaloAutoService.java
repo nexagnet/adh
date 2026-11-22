@@ -223,7 +223,7 @@ public class ZaloAutoService {
         String status = jdbc.sql("SELECT status FROM invitation WHERE id = :id").param("id", invitationId)
                 .query(String.class).single();
         if (List.of("SENT", "CLICKED").contains(status)) {
-            invites.markFriended(invitationId, via);
+            invites.markFriended(invitationId, via, false);
         }
         return true;
     }

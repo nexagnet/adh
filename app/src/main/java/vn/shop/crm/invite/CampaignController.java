@@ -85,33 +85,64 @@ public class CampaignController {
 
     /** Đánh dấu tay các bước của đường nhắn bằng tài khoản Zalo phụ: đã kết bạn, đã vào nhóm, khách từ chối. */
     @PostMapping("/campaigns/{id}/invitations/{invitationId}/friended")
-    public String friended(@PathVariable long id, @PathVariable long invitationId, RedirectAttributes redirect) {
-        invites.markFriended(invitationId);
-        redirect.addFlashAttribute("flash", "Đã ghi: khách đồng ý kết bạn.");
-        return "redirect:/campaigns/" + id;
+    public String friended(@PathVariable long id, @PathVariable long invitationId,
+                           @RequestParam(required = false) String back, RedirectAttributes redirect) {
+        var result = invites.markFriended(invitationId);
+        redirect.addFlashAttribute("flash", result.reserved()
+                ? "Đã ghi: khách đồng ý kết bạn. Nên thêm khách vào nhóm \"" + result.groupName() + "\" (đã giữ chỗ "
+                + invites.reserveHours() + " giờ), hoặc gửi link nhóm cho khách tự bấm."
+                : "Đã ghi: khách đồng ý kết bạn. Chưa có nhóm Zalo hợp khu vực của khách, đã ghi \"chờ nhóm\". "
+                + "Mở nhóm ở mục Nhóm Zalo thì khách này hiện thành việc cần thêm vào nhóm.");
+        return redirectTo(id, back);
+    }
+
+    /** Một lần bấm cho trường hợp đã thêm khách vào nhóm ngay trong lúc làm (R5). */
+    @PostMapping("/campaigns/{id}/invitations/{invitationId}/friended-joined")
+    public String friendedJoined(@PathVariable long id, @PathVariable long invitationId,
+                                 @RequestParam(required = false) String back, RedirectAttributes redirect) {
+        invites.markFriendedAndJoined(invitationId);
+        redirect.addFlashAttribute("flash", "Đã ghi: khách đã kết bạn và đã được thêm vào nhóm. Số khách thật của nhóm tăng thêm 1.");
+        return redirectTo(id, back);
     }
 
     @PostMapping("/campaigns/{id}/invitations/{invitationId}/joined")
-    public String joined(@PathVariable long id, @PathVariable long invitationId, RedirectAttributes redirect) {
+    public String joined(@PathVariable long id, @PathVariable long invitationId,
+                         @RequestParam(required = false) String back, RedirectAttributes redirect) {
         invites.markJoined(invitationId);
         redirect.addFlashAttribute("flash", "Đã ghi: khách đã được thêm vào nhóm. Số khách thật của nhóm tăng thêm 1.");
-        return "redirect:/campaigns/" + id;
+        return redirectTo(id, back);
+    }
+
+    /** Khách đã ra khỏi nhóm: số khách thật của nhóm giảm 1 (R8). */
+    @PostMapping("/campaigns/{id}/invitations/{invitationId}/left")
+    public String left(@PathVariable long id, @PathVariable long invitationId,
+                       @RequestParam(required = false) String back, RedirectAttributes redirect) {
+        invites.markLeft(invitationId);
+        redirect.addFlashAttribute("flash", "Đã ghi: khách đã rời nhóm. Số khách thật của nhóm giảm 1 (nếu khách đó đã được tính).");
+        return redirectTo(id, back);
     }
 
     /** Người gửi đã dán tin kèm link nhóm cho khách đã kết bạn (khách tự bấm). Hệ thống không gửi gì. */
     @PostMapping("/campaigns/{id}/invitations/{invitationId}/group-link-sent")
     public String groupLinkSent(@PathVariable long id, @PathVariable long invitationId, @RequestParam long groupId,
-                                RedirectAttributes redirect) {
+                                @RequestParam(required = false) String back, RedirectAttributes redirect) {
         invites.markGroupLinkSent(invitationId, groupId);
         redirect.addFlashAttribute("flash", "Đã ghi: đã gửi link nhóm cho khách. Khi thấy khách vào nhóm, bấm \"Đã vào nhóm\".");
-        return "redirect:/campaigns/" + id;
+        return redirectTo(id, back);
+    }
+
+    /** Từ trang "Chờ vào nhóm" thì quay lại trang đó, không đưa mẹ sang trang chiến dịch. */
+    private static String redirectTo(long campaignId, String back) {
+        return "friends".equals(back) ? "redirect:/friends" : "redirect:/campaigns/" + campaignId;
     }
 
     @PostMapping("/campaigns/{id}/invitations/{invitationId}/declined")
-    public String declined(@PathVariable long id, @PathVariable long invitationId, RedirectAttributes redirect) {
+    public String declined(@PathVariable long id, @PathVariable long invitationId,
+                           @RequestParam(required = false) String back, RedirectAttributes redirect) {
         invites.markDeclined(invitationId);
-        redirect.addFlashAttribute("flash", "Đã ghi: khách từ chối. Số này vào danh sách từ chối vĩnh viễn, không nhắn lại.");
-        return "redirect:/campaigns/" + id;
+        redirect.addFlashAttribute("flash", "Đã ghi: khách từ chối. Số này vào danh sách từ chối vĩnh viễn, không nhắn lại. "
+                + "Nếu khách đang ở trong nhóm, nhớ mời khách ra khỏi nhóm trên Zalo (số khách của nhóm đã giảm 1).");
+        return redirectTo(id, back);
     }
 
     @PostMapping("/campaigns/{id}/cancel-unsent")

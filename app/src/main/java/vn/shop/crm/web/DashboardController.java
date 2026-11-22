@@ -77,6 +77,9 @@ public class DashboardController {
         model.addAttribute("review", customers.countNeedsReview());
         model.addAttribute("contact", contacts.stats());
         model.addAttribute("invites", invites.stats());
+        model.addAttribute("friend", invites.friendStats());
+        model.addAttribute("overdueDays", invites.overdueDays());
+        model.addAttribute("noReplyDays", invites.noReplyDays());
         model.addAttribute("handoffOpen", handoffs.openCount());
         model.addAttribute("privacyOpen", privacy.openCount());
         model.addAttribute("privacyOverdue", privacy.overdueCount());

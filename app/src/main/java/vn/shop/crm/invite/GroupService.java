@@ -30,7 +30,7 @@ public class GroupService {
 
     public record Group(long id, String name, String inviteLink, int target, int actual, OffsetDateTime countedAt,
                         GroupStatus status, String note, long pendingClicks, double score,
-                        vn.shop.crm.geo.GeoArea scope, String zaloGroupId) {
+                        vn.shop.crm.geo.GeoArea scope, String zaloGroupId, long reserved) {
         /** Có mã nhóm trong Zalo để bộ nối (D16) thêm người; không có thì bộ nối không bao giờ thêm vào nhóm này. */
         public boolean hasZaloId() {
             return zaloGroupId != null && !zaloGroupId.isBlank();
@@ -101,17 +101,21 @@ public class GroupService {
                      WHERE i.group_id = g.id AND i.first_clicked_at IS NOT NULL
                        AND (g.counted_at IS NULL OR i.first_clicked_at > g.counted_at))
                    + (SELECT count(*) FROM open_entry o
-                       WHERE o.group_id = g.id AND (g.counted_at IS NULL OR o.created_at > g.counted_at)) AS pending
+                       WHERE o.group_id = g.id AND (g.counted_at IS NULL OR o.created_at > g.counted_at)) AS pending,
+                   (SELECT count(*) FROM invitation r
+                     WHERE r.reserved_group_id = g.id AND r.status = 'FRIENDED' AND r.reserved_until > now()
+                       AND r.first_clicked_at IS NULL) AS reserved
             FROM zalo_group g""";
 
     private Group map(java.sql.ResultSet rs) throws java.sql.SQLException {
         int actual = rs.getInt("actual_customers");
         long pending = rs.getLong("pending");
+        long reserved = rs.getLong("reserved");
         return new Group(rs.getLong("id"), rs.getString("name"), rs.getString("invite_link"),
                 rs.getInt("target_customers"), actual, rs.getObject("counted_at", OffsetDateTime.class),
                 GroupStatus.valueOf(rs.getString("status")), rs.getString("note"), pending,
-                actual + pending * acceptRate, vn.shop.crm.geo.GeoArea.parse(rs.getString("geo_scope")).orElse(null),
-                rs.getString("zalo_group_id"));
+                actual + pending * acceptRate + reserved, vn.shop.crm.geo.GeoArea.parse(rs.getString("geo_scope")).orElse(null),
+                rs.getString("zalo_group_id"), reserved);
     }
 
     @Transactional
@@ -199,7 +203,7 @@ public class GroupService {
      * Chọn nhóm cho một lượt bấm: nhóm đang mở, có link, chưa đầy. Ưu tiên nhóm CÙNG KHU VỰC với khách, theo thứ
      * tự: cùng tỉnh, cùng vùng, cùng miền, rồi nhóm chung (không gắn khu vực). Nhóm của miền khác bị loại (trừ khi
      * bật {@code app.grouping.allow-other-region}). Trong cùng thứ tự ưu tiên chọn nhóm có điểm {@code khách thật +
-     * lượt bấm chờ × tỷ lệ giả định} thấp nhất. Khách chưa rõ khu vực: nhóm chung trước, rồi mọi nhóm. Không có nhóm
+     * lượt bấm chờ × tỷ lệ giả định + chỗ đang giữ} thấp nhất. Khách chưa rõ khu vực: nhóm chung trước, rồi mọi nhóm. Không có nhóm
      * phù hợp thì trả rỗng (landing page báo "chưa có chỗ", không chuyển hướng sai).
      */
     public Optional<Group> pickGroup(Province province) {
@@ -244,14 +248,39 @@ public class GroupService {
     }
 
     public List<Waiting> waitingByProvince() {
-        return jdbc.sql("""
+        var byProvince = new java.util.LinkedHashMap<String, Waiting>();
+        jdbc.sql("""
                         SELECT province, count(*) AS n FROM open_entry
                         WHERE group_id IS NULL AND province IS NOT NULL AND created_at > now() - interval '30 days'
                         GROUP BY province ORDER BY n DESC, province""")
-                .query((rs, i) -> Map.entry(rs.getString("province"), rs.getLong("n"))).list().stream()
-                .flatMap(e -> vn.shop.crm.geo.VnGeo.byCode(e.getKey()).stream()
-                        .map(p -> new Waiting(p.name(), p.region().label(), e.getValue())))
-                .toList();
+                .query((rs, i) -> Map.entry(rs.getString("province"), rs.getLong("n"))).list()
+                .forEach(e -> vn.shop.crm.geo.VnGeo.byCode(e.getKey())
+                        .ifPresent(p -> byProvince.put(p.name(), new Waiting(p.name(), p.region().label(), e.getValue()))));
+        // Khách đã kết bạn mà chưa có nhóm hợp (R7): suy ra từ lời mời, không lưu thêm gì, nên mở nhóm mới là hết chờ ngay.
+        friendedWaiting().forEach((name, w) -> byProvince.merge(name, w,
+                (x, y) -> new Waiting(x.provinceName(), x.regionLabel(), x.count() + y.count())));
+        return byProvince.values().stream()
+                .sorted(java.util.Comparator.comparingLong(Waiting::count).reversed().thenComparing(Waiting::provinceName)).toList();
+    }
+
+    /** Khách đã kết bạn (chưa vào nhóm, chưa được cấp hay giữ nhóm nào) mà hiện không có nhóm hợp khu vực, gộp theo tỉnh. */
+    Map<String, Waiting> friendedWaiting() {
+        List<Group> all = list();
+        var out = new java.util.LinkedHashMap<String, Waiting>();
+        jdbc.sql("""
+                        SELECT c.province FROM invitation i JOIN customer c ON c.id = i.customer_id
+                        WHERE i.status = 'FRIENDED' AND i.group_id IS NULL
+                          AND (i.reserved_group_id IS NULL OR i.reserved_until <= now())""")
+                .query((rs, n) -> rs.getString("province")).list().forEach(code -> {
+                    var province = vn.shop.crm.geo.VnGeo.byCode(code).orElse(null);
+                    if (pickGroup(all, province).isEmpty()) {
+                        String name = province == null ? "Chưa rõ khu vực" : province.name();
+                        String region = province == null ? "" : province.region().label();
+                        out.merge(name, new Waiting(name, region, 1),
+                                (x, y) -> new Waiting(x.provinceName(), x.regionLabel(), x.count() + 1));
+                    }
+                });
+        return out;
     }
 
     // ---------- kiểm tra đầu vào ----------
