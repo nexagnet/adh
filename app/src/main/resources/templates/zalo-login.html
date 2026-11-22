@@ -25,6 +25,19 @@
         <span th:if="${state == 'ACCOUNT_MISMATCH'}">Hãy quét lại bằng đúng điện thoại của tài khoản phụ.</span>
     </div>
 
+    <div class="panel stack" th:if="${state == 'ACCOUNT_MISMATCH'}">
+        <h2>Tài khoản vừa quét</h2>
+        <p th:if="${scannedId != null}">Mã Zalo của tài khoản vừa quét là <strong th:text="${scannedId}">123456789</strong>.
+            Hệ thống đã đăng xuất tài khoản này và <strong>không lưu gì</strong>.</p>
+        <ul class="choices">
+            <li><strong>Nếu đây đúng là tài khoản phụ</strong> và bạn chưa khai báo mã (hoặc khai báo sai): người cài đặt chép mã trên vào
+                <code>ZALO_ACCOUNT_ID</code> trong file <code>.env</code> của máy chủ rồi chạy lại dịch vụ <code>zalo-bridge</code>, sau đó quét lại.</li>
+            <li><strong>Nếu đây là tài khoản chính của mẹ hoặc tài khoản lạ</strong>: đừng làm gì thêm, hãy quét lại bằng điện thoại của tài khoản phụ.</li>
+        </ul>
+        <p class="hint">Mã này chỉ để đối chiếu. Đừng chụp màn hình hay gửi cho ai ngoài người cài đặt. Cài lần đầu chưa biết mã: đặt tạm
+            <code>ZALO_ACCOUNT_ID=0</code>, quét QR bằng tài khoản phụ, chép mã hiện ở đây.</p>
+    </div>
+
     <div class="panel stack" th:if="${qr != null}">
         <img class="login-qr" th:src="${qr}" alt="Mã QR đăng nhập Zalo" width="280" height="280">
     </div>

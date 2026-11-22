@@ -81,11 +81,11 @@ export function createServer({ bridge, config, fake = null }) {
       if (route === 'POST /session/login') {
         await readJson(req);
         const l = bridge.startLogin();
-        return send(200, { state: l.state, ...(l.qr ? { qr: l.qr } : {}) });
+        return send(200, { state: l.state, ...(l.qr ? { qr: l.qr } : {}), ...(l.scannedId ? { scannedId: l.scannedId } : {}) });
       }
       if (route === 'GET /session/login') {
         const l = bridge.loginStatus();
-        return send(200, { state: l.state, ...(l.qr ? { qr: l.qr } : {}) });
+        return send(200, { state: l.state, ...(l.qr ? { qr: l.qr } : {}), ...(l.scannedId ? { scannedId: l.scannedId } : {}) });
       }
       if (route === 'POST /session/logout') return send(200, { ok: await bridge.logout() });
       if (route === 'POST /session/stop') return send(200, { ok: bridge.stop() });

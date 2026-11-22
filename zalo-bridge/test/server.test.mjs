@@ -93,3 +93,21 @@ test('danh sách đường được phép là cố định', () => {
     'POST /session/logout', 'POST /session/stop', 'POST /session/resume',
   ]);
 });
+
+test('scannedId chỉ xuất hiện khi sai tài khoản; các trạng thái khác và /status không lộ mã', async () => {
+  const s = await boot();
+  const start = await s.call('POST', '/session/login', { body: {} });
+  assert.equal(start.json.state, 'WAITING_SCAN');
+  assert.ok(!('scannedId' in start.json));
+  s.c.adapter.loginResolve('7777');
+  await flush(); await flush(); await flush();
+  const mismatch = await s.call('GET', '/session/login');
+  assert.equal(mismatch.json.state, 'ACCOUNT_MISMATCH');
+  assert.equal(mismatch.json.scannedId, '7777');
+  assert.ok(!JSON.stringify((await s.call('GET', '/status')).json).includes('7777'));
+  // bắt đầu quét lại thì mã cũ biến mất
+  const again = await s.call('POST', '/session/login', { body: {} });
+  assert.equal(again.json.state, 'WAITING_SCAN');
+  assert.ok(!('scannedId' in again.json));
+  await s.close();
+});

@@ -143,7 +143,11 @@ public class ZcaBridgeGateway implements ZaloLink {
             if (qr != null && !qr.isBlank()) {
                 png = Base64.getDecoder().decode(qr);
             }
-            return new Login(state, png);
+            String scanned = text(n, "scannedId");
+            if (state != LoginState.ACCOUNT_MISMATCH || scanned == null || !ZALO_ID.matcher(scanned).matches()) {
+                scanned = null; // chỉ nhận mã chữ số, và chỉ khi sai tài khoản
+            }
+            return new Login(state, png, scanned);
         } catch (Exception e) {
             return Login.of(LoginState.FAILED);
         }

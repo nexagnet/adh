@@ -36,7 +36,7 @@ BRIDGE_MODE=fake BRIDGE_KEY=khoa-chung-thu-nghiem-1 SESSION_KEY=$(openssl rand -
 |---|---|
 | `BRIDGE_KEY` | Khóa chung với Adh, ≥ 16 ký tự (bắt buộc) |
 | `SESSION_KEY` | 64 ký tự hex, khóa AES-256 mã hóa phiên (bắt buộc) |
-| `ZALO_ACCOUNT_ID` | Mã Zalo (chữ số) của tài khoản phụ (bắt buộc ở chế độ thật) |
+| `ZALO_ACCOUNT_ID` | Mã Zalo (chữ số) của tài khoản phụ (bắt buộc ở chế độ thật). Chưa biết thì đặt tạm `0`, quét QR bằng tài khoản phụ: trang quản trị hiện mã khi báo sai tài khoản |
 | `BRIDGE_MODE` | `zca` (mặc định) hoặc `fake` |
 | `BRIDGE_DATA_DIR` | Thư mục dữ liệu (mặc định `/data`) |
 | `APP_ZALO_AUTO_MAX_DAILY` | Trần cứng của Adh (mặc định 100); cầu nối dùng gấp đôi |

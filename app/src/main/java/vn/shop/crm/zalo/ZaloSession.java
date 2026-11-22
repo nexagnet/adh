@@ -20,10 +20,24 @@ public interface ZaloSession {
         ACCOUNT_MISMATCH
     }
 
-    /** @param qrPng ảnh QR dạng PNG (có khi đang chờ quét); không bao giờ ghi ra đĩa */
-    record Login(LoginState state, byte[] qrPng) {
+    /**
+     * @param qrPng     ảnh QR dạng PNG (có khi đang chờ quét); không bao giờ ghi ra đĩa
+     * @param scannedId mã Zalo (chỉ chữ số) của tài khoản vừa quét, CHỈ có khi {@link LoginState#ACCOUNT_MISMATCH}, để quản trị
+     *                  điền đúng {@code ZALO_ACCOUNT_ID}. Chỉ hiện trên trang quét QR của admin; không lưu, không ghi nhật ký.
+     */
+    record Login(LoginState state, byte[] qrPng, String scannedId) {
+        public Login(LoginState state, byte[] qrPng) {
+            this(state, qrPng, null);
+        }
+
         public static Login of(LoginState state) {
-            return new Login(state, null);
+            return new Login(state, null, null);
+        }
+
+        /** Không in ảnh QR hay mã tài khoản ra log nếu ai đó lỡ ghi cả đối tượng. */
+        @Override
+        public String toString() {
+            return "Login[state=" + state + "]";
         }
     }
 
