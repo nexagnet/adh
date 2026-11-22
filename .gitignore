@@ -6,3 +6,4 @@
 .env
 .env.*
 !.env.example
+/zalo-bridge/node_modules/

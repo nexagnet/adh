@@ -45,7 +45,12 @@ services:
       # Thời tiết trên bản đồ (MET Norway). Mặc định TẮT; bật bằng APP_WEATHER_ENABLED=true trong file .env rồi chạy lại.
       APP_WEATHER_ENABLED: ${APP_WEATHER_ENABLED:-false}
       APP_WEATHER_USER_AGENT: ${APP_WEATHER_USER_AGENT:-adh-shop-crm/1.0}
-    networks: [internal]
+      # Bộ nối Zalo không chính thức (D16): mặc định TẮT. Muốn bật cần cả cờ này, profile zalo-auto và chọn nấc ở trang quản trị.
+      APP_ZALO_AUTO_ENABLED: ${APP_ZALO_AUTO_ENABLED:-false}
+      APP_ZALO_BRIDGE_URL: http://zalo-bridge:3100
+      APP_ZALO_BRIDGE_KEY: ${APP_ZALO_BRIDGE_KEY:-}
+      APP_ZALO_AUTO_MAX_DAILY: ${APP_ZALO_AUTO_MAX_DAILY:-100}
+    networks: [internal, zalo]
     mem_limit: 768m
 
   caddy:
@@ -65,10 +70,37 @@ services:
     networks: [internal]
     mem_limit: 128m
 
+  # Cầu nối Zalo không chính thức (D16, docs/ADR-0002). MẶC ĐỊNH KHÔNG KHỞI ĐỘNG: chỉ chạy khi bật profile "zalo-auto"
+  # (đặt COMPOSE_PROFILES=zalo-auto trong .env). Không công bố cổng; chỉ ứng dụng (cùng mạng "zalo") gọi được.
+  zalo-bridge:
+    profiles: ["zalo-auto"]
+    build: ../zalo-bridge
+    image: adh-zalo-bridge:local
+    restart: unless-stopped
+    environment:
+      BRIDGE_KEY: ${APP_ZALO_BRIDGE_KEY:-}
+      # Khóa AES-256 mã hóa phiên Zalo (64 ký tự hex). TÁCH khỏi sao lưu: sao lưu chỉ có cơ sở dữ liệu, không có file .env này.
+      SESSION_KEY: ${ZALO_SESSION_KEY:-}
+      # Mã Zalo của TÀI KHOẢN PHỤ. Đăng nhập bằng tài khoản khác sẽ bị từ chối và đăng xuất.
+      ZALO_ACCOUNT_ID: ${ZALO_ACCOUNT_ID:-}
+      APP_ZALO_AUTO_MAX_DAILY: ${APP_ZALO_AUTO_MAX_DAILY:-100}
+      BRIDGE_PERSON_ERROR_CODES: ${ZALO_PERSON_ERROR_CODES:-}
+    volumes:
+      - zalo-bridge-data:/data
+    networks: [zalo]
+    mem_limit: 192m
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
 volumes:
   pgdata:
+  zalo-bridge-data:
   caddy_data:
   caddy_config:
 
 networks:
   internal:
+  # Chỉ ứng dụng và cầu nối Zalo; cầu nối cần ra Internet để nói chuyện với Zalo nhưng không công bố cổng nào.
+  zalo:
