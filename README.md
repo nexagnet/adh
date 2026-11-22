@@ -4,7 +4,7 @@ Tài liệu gốc: [`01_DAC_TA_NGHIEP_VU.md`](01_DAC_TA_NGHIEP_VU.md) (nghiệp 
 [`02_NGHIEN_CUU_KY_THUAT.md`](02_NGHIEN_CUU_KY_THUAT.md) (nghiên cứu cũ, có chỗ sai),
 [`03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md`](03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md) (đính chính + kế hoạch hai giai đoạn).
 
-> **Đọc [`docs/BAN-GIAO.md`](docs/BAN-GIAO.md) trước** (cập nhật 22/11/2026, `main` đã gộp PR #3 đến #32). Có trạng thái từng mốc, các quyết định, giả định, công tắc cấu hình, phần chưa kiểm chứng, kết quả xác nhận J&T và danh sách việc còn phải code. Thiết kế giao diện đã duyệt nằm ở [`docs/thiet-ke-penpot/`](docs/thiet-ke-penpot/).
+> **Đọc [`docs/BAN-GIAO.md`](docs/BAN-GIAO.md) trước** (cập nhật 22/11/2026, `main` đã gộp PR #1 đến #38, trừ #25 đã đóng). Có mục "Bắt đầu nhanh cho phiên mới", trạng thái từng mốc và từng PR, các quyết định D1 đến D17, cách phân phối khách vào nhóm theo khu vực, kết quả chạy thử `zca-js`, giả định, công tắc cấu hình, cách chạy/test/CI/build ảnh, phần chưa kiểm chứng, kết quả xác nhận J&T và danh sách việc tiếp theo theo thứ tự ưu tiên. Thiết kế giao diện đã duyệt nằm ở [`docs/thiet-ke-penpot/`](docs/thiet-ke-penpot/).
 
 ## Trạng thái
 
@@ -20,7 +20,7 @@ Tài liệu gốc: [`01_DAC_TA_NGHIEP_VU.md`](01_DAC_TA_NGHIEP_VU.md) (nghiệp 
 | **1H** | Bản đồ khách theo tỉnh (Leaflet + OpenStreetMap), nhắc việc thời tiết | **Xong, có test**, thời tiết tắt mặc định, chưa thử với mạng thật (PR #5, #19) |
 | **Giao diện Penpot** | Thanh bên trái, "Việc cần làm hôm nay", thuật ngữ tiếng Việt, giấy in A5, đường `/n` | **Đã code** (PR #8, #10, #17); chưa xem bằng trình duyệt thật, chưa in thử giấy A5 |
 | **D13** | Nhắn bằng tài khoản Zalo phụ, chiến dịch theo khu vực, lô nhắn hôm nay, chạy thử `/test-runs` | **Xong, có test** (PR #16, #18); người thật nhắn tay và bấm đánh dấu |
-| **1I** | Kết bạn → vào nhóm ngay (D15, D16) | **Bộ nối Zalo không chính thức (D16) đã code, mặc định TẮT, chưa chạy với Zalo thật** (PR #29 đến #32). Đường bán tự động của D15 **đã code** (gợi ý nhóm ngay lúc kết bạn, nút gộp, giữ chỗ 24 giờ, nhắc quá hạn, "chờ nhóm", khách rời nhóm, trang Chờ vào nhóm) cùng đường gửi link nhóm cho khách tự bấm (D17); chưa dùng thật |
+| **1I** | Kết bạn → vào nhóm ngay (D15, D16) | **Bộ nối Zalo không chính thức (D16) đã code, mặc định TẮT, chưa chạy với Zalo thật** (PR #29 đến #32, và #37 dựng ảnh Docker của cầu nối trên CI). Đường bán tự động của D15 **đã code** (gợi ý nhóm ngay lúc kết bạn, nút gộp, giữ chỗ 24 giờ, nhắc quá hạn, "chờ nhóm", khách rời nhóm, trang Chờ vào nhóm) cùng đường gửi link nhóm cho khách tự bấm (D17) (PR #34 đến #36); chưa dùng thật |
 | **2F (làm sớm)** | Nhập đơn J&T: nhiều file, Địa chỉ hành chính, báo cần xuất từ ngày nào, tool cập nhật bằng Edge | **Đã code** (PR #9, #13, #22); **chưa chạy với một file J&T thật đã che thông tin** trong test |
 
 Ngoài ra đã gộp vào `main`: giấy giới thiệu với mã QR chung `/n` (và `/moi`) và `/print` (PR #3, #10), danh sách khách lọc/sắp xếp theo cột (PR #21), tính "mua gần nhất" theo đơn giao thành công (PR #23).
@@ -70,7 +70,7 @@ cd app
 ./mvnw test
 ```
 
-Hơn 380 test Java (số chính xác xem kết quả CI) và khoảng 50 test Node trong `zalo-bridge/` (`npm test`), chạy trên PostgreSQL nhúng thật (không giả lập). Các tiêu chí nghiệm thu của file 01:
+Khoảng 420 test Java (số chính xác xem kết quả CI) và 54 test Node trong `zalo-bridge/` (`cd zalo-bridge && npm ci --ignore-scripts && npm test`), chạy trên PostgreSQL nhúng thật (không giả lập). Các tiêu chí nghiệm thu của file 01:
 
 | Tiêu chí nghiệm thu (file 01, mục 12) | Test |
 |---|---|
@@ -83,7 +83,7 @@ Hơn 380 test Java (số chính xác xem kết quả CI) và khoảng 50 test No
 
 ## CI và Claude Review
 
-GitHub Actions chạy `test` và `lint` trên pull request và mỗi lần push lên `main`.
+GitHub Actions chạy `test`, `bridge` (test của `zalo-bridge/`) và `lint` trên pull request và mỗi lần push lên `main`; khi gộp vào `main`, workflow `image` dựng và đẩy ảnh Docker của ứng dụng và của cầu nối Zalo lên `ghcr.io`.
 `test` dùng Java 25, Maven Wrapper và PostgreSQL nhúng, với ngưỡng bao phủ dòng
 80% qua JaCoCo. `lint` kiểm tra workflow và chặn file Excel, dữ liệu trong
 `data_product/`, file `.env` thật và build output.
@@ -91,7 +91,7 @@ GitHub Actions chạy `test` và `lint` trên pull request và mỗi lần push 
 Để chạy cùng bước Maven với job `test` trên máy, vào thư mục `app/` và chạy
 `./mvnw --batch-mode --no-transfer-progress verify`.
 
-Khi hai job đều xanh trên pull request nội bộ đã sẵn sàng, workflow gọi Reviewer
+Khi các job `test` và `lint` đều xanh trên pull request nội bộ đã sẵn sàng, workflow gọi Reviewer
 của `nexagnet/.github` theo commit đã ghim, dùng Actions secret
 `CLAUDE_CODE_OAUTH_TOKEN` của tổ chức. Các thay đổi CI và đường dẫn nhạy cảm cần
 người duyệt theo quy tắc của Reviewer dùng chung.
@@ -128,4 +128,4 @@ người duyệt theo quy tắc của Reviewer dùng chung.
 - Nhập một file **cũ hơn** sau file mới có thể ghi đè trạng thái mới bằng trạng thái cũ; màn xem trước báo số vận đơn "đổi trạng thái" để bạn nhận ra.
 - Đăng nhập sai quá 5 lần liên tiếp bị khóa 15 phút theo cặp (IP, tên đăng nhập). HTTPS do Caddy trong `infra/docker-compose.prod.yml`; chạy ứng dụng trực tiếp (không qua Caddy) thì **không đưa ra Internet**.
 - Dữ liệu khách (SĐT, địa chỉ) lưu trong PostgreSQL, **chưa mã hóa đĩa hay mã hóa dữ liệu**; bản sao lưu mã hóa được bằng `age` (tùy chọn).
-- Hiện chỉ có **một** tài khoản đăng nhập (OWNER). Tài khoản riêng cho bố và mẹ đang chờ chủ shop xác nhận (xem mục 4B file 03).
+- Hiện chỉ có **một** tài khoản đăng nhập (OWNER). Chủ shop đã chốt (22/11/2026, D17) **không** làm hai tài khoản riêng cho bố và mẹ.
