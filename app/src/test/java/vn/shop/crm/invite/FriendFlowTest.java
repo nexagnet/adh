@@ -299,6 +299,17 @@ class FriendFlowTest extends AbstractPostgresTest {
     }
 
     @Test
+    void nhomDaCapChoKhachMaDaTamDungThiKhongDuaTinLinkNhomCuaNhomDo() {
+        long inv = invitationOf("0900000001");
+        markSent(inv);
+        invites.markFriended(inv);
+        jdbc.sql("UPDATE invitation SET group_id = :g WHERE id = :id").param("g", north).param("id", inv).update();
+        assertThat(row(inv).groupLinkMessage()).contains("https://zalo.me/g/bac");
+        groups.setStatus(north, GroupStatus.PAUSED);
+        assertThat(row(inv).groupLinkMessage()).isNull();
+    }
+
+    @Test
     void daGuiLinkNhomThiGhiNhomVaMotLanDuyNhat() {
         long inv = invitationOf("0900000001");
         assertThatThrownBy(() -> invites.markGroupLinkSent(inv, north)).isInstanceOf(ImportException.class)

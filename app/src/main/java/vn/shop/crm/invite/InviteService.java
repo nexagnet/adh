@@ -327,7 +327,9 @@ public class InviteService {
                     String template = templateOverride != null ? templateOverride : rs.getString("message_template");
                     LocalDateTime linkSentAt = local(rs.getObject("group_link_sent_at", OffsetDateTime.class));
                     // Chỉ gợi ý tin link nhóm cho khách ĐÃ kết bạn, chưa vào nhóm, chưa được gửi link, và có nhóm còn chỗ có link.
-                    String linkMessage = "FRIENDED".equals(status) && linkSentAt == null && groupName != null && groupLink != null
+                    final long shownGroup = groupId;
+                    boolean groupOpen = allGroups.stream().anyMatch(g -> g.id() == shownGroup && g.status() == GroupStatus.OPEN && g.hasLink());
+                    String linkMessage = "FRIENDED".equals(status) && linkSentAt == null && groupName != null && groupOpen
                             ? renderGroupLink(linkTemplate, rs.getString("name"), groupName, groupLink, link) : null;
                     String addState = rs.getString("zalo_add_state");
                     boolean autoHold = "WAITING_APPROVAL".equals(addState) || "QUEUED".equals(addState) || "FAILED".equals(addState);
