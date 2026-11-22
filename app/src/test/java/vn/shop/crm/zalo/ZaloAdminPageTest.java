@@ -159,6 +159,18 @@ class ZaloAdminPageTest extends AbstractPostgresTest {
     }
 
     @Test
+    void moLaiSauLyDoNghiemTrongPhaiTickXacNhan() throws Exception {
+        cfg.setMode(ZaloMode.CONFIRM, false, "mẹ");
+        cfg.trip("RESTRICTED", "system");
+        mvc.perform(post("/zalo/reopen").with(owner()).with(csrf())).andExpect(status().isBadRequest())
+                .andExpect(content().string(containsString("tick")));
+        assertThat(cfg.tripped()).isTrue();
+        assertThat(fake.resumes).isZero();
+        mvc.perform(post("/zalo/reopen").with(owner()).with(csrf()).param("checked", "true")).andExpect(status().is3xxRedirection());
+        assertThat(cfg.tripped()).isFalse();
+    }
+
+    @Test
     void canhBaoDungHienTrenTongQuanVaLoHomNay() throws Exception {
         cfg.setMode(ZaloMode.CONFIRM, false, "mẹ");
         mvc.perform(get("/").with(owner())).andExpect(content().string(not(containsString("Bộ nối Zalo đã DỪNG"))));

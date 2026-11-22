@@ -26,7 +26,11 @@
         <span th:text="${@zaloLabels.reason(trippedReason)}">Có người bấm dừng</span>
         <span th:if="${trippedAt != null}">(từ <span th:text="${#temporals.format(trippedAt, 'dd/MM/yyyy HH:mm')}">22/11/2026 10:00</span>)</span>.
         Bộ nối không tự chạy lại. Hãy đọc nhật ký bên dưới rồi bấm <em>Mở lại</em> khi đã hiểu vì sao dừng.
-        <form class="inline" th:action="@{/zalo/reopen}" method="post"><button type="submit" class="btn sm">Mở lại</button></form>
+        <form class="stack" th:action="@{/zalo/reopen}" method="post">
+            <label class="field"><input type="checkbox" name="checked" value="true">
+                Tôi đã đọc nhật ký và đã kiểm tra nhóm trên Zalo bằng mắt (bắt buộc nếu bộ nối dừng vì Zalo cảnh báo, lỗi lạ hoặc không biết kết quả).</label>
+            <div><button type="submit" class="btn sm">Mở lại</button></div>
+        </form>
     </div>
 
     <div class="cards c4">
@@ -63,7 +67,7 @@
                 <span class="sub-line" th:if="${m.name() == 'OFF'}">Không nghe, không làm gì.</span>
                 <span class="sub-line" th:if="${m.name() == 'LISTEN_ONLY'}">Chỉ nhận biết khách đã kết bạn và gợi ý nhóm. Mẹ tự thêm khách vào nhóm trên Zalo.</span>
                 <span class="sub-line" th:if="${m.name() == 'CONFIRM'}">Mỗi khách hiện nút Duyệt; mẹ bấm thì hệ thống mới thêm vào nhóm. Nên dừng ở nấc này.</span>
-                <span class="sub-line" th:if="${m.name() == 'AUTO'}">Tự thêm khi đủ điều kiện, trong hạn mức. Chỉ bật sau khi đã chạy thử xong ở nấc mẹ duyệt.</span>
+                <span class="sub-line" th:if="${m.name() == 'AUTO'}">Tự thêm khi đủ điều kiện, trong hạn mức. Chỉ bật sau khi đã chạy thử xong ở nấc mẹ duyệt. Khi bật, cả những khách đang chờ duyệt cũng sẽ được thêm dần, trong hạn mức.</span>
             </label>
             <label class="field"><input type="checkbox" name="confirmedTested" value="true">
                 Tôi đã chạy thử xong ở nấc "Mẹ duyệt từng người" và thấy hoạt động đúng (bắt buộc để bật nấc tự thêm).</label>

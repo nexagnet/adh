@@ -23,6 +23,8 @@ public class FakeZaloGateway implements ZaloLink {
     public final List<String[]> adds = new ArrayList<>();
     public int stops;
     public int resumes;
+    public boolean resumeResult = true;
+    public boolean eventsFail;
     public int logouts;
 
     /** Đưa về trạng thái ban đầu giữa hai test (bean dùng chung trong một ngữ cảnh Spring). */
@@ -37,6 +39,8 @@ public class FakeZaloGateway implements ZaloLink {
         adds.clear();
         stops = 0;
         resumes = 0;
+        resumeResult = true;
+        eventsFail = false;
         logouts = 0;
     }
 
@@ -65,6 +69,9 @@ public class FakeZaloGateway implements ZaloLink {
     @Override
     public List<FriendEvent> friendEvents(long afterSeq) {
         eventCalls++;
+        if (eventsFail) {
+            throw new IllegalStateException("giả lập lỗi");
+        }
         return events.stream().filter(e -> e.seq() > afterSeq).toList();
     }
 
@@ -99,6 +106,6 @@ public class FakeZaloGateway implements ZaloLink {
     @Override
     public boolean resume() {
         resumes++;
-        return true;
+        return resumeResult;
     }
 }

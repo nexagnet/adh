@@ -87,25 +87,29 @@ public class ZaloAutoController {
     @PostMapping("/stop")
     public String stop(Principal user, RedirectAttributes redirect) {
         requireEnabled();
-        service.stopNow(by(user));
-        redirect.addFlashAttribute("flash", "Đã dừng bộ nối Zalo. Không có gì được thêm cho tới khi bấm Mở lại.");
+        boolean ok = service.stopNow(by(user));
+        redirect.addFlashAttribute("flash", ok
+                ? "Đã dừng bộ nối Zalo. Không có gì được thêm cho tới khi bấm Mở lại."
+                : "Adh đã chặn mọi việc thêm người, nhưng chưa báo được cho dịch vụ cầu nối (không gọi được). Hãy kiểm tra dịch vụ zalo-bridge.");
         return "redirect:/zalo";
     }
 
     @PostMapping("/reopen")
-    public String reopen(Principal user, RedirectAttributes redirect) {
+    public String reopen(@RequestParam(defaultValue = "false") boolean checked, Principal user, RedirectAttributes redirect) {
         requireEnabled();
-        boolean ok = service.reopen(by(user));
+        boolean ok = service.reopen(by(user), checked);
         redirect.addFlashAttribute("flash", ok ? "Đã mở lại, bộ nối đang nghe bằng phiên đã lưu."
-                : "Đã bỏ trạng thái dừng nhưng chưa nghe được: có thể cần quét lại mã QR.");
+                : "Chưa mở lại được: cầu nối chưa nghe được (có thể cần quét lại mã QR hoặc không gọi được cầu nối). Vẫn đang dừng.");
         return "redirect:/zalo";
     }
 
     @PostMapping("/logout")
     public String logout(Principal user, RedirectAttributes redirect) {
         requireEnabled();
-        service.logout(by(user));
-        redirect.addFlashAttribute("flash", "Đã đăng xuất tài khoản phụ khỏi bộ nối. Muốn dùng lại hãy quét mã QR.");
+        boolean ok = service.logout(by(user));
+        redirect.addFlashAttribute("flash", ok
+                ? "Đã đăng xuất tài khoản phụ khỏi bộ nối. Muốn dùng lại hãy quét mã QR."
+                : "Adh đã dừng bộ nối nhưng chưa xóa được phiên ở dịch vụ cầu nối (không gọi được). Hãy kiểm tra dịch vụ zalo-bridge.");
         return "redirect:/zalo";
     }
 

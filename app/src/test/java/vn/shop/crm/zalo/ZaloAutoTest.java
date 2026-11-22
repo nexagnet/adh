@@ -477,7 +477,7 @@ class ZaloAutoTest extends AbstractPostgresTest {
         cfg.setMode(ZaloMode.CONFIRM, false, "mẹ");
         zalo.stopNow("mẹ");
         assertThat(cfg.tripped()).isTrue();
-        assertThat(zalo.reopen("mẹ")).isTrue();
+        assertThat(zalo.reopen("mẹ", true)).isTrue();
         assertThat(cfg.tripped()).isFalse();
         assertThat(fake.resumes).isEqualTo(1);
         assertThat(cfg.effectiveMode()).isEqualTo(ZaloMode.CONFIRM);
@@ -519,5 +519,132 @@ class ZaloAutoTest extends AbstractPostgresTest {
                 SELECT string_agg(column_name, ',' ORDER BY column_name) FROM information_schema.columns
                 WHERE table_name = 'zalo_auto_log'""").query(String.class).single())
                 .isEqualTo("action,actor,at,code,group_id,id,invitation_id,result");
+    }
+
+    // ---------- sửa theo rà soát độc lập ----------
+
+    @Test
+    void mauUidTrungVoiKhachKhacKhongLamKetBoNgheVaBoThem() {
+        mode(ZaloMode.CONFIRM);
+        sent(1);
+        sent(2);
+        fake.pushAdd("700000001", "8490000000" + 1, 1);
+        fake.pushAdd("700000001", "8490000000" + 2, 2); // cùng uid, số của khách khác
+        assertThat(zalo.poll()).isEqualTo(2);
+        assertThat(cfg.cursor()).isEqualTo(2);
+        assertThat(addState(1)).isEqualTo("WAITING_APPROVAL");
+        assertThat(addState(2)).isNull();
+        assertThat(status(2)).isEqualTo("SENT");
+        assertThat(jdbc.sql("SELECT count(*) FROM zalo_friend_event WHERE outcome = 'BLOCKED'").query(Long.class).single()).isEqualTo(1);
+    }
+
+    @Test
+    void lanGoiTruocChetGiuaChungThiDungKhongThemLai() {
+        mode(ZaloMode.AUTO);
+        sent(1);
+        friend(1, 1);
+        zalo.poll();
+        jdbc.sql("INSERT INTO zalo_auto_log (at, action, invitation_id, result, actor) VALUES (now(), 'THEM_NHOM', :i, 'DANG_GOI', 'system')")
+                .param("i", inv(1)).update();
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.TRIPPED);
+        assertThat(cfg.trippedReason()).isEqualTo("INTERRUPTED");
+        assertThat(fake.adds).isEmpty();
+    }
+
+    @Test
+    void dangGoiDuocDanhDauTruocKhiGoiVaChayXongThiXoaDau() {
+        mode(ZaloMode.AUTO);
+        sent(1);
+        friend(1, 1);
+        zalo.poll();
+        fake.willReturn(AddResult.ok());
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.ADDED);
+        assertThat(addState(1)).isEqualTo("ADDED");
+        assertThat(jdbc.sql("SELECT count(*) FROM zalo_auto_log WHERE result = 'DANG_GOI'").query(Long.class).single()).isZero();
+    }
+
+    @Test
+    void chuaChacDungTaiKhoanPhuThiKhongThemAi() {
+        mode(ZaloMode.AUTO);
+        sent(1);
+        friend(1, 1);
+        zalo.poll();
+        fake.status = new ZaloGateway.Status(State.LISTENING, null, null, null, null, null);
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.UNREACHABLE);
+        assertThat(fake.adds).isEmpty();
+        fake.status = new ZaloGateway.Status(State.LISTENING, null, false, null, null, null);
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.TRIPPED);
+        assertThat(cfg.trippedReason()).isEqualTo("ACCOUNT_MISMATCH");
+        assertThat(fake.adds).isEmpty();
+    }
+
+    @Test
+    void khachKhongConDuDieuKienBiBoQuaKhongDotHanMuc() {
+        mode(ZaloMode.AUTO);
+        sent(1);
+        friend(1, 1);
+        zalo.poll();
+        contacts.suppress(jdbc.sql("SELECT customer_id FROM invitation WHERE id = :id").param("id", inv(1)).query(Long.class).single(), "test");
+        zalo.addNext();
+        assertThat(cfg.quota().usedToday()).isZero();
+        assertThat(cfg.quota().usedLastHour()).isZero();
+    }
+
+    @Test
+    void baLanLienLoiRiengNguoiThiDungDeKhongDotHanMuc() {
+        mode(ZaloMode.AUTO);
+        for (int i = 1; i <= 4; i++) {
+            sent(i);
+            friend(i, i);
+        }
+        zalo.poll();
+        fake.defaultResult = AddResult.of(Outcome.PERSON_ERROR, "Z1");
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.PERSON_FAILED);
+        clock.advance(Duration.ofMinutes(2));
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.PERSON_FAILED);
+        clock.advance(Duration.ofMinutes(2));
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.TRIPPED);
+        assertThat(cfg.trippedReason()).isEqualTo("NHIEU_LOI_NGUOI");
+        assertThat(fake.adds).hasSize(3);
+    }
+
+    @Test
+    void khongNoiDuocRoiThiKhachVeLaiTrangThaiCu() {
+        mode(ZaloMode.AUTO);
+        sent(1);
+        friend(1, 1);
+        zalo.poll();
+        fake.willReturn(AddResult.of(Outcome.UNREACHABLE, "BRIDGE_DOWN"));
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.UNREACHABLE);
+        assertThat(addState(1)).isEqualTo("QUEUED");
+        assertThat(jdbc.sql("SELECT count(*) FROM zalo_auto_log WHERE result = 'DANG_GOI'").query(Long.class).single()).isZero();
+    }
+
+    @Test
+    void moLaiLyDoNghiemTrongPhaiTickVaChiBoCauDaoKhiCauNoiNgheLai() {
+        cfg.setMode(ZaloMode.CONFIRM, false, "mẹ");
+        cfg.trip("RESTRICTED:Z9", "system");
+        assertThatThrownBy(() -> zalo.reopen("mẹ", false)).isInstanceOf(ImportException.class).hasMessageContaining("tick");
+        assertThat(cfg.tripped()).isTrue();
+        fake.resumeResult = false;
+        assertThat(zalo.reopen("mẹ", true)).isFalse();
+        assertThat(cfg.tripped()).isTrue(); // cầu nối chưa nghe lại được thì vẫn dừng
+        fake.resumeResult = true;
+        assertThat(zalo.reopen("mẹ", true)).isTrue();
+        assertThat(cfg.tripped()).isFalse();
+        // lý do nhẹ (người tự dừng) không cần tick
+        zalo.stopNow("mẹ");
+        assertThat(zalo.reopen("mẹ", false)).isTrue();
+    }
+
+    @Test
+    void boNoiLoiKhiNgheSuKienVanChayTiepViecThem() {
+        mode(ZaloMode.AUTO);
+        sent(1);
+        friend(1, 1);
+        zalo.poll();
+        fake.eventsFail = true;
+        zalo.tick();
+        assertThat(fake.adds).hasSize(1);
     }
 }

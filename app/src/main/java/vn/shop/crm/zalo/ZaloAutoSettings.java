@@ -157,6 +157,12 @@ public class ZaloAutoSettings {
         return settings.get(TRIPPED_AT).filter(v -> !v.isBlank()).isPresent();
     }
 
+    /** Lần ghi nhật ký đăng nhập gần nhất đã là "XONG" chưa (để không ghi lặp mỗi lần trang tự làm mới). */
+    public boolean lastLoginDone() {
+        return jdbc.sql("SELECT result FROM zalo_auto_log WHERE action = :a ORDER BY id DESC LIMIT 1")
+                .param("a", A_LOGIN).query(String.class).optional().map("XONG"::equals).orElse(false);
+    }
+
     public String trippedReason() {
         return settings.get(TRIPPED_REASON).orElse("");
     }

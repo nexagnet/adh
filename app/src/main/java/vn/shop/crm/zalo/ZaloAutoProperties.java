@@ -26,7 +26,7 @@ public record ZaloAutoProperties(
         @DefaultValue("100") int maxDaily,
         @DefaultValue("10") int maxHourly,
         /* Khoảng cách tối thiểu giữa hai lần thêm mà trang quản trị cho đặt (không cho đặt thấp hơn). */
-        @DefaultValue("1") int minGapFloorMinutes) {
+        @DefaultValue("2") int minGapFloorMinutes) {
 
     public ZaloAutoProperties {
         if (maxDaily < 1) {

@@ -36,6 +36,7 @@ public class ZaloLabels {
             Map.entry("INTERRUPTED", "Cầu nối sập đúng lúc đang thêm người, không biết kết quả"),
             Map.entry("CRASH_LOOP", "Cầu nối khởi động lại liên tục"),
             Map.entry("STATE_CORRUPT", "Tệp trạng thái cầu nối bị hỏng"),
+            Map.entry("NHIEU_LOI_NGUOI", "Ba lần thêm liền đều lỗi riêng người (nghi nhóm cài sai, ví dụ chỉ quản trị viên được thêm)"),
             Map.entry("TRIPPED", "Cầu nối tự dừng"));
 
     private static final Map<String, String> ACTION = Map.of(
@@ -124,6 +125,7 @@ public class ZaloLabels {
         }
         return switch (code) {
             case "KHONG_DU_DIEU_KIEN" -> "Khách không còn đủ điều kiện";
+            case "DANG_GOI" -> "Đang gọi Zalo thì bị gián đoạn, chưa biết đã thêm chưa: hãy xem nhóm trên Zalo rồi chọn Mẹ tự thêm tay hoặc Cho thử lại";
             case "LOI_NGUOI" -> "Zalo không thêm được người này (đã trong nhóm, nhóm đầy hoặc chỉ quản trị viên được thêm)";
             default -> "Zalo báo lỗi, xem nhật ký";
         };
