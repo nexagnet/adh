@@ -28,6 +28,7 @@ Mục này **ghi đè** mọi chỗ khác trong file khi có mâu thuẫn (ví d
 | D12 | **21/11/2026: bản đồ phân bố khách theo tỉnh và nhắc việc thời tiết** | Bản đồ là sơ đồ minh họa tự có trong phần mềm (không dùng dịch vụ bản đồ ngoài), chỉ hiện SỐ ĐẾM theo tỉnh, không địa chỉ/số điện thoại. Thời tiết lấy từ MET Norway (miễn phí, không cần khóa, CC BY 4.0; Open-Meteo bản miễn phí chỉ cho phi thương mại nên không dùng): chỉ hỏi tỉnh đang có khách, chỉ gửi tọa độ thành phố tỉnh lỵ, tôn trọng Expires. MẶC ĐỊNH TẮT (`APP_WEATHER_ENABLED`). Nhắc việc chỉ hiện trên web cho mẹ khi tỉnh có từ 10 khách mà dự báo 48 giờ tới lạnh (thấp nhất ≤13°C Bắc, ≤16°C Trung, ≤22°C Nam) hoặc nóng (≥37°C); KHÔNG tự nhắn khách. Ngưỡng là giả định, chỉnh được |
 | D13 | **21/11/2026: nhắn bằng tài khoản Zalo cá nhân phụ, thêm vào nhóm theo khu vực** | Chủ shop chốt: nhắn tin tư vấn sản phẩm cho khách mua 1 lần bằng tài khoản phụ; ai đồng ý kết bạn thì thêm vào nhóm cùng khu vực; mỗi người chỉ một tin; nội dung do chủ shop soạn ở trang quản trị. Hệ thống không tự gửi tin, chỉ chuẩn bị danh sách, nội dung, gợi ý nhóm và ghi các bước do người gửi đánh dấu (đã nhắn, đã kết bạn, đã vào nhóm, từ chối). Rủi ro đã nêu: tin tư vấn là quảng cáo (khác BR-16), nhắn người chưa đồng ý nhận tin (D3), Zalo có thể hạn chế tài khoản phụ. Chi tiết ở `docs/BAN-GIAO.md` |
 | D14 | **22/11/2026: bản đồ khách dùng bản đồ thật, thêm lớp thời tiết chạy theo giờ** | Thay sơ đồ tự vẽ của D12 bằng Leaflet (đóng gói sẵn, không CDN) + nền OpenStreetMap + ranh giới 63 tỉnh Natural Earth (miền công cộng). Ô nền tải từ `tile.openstreetmap.org` ngay trên trình duyệt: chỉ lượng dùng nhỏ, có ghi nguồn, giới hạn zoom 12; máy chủ cửa hàng không gọi OSM và không có dữ liệu khách nào đi ra. Lớp thời tiết chạy 48 giờ (nhiệt độ/mưa/mây) dùng lại MET Norway của D12, hỏi cả 63 tỉnh (chỉ tọa độ tỉnh lỵ). Không dùng RainViewer (chỉ miễn phí cho cá nhân/học tập, chỉ 2 giờ đã qua, phóng to tối đa mức 7, giới hạn 100 lượt/phút/địa chỉ mạng) và Open-Meteo (bản miễn phí chỉ phi thương mại). Vẫn MẶC ĐỊNH TẮT thời tiết |
+| D15 | **22/11/2026: khách đồng ý kết bạn từ tin nhắn của tài khoản phụ thì thêm vào nhóm phù hợp ngay** (mục 1I) | Chủ shop chốt: bước "kết bạn" và bước "vào nhóm" của D13 gộp thành một luồng, không để khách đã kết bạn nằm chờ. Vẫn **bán tự động**: người thật (mẹ) thêm khách vào nhóm bằng Zalo; hệ thống gợi ý nhóm đúng khu vực (D11), giữ chỗ, nhắc việc và ghi lại. **Chưa code.** Hệ thống không tự gửi tin, không tự kết bạn, không tự thêm vào nhóm, không đăng nhập Zalo; nếu sau này có kênh chính thức thì thay các bước tay, giữ nguyên quy tắc. Còn câu hỏi mở cần chủ shop trả lời (mục 1I.6) |
 
 **Việc chủ cửa hàng đang giữ:** (1) đăng ký hộ kinh doanh; (2) hỏi eSMS và SpeedSMS: mẫu "mời vào nhóm Zalo" thuộc loại tin nào, có gắn link được không, giá mỗi tin, phí brandname, và **cá nhân chưa đăng ký hộ kinh doanh có đăng ký brandname được không**; (3) xuất file mẫu Viettel Post và J&T. Nhà cung cấp SMS chưa được chọn.
 
@@ -164,6 +165,70 @@ Mục tiêu: dữ liệu khách sạch → mời đúng người, đúng luật 
 - Runbook tiếng Việt cho bố mẹ: nhập file, xem danh sách, thêm link nhóm, cách tắt bot, cách xử lý khi khách yêu cầu ngừng/xóa.
 - Rà soát bảo mật (không public SĐT/địa chỉ, giới hạn file upload, đăng nhập, rate limit).
 - **Cổng kết thúc GĐ1:** ổn định liên tục một thời gian do chủ cửa hàng quyết; chỉ khi đó mới bắt đầu GĐ2.
+
+## 1I. Kết bạn → vào nhóm ngay (D15) (S–M) — CHỈ GHI PHẠM VI, CHƯA CODE
+**Nghiệp vụ (chủ shop chốt 22/11/2026):** khi khách đồng ý kết bạn với **tài khoản Zalo phụ** (sau tin tư vấn của D13), khách được **thêm vào nhóm Zalo phù hợp luôn**, theo phân vùng đã có (D11). Mốc này là phần mở rộng của D13, nằm trong phạm vi giai đoạn 1, và **dùng đúng cách bán tự động của D13**: người thật thao tác trên Zalo, hệ thống chỉ gợi ý, giữ chỗ, nhắc việc và ghi lại. Không xây tự gửi tin, tự kết bạn hay tự thêm vào nhóm; không đăng nhập Zalo; không làm thủ thuật né phát hiện (D5).
+
+**1I.1 Hiện đã có (D13, đã code) và phần còn thiếu**
+- Đã có: trạng thái lời mời `READY → SENT → FRIENDED → JOINED` (V12), nút *Đã kết bạn*, *Đã vào nhóm* (gợi ý nhóm cùng tỉnh > vùng > miền > chung, tăng số khách thật của nhóm), *Khách từ chối* (vào danh sách từ chối vĩnh viễn), lô nhắn hôm nay, đợt chạy thử `/test-runs`.
+- Còn thiếu so với nghiệp vụ mới (đây là phạm vi của mốc này): (a) hai bước kết bạn và vào nhóm đang rời nhau, chưa có thao tác gộp và chưa có gợi ý nhóm **ngay lúc** đánh dấu kết bạn; (b) nhóm chưa được **giữ chỗ** khi đánh dấu kết bạn, nên hai khách kết bạn liền nhau có thể cùng bị gợi ý vào một nhóm gần đầy; (c) chưa có việc nhắc "đã kết bạn mà chưa thêm vào nhóm"; (d) khách kết bạn khi chưa có nhóm hợp mới chỉ bị báo lỗi, chưa ghi vào "đang chờ nhóm" như đường QR (D11); (e) khách rời nhóm chưa làm giảm số khách của nhóm.
+
+**1I.2 Quy tắc nghiệp vụ**
+| # | Quy tắc |
+|---|---|
+| R1 | **Điểm kích hoạt:** khách bấm đồng ý kết bạn với tài khoản phụ. Chỉ người cầm tài khoản phụ thấy được điều này trên Zalo, nên người đó bấm *Đã kết bạn* trên trang quản trị. Hệ thống không tự biết khách đã kết bạn. |
+| R2 | **Chỉ thêm khách đã kết bạn, đã được nhắn và chưa từ chối.** Khách chỉ có số điện thoại, chưa kết bạn, hoặc nằm trong danh sách từ chối thì không bao giờ được thêm vào nhóm. Khách `REPEAT` không có lời mời nên không vào luồng này (BR-06). |
+| R3 | **Gợi ý nhóm ngay khi bấm *Đã kết bạn*:** nhóm đang mở, có link, còn chỗ, ưu tiên cùng tỉnh > cùng vùng > cùng miền > nhóm chung; nhóm miền khác bị loại (D11, `app.grouping.allow-other-region` mặc định tắt). Màn hình hiện tên nhóm, khu vực, số khách hiện có và link nhóm. |
+| R4 | **Giữ chỗ:** nhóm gợi ý được giữ một chỗ cho khách đó đến khi bấm *Đã vào nhóm* hoặc hết hạn giữ chỗ, để nhiều khách kết bạn cùng ngày không bị dồn vào một nhóm. Hết hạn giữ chỗ thì gợi ý lại từ đầu. Thời hạn mặc định **24 giờ (giả định)**, chỉnh được. |
+| R5 | **Thao tác một lần:** có nút gộp *Đã kết bạn và đã thêm vào nhóm* cho trường hợp người gửi thêm khách vào nhóm ngay trong lúc đang làm. Hai nút tách vẫn giữ cho trường hợp thêm muộn. |
+| R6 | **Mục tiêu thời gian:** thêm khách vào nhóm **trong cùng ngày kết bạn** (giả định, để khách không quên mình đã kết bạn). Khách đã kết bạn quá **2 ngày (giả định)** mà chưa vào nhóm hiện thành việc trên "Việc cần làm hôm nay". Nhắc chỉ trên web, không nhắn khách thêm. |
+| R7 | **Chưa có nhóm hợp** (chưa có nhóm khu vực, hoặc đã đầy): không ghi `JOINED`, **không đẩy sang nhóm miền khác**, khách giữ trạng thái đã kết bạn kèm nhãn "chờ nhóm". Hệ thống ghi một dòng "đang chờ nhóm" theo mã tỉnh (như đường QR, không kèm SĐT/tên) để mẹ biết cần mở nhóm ở khu vực nào. Khi mẹ mở nhóm mới đúng khu vực, các khách đang chờ hiện thành việc để thêm vào. |
+| R8 | **Khách từ chối ở bất kỳ bước nào** (không kết bạn, nhắn "ngừng", báo muốn ra khỏi nhóm): ghi vào danh sách từ chối vĩnh viễn, không nhắn lại, không thêm vào nhóm nữa. Nếu đã ở trong nhóm, mẹ mời ra tay và số khách thật của nhóm giảm 1. |
+| R9 | **Mỗi người chỉ nhận một tin chủ động** (D13). Lời chào trong nhóm và trả lời khi khách nhắn tới là việc của mẹ, không phải tin chiến dịch. Khách nhắn tới thì được trả lời bình thường. |
+| R10 | **Khách không phản hồi:** đã nhắn quá **14 ngày (giả định)** mà chưa kết bạn thì chỉ hiện nhãn "không phản hồi" để mẹ biết; **không nhắn lại** (file 01 mục 6: không nhắn thúc ép lặp lại). |
+| R11 | **Đếm khách:** khách vào nhóm theo luồng này tính +1 số khách thật của nhóm; tài khoản mẹ, trợ lý AI và tài khoản phụ **không** tính là khách (tiêu chí 8). Bấm hai lần không tăng hai lần. Mẹ vẫn đếm lại thành viên mỗi tuần (giả định đã có). |
+| R12 | **Quyền riêng tư trong nhóm:** các khách trong nhóm thấy tên Zalo của nhau. Không đăng SĐT, địa chỉ hay thông tin đơn hàng của ai trong nhóm; hệ thống không hiện tên đầy đủ khách khác ở trang của một khách. Nhóm giữ nhỏ (~5 khách, BR-07). |
+| R13 | **Việc cấm:** hệ thống không tự gửi tin hay kết bạn hay thêm người vào nhóm, không đăng nhập tài khoản phụ, không dùng tài khoản của mẹ làm tài khoản gửi, không dùng công cụ tự động trên Zalo, không giả lập thao tác. Nếu sau này có kênh chính thức (xem 1I.5), nó chỉ thay các bước tay mà **không đổi** R1–R12. |
+
+**1I.3 Trạng thái khách trong luồng**
+| Trạng thái | Nghĩa | Chuyển khi | Hệ thống ghi |
+|---|---|---|---|
+| `READY` | Nằm trong chiến dịch, chưa nhắn | Tạo chiến dịch (chỉ khách đủ điều kiện, mỗi người một lần) | — |
+| `SENT` | Đã nhắn bằng tài khoản phụ | Người gửi bấm *Đã nhắn* trong giờ/hạn mức | `send_log` kênh `ZALO_PHU` |
+| `FRIENDED` | Đã đồng ý kết bạn, **chờ thêm vào nhóm** | Bấm *Đã kết bạn* (R1) | `friended_at`, giữ chỗ nhóm gợi ý (R4), sự kiện `FRIENDED`. Nhãn phụ **"chờ nhóm"** nếu chưa có nhóm hợp (R7), **"quá hạn thêm vào nhóm"** nếu quá 2 ngày (R6), **"không phản hồi"** ở nhánh `SENT` quá 14 ngày (R10); các nhãn này suy ra từ dữ liệu, **không bắt buộc thêm giá trị trạng thái mới** |
+| `JOINED` | Đã thêm vào nhóm | Bấm *Đã vào nhóm* hoặc nút gộp (R5) | `group_id`, `joined_at`, +1 số khách của nhóm, sự kiện `JOINED_GROUP` |
+| `CANCELLED`, từ chối | Không còn trong luồng | Khách từ chối hoặc bị hủy chiến dịch (R8) | Danh sách từ chối (chỉ mã băm), nhóm giảm 1 nếu đã vào |
+Khách vào bằng mã QR chung (D10) có đường riêng (`CLICKED`); hai đường không chồng nhau trên cùng một khách.
+
+**1I.4 Phụ thuộc**
+- Code D13 hiện có (`InviteService.markFriended/markJoined`, V12, V14, `SendService.today`, `TestRunService`) và gợi ý nhóm của D11 (`GroupService.pickGroup`, khu vực nhóm).
+- **Có nhóm Zalo thật theo từng khu vực**, đang mở, có link: nếu không, khách rơi vào "chờ nhóm" (R7). Mẹ phải mở nhóm trước khi chạy chiến dịch cho khu vực đó.
+- **Người thêm khách vào nhóm phải có quyền thêm thành viên** (xem câu hỏi Q1). **[CHƯA KIỂM CHỨNG]** thành viên thường của nhóm Zalo cá nhân có thêm được người khác không, và Zalo có giới hạn số lần kết bạn/thêm người mỗi ngày không. Phải thử bằng đợt chạy thử `/test-runs` với số điện thoại tự nguyện trước khi dùng cho khách thật; không đoán.
+- Sổ từ chối, cổng chặn gửi, hạn mức lô và giờ nhắn (D5), chiến dịch theo khu vực (V14). Hai tài khoản web Bố/Mẹ (Đ1) giúp nhật ký ghi đúng người bấm, nhưng không chặn mốc này.
+
+**1I.5 Hướng kênh chính thức (nếu có, không làm bây giờ)**
+Nếu sau này chủ shop có OA/ZBS và chọn GMF (mục 2.1, 2.2; ADR-0001 chưa quyết): tin mời đi qua ZBS có duyệt mẫu, khách đồng ý thì OA mời vào nhóm GMF. Khi đó "kết bạn" được thay bằng "khách quan tâm OA" hoặc "khách bấm đồng ý vào nhóm", bằng chứng đồng ý ghi theo `contact_basis`. Nhưng GMF làm lệch BR-08/BR-11 (OA sở hữu nhóm, phê duyệt từng người), nên **chủ shop quyết** trước. Trạng thái và quy tắc R1–R12 giữ nguyên, chỉ đổi người thực hiện từ tay sang kênh chính thức. Hiện **không xây** gì cho hướng này.
+
+**1I.6 Câu hỏi còn mở (cần chủ shop trả lời trước khi code)**
+- **Q1. Ai là người thêm khách vào nhóm?** (a) Tài khoản phụ: phải là thành viên nhóm và có quyền thêm; nhóm có thêm một tài khoản cửa hàng (mẹ, trợ lý AI, tài khoản phụ), cần sửa cách đếm "không tính tài khoản cửa hàng". (b) Mẹ: mẹ phải kết bạn được với khách, trong khi D13 chỉ dùng tài khoản phụ và mẹ không kết nối hệ thống. Đề xuất: (a), xác nhận bằng chạy thử.
+- **Q2. Khách chỉ đồng ý kết bạn đã đủ để thêm vào nhóm chưa?** Thêm người vào nhóm cùng các khách lạ khác là bước lớn hơn kết bạn. Đề xuất: tin đầu nói rõ "kết bạn xong sẽ mời vào nhóm cùng khu vực (tối đa vài người), muốn ra thì nhắn một câu" (R12, R8) và người gửi không thêm nếu khách có ý ngần ngại. Chủ shop xác nhận cách làm và soạn lại mẫu tin.
+- **Q3. Khi chưa có nhóm khu vực:** chờ mẹ mở nhóm (đề xuất, R7), hay cho vào nhóm chung/miền khác (trái D11 mặc định)? Mẹ mở nhóm mới trong khoảng bao lâu thì chấp nhận được?
+- **Q4. Các mốc thời gian giả định:** giữ chỗ 24 giờ, nhắc sau 2 ngày, đóng "không phản hồi" sau 14 ngày: có hợp với nhịp của mẹ không?
+- **Q5. Ai cầm tài khoản phụ hằng ngày** (bố, mẹ hay cả hai) và có cần ghi theo người không (Đ1)?
+- **Q6. Khách rời nhóm hoặc bị mời ra:** báo hệ thống bằng tay (đề xuất, R8) hay chỉ dựa vào đếm lại hằng tuần?
+- **Q7. Tin chào trong nhóm:** mẹ tự viết mỗi lần, hay hệ thống đưa sẵn một câu chào mẫu để mẹ dán? (Không tự đăng.)
+
+**1I.7 Nghiệm thu khi code (chưa làm)**
+1. Bấm *Đã kết bạn* hiện ngay nhóm gợi ý đúng khu vực, hoặc báo rõ "chưa có nhóm hợp" và ghi "chờ nhóm", không ghi `JOINED`.
+2. Có nút gộp một lần; bấm hai lần không tăng số khách thật hai lần.
+3. Hai khách cùng khu vực kết bạn liền nhau không bị gợi ý vào một nhóm chỉ còn một chỗ (giữ chỗ).
+4. Khách chưa kết bạn, khách từ chối, khách `REPEAT` không bao giờ được gợi ý nhóm.
+5. Không có nhóm cùng miền thì không gợi ý nhóm miền khác (trừ khi bật cấu hình).
+6. Khách `FRIENDED` quá hạn hiện thành việc trên "hôm nay"; không có đường nào tự nhắn khách.
+7. Đợt chạy thử `/test-runs` chạy được luồng mới mà không đổi dữ liệu thật (giữ test so ảnh chụp trước/sau).
+8. Không có mã gọi Zalo hay đăng nhập Zalo trong repo.
+
+**1I.8 Không thuộc mốc này:** tự động gửi tin, tự kết bạn, tự thêm người vào nhóm, đăng nhập Zalo, bộ gửi SMS/ZBS (D9), bot trong nhóm (1E), khách `REPEAT`.
 
 ## Mốc 0 (song song, không phải code) — việc chủ cửa hàng cần làm
 1. Xuất **1 file mẫu mỗi hãng** (Viettel Post: "Xuất excel" ở Quản lý vận đơn; J&T: hỏi hotline/portal), ẩn PII hoặc thay số giả; chụp màn hình các trạng thái.
