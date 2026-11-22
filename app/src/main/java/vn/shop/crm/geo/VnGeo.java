@@ -21,7 +21,7 @@ import java.util.Set;
 public final class VnGeo {
 
     /** Tăng số này khi sửa cách đoán để hệ thống tự tính lại cho khách cũ. */
-    public static final int VERSION = 2;
+    public static final int VERSION = 3;
 
     // mã | tên | vùng | vĩ độ | kinh độ | tên gọi khác (cách nhau bằng ; , dấu = đầu: chỉ khớp khi có dấu tiếng Việt)
     private static final String TABLE = """
@@ -198,7 +198,7 @@ public final class VnGeo {
 
     /** Như {@link #plain} nhưng dấu phẩy, chấm phẩy, xuống dòng thành từ "," riêng để biết ranh giới giữa các cấp địa chỉ. */
     static String plainKeepCommas(String s) {
-        String lower = s.toLowerCase(Locale.ROOT).replace('đ', 'd');
+        String lower = s.toLowerCase(Locale.ROOT).replace('đ', 'd').replace('ð', 'd');
         String d = Normalizer.normalize(lower, Normalizer.Form.NFD).replaceAll("\\p{M}+", "");
         return separators(d.replaceAll("[,;\\r\\n]+", ",").replaceAll("[^a-z0-9,]+", " "));
     }
@@ -215,7 +215,7 @@ public final class VnGeo {
 
     /** Chữ thường, bỏ dấu tiếng Việt, mọi ký tự không phải chữ/số thành một dấu cách. */
     static String plain(String s) {
-        String lower = s.toLowerCase(Locale.ROOT).replace('đ', 'd');
+        String lower = s.toLowerCase(Locale.ROOT).replace('đ', 'd').replace('ð', 'd');
         String d = Normalizer.normalize(lower, Normalizer.Form.NFD).replaceAll("\\p{M}+", "");
         return d.replaceAll("[^a-z0-9]+", " ").strip();
     }

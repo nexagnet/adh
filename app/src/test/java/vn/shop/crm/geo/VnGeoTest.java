@@ -121,4 +121,12 @@ class VnGeoTest {
         assertThat(GeoArea.parse("zzz")).isEmpty();
         assertThat(GeoArea.parse(null)).isEmpty();
     }
+
+    @Test
+    void chuDGachNgangKieuViettelPostVanNhanRaTinh() {
+        // Viettel Post viết "Ðịnh", "Ðồng" bằng ký tự Ð (U+00D0), không phải Đ (U+0110).
+        assertThat(code("H.An Nhơn, T.Bình \u00D0ịnh")).isEqualTo("binh-dinh");
+        assertThat(code("H.Hải Hậu, T.Nam \u00D0ịnh")).isEqualTo("nam-dinh");
+        assertThat(code("H.Đức Trọng, T.Lâm \u00D0ồng")).isEqualTo("lam-dong");
+    }
 }

@@ -15,7 +15,7 @@ public final class StatusKey {
         }
         String decomposed = Normalizer.normalize(text, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}+", "")
-                .replace('đ', 'd')
+                .replace('đ', 'd').replace('ð', 'd').replace('Ð', 'D')
                 .replace('Đ', 'D');
         return decomposed.toLowerCase(Locale.ROOT).strip().replaceAll("\\s+", " ");
     }
