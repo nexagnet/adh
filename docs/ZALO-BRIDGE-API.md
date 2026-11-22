@@ -5,7 +5,7 @@
 - Chỉ gọi trong **mạng nội bộ Docker**; dịch vụ không công bố cổng ra ngoài.
 - Mọi yêu cầu có tiêu đề `X-Bridge-Key: <khóa chung>`; sai khóa trả `401`.
 - Mọi trả lời là JSON, mã `200` cho mọi kết quả đã xử lý (kể cả lỗi riêng một người); mã khác `200` là lỗi hạ tầng và Adh coi là "lạ".
-- **Không có** đường gửi tin, gửi lời mời kết bạn, tìm người theo số, liệt kê bạn bè. Test `ZaloGatewayShapeTest` (Java) và `zalo-bridge/test/server.test.mjs` và `no-send.test.mjs` (Node) khóa việc này.
+- **Không có** đường gửi tin, gửi lời mời kết bạn, tìm người theo số, liệt kê bạn bè. Chỉ có thêm một đường đọc `GET /groups` (nhóm của chính tài khoản phụ). Test `ZaloGatewayShapeTest` (Java) và `zalo-bridge/test/server.test.mjs` và `no-send.test.mjs` (Node) khóa việc này.
 
 ## Ba việc của Zalo
 
@@ -32,6 +32,15 @@ Cả hai mã chỉ gồm chữ số (≤ 32). Trả:
 `outcome`: `OK`; `PERSON_ERROR` (lỗi riêng người này: đã trong nhóm, bị chặn, nhóm đầy, không phải bạn…; không làm cầu dao nhảy); `SESSION_LOST`; `RESTRICTED` (Zalo yêu cầu xác minh/captcha/hạn chế, hoặc chạm trần của chính cầu nối); `SYSTEM_ERROR` (mọi lỗi lạ). Ba loại sau làm Adh **dừng ngay**; cầu nối cũng tự dừng. `code` chỉ gồm chữ, số, gạch, không chứa dữ liệu khách.
 
 Cầu nối có **trần cứng riêng** (gấp đôi `APP_ZALO_AUTO_MAX_DAILY` mỗi ngày, trong khung giờ 07:00–22:00 giờ Việt Nam): vượt thì trả `RESTRICTED` mã `LIMIT` và tự dừng.
+
+## Đọc danh sách nhóm (chỉ đọc, chỉ trang quản trị gọi)
+### `GET /groups`
+Nhóm mà **tài khoản phụ đang tham gia**, để chọn "mã nhóm Zalo" cho nhóm của Adh (không phải liệt kê bạn bè):
+```json
+{ "ok": true, "groups": [ { "id": "987654321", "name": "Khách hàng Miền Nam", "members": 12, "adminOnlyAdd": false, "isAdmin": true } ] }
+{ "ok": false, "code": "LOGIN_REQUIRED" }
+```
+`code` khi không đọc được: `LOGIN_REQUIRED`, `NOT_ACTIVE` (đang dừng/chưa nghe), `BUSY`, `LIST_FAILED`. Chỉ đọc nên lỗi **không** làm cầu dao nhảy. Chỉ hỏi khi đang nghe bình thường; kết quả được giữ 30 giây để không hỏi dồn Zalo. Tên nhóm không vào log. `adminOnlyAdd` = nhóm bật "chỉ quản trị viên được thêm thành viên"; `isAdmin` = tài khoản phụ có là chủ/quản trị viên nhóm không.
 
 ## Quản lý phiên (chỉ trang quản trị gọi)
 - `POST /session/login` bắt đầu quét QR → `{ "state": "WAITING_SCAN", "qr": "<PNG base64>" }`; `GET /session/login` hỏi tiến độ. `state`: `WAITING_SCAN`, `SCANNED`, `DONE`, `EXPIRED`, `FAILED`, `ACCOUNT_MISMATCH` (tài khoản quét không phải tài khoản phụ đã khai báo: cầu nối từ chối và đăng xuất, không lưu gì, không đụng phiên phụ đang chạy). Khi và chỉ khi `ACCOUNT_MISMATCH`, trả thêm `scannedId` (mã Zalo chữ số của tài khoản vừa quét) để người quản trị điền đúng `ZALO_ACCOUNT_ID`; mã này chỉ ở bộ nhớ, không log, không lưu đĩa, Adh chỉ hiện trên trang quét QR của admin. Ảnh QR chỉ nằm trong bộ nhớ.

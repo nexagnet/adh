@@ -1,5 +1,5 @@
 // Máy chủ HTTP nội bộ (node:http, không thêm thư viện). Hợp đồng: docs/ZALO-BRIDGE-API.md.
-// Có đúng các đường: /healthz, /status, /events, /groups/{id}/members, /session/*. KHÔNG có đường gửi tin, gửi lời mời
+// Có đúng các đường: /healthz, /status, /events, GET /groups (chỉ đọc), POST /groups/{id}/members, /session/*. KHÔNG có đường gửi tin, gửi lời mời
 // kết bạn, tìm người theo số hay liệt kê bạn bè. Test contract.test.mjs khóa danh sách này.
 
 import http from 'node:http';
@@ -44,6 +44,7 @@ export const ROUTES = [
   'GET /healthz',
   'GET /status',
   'GET /events',
+  'GET /groups',
   'POST /groups/{id}/members',
   'POST /session/login',
   'GET /session/login',
@@ -70,6 +71,7 @@ export function createServer({ bridge, config, fake = null }) {
         const after = Number(url.searchParams.get('after') ?? '0');
         return send(200, { events: bridge.friendEvents(after) });
       }
+      if (route === 'GET /groups') return send(200, await bridge.listGroups());
       const add = /^POST \/groups\/([^/]+)\/members$/.exec(route);
       if (add) {
         const groupId = decodeURIComponent(add[1]);

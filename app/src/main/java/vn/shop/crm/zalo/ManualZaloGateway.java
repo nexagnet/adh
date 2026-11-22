@@ -24,6 +24,11 @@ public class ManualZaloGateway implements ZaloLink {
     }
 
     @Override
+    public GroupList listGroups() {
+        return GroupList.failed("DISABLED");
+    }
+
+    @Override
     public Login startLogin() {
         return Login.of(LoginState.IDLE);
     }

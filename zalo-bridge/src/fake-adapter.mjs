@@ -53,6 +53,12 @@ export class FakeAdapter {
     return n ?? { errorMembers: [], error_data: {} };
   }
 
+  async listGroups() {
+    if (this.groupsError) throw this.groupsError;
+    this.groupListCalls = (this.groupListCalls ?? 0) + 1;
+    return this.groups ?? [];
+  }
+
   loginQR(h) {
     this.loginHandlers = h;
     let resolve;

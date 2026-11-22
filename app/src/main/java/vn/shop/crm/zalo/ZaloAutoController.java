@@ -141,6 +141,36 @@ public class ZaloAutoController {
         return "zalo-login";
     }
 
+    // ---------- nhóm Zalo của tài khoản phụ: chọn mã nhóm ----------
+
+    @GetMapping("/groups")
+    public String zaloGroups(Model model, HttpServletResponse response) {
+        response.setHeader("Cache-Control", "no-store");
+        requireEnabled();
+        ZaloSession.GroupList list = service.zaloGroups();
+        var adh = service.adhGroups();
+        java.util.Map<String, String> assigned = new java.util.HashMap<>();
+        for (var g : adh) {
+            if (g.hasZaloId()) {
+                assigned.put(g.zaloGroupId(), g.name());
+            }
+        }
+        model.addAttribute("ok", list.ok());
+        model.addAttribute("failCode", list.code());
+        model.addAttribute("zaloGroups", list.groups());
+        model.addAttribute("adhGroups", adh);
+        model.addAttribute("assigned", assigned);
+        return "zalo-groups";
+    }
+
+    @PostMapping("/groups/assign")
+    public String assign(@RequestParam long adhGroupId, @RequestParam String zaloGroupId, RedirectAttributes redirect) {
+        requireEnabled();
+        service.assignZaloGroup(adhGroupId, zaloGroupId);
+        redirect.addFlashAttribute("flash", "Đã gán mã nhóm Zalo cho nhóm của Adh. Bộ nối chỉ thêm khách vào nhóm có mã.");
+        return "redirect:/zalo/groups";
+    }
+
     // ---------- duyệt và hàng đợi tay ----------
 
     @PostMapping("/invitations/{id}/approve")

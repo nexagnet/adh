@@ -223,4 +223,30 @@ class ZaloAdminPageTest extends AbstractPostgresTest {
                 .andExpect(status().isBadRequest());
         mvc.perform(get("/groups").with(owner())).andExpect(content().string(containsString("Mã nhóm trong Zalo")));
     }
+
+    @Test
+    void trangNhomZaloDocDanhSachVaGanMaChoNhomCuaAdh() throws Exception {
+        long id = groups.create("Nhóm miền Nam", "https://zalo.me/g/nam", 50, "R:NAM");
+        // chưa đăng nhập: báo rõ, không có bảng nhóm
+        mvc.perform(get("/zalo/groups").with(owner())).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Chưa đọc được danh sách nhóm")));
+        fake.groupList = new ZaloSession.GroupList(true, null, java.util.List.of(
+                new ZaloSession.ZaloGroup("987654321", "Khách hàng Miền Nam", 12, true, false)));
+        mvc.perform(get("/zalo/groups").with(owner())).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Khách hàng Miền Nam")))
+                .andExpect(content().string(containsString("987654321")))
+                .andExpect(content().string(containsString("không phải quản trị viên")));
+        mvc.perform(post("/zalo/groups/assign").with(owner()).with(csrf())
+                        .param("adhGroupId", String.valueOf(id)).param("zaloGroupId", "987654321"))
+                .andExpect(status().is3xxRedirection());
+        assertThat(groups.list().stream().filter(g -> g.id() == id).findFirst().orElseThrow().zaloGroupId()).isEqualTo("987654321");
+        // mã không phải chữ số bị từ chối; nhân viên không vào được
+        mvc.perform(post("/zalo/groups/assign").with(owner()).with(csrf())
+                        .param("adhGroupId", String.valueOf(id)).param("zaloGroupId", "abc"))
+                .andExpect(status().isBadRequest());
+        var staff = user("nhanvien").roles("STAFF");
+        mvc.perform(get("/zalo/groups").with(staff)).andExpect(status().isForbidden());
+        mvc.perform(post("/zalo/groups/assign").with(staff).with(csrf())
+                .param("adhGroupId", String.valueOf(id)).param("zaloGroupId", "1")).andExpect(status().isForbidden());
+    }
 }

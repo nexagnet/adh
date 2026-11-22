@@ -120,6 +120,34 @@ public class ZcaBridgeGateway implements ZaloLink {
     // ---------- ZaloSession: phiên đăng nhập ----------
 
     @Override
+    public GroupList listGroups() {
+        try {
+            JsonNode n = call("GET", "/groups", null, 60);
+            if (!n.path("ok").asBoolean(false)) {
+                String code = safeCode(text(n, "code"));
+                return GroupList.failed(code == null ? "LIST_FAILED" : code);
+            }
+            List<ZaloGroup> out = new ArrayList<>();
+            for (JsonNode g : n.path("groups")) {
+                String id = g.path("id").asString("");
+                if (!ZALO_ID.matcher(id).matches()) {
+                    continue; // dòng hỏng: bỏ qua, không đoán
+                }
+                String name = g.path("name").asString("").strip();
+                out.add(new ZaloGroup(id, name.isEmpty() ? "(không tên)" : name.substring(0, Math.min(120, name.length())),
+                        g.path("members").asInt(0), g.path("adminOnlyAdd").asBoolean(false), g.path("isAdmin").asBoolean(false)));
+            }
+            out.sort(java.util.Comparator.comparing(ZaloGroup::name, String.CASE_INSENSITIVE_ORDER));
+            return new GroupList(true, null, out);
+        } catch (Unreachable e) {
+            return GroupList.failed("BRIDGE_DOWN");
+        } catch (Exception e) {
+            log.warn("Không đọc được danh sách nhóm từ cầu nối: {}", e.getClass().getSimpleName());
+            return GroupList.failed("LIST_FAILED");
+        }
+    }
+
+    @Override
     public Login startLogin() {
         return login("POST");
     }

@@ -510,6 +510,21 @@ public class ZaloAutoService {
         return ok;
     }
 
+    /** Nhóm Zalo tài khoản phụ đang tham gia (chỉ đọc). Kết quả chỉ hiện trên trang admin, không ghi nhật ký tên nhóm. */
+    public ZaloSession.GroupList zaloGroups() {
+        return session.listGroups();
+    }
+
+    /** Gán mã nhóm Zalo (chọn từ danh sách) cho một nhóm của Adh; bộ nối chỉ thêm khách vào nhóm có mã. */
+    public void assignZaloGroup(long adhGroupId, String zaloGroupId) {
+        groups.setZaloGroupId(adhGroupId, zaloGroupId);
+    }
+
+    /** Các nhóm của Adh, để chọn gán mã. */
+    public List<GroupService.Group> adhGroups() {
+        return groups.list();
+    }
+
     public ZaloSession.Login startLogin(String by) {
         cfg.log(ZaloAutoSettings.A_LOGIN, null, null, "BAT_DAU", null, by);
         return session.startLogin();

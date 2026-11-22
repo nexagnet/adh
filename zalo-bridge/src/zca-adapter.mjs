@@ -53,6 +53,30 @@ export class ZcaAdapter {
     return this.api.addUserToGroup(uid, groupId);
   }
 
+  /**
+   * Chỉ ĐỌC: nhóm mà tài khoản phụ đang tham gia (mã, tên, số thành viên, cài đặt "chỉ quản trị viên được thêm", tài khoản phụ có
+   * phải quản trị viên không). Để chủ shop chọn đúng "mã nhóm Zalo" cho Adh. Không liệt kê bạn bè, không dò ai.
+   */
+  async listGroups() {
+    const own = String(this.api.getOwnId());
+    const all = await this.api.getAllGroups();
+    const ids = Object.keys(all?.gridVerMap ?? {}).filter((id) => /^\d{1,32}$/.test(id)).slice(0, 300);
+    const out = [];
+    for (let i = 0; i < ids.length; i += 20) {
+      const r = await this.api.getGroupInfo(ids.slice(i, i + 20));
+      for (const [id, g] of Object.entries(r?.gridInfoMap ?? {})) {
+        out.push({
+          id: String(id),
+          name: String(g?.name ?? '').slice(0, 120),
+          members: Number(g?.totalMember ?? 0) || 0,
+          adminOnlyAdd: Number(g?.setting?.addMemberOnly ?? 0) === 1,
+          isAdmin: String(g?.creatorId) === own || (g?.adminIds ?? []).map(String).includes(own),
+        });
+      }
+    }
+    return out;
+  }
+
   loginQR(h) {
     let abortFn = null;
     const promise = (async () => {

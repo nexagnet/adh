@@ -22,9 +22,9 @@ test('không đoạn mã nào gọi hàm gửi tin, gửi lời mời, tìm ngư
   }
 });
 
-test('bộ điều hợp zca-js chỉ dùng đúng năm thành phần của api', () => {
+test('bộ điều hợp zca-js chỉ dùng đúng bảy thành phần của api (thêm hai hàm chỉ đọc nhóm)', () => {
   const used = new Set([...code('zca-adapter.mjs').matchAll(/this\.api\??\.([A-Za-z]+)/g)].map((m) => m[1]));
-  assert.deepEqual([...used].sort(), ['addUserToGroup', 'getOwnId', 'getUserInfo', 'listener', 'logout'].sort());
+  assert.deepEqual([...used].sort(), ['addUserToGroup', 'getAllGroups', 'getGroupInfo', 'getOwnId', 'getUserInfo', 'listener', 'logout'].sort());
 });
 
 test('không đặt userAgent, không proxy, không đổi dấu vân tay (không che việc dùng thư viện)', () => {

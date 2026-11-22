@@ -11,6 +11,8 @@ Dịch vụ Node nhỏ nằm sau giao diện `ZaloGateway` của Adh (`docs/ADR-
 
 Cộng với quản lý phiên cho trang quản trị (quét QR, đăng xuất, dừng, nghe lại). **Không có** gửi tin, gửi lời mời kết bạn, tìm người theo số, liệt kê bạn bè hay lệnh tùy ý. Ba bài test khóa điều này: `test/no-send.test.mjs`, `test/server.test.mjs`, và `ZaloGatewayShapeTest` bên Java.
 
+Cộng thêm một đường **chỉ đọc** `GET /groups`: nhóm Zalo mà tài khoản phụ đang tham gia (mã, tên, số thành viên), để trang quản trị chọn "mã nhóm Zalo". Không phải liệt kê bạn bè.
+
 ## Ranh giới (ngoài phạm vi)
 Không có và sẽ không thêm: giả gõ phím, độ trễ ngẫu nhiên cho giống người, đổi `imei`/`userAgent`, proxy xoay, nhiều tài khoản luân phiên, gửi tin hàng loạt. Cầu nối chỉ có giới hạn khối lượng (trần mỗi ngày, khung giờ 07:00–22:00 giờ Việt Nam), không phải màn che.
 

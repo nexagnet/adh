@@ -76,7 +76,8 @@ test('KHÔNG có đường gửi tin, gửi lời mời kết bạn, tìm ngư�
   const forbidden = [
     ['POST', '/messages'], ['POST', '/message'], ['POST', '/send'], ['POST', '/sendMessage'], ['POST', '/friends/request'],
     ['POST', '/friends'], ['GET', '/friends'], ['GET', '/users'], ['POST', '/users/find'], ['GET', '/users/84912345678'],
-    ['POST', '/broadcast'], ['GET', '/groups'], ['POST', '/groups'], ['GET', '/groups/1/members'], ['DELETE', '/groups/1/members'],
+    ['POST', '/broadcast'], ['POST', '/groups'], ['PUT', '/groups'],  // GET /groups (đọc nhóm của chính tài khoản phụ) là đường được phép riêng
+    ['GET', '/groups/1/members'], ['DELETE', '/groups/1/members'],
     ['POST', '/fake/friend'],
   ];
   for (const [m, p] of forbidden) {
@@ -89,7 +90,7 @@ test('KHÔNG có đường gửi tin, gửi lời mời kết bạn, tìm ngư�
 
 test('danh sách đường được phép là cố định', () => {
   assert.deepEqual(ROUTES, [
-    'GET /healthz', 'GET /status', 'GET /events', 'POST /groups/{id}/members', 'POST /session/login', 'GET /session/login',
+    'GET /healthz', 'GET /status', 'GET /events', 'GET /groups', 'POST /groups/{id}/members', 'POST /session/login', 'GET /session/login',
     'POST /session/logout', 'POST /session/stop', 'POST /session/resume',
   ]);
 });
@@ -109,5 +110,18 @@ test('scannedId chỉ xuất hiện khi sai tài khoản; các trạng thái kh�
   const again = await s.call('POST', '/session/login', { body: {} });
   assert.equal(again.json.state, 'WAITING_SCAN');
   assert.ok(!('scannedId' in again.json));
+  await s.close();
+});
+
+test('GET /groups cần khóa và trả nhóm của tài khoản phụ; chỉ có GET', async () => {
+  const s = await boot();
+  assert.equal((await s.call('GET', '/groups', { key: '' })).status, 401);
+  s.c.adapter.groups = [{ id: '222', name: 'Nhóm thử', members: 3, adminOnlyAdd: true, isAdmin: false }];
+  const r = await s.call('GET', '/groups');
+  assert.equal(r.status, 200);
+  assert.equal(r.json.ok, true);
+  assert.equal(r.json.groups[0].id, '222');
+  assert.equal((await s.call('POST', '/groups', { body: {} })).status, 404);
+  assert.equal(s.c.adapter.adds.length, 0);
   await s.close();
 });

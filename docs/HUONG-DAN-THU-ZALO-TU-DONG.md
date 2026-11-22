@@ -25,7 +25,7 @@ Toàn bộ phần mã đã được kiểm bằng test với **bộ nối giả*
    Cần **cả ba**: cờ này, profile Docker, và chọn nấc ở trang quản trị. Thiếu một trong ba là bộ nối không chạy.
 3. Chạy lại. Trên máy chủ dùng chung (`infra/docker-compose.shared.yml`): `./deploy.sh deploy`; script kéo ảnh dựng sẵn `ghcr.io/nexagnet/adh-zalo-bridge:<thẻ>` (do GitHub Actions dựng, không build trên máy chủ) khi `.env` có `COMPOSE_PROFILES=zalo-auto`. Với `docker-compose.prod.yml` (máy riêng): `docker compose up -d --build` (build ảnh tại chỗ). Nếu lỗi, gửi log `docker compose logs zalo-bridge`. Nếu RAM trống thấp (dưới khoảng 150 MB sau khi bật), tắt bộ nối ngay (bỏ profile) và báo.
 4. Kiểm: trong menu có mục **Zalo tài khoản phụ**. Trang này lúc đầu báo "Cần quét mã QR để đăng nhập". Bộ nối **không công bố cổng ra ngoài**; không mở cổng 3100.
-5. Vào **Nhóm Zalo → Sửa** từng nhóm thử, điền **Mã nhóm trong Zalo** (chỉ chữ số, khác link mời). Nhóm không có mã thì không bao giờ được thêm tự động. **Chưa kiểm cách lấy mã nhóm trong giao diện Zalo**; đợt chạy thử 0 có mã của các nhóm thử.
+5. Gán mã nhóm: sau khi đăng nhập xong, vào **Zalo tài khoản phụ → Xem nhóm Zalo và gán mã**. Trang liệt kê các nhóm Zalo mà tài khoản phụ đang tham gia (tên, mã, số thành viên); chọn nhóm của Adh rồi bấm **Gán**. Tài khoản phụ phải đã ở trong nhóm. Nhóm không có mã thì không bao giờ được thêm tự động. Có thể nhập tay ở **Nhóm Zalo → Sửa** nếu trang không đọc được. Trang cảnh báo nhóm bật "chỉ quản trị viên được thêm" mà tài khoản phụ không phải quản trị viên (nhóm đó sẽ không thêm được).
 6. Tạo nhóm thử: nên do tài khoản của **mẹ làm trưởng nhóm**, tài khoản phụ là thành viên thường, và **không bật** "chỉ quản trị viên được thêm thành viên" (đã thử ở đợt 0: thành viên thường vẫn thêm được khi tắt cài đặt này).
 
 ## 2. Thử theo từng nấc (đừng nhảy cóc)
@@ -80,4 +80,4 @@ Bộ nối tự dừng khi gặp yêu cầu xác minh, captcha hay báo hạn ch
 | 50 người/ngày có bị Zalo hạn chế không | Chưa biết; ngưỡng của Zalo không công bố |
 | Thời gian sống của phiên Zalo | Chưa biết (đã thấy dùng lại được hơn 1 giờ) |
 | `getUserInfo` trên khách thật có trả số không | Chưa; mẫu nhỏ cho thấy phần đông không lộ số |
-| Cách lấy mã nhóm Zalo trong giao diện Zalo | Chưa kiểm (mã tài khoản phụ thì đã có cách: xem mục cài đặt bước 1) |
+| Chức năng liệt kê nhóm (`getAllGroups`, `getGroupInfo`) với Zalo thật | Chưa; nếu lỗi thì nhập mã tay ở trang Nhóm Zalo |
