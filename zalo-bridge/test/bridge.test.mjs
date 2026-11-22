@@ -359,3 +359,105 @@ test('seq tăng đơn điệu, kể cả khi hai sự kiện cùng mili giây', 
   assert.ok(seqs[0] >= T0);
   c.cleanup();
 });
+
+test('quét nhầm tài khoản KHI đang nghe: đăng xuất phiên vừa quét, giữ nguyên phiên phụ đang chạy', async () => {
+  const c = setup();
+  await c.bridge.start();
+  await loginAndListen(c);
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  const savedBefore = existsSync(path.join(c.dir, 'session.enc'));
+  c.bridge.startLogin();
+  c.adapter.loginResolve('9999');
+  await flush(); await flush(); await flush();
+  assert.equal(c.bridge.loginStatus().state, 'ACCOUNT_MISMATCH');
+  assert.equal(c.adapter.discards, 1);
+  assert.equal(c.adapter.adopts, 1); // chỉ lần đăng nhập đúng đầu tiên
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  assert.equal(c.bridge.status().accountOk, true);
+  assert.equal(existsSync(path.join(c.dir, 'session.enc')), savedBefore);
+  c.cleanup();
+});
+
+test('quét lại đúng tài khoản khi đang nghe: đóng kết nối nghe cũ trước khi nghe bằng phiên mới', async () => {
+  const c = setup();
+  await c.bridge.start();
+  await loginAndListen(c);
+  const stopsBefore = c.adapter.stops;
+  c.bridge.startLogin();
+  c.adapter.loginResolve('1000');
+  await flush(); await flush(); await flush();
+  assert.equal(c.adapter.adopts, 2);
+  assert.ok(c.adapter.stops > stopsBefore);
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  c.cleanup();
+});
+
+test('sập giữa lúc đang thêm người: khởi động lại thì dừng (không biết kết quả), chỉ resume mới nghe lại', async () => {
+  const c = setup();
+  await c.bridge.start();
+  await loginAndListen(c);
+  // giả lập sập: tệp trạng thái còn dấu "đang thêm"
+  const { writeFileSync } = await import('node:fs');
+  writeFileSync(path.join(c.dir, 'bridge-state.json'), JSON.stringify({ inflight: true }));
+  const b2 = c.rebuild();
+  await b2.start();
+  assert.equal(b2.status().state, 'TRIPPED');
+  assert.equal(b2.status().tripReason, 'INTERRUPTED');
+  assert.equal((await b2.addMember('1', '2')).outcome, 'RESTRICTED');
+  c.cleanup();
+});
+
+test('thêm xong bình thường thì không còn dấu "đang thêm"', async () => {
+  const c = setup();
+  await c.bridge.start();
+  await loginAndListen(c);
+  assert.equal((await c.bridge.addMember('11', '22')).outcome, 'OK');
+  const b2 = c.rebuild();
+  await b2.start();
+  assert.equal(b2.status().state, 'LISTENING');
+  c.cleanup();
+});
+
+test('khởi động lại liên tục (quá 5 lần trong 10 phút) thì dừng, không đăng nhập Zalo lặp lại', async () => {
+  const c = setup();
+  await c.bridge.start();
+  await loginAndListen(c);
+  for (let i = 0; i < 3; i += 1) await c.rebuild().start(); // lần 2..4
+  const fifth = c.rebuild();
+  await fifth.start();
+  assert.equal(fifth.status().state, 'LISTENING'); // lần thứ 5 vẫn được
+  const sixth = c.rebuild();
+  const restoresBefore = c.adapter.restores;
+  await sixth.start();
+  assert.equal(sixth.status().state, 'TRIPPED');
+  assert.equal(sixth.status().tripReason, 'CRASH_LOOP');
+  assert.equal(c.adapter.restores, restoresBefore);
+  // sau 10 phút và bấm mở lại thì chạy được
+  c.clock.t += 11 * 60 * 1000;
+  assert.equal(await sixth.resume(), true);
+  c.cleanup();
+});
+
+test('hạn mức hỏi thông tin mỗi giờ: quá hạn thì vẫn nhận sự kiện nhưng không hỏi số (rơi về hàng đợi tay)', async () => {
+  const c = setup({ env: { BRIDGE_MAX_LOOKUPS_PER_HOUR: '2' } });
+  await c.bridge.start();
+  await loginAndListen(c);
+  let asked = 0;
+  c.adapter.getPhone = async () => {
+    asked += 1;
+    return '0912345678';
+  };
+  for (const uid of ['101', '102', '103']) {
+    c.adapter.emitFriendAdd(uid);
+    await flush(); await flush();
+  }
+  const ev = c.bridge.friendEvents(0);
+  assert.equal(ev.length, 3);
+  assert.equal(asked, 2);
+  assert.equal(ev[2].phone, null);
+  c.clock.t += 61 * 60 * 1000;
+  c.adapter.emitFriendAdd('104');
+  await flush(); await flush();
+  assert.equal(asked, 3);
+  c.cleanup();
+});

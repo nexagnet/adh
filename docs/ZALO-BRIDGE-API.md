@@ -14,7 +14,7 @@
 { "state": "LISTENING", "tripReason": null, "accountOk": true,
   "lastEventAt": "2026-11-22T03:00:00Z", "sessionSince": "2026-11-22T01:00:00Z", "detail": null }
 ```
-`state`: `LOGIN_REQUIRED` (chưa có phiên hoặc hết hạn), `CONNECTING`, `LISTENING`, `TRIPPED` (cầu nối tự dừng, `tripReason` nói vì sao: `DUPLICATE_CONNECTION`, `RESTRICTED`, `SESSION_LOST`, `UNKNOWN_ERROR`, `LIMIT`), `STOPPED` (được yêu cầu dừng, giữ phiên). `accountOk` = tài khoản đang đăng nhập đúng là tài khoản phụ đã khai báo.
+`state`: `LOGIN_REQUIRED` (chưa có phiên hoặc hết hạn), `CONNECTING`, `LISTENING`, `TRIPPED` (cầu nối tự dừng, `tripReason` nói vì sao: `DUPLICATE_CONNECTION`, `KICKED`, `RESTRICTED`, `SESSION_LOST`, `SYSTEM_ERROR`, `LIMIT`, `WINDOW`, `RECONNECT_FAILED`, `LEDGER_CORRUPT`, `INTERRUPTED` (sập đúng lúc đang thêm người, không biết kết quả), `CRASH_LOOP` (khởi động lại quá 5 lần trong 10 phút); có thể kèm `:mã` sau), `STOPPED` (được yêu cầu dừng, giữ phiên). `accountOk` = tài khoản đang đăng nhập đúng là tài khoản phụ đã khai báo.
 
 ### `GET /events?after=<seq>`
 Các lần "thành bạn" (loại `ADD` của zca-js, `isSelf=false`) có `seq` > `after`, tăng dần:

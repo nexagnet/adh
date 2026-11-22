@@ -78,11 +78,11 @@ services:
     image: adh-zalo-bridge:local
     restart: unless-stopped
     environment:
-      BRIDGE_KEY: ${APP_ZALO_BRIDGE_KEY:?Hãy đặt APP_ZALO_BRIDGE_KEY trong file .env}
+      BRIDGE_KEY: ${APP_ZALO_BRIDGE_KEY:-}
       # Khóa AES-256 mã hóa phiên Zalo (64 ký tự hex). TÁCH khỏi sao lưu: sao lưu chỉ có cơ sở dữ liệu, không có file .env này.
-      SESSION_KEY: ${ZALO_SESSION_KEY:?Hãy đặt ZALO_SESSION_KEY trong file .env}
+      SESSION_KEY: ${ZALO_SESSION_KEY:-}
       # Mã Zalo của TÀI KHOẢN PHỤ. Đăng nhập bằng tài khoản khác sẽ bị từ chối và đăng xuất.
-      ZALO_ACCOUNT_ID: ${ZALO_ACCOUNT_ID:?Hãy đặt ZALO_ACCOUNT_ID trong file .env}
+      ZALO_ACCOUNT_ID: ${ZALO_ACCOUNT_ID:-}
       APP_ZALO_AUTO_MAX_DAILY: ${APP_ZALO_AUTO_MAX_DAILY:-100}
       BRIDGE_PERSON_ERROR_CODES: ${ZALO_PERSON_ERROR_CODES:-}
     volumes:

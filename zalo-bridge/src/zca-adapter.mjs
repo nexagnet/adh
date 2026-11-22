@@ -10,6 +10,7 @@ export class ZcaAdapter {
     // checkUpdate: false để không gọi ra ngoài chỉ để kiểm phiên bản gói; logging: false để thư viện không in dữ liệu.
     this.zalo = new Zalo({ selfListen: false, checkUpdate: false, logging: false });
     this.api = null;
+    this.pending = null;
   }
 
   async restore(creds) {
@@ -81,10 +82,25 @@ export class ZcaAdapter {
         }
       });
       if (!creds) throw new Error('không nhận được thông tin đăng nhập');
-      this.api = api;
+      // Chưa nhận làm phiên chính: lõi cầu nối kiểm đúng tài khoản phụ rồi mới adoptLogin(); sai thì discardLogin().
+      this.pending = api;
       return { creds, ownId: String(api.getOwnId()) };
     })();
     return { promise, abort: () => abortFn?.() };
+  }
+
+  /** Nhận phiên vừa quét QR làm phiên chính, đóng kết nối nghe cũ (nếu có) để không bị Zalo đá vì trùng kết nối. */
+  adoptLogin() {
+    this.stopListening();
+    this.api = this.pending;
+    this.pending = null;
+  }
+
+  /** Bỏ phiên vừa quét (sai tài khoản): chỉ đăng xuất phiên đó, KHÔNG đụng phiên chính đang chạy. */
+  async discardLogin() {
+    const p = this.pending;
+    this.pending = null;
+    await p?.logout();
   }
 
   async logout() {

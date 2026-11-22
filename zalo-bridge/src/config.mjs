@@ -52,6 +52,8 @@ export function loadConfig(env = process.env) {
     windowEndMin: hhmm(env, 'BRIDGE_WINDOW_END', '22:00'),
     // Chờ tối đa bao lâu cho một lần thêm người; quá hạn là "không biết kết quả" (Adh sẽ dừng).
     addTimeoutMs: int(env, 'BRIDGE_ADD_TIMEOUT_MS', 30000, 1000, 120000),
+    // Số lần hỏi thông tin (để lấy số điện thoại) tối đa mỗi giờ; quá thì sự kiện vẫn nhận nhưng không hỏi, rơi về hàng đợi tay.
+    maxLookupsPerHour: int(env, 'BRIDGE_MAX_LOOKUPS_PER_HOUR', 60, 0, 1000),
     // Nối lại khi kết nối nghe đứt bất thường (đo thật: mã 1006 sau khoảng 40 phút).
     reconnectDelaysMs: [5000, 15000, 45000, 120000, 300000],
     reconnectMaxAttempts: int(env, 'BRIDGE_RECONNECT_MAX', 8, 1, 100),

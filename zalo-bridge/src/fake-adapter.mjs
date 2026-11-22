@@ -73,6 +73,16 @@ export class FakeAdapter {
     return { promise, abort: () => this.loginReject(new Error('hủy')) };
   }
 
+  adoptLogin() {
+    this.stopListening();
+    this.adopts = (this.adopts ?? 0) + 1;
+  }
+
+  async discardLogin() {
+    this.logouts += 1;
+    this.discards = (this.discards ?? 0) + 1;
+  }
+
   async logout() {
     this.logouts += 1;
   }

@@ -45,6 +45,14 @@ await bridge.start();
 const server = createServer({ bridge, config, fake: config.mode === 'fake' ? adapter : null });
 server.listen(config.port, config.host, () => log(`nghe ở cổng ${config.port}, trạng thái ${bridge.status().state}`));
 
+// Lỗi không bắt được: chỉ ghi tên lỗi (nội dung lỗi có thể chứa dữ liệu), rồi thoát; trạng thái đã lưu ra đĩa nên bật lại vẫn an toàn.
+for (const ev of ['uncaughtException', 'unhandledRejection']) {
+  process.on(ev, (e) => {
+    log(`lỗi không bắt được (${ev}): ${typeof e?.name === 'string' ? e.name.replace(/[^A-Za-z0-9]/g, '') : 'Error'}`);
+    process.exit(1);
+  });
+}
+
 for (const sig of ['SIGTERM', 'SIGINT']) {
   process.on(sig, () => {
     bridge.adapter.stopListening();

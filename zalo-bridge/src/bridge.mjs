@@ -9,6 +9,8 @@ import { classifyError, classifyResult, isSessionDead } from './classify.mjs';
 
 const CLOSE_DUPLICATE = 3000; // cùng tài khoản mở Zalo Web/PC nơi khác: kết nối nghe bị đá
 const CLOSE_KICK = 3003;
+const MAX_STARTS = 5; // quá 5 lần khởi động trong 10 phút là vòng sập-bật lại
+const START_WINDOW_MS = 10 * 60 * 1000;
 
 function withTimeout(promise, ms) {
   let timer;
@@ -74,11 +76,21 @@ export class Bridge {
       this.trip('LEDGER_CORRUPT');
       return;
     }
+    if (this.recordStart() > MAX_STARTS) {
+      // Khởi động lại liên tục (sập rồi Docker bật lại) sẽ đăng nhập Zalo lặp lại: dừng, chờ người xem.
+      this.trip('CRASH_LOOP');
+      return;
+    }
     const saved = this.stateFile.read();
     if (saved.tripped) {
       // cầu dao đã nhảy trước khi khởi động lại: giữ nguyên, chỉ người bấm "Mở lại" mới thoát
       this.tripReason = saved.tripped.reason;
       this.state = saved.tripped.reason === 'STOP' ? 'STOPPED' : 'TRIPPED';
+      return;
+    }
+    if (saved.inflight) {
+      // Sập khi đang thêm người: không biết Zalo đã nhận hay chưa, nên dừng thay vì đoán (thất bại kín).
+      this.trip('INTERRUPTED');
       return;
     }
     const { session, corrupt } = this.store.load();
@@ -92,6 +104,28 @@ export class Bridge {
       return;
     }
     await this.connect(session);
+  }
+
+  /** Ghi lần khởi động (chỉ thời điểm) và trả số lần trong cửa sổ gần nhất. */
+  recordStart() {
+    const file = path.join(this.config.dataDir, 'starts.json');
+    const t = this.now();
+    let times = [];
+    try {
+      if (existsSync(file)) times = JSON.parse(readFileSync(file, 'utf8')).filter((x) => Number.isFinite(x));
+    } catch {
+      times = [];
+    }
+    times = times.filter((x) => x >= t - START_WINDOW_MS);
+    times.push(t);
+    try {
+      const tmp = `${file}.tmp`;
+      writeFileSync(tmp, JSON.stringify(times), { mode: 0o600 });
+      renameSync(tmp, file);
+    } catch {
+      return Number.POSITIVE_INFINITY; // không ghi được thì không đếm được: dừng
+    }
+    return times.length;
   }
 
   // ---------- kết nối ----------
@@ -145,6 +179,14 @@ export class Bridge {
     if (gen !== this.generation || !ZALO_ID.test(String(uid))) return;
     this.lastEventAt = new Date(this.now()).toISOString();
     let phone = null;
+    const t = this.now();
+    this.lookups = (this.lookups ?? []).filter((x) => x > t - 3600000);
+    if (this.lookups.length >= this.config.maxLookupsPerHour) {
+      this.events.push({ uid: String(uid), phone: null });
+      this.log('sự kiện kết bạn (không hỏi số: quá hạn mức giờ)');
+      return;
+    }
+    this.lookups.push(t);
     try {
       // Chỉ hỏi số của ĐÚNG người vừa thành bạn, không dò ai khác.
       const raw = await this.adapter.getPhone(uid);
@@ -283,6 +325,7 @@ export class Bridge {
     this.busy = true;
     try {
       this.ledger.record(t); // ghi trước khi gọi, tính cả lần lỗi
+      this.stateFile.write({ inflight: true }); // sập giữa chừng thì lần khởi động sau biết mà dừng
       let c;
       try {
         const result = await withTimeout(this.adapter.addUserToGroup(String(uid), String(groupId)), this.config.addTimeoutMs);
@@ -292,6 +335,8 @@ export class Bridge {
       }
       if (c.outcome !== 'OK' && c.outcome !== 'PERSON_ERROR') {
         this.trip(c.code ? `${c.outcome}:${c.code}` : c.outcome);
+      } else {
+        this.stateFile.write({});
       }
       this.log(`thêm người: ${c.outcome}`);
       return c.code ? { outcome: c.outcome, code: c.code } : { outcome: c.outcome };
@@ -331,11 +376,21 @@ export class Bridge {
       .then(async ({ creds, ownId }) => {
         clearTimeout(limit);
         if (this.config.mode === 'zca' && String(ownId) !== this.config.accountId) {
-          this.accountOk = false;
+          // Quét nhầm tài khoản (ví dụ tài khoản chính): đăng xuất ĐÚNG phiên vừa quét, không lưu gì, không đụng phiên phụ đang chạy.
           this.login = { state: 'ACCOUNT_MISMATCH', qr: null };
-          await this.dropSession();
+          try {
+            await this.adapter.discardLogin();
+          } catch {
+            // đăng xuất phía Zalo thất bại thì vẫn không lưu gì
+          }
+          if (this.state === 'LOGIN_REQUIRED') {
+            this.accountOk = false;
+            this.detail = 'ACCOUNT_MISMATCH';
+          }
+          this.log('sai tài khoản');
           return;
         }
+        this.adapter.adoptLogin();
         this.store.save(creds);
         this.accountOk = true;
         this.detail = null;
