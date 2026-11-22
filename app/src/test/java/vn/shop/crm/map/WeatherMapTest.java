@@ -33,10 +33,10 @@ class WeatherMapTest extends AbstractPostgresTest {
 
     static final String SAMPLE = """
             {"properties":{"timeseries":[
-              {"time":"2026-11-21T15:00:00Z","data":{"instant":{"details":{"air_temperature":24.5}},
-                "next_1_hours":{"summary":{"symbol_code":"partlycloudy_night"}}}},
-              {"time":"2026-11-21T21:00:00Z","data":{"instant":{"details":{"air_temperature":21.0}},
-                "next_6_hours":{"summary":{"symbol_code":"rain"}}}},
+              {"time":"2026-11-21T15:00:00Z","data":{"instant":{"details":{"air_temperature":24.5,"cloud_area_fraction":42.2}},
+                "next_1_hours":{"summary":{"symbol_code":"partlycloudy_night"},"details":{"precipitation_amount":0.04}}}},
+              {"time":"2026-11-21T21:00:00Z","data":{"instant":{"details":{"air_temperature":21.0,"cloud_area_fraction":90.0}},
+                "next_6_hours":{"summary":{"symbol_code":"rain"},"details":{"precipitation_amount":3.0}}}},
               {"time":"2026-11-22T15:00:00Z","data":{"instant":{"details":{"air_temperature":31.2}}}},
               {"time":"2026-11-30T15:00:00Z","data":{"instant":{"details":{"air_temperature":5.0}}}}
             ]}}""";
@@ -76,6 +76,18 @@ class WeatherMapTest extends AbstractPostgresTest {
         assertThat(f.maxTemp()).isEqualTo(31.2);
         assertThat(f.symbol()).isEqualTo("partlycloudy_night");
         assertThat(f.description()).isEqualTo("Ít mây");
+        // số liệu từng giờ cho lớp thời tiết trên bản đồ: chỉ trong 48 giờ, mưa 6 giờ chia đều theo giờ
+        assertThat(f.hourly()).hasSize(3);
+        assertThat(f.hourly().get(0).cloud()).isEqualTo(42);
+        assertThat(f.hourly().get(0).rain()).isEqualTo(0.0);
+        assertThat(f.hourly().get(1).rain()).isEqualTo(0.5);
+        assertThat(f.hourly().get(1).symbol()).isEqualTo("rain");
+        assertThat(f.hourly().get(2).symbol()).isNull();
+        assertThat(Forecast.hourlyFromJson(Forecast.hourlyToJson(f.hourly()))).isEqualTo(f.hourly());
+        assertThat(Forecast.hourlyFromJson("hỏng")).isEmpty();
+        assertThat(Forecast.hourlyFromJson(null)).isEmpty();
+        assertThat(Forecast.icon("heavyrain")).isEqualTo("🌧️");
+        assertThat(Forecast.icon(null)).isEmpty();
         assertThat(MetNoWeatherClient.parse("không phải json", OffsetDateTime.now())).isEmpty();
         assertThat(MetNoWeatherClient.parse("{\"properties\":{\"timeseries\":[]}}", OffsetDateTime.now())).isEmpty();
         assertThat(Forecast.describe("heavyrainandthunder")).isEqualTo("Có dông");
@@ -97,7 +109,9 @@ class WeatherMapTest extends AbstractPostgresTest {
         assertThat(data.ranking().get(0).level()).isEqualTo(4);
         assertThat(data.regions().stream().filter(r -> r.label().equals("Miền Nam")).findFirst().orElseThrow().count())
                 .isEqualTo(4);
-        assertThat(data.outline()).startsWith("M").endsWith("Z");
+        var cantho = data.dots().stream().filter(d -> d.code().equals("can-tho")).findFirst().orElseThrow();
+        assertThat(cantho.lat()).isBetween(9.5, 10.5);
+        assertThat(cantho.lon()).isBetween(105.0, 106.5);
         assertThat(MapService.level(0, 10)).isZero();
         assertThat(MapService.level(1, 10)).isEqualTo(1);
         assertThat(MapService.level(3, 10)).isEqualTo(2);

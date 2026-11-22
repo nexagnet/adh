@@ -63,7 +63,7 @@ Lựa chọn khác của người dùng trong các phiên: giao diện **100% ti
 - **Xếp nhóm theo khu vực:** cùng tỉnh > cùng vùng > cùng miền > nhóm chung; nhóm của miền khác bị loại (cấu hình `app.grouping.allow-other-region`, mặc định không). Nhóm mới mặc định là "Chung" cho tới khi mẹ gắn khu vực. Khách chưa rõ khu vực: nhóm chung trước, rồi mọi nhóm.
 - **Mã QR chung `/moi`** hỏi "Bạn ở tỉnh/thành nào?" (bỏ qua được). Khách chọn tỉnh mà chưa có nhóm hợp được ghi một dòng "chờ nhóm" (chỉ mã tỉnh + mã ngẫu nhiên của trình duyệt, **không SĐT/tên/địa chỉ mạng**) để mẹ biết cần mở nhóm ở đâu. Chống quét lặp bằng cookie `adh_moi` (90 ngày) và giới hạn 20 lượt mới/địa chỉ mạng/giờ.
 - **Thời tiết:** ngưỡng nhắc lạnh bất thường là nhiệt độ thấp nhất 48 giờ tới ≤13°C (Bắc), ≤16°C (Trung), ≤22°C (Nam); nóng khi cao nhất ≥37°C; chỉ nhắc ở tỉnh có từ 10 khách. Tất cả là giả định, chỉnh trong `application.yml` mục `app.weather`.
-- **Bản đồ** là sơ đồ minh họa tự vẽ (chấm theo tọa độ tỉnh lỵ trong đường viền đất liền gần đúng ở `map/MapService.java`), **không phải bản đồ ranh giới tỉnh**. Muốn bản đồ thật cần file GeoJSON có giấy phép rõ ràng rồi thay phần vẽ.
+- **Bản đồ** (từ 22/11/2026) là bản đồ thật: Leaflet 1.9.4 (giấy phép BSD-2, chép sẵn ở `static/vendor/leaflet/`) vẽ nền OpenStreetMap và ranh giới 63 tỉnh (`static/map/vn-provinces.geojson`, nguồn Natural Earth, miền công cộng, tạo bằng `tools/build-vn-geojson.mjs`). Ranh giới là của 63 tỉnh TRƯỚC sáp nhập 1/7/2025, khớp danh sách tỉnh trong `geo/VnGeo.java`. Nền ảnh tải thẳng từ `tile.openstreetmap.org` trên trình duyệt (CSP chỉ mở thêm đúng địa chỉ này cho ảnh; Referer chỉ gửi tên miền, đúng yêu cầu của OSM). Hoàng Sa, Trường Sa chỉ có nhãn, chưa vẽ ranh giới đảo. Lớp thời tiết chạy theo giờ lấy từ MET Norway, lưu ở cột `weather_forecast.hourly`.
 - Hạn phản hồi yêu cầu dữ liệu của khách hiện là 15 ngày cho mọi loại (`app.privacy.request-due-days`) và **chưa có xác nhận pháp lý**. Thiết kế Penpot muốn hạn theo loại (ngừng liên hệ/xuất dữ liệu 2 ngày làm việc, xóa 20 ngày theo file 03 mục 1; nguồn phụ, cần đối chiếu Công báo).
 
 ---
@@ -91,7 +91,8 @@ Biến môi trường (xem `app/src/main/resources/application.yml`; mặc đị
 | `APP_SHOP_NAME`, `APP_SHOP_PHONE` | Tên và số điện thoại cửa hàng hiện trên trang khách và giấy in. Chạy ngoài Docker nên đặt `LC_ALL=C.UTF-8` để tên có dấu hiện đúng | `Cửa hàng`, trống |
 | `APP_SENDING_ENABLED` | Gửi thật qua dịch vụ ngoài. Hiện **chưa có bộ gửi thật** nên bật cũng chưa gửi gì | `false` |
 | `app.sending.*` | Giờ gửi 07:00–22:00, hạn mức 20/ngày, nghỉ 30–120 giây, ngân sách tháng, tự dừng khi lỗi/từ chối cao; `scheduler-enabled: false` | xem yml |
-| `APP_WEATHER_ENABLED` | Bật thời tiết (MET Norway). Chỉ gửi tọa độ tỉnh lỵ của tỉnh có khách | `false` |
+| `APP_WEATHER_ENABLED` | Bật thời tiết (MET Norway) và lớp thời tiết chạy trên bản đồ. Chỉ gửi tọa độ tỉnh lỵ; mặc định hỏi cả 63 tỉnh (`app.weather.all-provinces`) | `false` |
+| `APP_MAP_TILE_URL` | Địa chỉ ô bản đồ nền (mặc định OpenStreetMap công cộng; chỉ dùng cho lượng truy cập nhỏ). Đổi thì sửa luôn `app.map.tile-attribution` | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` |
 | `APP_WEATHER_USER_AGENT` | Tên ứng dụng gửi cho MET Norway (họ yêu cầu có định danh; có thể thêm tên miền cửa hàng) | `adh-shop-crm/1.0` |
 | `app.grouping.allow-other-region` | Cho xếp khách vào nhóm miền khác khi hết nhóm hợp | `false` |
 | `app.entry.max-new-per-ip-per-hour` | Giới hạn lượt mới của mã QR chung | 20 |

@@ -2,6 +2,7 @@ package vn.shop.crm.map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -55,14 +56,24 @@ public class WeatherService {
     private final double coldNam;
     private final double hot;
     private final long minCustomers;
+    private final boolean allProvinces;
 
+    /** Chỉ hỏi những tỉnh đang có khách (không hỏi tỉnh khác). */
+    public WeatherService(JdbcClient jdbc, WeatherClient client, CustomerService customers, boolean enabled,
+                          double coldBac, double coldTrung, double coldNam, double hot, long minCustomers) {
+        this(jdbc, client, customers, enabled, coldBac, coldTrung, coldNam, hot, minCustomers, false);
+    }
+
+    @Autowired
     public WeatherService(JdbcClient jdbc, WeatherClient client, CustomerService customers,
                           @Value("${app.weather.enabled:false}") boolean enabled,
                           @Value("${app.weather.cold-bac:13}") double coldBac,
                           @Value("${app.weather.cold-trung:16}") double coldTrung,
                           @Value("${app.weather.cold-nam:22}") double coldNam,
                           @Value("${app.weather.hot:37}") double hot,
-                          @Value("${app.weather.alert-min-customers:10}") long minCustomers) {
+                          @Value("${app.weather.alert-min-customers:10}") long minCustomers,
+                          @Value("${app.weather.all-provinces:true}") boolean allProvinces) {
+        this.allProvinces = allProvinces;
         this.jdbc = jdbc;
         this.client = client;
         this.customers = customers;
@@ -106,13 +117,20 @@ public class WeatherService {
         return minCustomers;
     }
 
-    /** Hỏi thời tiết các tỉnh đang có khách mà dự báo cũ đã hết hạn (hoặc tất cả nếu {@code force}). Trả số tỉnh cập nhật được. */
+    /**
+     * Hỏi thời tiết các tỉnh mà dự báo cũ đã hết hạn (hoặc tất cả nếu {@code force}). Tỉnh có khách được hỏi trước; nếu
+     * bật {@code app.weather.all-provinces} thì hỏi nốt các tỉnh còn lại để bản đồ có đủ 63 tỉnh. Trả số tỉnh cập nhật được.
+     */
     public int refresh(boolean force) {
         if (!enabled) {
             return 0;
         }
         int updated = 0;
-        for (String code : customers.countByProvince().keySet()) {
+        java.util.LinkedHashSet<String> codes = new java.util.LinkedHashSet<>(customers.countByProvince().keySet());
+        if (allProvinces) {
+            VnGeo.all().forEach(p -> codes.add(p.code()));
+        }
+        for (String code : codes) {
             Optional<Province> province = VnGeo.byCode(code);
             if (province.isEmpty() || (!force && isFresh(code))) {
                 continue;
@@ -139,35 +157,41 @@ public class WeatherService {
     }
 
     private boolean isFresh(String code) {
-        return jdbc.sql("SELECT count(*) FROM weather_forecast WHERE province = :p AND expires_at > now()")
+        return jdbc.sql("SELECT count(*) FROM weather_forecast WHERE province = :p AND expires_at > now() AND hourly IS NOT NULL")
                 .param("p", code).query(Long.class).single() > 0;
     }
 
     private void store(String code, WeatherClient.Result r) {
         jdbc.sql("""
-                        INSERT INTO weather_forecast (province, min_temp, max_temp, symbol, fetched_at, expires_at)
-                        VALUES (:p, :min, :max, :sym, now(), :exp)
+                        INSERT INTO weather_forecast (province, min_temp, max_temp, symbol, hourly, fetched_at, expires_at)
+                        VALUES (:p, :min, :max, :sym, CAST(:hourly AS jsonb), now(), :exp)
                         ON CONFLICT (province) DO UPDATE SET min_temp = EXCLUDED.min_temp, max_temp = EXCLUDED.max_temp,
-                            symbol = EXCLUDED.symbol, fetched_at = now(), expires_at = EXCLUDED.expires_at""")
+                            symbol = EXCLUDED.symbol, hourly = EXCLUDED.hourly, fetched_at = now(),
+                            expires_at = EXCLUDED.expires_at""")
                 .param("p", code).param("min", r.forecast().minTemp()).param("max", r.forecast().maxTemp())
+                .param("hourly", Forecast.hourlyToJson(r.forecast().hourly()))
                 .param("sym", r.forecast().symbol(), java.sql.Types.VARCHAR).param("exp", r.expiresAt()).update();
     }
 
     public Optional<Forecast> forecast(String code) {
-        return jdbc.sql("SELECT min_temp, max_temp, symbol, fetched_at FROM weather_forecast WHERE province = :p")
+        return jdbc.sql("SELECT min_temp, max_temp, symbol, fetched_at, hourly::text AS hourly FROM weather_forecast "
+                        + "WHERE province = :p")
                 .param("p", code)
-                .query((rs, i) -> new Forecast(rs.getDouble("min_temp"), rs.getDouble("max_temp"), rs.getString("symbol"),
-                        rs.getObject("fetched_at", OffsetDateTime.class)))
+                .query((rs, i) -> row(rs))
                 .optional();
     }
 
     public Map<String, Forecast> allForecasts() {
         Map<String, Forecast> out = new LinkedHashMap<>();
-        jdbc.sql("SELECT province, min_temp, max_temp, symbol, fetched_at FROM weather_forecast")
-                .query((rs, i) -> Map.entry(rs.getString("province"), new Forecast(rs.getDouble("min_temp"),
-                        rs.getDouble("max_temp"), rs.getString("symbol"), rs.getObject("fetched_at", OffsetDateTime.class))))
+        jdbc.sql("SELECT province, min_temp, max_temp, symbol, fetched_at, hourly::text AS hourly FROM weather_forecast")
+                .query((rs, i) -> Map.entry(rs.getString("province"), row(rs)))
                 .list().forEach(e -> out.put(e.getKey(), e.getValue()));
         return out;
+    }
+
+    private static Forecast row(java.sql.ResultSet rs) throws java.sql.SQLException {
+        return new Forecast(rs.getDouble("min_temp"), rs.getDouble("max_temp"), rs.getString("symbol"),
+                rs.getObject("fetched_at", OffsetDateTime.class), Forecast.hourlyFromJson(rs.getString("hourly")));
     }
 
     /** Tỉnh có nhiều khách (từ ngưỡng cấu hình) mà dự báo lạnh/nóng bất thường. Sắp theo số khách giảm dần. */

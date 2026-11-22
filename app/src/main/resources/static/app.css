@@ -322,18 +322,68 @@ body.landing { background: #fff; }
 .warn-text { color: var(--warn); font-weight: 600; }
 
 /* Bản đồ khách theo tỉnh */
-.map-layout { display: grid; grid-template-columns: minmax(260px, 420px) 1fr; gap: 24px; align-items: start; }
-@media (max-width: 800px) { .map-layout { grid-template-columns: 1fr; } }
-.vnmap { width: 100%; height: auto; max-height: 80vh; background: #f7fafc; border: 1px solid #d5dbe3; border-radius: 8px; }
-.map-land { fill: #eef1e6; stroke: #b4b9a4; stroke-width: 1.5; }
-.map-dot { stroke: #ffffff; stroke-width: 1.5; cursor: pointer; }
-.map-dot.lv0 { fill: #c9d0d9; }
-.map-dot.lv1 { fill: #a9c8ee; }
-.map-dot.lv2 { fill: #6fa3df; }
-.map-dot.lv3 { fill: #2f6fbd; }
-.map-dot.lv4 { fill: #123f7a; }
-.map-dot.sel { stroke: #c0392b; stroke-width: 3.5; }
-.map-label { font-size: 16px; fill: #1a1a1a; paint-order: stroke; stroke: #ffffff; stroke-width: 3px; pointer-events: none; }
+.map-layout { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 900px) { .map-layout { grid-template-columns: 1fr; } }
+.vnmap { width: 100%; height: clamp(520px, 80vh, 780px); background: #dbe7f1; border: 1px solid #d5dbe3; border-radius: 8px; z-index: 0; }
+.vnmap.leaflet-container { font: inherit; }
+.vnmap.leaflet-container { font-size: 14px; }
+.leaflet-tooltip.map-tip { font-size: 13px; line-height: 1.4; padding: 6px 9px; text-align: left; color: #1a1a1a; }
+.leaflet-tooltip.map-tip strong { display: block; font-size: 14px; }
+.map-table { margin-top: 8px; }
+.vnmap .leaflet-control-attribution { font-size: 11px; }
+.map-keys { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; }
+.map-keys .key { display: inline-flex; align-items: center; gap: 4px; }
+.swatch { display: inline-block; width: 18px; height: 12px; border: 1px solid #56606e; border-radius: 2px; }
+.swatch.lv0 { background: #e4e9ef; }
+.swatch.lv1 { background: #cfe0f5; }
+.swatch.lv2 { background: #8db6e6; }
+.swatch.lv3 { background: #3f7fc9; }
+.swatch.lv4 { background: #17488c; }
+/* Thanh điều khiển lớp thời tiết */
+.wx-bar { margin-bottom: 10px; }
+.wx-modes { display: flex; flex-wrap: wrap; gap: 6px; }
+.wx-mode { border: 1px solid #b7c0cc; background: #fff; border-radius: 999px; padding: 6px 14px; font: inherit; cursor: pointer; }
+.wx-mode[aria-pressed="true"] { background: #17488c; border-color: #17488c; color: #fff; }
+.wx-mode:disabled { opacity: 0.5; cursor: not-allowed; }
+.wx-time { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.wx-time[hidden], .wx-legend[hidden] { display: none; }
+.wx-time input[type="range"] { flex: 1 1 200px; min-width: 160px; }
+.wx-clock { font-weight: 600; min-width: 12em; }
+.wx-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 8px; font-size: 13px; }
+.wx-legend-title { margin-right: 6px; font-weight: 600; }
+.wx-key { padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(0, 0, 0, 0.18); }
+/* Màu thời tiết: nhiệt độ (t), mưa (r), mây (c) */
+.wx-v.t0, .wx-key.t0 { background: #2b4fa3; color: #fff; }
+.wx-v.t1, .wx-key.t1 { background: #3f7fd1; color: #fff; }
+.wx-v.t2, .wx-key.t2 { background: #5bb5d9; color: #10212b; }
+.wx-v.t3, .wx-key.t3 { background: #8fd19e; color: #10212b; }
+.wx-v.t4, .wx-key.t4 { background: #f3e27a; color: #2b2400; }
+.wx-v.t5, .wx-key.t5 { background: #f6b45a; color: #2b1800; }
+.wx-v.t6, .wx-key.t6 { background: #ee7d4b; color: #260c00; }
+.wx-v.t7, .wx-key.t7 { background: #c8321f; color: #fff; }
+.wx-v.r0, .wx-key.r0 { background: #f1f3f6; color: #5a6472; }
+.wx-v.r1, .wx-key.r1 { background: #cfe6fa; color: #10212b; }
+.wx-v.r2, .wx-key.r2 { background: #8dc3ef; color: #08202f; }
+.wx-v.r3, .wx-key.r3 { background: #4a90d9; color: #fff; }
+.wx-v.r4, .wx-key.r4 { background: #2457b8; color: #fff; }
+.wx-v.r5, .wx-key.r5 { background: #5b2a9a; color: #fff; }
+.wx-v.c0, .wx-key.c0 { background: #fff3c4; color: #3a3000; }
+.wx-v.c1, .wx-key.c1 { background: #e6e9ed; color: #1f2933; }
+.wx-v.c2, .wx-key.c2 { background: #cdd3da; color: #1f2933; }
+.wx-v.c3, .wx-key.c3 { background: #a4adb8; color: #10161c; }
+.wx-v.c4, .wx-key.c4 { background: #7a8694; color: #fff; }
+.wx-v.wx-none { background: #fff; color: #5a6472; }
+/* Ô số liệu thời tiết đặt trên từng tỉnh */
+.wx-chip { background: none; border: 0; }
+.wx-v { display: block; width: 40px; height: 22px; line-height: 20px; text-align: center; font-size: 12px; font-weight: 700;
+  border-radius: 11px; border: 1px solid rgba(0, 0, 0, 0.3); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); }
+/* Thu nhỏ khi nhìn cả nước để các ô không đè lên nhau */
+.vnmap.wx-compact .wx-chip .wx-v { width: 12px; height: 12px; margin: 5px 14px; font-size: 0; line-height: 0; border-radius: 50%; }
+/* Nhãn quần đảo */
+.isle { background: none; border: 0; display: flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 11px;
+  color: #1a1a1a; text-shadow: 0 0 3px #fff, 0 0 3px #fff; pointer-events: none; }
+.isle.isle-left { flex-direction: row-reverse; }
+.isle-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #c0392b; border: 1px solid #fff; }
 
 /* Việc cần làm hôm nay: khung trắng, mỗi việc một dòng (số lớn, câu chữ, nút đi tới) */
 .todo { background: #fff; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }

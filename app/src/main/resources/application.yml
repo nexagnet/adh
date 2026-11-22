@@ -50,6 +50,10 @@ app:
   grouping:
     # Cho phép xếp khách vào nhóm của miền khác khi không còn nhóm nào hợp (mặc định không).
     allow-other-region: false
+  map:
+    # Nền bản đồ: ô bản đồ công cộng của OpenStreetMap (miễn phí, không cần khóa, dành cho lượng dùng nhỏ như trang quản trị này).
+    # Muốn đổi sang máy chủ ô bản đồ khác (tự dựng hoặc dịch vụ có gói miễn phí) thì đặt APP_MAP_TILE_URL và app.map.tile-attribution.
+    tile-url: ${APP_MAP_TILE_URL:https://tile.openstreetmap.org/{z}/{x}/{y}.png}
   weather:
     # Dự báo thời tiết theo tỉnh để nhắc việc cho mẹ (nguồn MET Norway, CC BY 4.0). MẶC ĐỊNH TẮT; bật bằng biến môi trường.
     # Chỉ gửi ra ngoài tọa độ thành phố tỉnh lỵ, không bao giờ gửi dữ liệu khách. Không tự nhắn khách.
@@ -57,6 +61,8 @@ app:
     # Tên ứng dụng gửi cho MET Norway (họ yêu cầu có định danh). Có thể thêm tên miền của cửa hàng nếu muốn.
     user-agent: ${APP_WEATHER_USER_AGENT:adh-shop-crm/1.0}
     refresh-hours: 3
+    # Hỏi thời tiết cả 63 tỉnh (không chỉ tỉnh đang có khách) để lớp thời tiết trên bản đồ có đủ cả nước. Chỉ gửi tọa độ tỉnh lỵ.
+    all-provinces: true
     # Ngưỡng nhắc việc: nhiệt độ thấp nhất trong 48 giờ tới (lạnh) và cao nhất (nóng), theo từng miền.
     cold-bac: 13
     cold-trung: 16

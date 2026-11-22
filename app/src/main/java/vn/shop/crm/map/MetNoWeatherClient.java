@@ -73,6 +73,20 @@ public class MetNoWeatherClient implements WeatherClient {
         }
     }
 
+    private static double round1(double v) {
+        return Math.round(v * 10.0) / 10.0;
+    }
+
+    /** Lượng mưa (mm) trong một giờ: lấy mốc 1 giờ, nếu không có thì chia đều mốc 6 giờ. */
+    private static double rainPerHour(JsonNode data) {
+        JsonNode one = data.path("next_1_hours").path("details").path("precipitation_amount");
+        if (one.isNumber()) {
+            return round1(one.asDouble());
+        }
+        JsonNode six = data.path("next_6_hours").path("details").path("precipitation_amount");
+        return six.isNumber() ? round1(six.asDouble() / 6.0) : 0.0;
+    }
+
     /** Lấy nhiệt độ thấp nhất/cao nhất trong 48 giờ kể từ mốc đầu tiên và loại thời tiết gần nhất. */
     static Optional<Forecast> parse(String json, OffsetDateTime fetchedAt) {
         try {
@@ -85,6 +99,7 @@ public class MetNoWeatherClient implements WeatherClient {
             double min = Double.POSITIVE_INFINITY;
             double max = Double.NEGATIVE_INFINITY;
             String symbol = null;
+            java.util.List<Forecast.Hour> hours = new java.util.ArrayList<>();
             for (JsonNode entry : series) {
                 OffsetDateTime time = OffsetDateTime.parse(entry.path("time").asString());
                 if (time.isAfter(until)) {
@@ -95,21 +110,28 @@ public class MetNoWeatherClient implements WeatherClient {
                     min = Math.min(min, temp.asDouble());
                     max = Math.max(max, temp.asDouble());
                 }
-                if (symbol == null) {
-                    JsonNode data = entry.path("data");
-                    for (String period : new String[]{"next_1_hours", "next_6_hours", "next_12_hours"}) {
-                        JsonNode code = data.path(period).path("summary").path("symbol_code");
-                        if (code.isString()) {
-                            symbol = code.asString();
-                            break;
-                        }
+                JsonNode data = entry.path("data");
+                String entrySymbol = null;
+                for (String period : new String[]{"next_1_hours", "next_6_hours", "next_12_hours"}) {
+                    JsonNode code = data.path(period).path("summary").path("symbol_code");
+                    if (code.isString()) {
+                        entrySymbol = code.asString();
+                        break;
                     }
+                }
+                if (symbol == null) {
+                    symbol = entrySymbol;
+                }
+                if (temp.isNumber()) {
+                    JsonNode cloud = data.path("instant").path("details").path("cloud_area_fraction");
+                    hours.add(new Forecast.Hour(time.toEpochSecond(), round1(temp.asDouble()), rainPerHour(data),
+                            cloud.isNumber() ? (int) Math.round(cloud.asDouble()) : 0, entrySymbol));
                 }
             }
             if (min == Double.POSITIVE_INFINITY) {
                 return Optional.empty();
             }
-            return Optional.of(new Forecast(min, max, symbol, fetchedAt));
+            return Optional.of(new Forecast(min, max, symbol, fetchedAt, hours));
         } catch (Exception e) {
             return Optional.empty();
         }
