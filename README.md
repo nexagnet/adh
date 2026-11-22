@@ -4,7 +4,7 @@ Tài liệu gốc: [`01_DAC_TA_NGHIEP_VU.md`](01_DAC_TA_NGHIEP_VU.md) (nghiệp 
 [`02_NGHIEN_CUU_KY_THUAT.md`](02_NGHIEN_CUU_KY_THUAT.md) (nghiên cứu cũ, có chỗ sai),
 [`03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md`](03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md) (đính chính + kế hoạch hai giai đoạn).
 
-> **Đang bàn giao (21/11/2026): đọc [`docs/BAN-GIAO.md`](docs/BAN-GIAO.md) trước.** Có trạng thái từng mốc, các quyết định, giả định, công tắc cấu hình, phần chưa kiểm chứng, kết quả xác nhận J&T và danh sách việc tiếp theo. Thiết kế giao diện đã duyệt nằm ở [`docs/thiet-ke-penpot/`](docs/thiet-ke-penpot/).
+> **Đọc [`docs/BAN-GIAO.md`](docs/BAN-GIAO.md) trước** (cập nhật 22/11/2026, `main` đã gộp PR #3 đến #32). Có trạng thái từng mốc, các quyết định, giả định, công tắc cấu hình, phần chưa kiểm chứng, kết quả xác nhận J&T và danh sách việc còn phải code. Thiết kế giao diện đã duyệt nằm ở [`docs/thiet-ke-penpot/`](docs/thiet-ke-penpot/).
 
 ## Trạng thái
 
@@ -15,11 +15,17 @@ Tài liệu gốc: [`01_DAC_TA_NGHIEP_VU.md`](01_DAC_TA_NGHIEP_VU.md) (nghiệp 
 | **1C** | Nhóm Zalo, chiến dịch mời theo lô nhỏ, link riêng + trang khách bấm link, đếm lượt bấm (chế độ thử) | **Xong, đã kiểm chứng bằng test** |
 | **1D** | Cổng chặn gửi, bộ gửi chạy thử và xuất danh sách cho mẹ gửi tay, nhật ký gửi, tự dừng | **Xong, đã kiểm chứng bằng test.** Đường mời hiện dùng: Zalo, mẹ gửi tay. SMS/ZBS chưa dùng, chưa có bộ gửi |
 | **1E** | Lõi bot (FAQ, báo mẹ khi khách muốn mua/khiếu nại, DRY_RUN, tắt khẩn cấp) | **Xong phần lõi, đã kiểm chứng bằng test.** Chưa có kênh Zalo thật: cần chạy thử chọn phương án (`docs/ADR-0001-chon-kenh-bot.md`) |
-| **1F** | Đóng gói Docker + HTTPS, sao lưu và thử khôi phục, giới hạn đăng nhập sai, hướng dẫn vận hành | **Xong phần mã và script.** Docker chưa được chạy thử trong môi trường phát triển (xem `docs/RUNBOOK.md`) |
+| **1F** | Đóng gói Docker + HTTPS, sao lưu và thử khôi phục, giới hạn đăng nhập sai, hướng dẫn vận hành | **Xong phần mã và script**, kèm cách cài lên máy chủ dùng chung (`infra/deploy.sh`, ảnh build sẵn trên ghcr, PR #11 và #12). Sao lưu/khôi phục trên máy chủ thật chưa có bằng chứng đã thử (xem `docs/RUNBOOK.md`) |
+| **1G** | Phân vùng khách Bắc/Trung/Nam theo địa chỉ, xếp nhóm Zalo theo khu vực | **Xong, có test** (PR #4, #15, #20) |
+| **1H** | Bản đồ khách theo tỉnh (Leaflet + OpenStreetMap), nhắc việc thời tiết | **Xong, có test**, thời tiết tắt mặc định, chưa thử với mạng thật (PR #5, #19) |
+| **Giao diện Penpot** | Thanh bên trái, "Việc cần làm hôm nay", thuật ngữ tiếng Việt, giấy in A5, đường `/n` | **Đã code** (PR #8, #10, #17); chưa xem bằng trình duyệt thật, chưa in thử giấy A5 |
+| **D13** | Nhắn bằng tài khoản Zalo phụ, chiến dịch theo khu vực, lô nhắn hôm nay, chạy thử `/test-runs` | **Xong, có test** (PR #16, #18); người thật nhắn tay và bấm đánh dấu |
+| **1I** | Kết bạn → vào nhóm ngay (D15, D16) | **Bộ nối Zalo không chính thức (D16) đã code, mặc định TẮT, chưa chạy với Zalo thật** (PR #29 đến #32). Đường bán tự động của D15 (gợi ý nhóm ngay lúc kết bạn, giữ chỗ, nhắc việc, "chờ nhóm") **chưa code** |
+| **2F (làm sớm)** | Nhập đơn J&T: nhiều file, Địa chỉ hành chính, báo cần xuất từ ngày nào, tool cập nhật bằng Edge | **Đã code** (PR #9, #13, #22); **chưa chạy với một file J&T thật đã che thông tin** trong test |
 
-Đã thêm sau giai đoạn 1C–1F (đã gộp vào `main`): giấy giới thiệu với mã QR chung `/moi` và `/print` (PR #3), phân vùng khách theo miền/tỉnh và xếp nhóm Zalo theo khu vực (PR #4), bản đồ khách và nhắc việc thời tiết, mặc định tắt (PR #5). Giao diện theo thiết kế Penpot đã duyệt **chưa code**.
+Ngoài ra đã gộp vào `main`: giấy giới thiệu với mã QR chung `/n` (và `/moi`) và `/print` (PR #3, #10), danh sách khách lọc/sắp xếp theo cột (PR #21), tính "mua gần nhất" theo đơn giao thành công (PR #23).
 
-Hệ thống **không gửi tin tự động, không đăng nhập Zalo, không gọi dịch vụ ngoài nào (trừ: thời tiết nếu bạn bật `APP_WEATHER_ENABLED`, chỉ gửi tọa độ tỉnh; và trình duyệt của bạn tải ô bản đồ từ OpenStreetMap khi mở trang Bản đồ khách, không kèm dữ liệu khách)**. Chỉ đọc file bạn tải lên; muốn mời khách thì xuất danh sách cho mẹ gửi tay.
+Mặc định hệ thống **không gửi tin tự động, không đăng nhập Zalo, không gọi dịch vụ ngoài nào (trừ: thời tiết nếu bạn bật `APP_WEATHER_ENABLED`, chỉ gửi tọa độ tỉnh; và trình duyệt của bạn tải ô bản đồ từ OpenStreetMap khi mở trang Bản đồ khách, không kèm dữ liệu khách)**. Chỉ đọc file bạn tải lên; muốn mời khách thì xuất danh sách hoặc dùng Lô nhắn hôm nay cho mẹ nhắn tay. **Ngoại lệ có chủ ý, tắt mặc định (D16):** bộ nối Zalo không chính thức `zalo-bridge/` (cần `APP_ZALO_AUTO_ENABLED`, profile Docker `zalo-auto` và chọn nấc ở trang `/zalo`), chỉ dùng tài khoản phụ; xem `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md`.
 
 Hướng dẫn dùng và cài máy chủ: [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 
@@ -64,7 +70,7 @@ cd app
 ./mvnw test
 ```
 
-225 test, chạy trên PostgreSQL nhúng thật (không giả lập), gồm:
+Hơn 380 test Java (số chính xác xem kết quả CI) và khoảng 50 test Node trong `zalo-bridge/` (`npm test`), chạy trên PostgreSQL nhúng thật (không giả lập). Các tiêu chí nghiệm thu của file 01:
 
 | Tiêu chí nghiệm thu (file 01, mục 12) | Test |
 |---|---|
@@ -114,7 +120,7 @@ người duyệt theo quy tắc của Reviewer dùng chung.
   nhận là "ĐT Nhận", dòng tiêu đề ở dòng 9). Ô SĐT có hai số ("a, b") thì lấy số hợp lệ đầu tiên; số còn lại vẫn nằm trong
   dữ liệu gốc của vận đơn. Trạng thái "Đã hủy giao" chưa gán nghĩa, chủ shop tự chọn trong **Trạng thái đơn**.
   File thật nằm ở `data_product/` (chứa dữ liệu khách thật, **không đưa lên git/chia sẻ**).
-- **J&T:** cấu trúc file xuất trên cổng khách hàng J&T đã được xác nhận (14 cột, SĐT đầy đủ, tỉnh nằm trong "Địa chỉ hành chính"; chi tiết ở `docs/BAN-GIAO.md` mục 8), nhưng `fixtures/jt_sample.csv` vẫn là file giả lập có cột khác và importer chưa được chạy với file J&T thật.
+- **J&T:** cấu trúc file xuất trên cổng khách hàng J&T đã được xác nhận (14 cột, SĐT đầy đủ, tỉnh nằm trong "Địa chỉ hành chính"; chi tiết ở `docs/BAN-GIAO.md` mục 8). Bộ nhập đã đọc theo tên cột và gộp nhiều file (PR #9), nhưng `fixtures/jt_sample.csv` vẫn là file giả lập có cột khác và test chưa dùng file J&T thật.
   Cần một file mẫu thật (đã ẩn thông tin cá nhân) để chắc chắn.
   Chọn cột và gán nghĩa trạng thái làm được ngay trên giao diện, không cần sửa code.
 - Ánh xạ trạng thái Viettel Post lấy từ hướng dẫn "Quản lý vận đơn" của hãng. "Chờ xử lý" cố ý **chưa gán** vì chưa rõ nghĩa.
