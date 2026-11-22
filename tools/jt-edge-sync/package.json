@@ -1,0 +1,9 @@
+{
+  "name": "adh-jt-edge-sync",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Xuất Excel đơn J&T theo ngày bằng Edge rồi nhập vào adh",
+  "type": "module",
+  "scripts": { "sync": "node sync.mjs" },
+  "dependencies": { "playwright-core": "^1.55.0" }
+}
