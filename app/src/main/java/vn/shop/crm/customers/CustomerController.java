@@ -18,6 +18,7 @@ import vn.shop.crm.contact.ContactService;
 import java.nio.charset.StandardCharsets;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Controller
@@ -35,32 +36,40 @@ public class CustomerController {
     }
 
     @GetMapping
-    public String list(@RequestParam(required = false) Segment segment,
-                       @RequestParam(defaultValue = "false") boolean review,
-                       @RequestParam(required = false) String q,
-                       @RequestParam(required = false) String area,
-                       @RequestParam(defaultValue = "1") int page, Model model) {
-        String areaCode = validArea(area);
-        var pageResult = customers.search(segment, review, areaCode, q, page, 50);
+    public String list(@RequestParam Map<String, String> params, Model model) {
+        var columns = CustomerColumn.forSegment(CustomerQuery.parse(params).segment());
+        var shown = CustomerColumn.keys(columns);
+        // Bỏ bộ lọc của cột không hiện trong bảng này để không lọc ngầm mà người dùng không thấy.
+        CustomerQuery query = CustomerQuery.parse(params).restrictedTo(shown);
+        var pageResult = customers.search(query, 50);
         model.addAttribute("page", pageResult);
         var ids = pageResult.items().stream().map(c -> c.id()).toList();
         model.addAttribute("states", contacts.inviteStates(ids));
         model.addAttribute("notes", contacts.notes(ids));
-        model.addAttribute("reviewCount", customers.search(segment, true, areaCode, q, 1, 1).total());
+        // Số trên hai nút "Tất cả" và "Cần kiểm tra" theo đúng bộ lọc đang chọn.
+        model.addAttribute("allCount", query.review() ? customers.search(query.withReview(false), 1).total() : pageResult.total());
+        model.addAttribute("reviewCount", query.review() ? pageResult.total() : customers.search(query.withReview(true), 1).total());
         model.addAttribute("shown", pageResult.items().size());
-        var bySegment = customers.countBySegment();
-        model.addAttribute("segmentCounts", bySegment);
-        model.addAttribute("totalCustomers", bySegment.values().stream().mapToLong(Long::longValue).sum());
-        model.addAttribute("area", areaCode == null ? "" : areaCode);
         var byRegion = customers.countByRegion();
         model.addAttribute("regions", java.util.Arrays.stream(vn.shop.crm.geo.Region.values())
                 .map(r -> new RegionCount(vn.shop.crm.geo.GeoArea.region(r).code(), r.label(), byRegion.get(r))).toList());
         model.addAttribute("unknownCount", customers.countUnknownRegion());
         model.addAttribute("areaGroups", areaGroups());
-        model.addAttribute("segment", segment);
-        model.addAttribute("review", review);
-        model.addAttribute("q", q == null ? "" : q);
+        model.addAttribute("segment", query.segment());
+        model.addAttribute("review", query.review());
+        model.addAttribute("q", query.q() == null ? "" : query.q());
+        model.addAttribute("area", query.area() == null ? "" : query.area());
         model.addAttribute("segments", Segment.values());
+        // Cột của bảng, giá trị đang lọc và các đường dẫn (sắp xếp, trang, xuất file) giữ nguyên trạng thái trên URL.
+        var links = new CustomerListLinks(query, shown);
+        model.addAttribute("columns", columns);
+        model.addAttribute("values", query.params());
+        model.addAttribute("links", links);
+        model.addAttribute("ownParams", CustomerColumn.ownParams(columns));
+        model.addAttribute("hiddenFields", links.hiddenExcept(CustomerColumn.ownParams(columns)));
+        model.addAttribute("searchHidden", links.hiddenExcept(List.of("q")));
+        model.addAttribute("moreHidden", links.hiddenExcept(List.of("segment", "area", "q", "review")));
+        model.addAttribute("activeFilters", links.activeFilters());
         return "customers-list";
     }
 
@@ -74,7 +83,7 @@ public class CustomerController {
     }
 
     /** Bộ lọc khu vực: miền, vùng, rồi từng tỉnh. */
-    private static List<AreaGroup> areaGroups() {
+    public static List<AreaGroup> areaGroups() {
         List<AreaGroup> groups = new java.util.ArrayList<>();
         groups.add(new AreaGroup("Miền", java.util.Arrays.stream(vn.shop.crm.geo.Region.values())
                 .map(r -> new AreaOption(vn.shop.crm.geo.GeoArea.region(r).code(), r.label())).toList()));
@@ -83,17 +92,6 @@ public class CustomerController {
         groups.add(new AreaGroup("Tỉnh/thành", vn.shop.crm.geo.VnGeo.all().stream()
                 .map(p -> new AreaOption(vn.shop.crm.geo.GeoArea.province(p).code(), p.name())).toList()));
         return groups;
-    }
-
-    /** Chỉ nhận mã khu vực hợp lệ (hoặc "U" = chưa rõ); mã lạ bị bỏ qua. */
-    private static String validArea(String area) {
-        if (area == null || area.isBlank()) {
-            return null;
-        }
-        if (vn.shop.crm.geo.GeoArea.UNKNOWN.equals(area)) {
-            return area;
-        }
-        return vn.shop.crm.geo.GeoArea.parse(area).map(vn.shop.crm.geo.GeoArea::code).orElse(null);
     }
 
     @GetMapping("/{id}")
@@ -110,14 +108,17 @@ public class CustomerController {
         model.addAttribute("inviteState", contacts.inviteStates(java.util.List.of(id)).get(id));
         model.addAttribute("note", contacts.note(id));
         model.addAttribute("today", java.time.LocalDate.now());
+        model.addAttribute("staleDays", vn.shop.crm.shipping.StaleOrders.AFTER_DAYS);
         return "customers-detail";
     }
 
     @GetMapping("/export.csv")
-    public ResponseEntity<byte[]> export(@RequestParam(required = false) Segment segment,
-                                         @RequestParam(defaultValue = "false") boolean review,
-                                         @RequestParam(required = false) String area) {
-        List<List<String>> rows = customers.listAll(segment, review, validArea(area)).stream().map(c -> List.of(
+    public ResponseEntity<byte[]> export(@RequestParam Map<String, String> params) {
+        var first = CustomerQuery.parse(params);
+        CustomerQuery query = first.restrictedTo(CustomerColumn.keys(CustomerColumn.forSegment(first.segment())));
+        Segment segment = query.segment();
+        boolean review = query.review();
+        List<List<String>> rows = customers.listAll(query).stream().map(c -> List.of(
                 PhoneNormalizer.toDisplay(c.phone()), c.name() == null ? "" : c.name(),
                 c.address() == null ? "" : c.address(), c.provinceLabel(), c.regionLabel(), String.valueOf(c.successfulPurchases()),
                 c.segment().label(), c.lastOrderOn() == null ? "" : c.lastOrderOn().format(DATE),

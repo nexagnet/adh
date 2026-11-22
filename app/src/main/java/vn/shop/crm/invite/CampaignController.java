@@ -33,16 +33,27 @@ public class CampaignController {
         model.addAttribute("paused", settings.paused());
         model.addAttribute("pausedReason", settings.pausedReason());
         model.addAttribute("maxBatch", invites.maxBatch());
+        model.addAttribute("maxCampaign", invites.maxCampaign());
+        model.addAttribute("areaGroups", vn.shop.crm.customers.CustomerController.areaGroups());
+        model.addAttribute("regionCounts", java.util.Arrays.stream(vn.shop.crm.geo.Region.values())
+                .map(r -> new RegionAvailable(vn.shop.crm.geo.GeoArea.region(r).code(), r.label(),
+                        contacts.countEligibleNotInvited(vn.shop.crm.geo.GeoArea.region(r).code()))).toList());
+        model.addAttribute("unknownAvailable", contacts.countEligibleNotInvited(vn.shop.crm.geo.GeoArea.UNKNOWN));
         model.addAttribute("defaultTemplate", invites.defaultTemplate());
         return "campaigns";
+    }
+
+    /** Số khách đã duyệt, chưa từng được mời, ở một miền: để chọn khu vực khi tạo chiến dịch. */
+    public record RegionAvailable(String code, String label, long count) {
     }
 
     @PostMapping("/campaigns")
     public String create(@RequestParam String name, @RequestParam(required = false) String template,
                          @RequestParam(defaultValue = "14") int expiresDays, @RequestParam int count,
-                         RedirectAttributes redirect) {
-        long id = invites.createCampaign(name, template, expiresDays, count);
-        redirect.addFlashAttribute("flash", "Đã tạo chiến dịch ở chế độ thử. Chưa có tin nào được gửi.");
+                         @RequestParam(required = false) String area, RedirectAttributes redirect) {
+        long id = invites.createCampaign(name, template, expiresDays, count, area);
+        redirect.addFlashAttribute("flash", "Đã tạo chiến dịch. Chưa có tin nào được gửi: mỗi ngày mở mục "
+                + "\"Lô nhắn hôm nay\" để nhắn từng người theo hạn mức.");
         return "redirect:/campaigns/" + id;
     }
 

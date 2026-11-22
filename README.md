@@ -19,7 +19,7 @@ Tài liệu gốc: [`01_DAC_TA_NGHIEP_VU.md`](01_DAC_TA_NGHIEP_VU.md) (nghiệp 
 
 Đã thêm sau giai đoạn 1C–1F (đã gộp vào `main`): giấy giới thiệu với mã QR chung `/moi` và `/print` (PR #3), phân vùng khách theo miền/tỉnh và xếp nhóm Zalo theo khu vực (PR #4), bản đồ khách và nhắc việc thời tiết, mặc định tắt (PR #5). Giao diện theo thiết kế Penpot đã duyệt **chưa code**.
 
-Hệ thống **không gửi tin tự động, không đăng nhập Zalo, không gọi dịch vụ ngoài nào (trừ thời tiết nếu bạn bật `APP_WEATHER_ENABLED`, chỉ gửi tọa độ tỉnh)**. Chỉ đọc file bạn tải lên; muốn mời khách thì xuất danh sách cho mẹ gửi tay.
+Hệ thống **không gửi tin tự động, không đăng nhập Zalo, không gọi dịch vụ ngoài nào (trừ: thời tiết nếu bạn bật `APP_WEATHER_ENABLED`, chỉ gửi tọa độ tỉnh; và trình duyệt của bạn tải ô bản đồ từ OpenStreetMap khi mở trang Bản đồ khách, không kèm dữ liệu khách)**. Chỉ đọc file bạn tải lên; muốn mời khách thì xuất danh sách cho mẹ gửi tay.
 
 Hướng dẫn dùng và cài máy chủ: [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 

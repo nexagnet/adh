@@ -46,7 +46,9 @@
                                     + (${detail.shipments[s.id()].createdOn != null} ? ' · tạo ' + ${#temporals.format(detail.shipments[s.id()].createdOn, 'dd/MM/yyyy')} : '')">Lần mua #1</span></td>
                             <td><span th:text="${detail.shipments[s.id()].rawStatus}">Giao thành công</span>
                                 <span class="sub-line" th:if="${detail.shipments[s.id()].rawStatus != detail.shipments[s.id()].status.label()}"
-                                      th:text="'Hệ thống hiểu là: ' + ${detail.shipments[s.id()].status.label()}">Giao thành công</span></td>
+                                      th:text="'Hệ thống hiểu là: ' + ${detail.shipments[s.id()].status.label()}">Giao thành công</span>
+                                <span class="sub-line" th:if="${detail.classification.staleShipmentIds.contains(s.id())}"
+                                      th:text="'Chưa xác định: đơn kẹt quá ' + ${staleDays} + ' ngày, hãng không cập nhật thêm'">Chưa xác định</span></td>
                             <td>
                                 <span class="badge ok" th:if="${p.successful}">Có</span>
                                 <span class="badge" th:unless="${p.successful}">Không</span>

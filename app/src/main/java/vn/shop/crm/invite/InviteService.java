@@ -41,13 +41,24 @@ public class InviteService {
 
     public record Campaign(long id, String name, String template, int expiresDays, String createdBy,
                            LocalDateTime createdAt, long total, long ready, long sent, long clicked, long cancelled,
-                           long friended, long joined) {
+                           long friended, long joined, String geoScope) {
+        /** Khu vực của chiến dịch: rỗng = mọi nơi; "U" = khách chưa rõ khu vực. */
+        public String scopeLabel() {
+            if (geoScope == null || geoScope.isBlank()) {
+                return "Mọi khu vực";
+            }
+            if (vn.shop.crm.geo.GeoArea.UNKNOWN.equals(geoScope)) {
+                return "Chưa rõ khu vực";
+            }
+            return vn.shop.crm.geo.GeoArea.parse(geoScope).map(vn.shop.crm.geo.GeoArea::label).orElse("Mọi khu vực");
+        }
     }
 
     public record InvitationRow(long id, long customerId, String name, String status, String link, String groupName,
                                 int clickCount, LocalDateTime expiresAt, boolean expired, LocalDateTime sentAt,
                                 String sentChannel, String message, long groupId, String groupLink, boolean suggested,
-                                java.time.LocalDateTime friendedAt, java.time.LocalDateTime joinedAt) {
+                                java.time.LocalDateTime friendedAt, java.time.LocalDateTime joinedAt,
+                                String provinceName, long campaignId, String campaignName) {
     }
 
     public record Stats(long campaigns, long invitations, long sent, long clicked, long openGroups) {
@@ -65,11 +76,13 @@ public class InviteService {
     private final String baseUrl;
     private final String shopName;
     private final int maxBatch;
+    private final int maxCampaign;
 
     public InviteService(JdbcClient jdbc, ContactService contacts, GroupService groups, AppSettings settings,
                          @Value("${app.public-base-url:http://localhost:8080}") String baseUrl,
                          @Value("${app.shop-name:Cửa hàng}") String shopName,
-                         @Value("${app.invitations.max-batch:20}") int maxBatch) {
+                         @Value("${app.invitations.max-batch:20}") int maxBatch,
+                         @Value("${app.invitations.max-campaign:300}") int maxCampaign) {
         this.jdbc = jdbc;
         this.contacts = contacts;
         this.groups = groups;
@@ -77,6 +90,7 @@ public class InviteService {
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.shopName = shopName;
         this.maxBatch = maxBatch;
+        this.maxCampaign = maxCampaign;
     }
 
     /** Mẫu tin mặc định: do chủ shop soạn ở trang Chiến dịch mời, chưa soạn thì dùng mẫu có sẵn. */
@@ -97,6 +111,11 @@ public class InviteService {
         return maxBatch;
     }
 
+    /** Một chiến dịch có tối đa bao nhiêu khách; mỗi ngày chỉ nhắn theo hạn mức ngày/giờ, không phải cả chiến dịch một lúc. */
+    public int maxCampaign() {
+        return maxCampaign;
+    }
+
     public String shopName() {
         return shopName;
     }
@@ -110,6 +129,15 @@ public class InviteService {
     /** Tạo chiến dịch gồm tối đa {@code count} lời mời cho khách đủ điều kiện, chưa từng được mời. Chưa gửi gì. */
     @Transactional
     public long createCampaign(String name, String template, int expiresDays, int count) {
+        return createCampaign(name, template, expiresDays, count, null);
+    }
+
+    /**
+     * Như trên, nhưng chỉ lấy khách ở một khu vực: mã {@code R:NAM} (miền), {@code S:...} (vùng), {@code P:...}
+     * (tỉnh) hoặc {@code U} (chưa rõ). Rỗng = mọi nơi. Ví dụ trời rét thì tạo chiến dịch chỉ cho khách một miền.
+     */
+    @Transactional
+    public long createCampaign(String name, String template, int expiresDays, int count, String area) {
         if (settings.paused()) {
             throw new ImportException("Đang tạm dừng tất cả chiến dịch. Hãy bỏ tạm dừng trước khi tạo chiến dịch mới.");
         }
@@ -124,19 +152,24 @@ public class InviteService {
         if (expiresDays < 1 || expiresDays > 90) {
             throw new ImportException("Link có hiệu lực từ 1 đến 90 ngày.");
         }
-        if (count < 1 || count > maxBatch) {
-            throw new ImportException("Mỗi lô chỉ được từ 1 đến " + maxBatch + " khách (gửi chậm, theo lô nhỏ).");
+        if (count < 1 || count > maxCampaign) {
+            throw new ImportException("Mỗi chiến dịch chỉ được từ 1 đến " + maxCampaign
+                    + " khách. Mỗi ngày hệ thống chỉ đưa ra một lô nhỏ để nhắn (mục Lô nhắn hôm nay).");
         }
-        List<ContactService.Invitee> picked = contacts.eligibleNotInvited(count);
+        String scope = normalizeArea(area);
+        List<ContactService.Invitee> picked = contacts.eligibleNotInvited(count, scope);
         if (picked.isEmpty()) {
-            throw new ImportException("Chưa có khách nào đủ điều kiện mời và chưa từng được mời. "
-                    + "Hãy duyệt khách ở mục Danh sách mời trước.");
+            throw new ImportException(scope == null
+                    ? "Chưa có khách nào đủ điều kiện mời và chưa từng được mời. Hãy duyệt khách ở mục Danh sách mời trước."
+                    : "Chưa có khách nào ở khu vực này đủ điều kiện mời và chưa từng được mời. "
+                    + "Hãy duyệt thêm khách ở mục Danh sách mời, hoặc chọn khu vực khác.");
         }
         long campaignId = jdbc.sql("""
-                        INSERT INTO invitation_campaign (name, message_template, expires_days, created_by)
-                        VALUES (:name, :tpl, :days, :by) RETURNING id""")
+                        INSERT INTO invitation_campaign (name, message_template, expires_days, created_by, geo_scope)
+                        VALUES (:name, :tpl, :days, :by, :scope) RETURNING id""")
                 .param("name", name.strip()).param("tpl", tpl).param("days", expiresDays)
-                .param("by", ContactService.actor()).query(Long.class).single();
+                .param("by", ContactService.actor()).param("scope", scope, java.sql.Types.VARCHAR)
+                .query(Long.class).single();
         for (ContactService.Invitee c : picked) {
             jdbc.sql("""
                             INSERT INTO invitation (campaign_id, customer_id, token, expires_at)
@@ -146,6 +179,19 @@ public class InviteService {
             contacts.event(c.id(), c.phone(), "INVITATION_CREATED", "Chiến dịch: " + name.strip());
         }
         return campaignId;
+    }
+
+    /** Mã khu vực hợp lệ ("U" = chưa rõ) hoặc null nếu để trống; mã lạ báo lỗi. */
+    static String normalizeArea(String area) {
+        if (area == null || area.isBlank()) {
+            return null;
+        }
+        String a = area.strip();
+        if (vn.shop.crm.geo.GeoArea.UNKNOWN.equals(a)) {
+            return a;
+        }
+        return vn.shop.crm.geo.GeoArea.parse(a).map(vn.shop.crm.geo.GeoArea::code)
+                .orElseThrow(() -> new ImportException("Khu vực không hợp lệ."));
     }
 
     static String newToken() {
@@ -185,7 +231,7 @@ public class InviteService {
     }
 
     private static final String CAMPAIGN_SELECT = """
-            SELECT c.id, c.name, c.message_template, c.expires_days, c.created_by, c.created_at,
+            SELECT c.id, c.name, c.message_template, c.expires_days, c.created_by, c.created_at, c.geo_scope,
                    count(i.id) AS total,
                    count(i.id) FILTER (WHERE i.status = 'READY') AS ready,
                    count(i.id) FILTER (WHERE i.sent_at IS NOT NULL) AS sent,
@@ -199,20 +245,37 @@ public class InviteService {
         return new Campaign(rs.getLong("id"), rs.getString("name"), rs.getString("message_template"),
                 rs.getInt("expires_days"), rs.getString("created_by"), local(rs.getObject("created_at", OffsetDateTime.class)),
                 rs.getLong("total"), rs.getLong("ready"), rs.getLong("sent"), rs.getLong("clicked"),
-                rs.getLong("cancelled"), rs.getLong("friended"), rs.getLong("joined"));
+                rs.getLong("cancelled"), rs.getLong("friended"), rs.getLong("joined"), rs.getString("geo_scope"));
     }
 
     public List<InvitationRow> invitations(long campaignId, String template) {
+        return loadRows("WHERE i.campaign_id = :id", campaignId, template);
+    }
+
+    /** Các lời mời theo mã, giữ đúng thứ tự đã cho; nội dung tin lấy từ mẫu của chiến dịch chứa lời mời. */
+    public List<InvitationRow> invitationsByIds(List<Long> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        List<InvitationRow> rows = loadRows("WHERE i.id IN (:ids)", ids, null);
+        java.util.Map<Long, InvitationRow> byId = new java.util.HashMap<>();
+        rows.forEach(r -> byId.put(r.id(), r));
+        return ids.stream().map(byId::get).filter(java.util.Objects::nonNull).toList();
+    }
+
+    private List<InvitationRow> loadRows(String where, Object param, String templateOverride) {
         List<GroupService.Group> allGroups = groups.list();
-        return jdbc.sql("""
+        var spec = jdbc.sql("""
                         SELECT i.id, i.customer_id, c.name, c.phone, c.province, i.status, i.token, i.group_id,
                                g.name AS group_name, g.invite_link AS group_link,
-                               i.click_count, i.expires_at, i.sent_at, i.sent_channel, i.friended_at, i.joined_at
+                               i.click_count, i.expires_at, i.sent_at, i.sent_channel, i.friended_at, i.joined_at,
+                               k.id AS campaign_id, k.name AS campaign_name, k.message_template
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
+                        JOIN invitation_campaign k ON k.id = i.campaign_id
                         LEFT JOIN zalo_group g ON g.id = i.group_id
-                        WHERE i.campaign_id = :id ORDER BY i.id""")
-                .param("id", campaignId)
-                .query((rs, n) -> {
+                        """ + where + " ORDER BY i.id");
+        spec = param instanceof List<?> ? spec.param("ids", param) : spec.param("id", param);
+        return spec.query((rs, n) -> {
                     OffsetDateTime exp = rs.getObject("expires_at", OffsetDateTime.class);
                     String link = linkFor(rs.getString("token"));
                     String status = rs.getString("status");
@@ -220,9 +283,10 @@ public class InviteService {
                     String groupLink = rs.getString("group_link");
                     long groupId = rs.getLong("group_id");
                     boolean suggested = false;
+                    var province = vn.shop.crm.geo.VnGeo.byCode(rs.getString("province")).orElse(null);
                     if (groupName == null && !"CANCELLED".equals(status) && !"FAILED".equals(status)) {
                         // chưa có nhóm: gợi ý nhóm cùng khu vực (chỉ đọc, chưa giữ chỗ)
-                        var g = groups.pickGroup(allGroups, vn.shop.crm.geo.VnGeo.byCode(rs.getString("province")).orElse(null)).orElse(null);
+                        var g = groups.pickGroup(allGroups, province).orElse(null);
                         if (g != null) {
                             groupName = g.name();
                             groupLink = g.inviteLink();
@@ -230,13 +294,16 @@ public class InviteService {
                             suggested = true;
                         }
                     }
+                    String template = templateOverride != null ? templateOverride : rs.getString("message_template");
                     return new InvitationRow(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("name"),
                             status, link, groupName, rs.getInt("click_count"),
                             local(exp), exp.isBefore(OffsetDateTime.now()),
                             local(rs.getObject("sent_at", OffsetDateTime.class)), rs.getString("sent_channel"),
                             render(template, rs.getString("name"), link), groupId, groupLink, suggested,
                             local(rs.getObject("friended_at", OffsetDateTime.class)),
-                            local(rs.getObject("joined_at", OffsetDateTime.class)));
+                            local(rs.getObject("joined_at", OffsetDateTime.class)),
+                            province == null ? "Chưa rõ khu vực" : province.name(),
+                            rs.getLong("campaign_id"), rs.getString("campaign_name"));
                 }).list();
     }
 

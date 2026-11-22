@@ -30,4 +30,12 @@ class FieldKeyTest {
         assertThat(guessed.get(FieldKey.STATUS)).isEqualTo("Trạng Thái");
         assertThat(guessed.get(FieldKey.CREATED_ON)).isEqualTo("Ngày tạo");
     }
+
+    @Test
+    void khongLayTinhGuiLamDiaChiHanhChinh() {
+        // "Tỉnh/Thành phố gửi" đứng trước cột "…nhận": phải chọn tỉnh NHẬN, không phải tỉnh của cửa hàng.
+        assertThat(FieldKey.guess(VTP_REAL_HEADERS).get(FieldKey.ADMIN_AREA)).isEqualTo("Tỉnh/Thành phố nhận");
+        assertThat(FieldKey.guess(List.of("Mã Vận Đơn", "Địa chỉ gửi", "Tỉnh/Thành phố gửi", "ĐT Nhận", "Trạng Thái"))
+                .get(FieldKey.ADMIN_AREA)).isNull();
+    }
 }

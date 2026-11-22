@@ -89,9 +89,15 @@ public class CustomerService {
     }
 
     private final JdbcClient jdbc;
+    private final java.time.Clock clock;
 
-    public CustomerService(JdbcClient jdbc) {
+    public CustomerService(JdbcClient jdbc, java.time.Clock clock) {
         this.jdbc = jdbc;
+        this.clock = clock;
+    }
+
+    private LocalDateTime now() {
+        return LocalDateTime.now(clock);
     }
 
     // ---------- tính lại ----------
@@ -129,7 +135,7 @@ public class CustomerService {
             return;
         }
         List<CustomerClassifier.ShipmentFact> facts = rows.stream().map(r -> toFact(r.shipment())).toList();
-        CustomerClassifier.Classification result = CustomerClassifier.classify(facts);
+        CustomerClassifier.Classification result = CustomerClassifier.classify(facts, now());
 
         Comparator<ShipmentWithContact> newestLast = Comparator
                 .comparing((ShipmentWithContact r) -> r.shipment().createdOn(),
@@ -138,22 +144,23 @@ public class CustomerService {
         List<ShipmentWithContact> sorted = rows.stream().sorted(newestLast).toList();
         String name = latestNonBlank(sorted, ShipmentWithContact::name);
         String address = latestNonBlank(sorted, ShipmentWithContact::address);
-        LocalDateTime lastOrder = rows.stream().map(r -> r.shipment().createdOn())
-                .filter(java.util.Objects::nonNull).max(Comparator.naturalOrder()).orElse(null);
+        // "Mua gần nhất" = ngày của đơn giao thành công gần nhất (không tính đơn hủy/hoàn/kẹt); chưa có thì để trống.
+        LocalDateTime lastOrder = result.lastSuccessfulOn();
         String reasons = result.reasons().stream().map(Enum::name).sorted().collect(Collectors.joining(","));
 
         jdbc.sql("""
                         INSERT INTO customer (phone, name, address, last_order_on, segment, successful_purchases,
-                                              needs_review, review_reasons, calculated_at, province, geo_version)
+                                              needs_review, review_reasons, calculated_at, province, geo_version,
+                                              calc_version)
                         VALUES (:phone, :name, :address, :lastOrder, :segment, :count, :review, :reasons, now(),
-                                :province, :geoVersion)
+                                :province, :geoVersion, :calcVersion)
                         ON CONFLICT (phone) DO UPDATE SET
                             name = EXCLUDED.name, address = EXCLUDED.address,
                             last_order_on = EXCLUDED.last_order_on, segment = EXCLUDED.segment,
                             successful_purchases = EXCLUDED.successful_purchases,
                             needs_review = EXCLUDED.needs_review, review_reasons = EXCLUDED.review_reasons,
                             province = EXCLUDED.province, geo_version = EXCLUDED.geo_version,
-                            calculated_at = now()
+                            calc_version = EXCLUDED.calc_version, calculated_at = now()
                         """)
                 .param("phone", phone)
                 .param("name", name, Types.VARCHAR)
@@ -166,7 +173,40 @@ public class CustomerService {
                 .param("province", vn.shop.crm.geo.VnGeo.detect(address).map(vn.shop.crm.geo.Province::code).orElse(null),
                         Types.VARCHAR)
                 .param("geoVersion", vn.shop.crm.geo.VnGeo.VERSION)
+                .param("calcVersion", CALC_VERSION)
                 .update();
+    }
+
+    /**
+     * Phiên bản cách tính khách (cột "Mua gần nhất", đơn kẹt...). Tăng số này khi đổi cách tính để khi khởi động
+     * hệ thống tính lại các khách còn ở phiên bản cũ.
+     */
+    public static final int CALC_VERSION = 2;
+
+    /**
+     * Tính lại khách cần tính lại vì: (1) còn ở phiên bản cách tính cũ, (2) có đơn "đang chạy" vừa quá ngưỡng kẹt
+     * (thời gian trôi qua làm trạng thái đổi dù không có file mới), (3) đang bị gắn cờ kẹt mà không còn đơn kẹt.
+     *
+     * @return số khách đã tính lại
+     */
+    @Transactional
+    public int refreshStale() {
+        List<String> openNames = vn.shop.crm.shipping.StaleOrders.openNames();
+        Set<String> phones = new LinkedHashSet<>(jdbc.sql("SELECT phone FROM customer WHERE calc_version < :v")
+                .param("v", CALC_VERSION).query(String.class).list());
+        phones.addAll(jdbc.sql("""
+                        SELECT DISTINCT s.receiver_phone FROM shipment s
+                        LEFT JOIN customer c ON c.phone = s.receiver_phone
+                        WHERE s.canonical_status IN (:open) AND s.created_on < :cutoff
+                          AND (c.id IS NULL OR c.review_reasons NOT LIKE :flag)""")
+                .param("open", openNames).param("cutoff", Timestamp.valueOf(vn.shop.crm.shipping.StaleOrders.cutoff(now())))
+                .param("flag", "%" + CustomerClassifier.ReviewReason.STALE_OPEN_ORDER.name() + "%")
+                .query(String.class).list());
+        phones.addAll(jdbc.sql("SELECT phone FROM customer WHERE review_reasons LIKE :flag")
+                .param("flag", "%" + CustomerClassifier.ReviewReason.STALE_OPEN_ORDER.name() + "%")
+                .query(String.class).list());
+        recalculate(phones);
+        return phones.size();
     }
 
     private static String latestNonBlank(List<ShipmentWithContact> oldestFirst,
@@ -195,38 +235,161 @@ public class CustomerService {
      * @param area mã khu vực ({@code R:NAM}, {@code S:...}, {@code P:...}) hoặc {@code U} (chưa rõ); rỗng/sai = tất cả
      */
     public Page<CustomerRow> search(Segment segment, boolean reviewOnly, String area, String query, int page, int size) {
+        return search(CustomerQuery.of(segment, reviewOnly, area, query, page), size);
+    }
+
+    private static final String SELECT_COLUMNS = """
+            SELECT c.id, c.phone, c.name, c.address, c.last_order_on, c.segment, c.successful_purchases,
+                   c.needs_review, c.review_reasons, c.province\n""";
+
+    /** Khách + cơ sở liên hệ + lời mời + ghi chú. Mỗi bảng nối có tối đa một dòng cho mỗi khách nên không nhân dòng. */
+    private static final String FROM_JOINED = """
+             FROM customer c
+             LEFT JOIN contact_basis b ON b.customer_id = c.id AND b.purpose = '%s'
+             LEFT JOIN invitation i ON i.customer_id = c.id
+             LEFT JOIN customer_note n ON n.customer_id = c.id""".formatted(vn.shop.crm.contact.ContactService.PURPOSE);
+
+    /** Trạng thái duyệt như chữ hiện trên bảng: sổ từ chối thắng, rồi tới cơ sở liên hệ, không có dòng thì chờ duyệt. */
+    private static final String APPROVAL_EXPR = """
+            CASE WHEN EXISTS (SELECT 1 FROM suppression s WHERE s.phone_hash = encode(sha256(convert_to(c.phone, 'UTF8')), 'hex'))
+                      THEN 'REFUSED'
+                 WHEN b.id IS NULL THEN 'PENDING'
+                 WHEN b.status = 'ELIGIBLE' THEN 'ELIGIBLE'
+                 WHEN b.status = 'BLOCKED' THEN 'BLOCKED'
+                 ELSE 'REFUSED' END""";
+
+    private static final String INVITE_EXPR =
+            "CASE WHEN i.status IN ('READY','SENT','CLICKED','FRIENDED','JOINED','CANCELLED') THEN i.status ELSE 'NONE' END";
+
+    /** Thứ tự tỉnh khi sắp xếp theo khu vực: theo miền rồi theo tên; chưa rõ (NULL) luôn xuống cuối. */
+    private static final String AREA_RANK_EXPR = areaRankExpr();
+
+    private static String areaRankExpr() {
+        List<vn.shop.crm.geo.Province> provinces = new ArrayList<>(vn.shop.crm.geo.VnGeo.all());
+        provinces.sort(Comparator.comparing((vn.shop.crm.geo.Province p) -> p.region().ordinal())
+                .thenComparing(vn.shop.crm.geo.Province::name));
+        StringBuilder sb = new StringBuilder("CASE c.province");
+        for (int i = 0; i < provinces.size(); i++) {
+            sb.append(" WHEN '").append(provinces.get(i).code().replace("'", "''")).append("' THEN ").append(i);
+        }
+        return sb.append(" END").toString();
+    }
+
+    private static String rankExpr(String expr, List<String> orderedCodes) {
+        StringBuilder sb = new StringBuilder("CASE ").append(expr);
+        for (int i = 0; i < orderedCodes.size(); i++) {
+            sb.append(" WHEN '").append(orderedCodes.get(i)).append("' THEN ").append(i);
+        }
+        return sb.append(" END").toString();
+    }
+
+    private static String orderBy(CustomerQuery q) {
+        String expr = switch (q.effectiveSort()) {
+            case PHONE -> "c.phone";
+            case NAME -> vn.shop.crm.common.VnText.sqlFold("NULLIF(c.name, '')");
+            case ADDRESS -> vn.shop.crm.common.VnText.sqlFold("NULLIF(c.address, '')");
+            case AREA -> AREA_RANK_EXPR;
+            case PURCHASES -> "c.successful_purchases";
+            case LAST -> "c.last_order_on";
+            case SEGMENT -> rankExpr("c.segment", java.util.Arrays.stream(Segment.values()).map(Enum::name).toList());
+            case APPROVAL -> "CASE WHEN c.needs_review THEN 0 ELSE 1 + ("
+                    + rankExpr(APPROVAL_EXPR, java.util.Arrays.stream(CustomerQuery.Approval.values())
+                    .filter(a -> a != CustomerQuery.Approval.REVIEW).map(Enum::name).toList()) + ") END";
+            case INVITE -> rankExpr(INVITE_EXPR, java.util.Arrays.stream(CustomerQuery.Invite.values())
+                    .map(Enum::name).toList());
+            case NOTE -> vn.shop.crm.common.VnText.sqlFold("NULLIF(n.note, '')");
+        };
+        // Trống luôn xuống cuối dù tăng hay giảm; cùng giá trị thì theo mã khách để thứ tự ổn định giữa các trang.
+        return " ORDER BY " + expr + (q.effectiveDesc() ? " DESC" : " ASC") + " NULLS LAST, c.id";
+    }
+
+    private static String where(CustomerQuery q, Map<String, Object> params) {
         StringBuilder where = new StringBuilder(" WHERE 1=1");
-        Map<String, Object> params = new LinkedHashMap<>();
-        appendArea(where, params, area);
-        if (segment != null) {
-            where.append(" AND segment = :segment");
-            params.put("segment", segment.name());
+        appendArea(where, params, q.area());
+        if (q.segment() != null) {
+            where.append(" AND c.segment = :segment");
+            params.put("segment", q.segment().name());
         }
-        if (reviewOnly) {
-            where.append(" AND needs_review");
+        if (q.review()) {
+            where.append(" AND c.needs_review");
         }
-        if (query != null && !query.isBlank()) {
-            String q = query.strip();
-            String digits = q.replaceAll("\\D", "");
+        if (q.q() != null) {
+            String digits = q.q().replaceAll("\\D", "");
             where.append(" AND (");
             if (!digits.isEmpty()) {
-                String intl = digits.startsWith("0") ? "84" + digits.substring(1) : digits;
-                where.append("replace(phone, '+', '') LIKE :phoneLike OR ");
-                params.put("phoneLike", "%" + intl + "%");
+                where.append("replace(c.phone, '+', '') LIKE :qPhone OR ");
+                params.put("qPhone", "%" + intlDigits(digits) + "%");
             }
-            where.append("name ILIKE :nameLike ESCAPE '\\')");
-            params.put("nameLike", "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%");
+            where.append(vn.shop.crm.common.VnText.sqlFold("c.name")).append(" LIKE :qName ESCAPE '\\')");
+            params.put("qName", "%" + vn.shop.crm.common.VnText.likeEscape(vn.shop.crm.common.VnText.fold(q.q())) + "%");
         }
-        long total = bind(jdbc.sql("SELECT count(*) FROM customer" + where), params).query(Long.class).single();
+        if (q.phone() != null) {
+            String digits = q.phone().replaceAll("\\D", "");
+            if (digits.isEmpty()) {
+                where.append(" AND FALSE");
+            } else {
+                where.append(" AND replace(c.phone, '+', '') LIKE :phone");
+                params.put("phone", "%" + intlDigits(digits) + "%");
+            }
+        }
+        if (q.name() != null) {
+            where.append(" AND ").append(vn.shop.crm.common.VnText.sqlFold("c.name")).append(" LIKE :name ESCAPE '\\'");
+            params.put("name", "%" + vn.shop.crm.common.VnText.likeEscape(vn.shop.crm.common.VnText.fold(q.name())) + "%");
+        }
+        if (q.address() != null) {
+            where.append(" AND ").append(vn.shop.crm.common.VnText.sqlFold("c.address")).append(" LIKE :address ESCAPE '\\'");
+            params.put("address", "%" + vn.shop.crm.common.VnText.likeEscape(vn.shop.crm.common.VnText.fold(q.address())) + "%");
+        }
+        if (q.buyFrom() != null) {
+            where.append(" AND c.successful_purchases >= :buyFrom");
+            params.put("buyFrom", q.buyFrom());
+        }
+        if (q.buyTo() != null) {
+            where.append(" AND c.successful_purchases <= :buyTo");
+            params.put("buyTo", q.buyTo());
+        }
+        if (q.lastFrom() != null) {
+            where.append(" AND c.last_order_on >= :lastFrom");
+            params.put("lastFrom", Timestamp.valueOf(q.lastFrom().atStartOfDay()));
+        }
+        if (q.lastTo() != null) {
+            where.append(" AND c.last_order_on < :lastTo");
+            params.put("lastTo", Timestamp.valueOf(q.lastTo().plusDays(1).atStartOfDay()));
+        }
+        if (q.approval() == CustomerQuery.Approval.REVIEW) {
+            where.append(" AND c.needs_review");
+        } else if (q.approval() != null) {
+            // Khách cần kiểm tra hiện "Cần kiểm tra" thay cho trạng thái duyệt nên không nằm trong các nhóm còn lại.
+            where.append(" AND NOT c.needs_review AND (").append(APPROVAL_EXPR).append(") = :approval");
+            params.put("approval", q.approval().name());
+        }
+        if (q.invite() != null) {
+            where.append(" AND (").append(INVITE_EXPR).append(") = :invite");
+            params.put("invite", q.invite().name());
+        }
+        if (q.note() == CustomerQuery.NoteFilter.HAS) {
+            where.append(" AND COALESCE(n.note, '') <> ''");
+        } else if (q.note() == CustomerQuery.NoteFilter.NONE) {
+            where.append(" AND COALESCE(n.note, '') = ''");
+        }
+        return where.toString();
+    }
+
+    /** Số điện thoại nhập kiểu 0912... khớp với dạng lưu 84912... (E.164 bỏ dấu +). */
+    private static String intlDigits(String digits) {
+        return digits.startsWith("0") ? "84" + digits.substring(1) : digits;
+    }
+
+    /** Lọc, sắp xếp và phân trang ngay trong cơ sở dữ liệu, nên đúng với hàng nghìn khách. */
+    public Page<CustomerRow> search(CustomerQuery query, int size) {
+        Map<String, Object> params = new LinkedHashMap<>();
+        String where = where(query, params);
+        long total = bind(jdbc.sql("SELECT count(*)" + FROM_JOINED + where), params).query(Long.class).single();
         int safeSize = Math.min(Math.max(size, 1), 200);
-        int safePage = Math.max(page, 1);
-        String pageSql = """
-                SELECT id, phone, name, address, last_order_on, segment, successful_purchases, needs_review,
-                       review_reasons, province FROM customer""" + where
-                + " ORDER BY last_order_on DESC NULLS LAST, id LIMIT " + safeSize
-                + " OFFSET " + ((long) (safePage - 1) * safeSize);
-        List<CustomerRow> items = bind(jdbc.sql(pageSql), params)
-                .query(CustomerService::mapCustomer).list();
+        int safePage = Math.max(query.page(), 1);
+        String pageSql = SELECT_COLUMNS + FROM_JOINED + where + orderBy(query)
+                + " LIMIT " + safeSize + " OFFSET " + ((long) (safePage - 1) * safeSize);
+        List<CustomerRow> items = bind(jdbc.sql(pageSql), params).query(CustomerService::mapCustomer).list();
         return new Page<>(items, total, safePage, safeSize);
     }
 
@@ -236,20 +399,13 @@ public class CustomerService {
     }
 
     public List<CustomerRow> listAll(Segment segment, boolean reviewOnly, String area) {
-        StringBuilder sql = new StringBuilder("""
-                SELECT id, phone, name, address, last_order_on, segment, successful_purchases, needs_review,
-                       review_reasons, province FROM customer WHERE 1=1""");
+        return listAll(CustomerQuery.of(segment, reviewOnly, area, null, 1));
+    }
+
+    public List<CustomerRow> listAll(CustomerQuery query) {
         Map<String, Object> params = new LinkedHashMap<>();
-        appendArea(sql, params, area);
-        if (segment != null) {
-            sql.append(" AND segment = :segment");
-            params.put("segment", segment.name());
-        }
-        if (reviewOnly) {
-            sql.append(" AND needs_review");
-        }
-        sql.append(" ORDER BY last_order_on DESC NULLS LAST, id");
-        return bind(jdbc.sql(sql.toString()), params).query(CustomerService::mapCustomer).list();
+        String sql = SELECT_COLUMNS + FROM_JOINED + where(query, params) + orderBy(query);
+        return bind(jdbc.sql(sql), params).query(CustomerService::mapCustomer).list();
     }
 
     public Detail detail(long id) {
@@ -267,7 +423,7 @@ public class CustomerService {
                 .stream().map(ShipmentWithContact::shipment).toList();
         Map<Long, ShipmentRow> byId = new LinkedHashMap<>();
         shipments.forEach(s -> byId.put(s.id(), s));
-        var classification = CustomerClassifier.classify(shipments.stream().map(CustomerService::toFact).toList());
+        var classification = CustomerClassifier.classify(shipments.stream().map(CustomerService::toFact).toList(), now());
         return new Detail(customer, classification, byId);
     }
 
@@ -337,11 +493,11 @@ public class CustomerService {
             return;
         }
         if (vn.shop.crm.geo.GeoArea.UNKNOWN.equals(area)) {
-            where.append(" AND province IS NULL");
+            where.append(" AND c.province IS NULL");
             return;
         }
         vn.shop.crm.geo.GeoArea.parse(area).ifPresent(a -> {
-            where.append(" AND province IN (:areaCodes)");
+            where.append(" AND c.province IN (:areaCodes)");
             params.put("areaCodes", vn.shop.crm.geo.VnGeo.in(a).stream().map(vn.shop.crm.geo.Province::code).toList());
         });
     }

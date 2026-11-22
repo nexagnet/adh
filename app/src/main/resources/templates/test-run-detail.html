@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Đợt chạy thử')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <h1 th:text="${run.name}">Thử lần 1</h1>
+    <p class="hint"><a th:href="@{/test-runs}">‹ Tất cả đợt chạy thử</a> · tạo lúc
+        <span th:text="${#temporals.format(run.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</span></p>
+
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã ghi.</div>
+    <div class="notice"><strong>ĐÂY LÀ ĐỢT THỬ.</strong> Các nút dưới đây chỉ ghi trong đợt thử, không đổi gì ở khách thật và không tăng số khách của nhóm Zalo.
+        Hệ thống không tự gửi tin: bạn tự nhắn bằng tài khoản Zalo phụ rồi bấm nút.</div>
+
+    <div class="cards c4">
+        <div class="card"><div class="big" th:text="${run.total}">0</div><div class="label">Số thử</div></div>
+        <div class="card"><div class="big" th:text="${run.sent}">0</div><div class="label">Đã nhắn</div></div>
+        <div class="card"><div class="big" th:text="${run.friended}">0</div><div class="label">Đã kết bạn</div></div>
+        <div class="card"><div class="big" th:text="${run.joined}">0</div><div class="label">Đã vào nhóm</div></div>
+    </div>
+
+    <div class="actions">
+        <form th:action="@{/test-runs/{id}/reset(id=${run.id})}" method="post">
+            <button type="submit" class="btn secondary">Thử lại từ đầu</button>
+        </form>
+        <form th:action="@{/test-runs/{id}/delete(id=${run.id})}" method="post">
+            <button type="submit" class="btn danger">Xóa đợt thử và các số đã nhập</button>
+        </form>
+    </div>
+
+    <h2>Các số thử</h2>
+    <div class="panel stack" th:each="t : ${targets}">
+        <div class="formrow">
+            <div class="grow2">
+                <strong th:text="${t.name != null ? t.name : 'Số thử'}">Số thử</strong>
+                <span class="mono" th:text="${t.displayPhone}">0912345678</span>
+                <span class="badge info" th:text="${t.provinceName}">Cần Thơ</span>
+                <span class="badge" th:if="${t.status == 'READY'}">Chưa nhắn</span>
+                <span class="badge ok" th:if="${t.status == 'SENT'}">Đã nhắn</span>
+                <span class="badge ok" th:if="${t.status == 'FRIENDED'}">Đã kết bạn</span>
+                <span class="badge ok" th:if="${t.status == 'JOINED'}">Đã vào nhóm</span>
+                <span class="badge bad" th:if="${t.status == 'DECLINED'}">Từ chối</span>
+            </div>
+            <div class="grow">
+                <span class="muted">Nhóm Zalo nên thêm vào: </span>
+                <span th:if="${t.groupName != null}" th:text="${t.groupName}">Nhóm miền Nam</span>
+                <span class="muted" th:if="${t.groupName != null and t.groupSuggested}"> (gợi ý)</span>
+                <span class="muted" th:if="${t.groupName == null and t.status != 'DECLINED'}">Chưa có nhóm còn chỗ cho khu vực này</span>
+                <div class="muted mono" th:if="${t.groupLink != null and t.status != 'JOINED'}" th:text="${t.groupLink}">https://zalo.me/g/x</div>
+            </div>
+        </div>
+        <p class="mono" th:text="${t.message}">Nội dung tin</p>
+        <div class="actions">
+            <form class="inline" method="post" th:if="${t.status == 'READY'}"
+                  th:action="@{/test-runs/{id}/targets/{tid}/sent(id=${run.id},tid=${t.id})}">
+                <button type="submit" class="btn">Đã nhắn</button>
+            </form>
+            <form class="inline" method="post" th:if="${t.status == 'SENT'}"
+                  th:action="@{/test-runs/{id}/targets/{tid}/friended(id=${run.id},tid=${t.id})}">
+                <button type="submit" class="btn secondary">Đã kết bạn</button>
+            </form>
+            <form class="inline" method="post" th:if="${t.status == 'SENT' or t.status == 'FRIENDED'}"
+                  th:action="@{/test-runs/{id}/targets/{tid}/joined(id=${run.id},tid=${t.id})}">
+                <button type="submit" class="btn">Đã vào nhóm</button>
+            </form>
+            <form class="inline" method="post" th:if="${t.status == 'SENT' or t.status == 'FRIENDED' or t.status == 'JOINED'}"
+                  th:action="@{/test-runs/{id}/targets/{tid}/declined(id=${run.id},tid=${t.id})}">
+                <button type="submit" class="btn danger">Khách từ chối</button>
+            </form>
+        </div>
+    </div>
+</main>
+</body>
+</html>

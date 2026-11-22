@@ -40,6 +40,26 @@
     </section>
 
     <section>
+        <h2>Đơn kẹt, chưa xác định (<span th:text="${stuckTotal}">0</span> đơn)</h2>
+        <p class="hint">Hãng báo "đã lấy hàng" hoặc "đang giao" từ quá <span th:text="${staleDays}">30</span> ngày mà không cập nhật thêm.
+            Hệ thống coi các đơn này là <strong>chưa xác định</strong>: không tính là mua thành công, cũng không tính là hủy.
+            Khách có đơn kẹt mang nhãn "Cần kiểm tra". Muốn gỡ, xuất lại file mới của hãng rồi nhập vào để đơn có trạng thái cuối.</p>
+        <p class="muted" th:if="${stuck.isEmpty()}">Không có đơn nào bị kẹt.</p>
+        <div class="table-wrap" th:if="${!stuck.isEmpty()}">
+            <table>
+                <tr><th>Hãng</th><th>Trạng thái gốc</th><th>Số đơn</th><th>Đơn cũ nhất</th><th>Đơn mới nhất</th></tr>
+                <tr th:each="r : ${stuck}">
+                    <td th:text="${r.carrier.label()}">J&amp;T Express</td>
+                    <td th:text="${r.sampleText}">Đã lấy hàng</td>
+                    <td th:text="${r.shipments}">107</td>
+                    <td th:text="${#temporals.format(r.oldest, 'dd/MM/yyyy')}">01/06/2026</td>
+                    <td th:text="${#temporals.format(r.newest, 'dd/MM/yyyy')}">20/07/2026</td>
+                </tr>
+            </table>
+        </div>
+    </section>
+
+    <section>
         <h2>Đã biết nghĩa (<span th:text="${mappings.size()}">0</span>)</h2>
         <div class="table-wrap">
             <table>

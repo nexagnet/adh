@@ -100,8 +100,13 @@ class SendAcceptanceTest extends AbstractPostgresTest {
     }
 
     private SendProperties props(boolean enabled, int dailyLimit, long budget, int consecutive, double failRate) {
-        return new SendProperties(enabled, LocalTime.of(7, 0), LocalTime.of(22, 0), dailyLimit, 30, 120, false, "",
-                budget, consecutive, failRate, 0.05);
+        return props(enabled, dailyLimit, 0, budget, consecutive, failRate);
+    }
+
+    private SendProperties props(boolean enabled, int dailyLimit, int hourlyLimit, long budget, int consecutive,
+                                 double failRate) {
+        return new SendProperties(enabled, LocalTime.of(7, 0), LocalTime.of(22, 0), dailyLimit, hourlyLimit, 30, 120,
+                false, "", budget, consecutive, failRate, 0.05, 3);
     }
 
     private SendService service(SendProperties p) {
@@ -242,8 +247,10 @@ class SendAcceptanceTest extends AbstractPostgresTest {
         long camp = campaignOf(3);
         // khách 1 bị gắn "cần kiểm tra" sau khi lời mời đã tạo; lời mời của khách 2 hết hạn
         jdbc.sql("UPDATE customer SET needs_review = TRUE WHERE phone = '+84900000001'").update();
-        jdbc.sql("UPDATE invitation SET expires_at = now() - interval '1 day' "
-                + "WHERE customer_id = (SELECT id FROM customer WHERE phone = '+84900000002')").update();
+        // hết hạn so với đồng hồ giả của test (không phụ thuộc ngày thật)
+        jdbc.sql("UPDATE invitation SET expires_at = :t "
+                + "WHERE customer_id = (SELECT id FROM customer WHERE phone = '+84900000002')")
+                .param("t", java.time.OffsetDateTime.now(clock).minusDays(1)).update();
         FakeSender sender = FakeSender.ok(false);
 
         var result = service(props(false, 20, 1_000_000, 100, 0.99)).runBatch(camp, sender, 10);

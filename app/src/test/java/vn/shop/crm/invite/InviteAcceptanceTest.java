@@ -138,7 +138,8 @@ class InviteAcceptanceTest extends AbstractPostgresTest {
         seedOneTimers(1);
         contacts.approveAllCandidates();
 
-        assertThatThrownBy(() -> invites.createCampaign("Thử", null, 14, 21)).hasMessageContaining("1 đến 20");
+        assertThatThrownBy(() -> invites.createCampaign("Thử", null, 14, invites.maxCampaign() + 1))
+                .hasMessageContaining("1 đến " + invites.maxCampaign());
         assertThatThrownBy(() -> invites.createCampaign("Thử", "x".repeat(801), 14, 5)).hasMessageContaining("quá dài");
 
         settings.pauseAll("kiểm tra", "test");
