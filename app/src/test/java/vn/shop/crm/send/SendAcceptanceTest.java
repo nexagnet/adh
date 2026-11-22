@@ -242,7 +242,8 @@ class SendAcceptanceTest extends AbstractPostgresTest {
         long camp = campaignOf(3);
         // khách 1 bị gắn "cần kiểm tra" sau khi lời mời đã tạo; lời mời của khách 2 hết hạn
         jdbc.sql("UPDATE customer SET needs_review = TRUE WHERE phone = '+84900000001'").update();
-        jdbc.sql("UPDATE invitation SET expires_at = now() - interval '1 day' "
+        // mốc cố định trong quá khứ: đồng hồ giả của test đặt ở 21/11/2026 nên "now() - 1 ngày" (giờ thật) sẽ sai khi ngày thật đã qua 21/11
+        jdbc.sql("UPDATE invitation SET expires_at = TIMESTAMPTZ '2026-01-01 00:00:00+00' "
                 + "WHERE customer_id = (SELECT id FROM customer WHERE phone = '+84900000002')").update();
         FakeSender sender = FakeSender.ok(false);
 
