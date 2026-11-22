@@ -89,9 +89,15 @@ public class CustomerService {
     }
 
     private final JdbcClient jdbc;
+    private final java.time.Clock clock;
 
-    public CustomerService(JdbcClient jdbc) {
+    public CustomerService(JdbcClient jdbc, java.time.Clock clock) {
         this.jdbc = jdbc;
+        this.clock = clock;
+    }
+
+    private LocalDateTime now() {
+        return LocalDateTime.now(clock);
     }
 
     // ---------- tính lại ----------
@@ -129,7 +135,7 @@ public class CustomerService {
             return;
         }
         List<CustomerClassifier.ShipmentFact> facts = rows.stream().map(r -> toFact(r.shipment())).toList();
-        CustomerClassifier.Classification result = CustomerClassifier.classify(facts);
+        CustomerClassifier.Classification result = CustomerClassifier.classify(facts, now());
 
         Comparator<ShipmentWithContact> newestLast = Comparator
                 .comparing((ShipmentWithContact r) -> r.shipment().createdOn(),
@@ -138,22 +144,23 @@ public class CustomerService {
         List<ShipmentWithContact> sorted = rows.stream().sorted(newestLast).toList();
         String name = latestNonBlank(sorted, ShipmentWithContact::name);
         String address = latestNonBlank(sorted, ShipmentWithContact::address);
-        LocalDateTime lastOrder = rows.stream().map(r -> r.shipment().createdOn())
-                .filter(java.util.Objects::nonNull).max(Comparator.naturalOrder()).orElse(null);
+        // "Mua gần nhất" = ngày của đơn giao thành công gần nhất (không tính đơn hủy/hoàn/kẹt); chưa có thì để trống.
+        LocalDateTime lastOrder = result.lastSuccessfulOn();
         String reasons = result.reasons().stream().map(Enum::name).sorted().collect(Collectors.joining(","));
 
         jdbc.sql("""
                         INSERT INTO customer (phone, name, address, last_order_on, segment, successful_purchases,
-                                              needs_review, review_reasons, calculated_at, province, geo_version)
+                                              needs_review, review_reasons, calculated_at, province, geo_version,
+                                              calc_version)
                         VALUES (:phone, :name, :address, :lastOrder, :segment, :count, :review, :reasons, now(),
-                                :province, :geoVersion)
+                                :province, :geoVersion, :calcVersion)
                         ON CONFLICT (phone) DO UPDATE SET
                             name = EXCLUDED.name, address = EXCLUDED.address,
                             last_order_on = EXCLUDED.last_order_on, segment = EXCLUDED.segment,
                             successful_purchases = EXCLUDED.successful_purchases,
                             needs_review = EXCLUDED.needs_review, review_reasons = EXCLUDED.review_reasons,
                             province = EXCLUDED.province, geo_version = EXCLUDED.geo_version,
-                            calculated_at = now()
+                            calc_version = EXCLUDED.calc_version, calculated_at = now()
                         """)
                 .param("phone", phone)
                 .param("name", name, Types.VARCHAR)
@@ -166,7 +173,40 @@ public class CustomerService {
                 .param("province", vn.shop.crm.geo.VnGeo.detect(address).map(vn.shop.crm.geo.Province::code).orElse(null),
                         Types.VARCHAR)
                 .param("geoVersion", vn.shop.crm.geo.VnGeo.VERSION)
+                .param("calcVersion", CALC_VERSION)
                 .update();
+    }
+
+    /**
+     * Phiên bản cách tính khách (cột "Mua gần nhất", đơn kẹt...). Tăng số này khi đổi cách tính để khi khởi động
+     * hệ thống tính lại các khách còn ở phiên bản cũ.
+     */
+    public static final int CALC_VERSION = 2;
+
+    /**
+     * Tính lại khách cần tính lại vì: (1) còn ở phiên bản cách tính cũ, (2) có đơn "đang chạy" vừa quá ngưỡng kẹt
+     * (thời gian trôi qua làm trạng thái đổi dù không có file mới), (3) đang bị gắn cờ kẹt mà không còn đơn kẹt.
+     *
+     * @return số khách đã tính lại
+     */
+    @Transactional
+    public int refreshStale() {
+        List<String> openNames = vn.shop.crm.shipping.StaleOrders.openNames();
+        Set<String> phones = new LinkedHashSet<>(jdbc.sql("SELECT phone FROM customer WHERE calc_version < :v")
+                .param("v", CALC_VERSION).query(String.class).list());
+        phones.addAll(jdbc.sql("""
+                        SELECT DISTINCT s.receiver_phone FROM shipment s
+                        LEFT JOIN customer c ON c.phone = s.receiver_phone
+                        WHERE s.canonical_status IN (:open) AND s.created_on < :cutoff
+                          AND (c.id IS NULL OR c.review_reasons NOT LIKE :flag)""")
+                .param("open", openNames).param("cutoff", Timestamp.valueOf(vn.shop.crm.shipping.StaleOrders.cutoff(now())))
+                .param("flag", "%" + CustomerClassifier.ReviewReason.STALE_OPEN_ORDER.name() + "%")
+                .query(String.class).list());
+        phones.addAll(jdbc.sql("SELECT phone FROM customer WHERE review_reasons LIKE :flag")
+                .param("flag", "%" + CustomerClassifier.ReviewReason.STALE_OPEN_ORDER.name() + "%")
+                .query(String.class).list());
+        recalculate(phones);
+        return phones.size();
     }
 
     private static String latestNonBlank(List<ShipmentWithContact> oldestFirst,
@@ -383,7 +423,7 @@ public class CustomerService {
                 .stream().map(ShipmentWithContact::shipment).toList();
         Map<Long, ShipmentRow> byId = new LinkedHashMap<>();
         shipments.forEach(s -> byId.put(s.id(), s));
-        var classification = CustomerClassifier.classify(shipments.stream().map(CustomerService::toFact).toList());
+        var classification = CustomerClassifier.classify(shipments.stream().map(CustomerService::toFact).toList(), now());
         return new Detail(customer, classification, byId);
     }
 

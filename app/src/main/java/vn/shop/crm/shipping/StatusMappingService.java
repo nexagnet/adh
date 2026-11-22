@@ -23,12 +23,19 @@ public class StatusMappingService {
     public record UnmappedRow(Carrier carrier, String statusKey, String sampleText, long shipments) {
     }
 
+    /** Đơn kẹt: hãng báo "đang chạy" quá {@link StaleOrders#AFTER_DAYS} ngày mà không cập nhật thêm. */
+    public record StuckRow(Carrier carrier, String sampleText, CanonicalStatus status, long shipments,
+                           java.time.LocalDate oldest, java.time.LocalDate newest) {
+    }
+
     private final JdbcClient jdbc;
     private final CustomerService customers;
+    private final java.time.Clock clock;
 
-    public StatusMappingService(JdbcClient jdbc, CustomerService customers) {
+    public StatusMappingService(JdbcClient jdbc, CustomerService customers, java.time.Clock clock) {
         this.jdbc = jdbc;
         this.customers = customers;
+        this.clock = clock;
     }
 
     public Map<String, CanonicalStatus> mappingsFor(Carrier carrier) {
@@ -58,6 +65,22 @@ public class StatusMappingService {
                         GROUP BY carrier, status_key ORDER BY n DESC""")
                 .query((rs, i) -> new UnmappedRow(Carrier.valueOf(rs.getString("carrier")),
                         rs.getString("status_key"), rs.getString("sample_text"), rs.getLong("n")))
+                .list();
+    }
+
+    /** Đơn kẹt (xem {@link StaleOrders}), gom theo hãng và trạng thái gốc; không tính là thành công, không tính là hủy. */
+    public List<StuckRow> stuck() {
+        return jdbc.sql("""
+                        SELECT carrier, status_key, min(raw_status) AS sample_text, canonical_status, count(*) AS n,
+                               min(created_on) AS oldest, max(created_on) AS newest
+                        FROM shipment WHERE canonical_status IN (:open) AND created_on < :cutoff
+                        GROUP BY carrier, status_key, canonical_status ORDER BY n DESC, carrier""")
+                .param("open", StaleOrders.openNames())
+                .param("cutoff", java.sql.Timestamp.valueOf(StaleOrders.cutoff(java.time.LocalDateTime.now(clock))))
+                .query((rs, i) -> new StuckRow(Carrier.valueOf(rs.getString("carrier")), rs.getString("sample_text"),
+                        CanonicalStatus.valueOf(rs.getString("canonical_status")), rs.getLong("n"),
+                        rs.getTimestamp("oldest").toLocalDateTime().toLocalDate(),
+                        rs.getTimestamp("newest").toLocalDateTime().toLocalDate()))
                 .list();
     }
 
