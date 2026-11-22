@@ -1,11 +1,11 @@
 # Hợp đồng HTTP giữa Adh và dịch vụ cầu nối Zalo (`zalo-bridge`)
 
-Áp dụng cho D16 / `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md`. Phía Adh: `vn.shop.crm.zalo.ZcaBridgeGateway`. Phía Node: thư mục `zalo-bridge/` (giai đoạn 2).
+Áp dụng cho D16 / `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md`. Phía Adh: `vn.shop.crm.zalo.ZcaBridgeGateway`. Phía Node: thư mục `zalo-bridge/` (xem `zalo-bridge/README.md`).
 
 - Chỉ gọi trong **mạng nội bộ Docker**; dịch vụ không công bố cổng ra ngoài.
 - Mọi yêu cầu có tiêu đề `X-Bridge-Key: <khóa chung>`; sai khóa trả `401`.
 - Mọi trả lời là JSON, mã `200` cho mọi kết quả đã xử lý (kể cả lỗi riêng một người); mã khác `200` là lỗi hạ tầng và Adh coi là "lạ".
-- **Không có** đường gửi tin, gửi lời mời kết bạn, tìm người theo số, liệt kê bạn bè. Test `ZaloGatewayShapeTest` (Java) và `contract.test.mjs` (Node) khóa việc này.
+- **Không có** đường gửi tin, gửi lời mời kết bạn, tìm người theo số, liệt kê bạn bè. Test `ZaloGatewayShapeTest` (Java) và `zalo-bridge/test/server.test.mjs` và `no-send.test.mjs` (Node) khóa việc này.
 
 ## Ba việc của Zalo
 

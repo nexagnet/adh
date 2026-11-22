@@ -191,8 +191,8 @@ Làm theo ba giai đoạn nhỏ, mỗi giai đoạn một PR có test, CI xanh. 
 
 | Giai đoạn | Nội dung | Trạng thái |
 |---|---|---|
-| 1 | Lõi trong Adh: `ZaloGateway`/`ZaloSession`, `ManualZaloGateway`, `ZcaBridgeGateway` (HTTP, `docs/ZALO-BRIDGE-API.md`), nấc, hạn mức, cầu dao, ghép khách, hàng đợi tay, nhật ký (V17) | Đã code |
-| 2 | Dịch vụ Node `zalo-bridge/` (zca-js 2.3.0 ghim, phiên mã hóa, tự nối lại, trần riêng), profile compose `zalo-auto` | Chưa |
+| 1 | Lõi trong Adh: `ZaloGateway`/`ZaloSession`, `ManualZaloGateway`, `ZcaBridgeGateway` (HTTP, `docs/ZALO-BRIDGE-API.md`), nấc, hạn mức, cầu dao, ghép khách, hàng đợi tay, nhật ký (V17) | Đã gộp (PR #29) |
+| 2 | Dịch vụ Node `zalo-bridge/` (zca-js 2.3.0 ghim, phiên mã hóa AES-GCM, tự nối lại có backoff, trần riêng, cầu dao ghi đĩa, chế độ giả), profile compose `zalo-auto`, job CI | Đã code, test bằng bộ điều hợp giả; bộ điều hợp zca-js thật **chưa chạy với Zalo thật** |
 | 3 | Trang quản trị "Zalo tài khoản phụ": nấc, hạn mức, quét QR, duyệt, hàng đợi tay, băng cảnh báo | Chưa |
 
 Các quyết định khi code (nói rõ để chủ shop biết, đổi được nếu không hợp):

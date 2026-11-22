@@ -35,6 +35,28 @@ jobs:
         working-directory: app
         run: ./mvnw --batch-mode --no-transfer-progress verify
 
+  # Dịch vụ cầu nối Zalo (D16): test lõi, hợp đồng HTTP, khóa "không có đường gửi tin/kết bạn". Không nối Zalo thật.
+  bridge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          persist-credentials: false
+      - name: Show Node version
+        run: node --version
+      - name: Install exactly the locked dependencies (no install scripts)
+        working-directory: zalo-bridge
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Test
+        working-directory: zalo-bridge
+        run: npm test
+      - name: Audit production dependencies (informational)
+        working-directory: zalo-bridge
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high
+
   lint:
     runs-on: ubuntu-24.04
     timeout-minutes: 10

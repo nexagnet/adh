@@ -1,0 +1,15 @@
+{
+  "name": "adh-zalo-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cầu nối Zalo cho Adh (D16, ADR-0002): chỉ báo trạng thái, đọc sự kiện kết bạn, thêm một người vào một nhóm.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/main.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "zca-js": "2.3.0"
+  }
+}
