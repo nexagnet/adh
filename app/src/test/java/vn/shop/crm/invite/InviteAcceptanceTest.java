@@ -399,9 +399,9 @@ class InviteAcceptanceTest extends AbstractPostgresTest {
     void renderTinKhongChuaSoDienThoaiVaDiaChi() {
         seedOneTimers(1);
         contacts.approveAllCandidates();
-        long camp = invites.createCampaign("Đợt 1", null, 14, 10);
+        long camp = invites.createCampaign("Đợt 1", "Chào {ten}, {cua_hang} tư vấn. Muốn ngừng nhận tin thì bấm: {link}", 14, 10);
 
-        var row = invites.invitations(camp, InviteService.DEFAULT_TEMPLATE).getFirst();
+        var row = invites.invitations(camp, "Chào {ten}, {cua_hang} tư vấn. Muốn ngừng nhận tin thì bấm: {link}").getFirst();
 
         assertThat(row.message()).contains("Khach 1").contains("/i/" + tokenOf(customerId("0900000001")));
         assertThat(row.message()).doesNotContain("0900000001").doesNotContain("Duong");

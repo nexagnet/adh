@@ -296,7 +296,7 @@ class FriendFlowTest extends AbstractPostgresTest {
         assertThat(row(inv).groupLinkMessage()).isNull(); // chưa kết bạn
         invites.markFriended(inv);
         String msg = row(inv).groupLinkMessage();
-        assertThat(msg).contains("Khach Bac").contains("Nhóm miền Bắc").contains("https://zalo.me/g/bac")
+        assertThat(msg).contains("Mình vào nhóm theo link này nhé: https://zalo.me/g/bac")
                 .doesNotContain("{").doesNotContain("0900000001");
         invites.markJoined(inv);
         assertThat(row(inv).groupLinkMessage()).isNull(); // đã vào nhóm

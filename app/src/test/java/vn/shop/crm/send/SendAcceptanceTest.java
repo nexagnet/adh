@@ -129,7 +129,7 @@ class SendAcceptanceTest extends AbstractPostgresTest {
         var view = imports.open(batch, null);
         imports.commit(batch, new ImportService.Mapping(view.headerRow(), view.suggested()));
         contacts.approveAllCandidates();
-        return invites.createCampaign("Đợt thử", null, 14, Math.min(n, invites.maxBatch()));
+        return invites.createCampaign("Đợt thử", "Chào {ten}, {cua_hang} tư vấn. Muốn ngừng nhận tin thì bấm: {link}", 14, Math.min(n, invites.maxBatch()));
     }
 
     private long count(String sql) {
