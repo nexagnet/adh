@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<body>
+<!-- Các mảnh dùng chung cho trang chiến dịch và trang "Chờ vào nhóm": tình trạng, nhóm Zalo, các bước tiếp theo của một lời mời. -->
+
+<td th:fragment="status(r)">
+    <span class="badge" th:if="${r.status == 'READY'}">Chưa gửi</span>
+    <span class="badge ok" th:if="${r.status == 'SENT'}">Đã gửi</span>
+    <span class="badge ok" th:if="${r.status == 'CLICKED'}">Đã bấm link</span>
+    <span class="badge ok" th:if="${r.status == 'FRIENDED'}">Đã kết bạn</span>
+    <span class="badge ok" th:if="${r.status == 'JOINED' and r.leftAt == null}">Đã vào nhóm</span>
+    <span class="badge warn" th:if="${r.status == 'JOINED' and r.leftAt != null}">Đã rời nhóm</span>
+    <span class="badge bad" th:if="${r.status == 'CANCELLED'}">Đã hủy</span>
+    <span class="badge bad" th:if="${r.status == 'FAILED'}">Gửi lỗi</span>
+    <span class="badge warn" th:if="${r.expired}">Hết hạn</span>
+    <span class="badge warn" th:if="${r.waitingGroup}">Chờ nhóm</span>
+    <span class="badge bad" th:if="${r.overdue}">Quá hạn thêm vào nhóm</span>
+    <span class="badge" th:if="${r.noReply}">Không phản hồi</span>
+</td>
+
+<td th:fragment="group(r)">
+    <span th:if="${r.groupName != null}" th:text="${r.groupName}">Nhóm 1</span>
+    <span class="muted" th:if="${r.groupName != null and r.suggested}"> (nên thêm vào)</span>
+    <span class="muted" th:if="${r.groupName == null and r.status != 'CANCELLED'}">Chưa có nhóm còn chỗ</span>
+    <span class="sub-line" th:if="${r.reservedUntil != null}"
+          th:text="'Đã giữ chỗ đến ' + ${#temporals.format(r.reservedUntil, 'HH:mm dd/MM')}">Đã giữ chỗ đến 10:00 23/11</span>
+    <div class="muted mono" th:if="${r.groupLink != null and r.status != 'JOINED' and r.status != 'CANCELLED'}" th:text="${r.groupLink}">https://zalo.me/g/x</div>
+</td>
+
+<td th:fragment="actions(r, back)">
+    <form class="inline" method="post" th:if="${r.status == 'SENT' or r.status == 'CLICKED'}"
+          th:action="@{/campaigns/{id}/invitations/{iid}/friended(id=${r.campaignId},iid=${r.id})}">
+        <input type="hidden" name="back" th:if="${back != null}" th:value="${back}">
+        <button type="submit" class="btn secondary">Đã kết bạn</button>
+    </form>
+    <form class="inline" method="post" th:if="${r.status == 'SENT' or r.status == 'CLICKED'}"
+          th:action="@{/campaigns/{id}/invitations/{iid}/friended-joined(id=${r.campaignId},iid=${r.id})}">
+        <input type="hidden" name="back" th:if="${back != null}" th:value="${back}">
+        <button type="submit" class="btn" title="Dùng khi bạn vừa thêm khách vào nhóm ngay trong lúc làm">Đã kết bạn và đã vào nhóm</button>
+    </form>
+    <form class="inline" method="post" th:if="${r.status == 'FRIENDED'}"
+          th:action="@{/campaigns/{id}/invitations/{iid}/joined(id=${r.campaignId},iid=${r.id})}">
+        <input type="hidden" name="back" th:if="${back != null}" th:value="${back}">
+        <button type="submit" class="btn">Đã vào nhóm</button>
+    </form>
+    <form class="inline" method="post" th:if="${r.status == 'SENT' or r.status == 'CLICKED' or r.status == 'FRIENDED'}"
+          th:action="@{/campaigns/{id}/invitations/{iid}/declined(id=${r.campaignId},iid=${r.id})}">
+        <input type="hidden" name="back" th:if="${back != null}" th:value="${back}">
+        <button type="submit" class="btn danger">Khách từ chối</button>
+    </form>
+    <details th:if="${r.status == 'FRIENDED' and r.groupLinkMessage != null}" class="stack">
+        <summary><strong>Gửi link nhóm cho khách tự bấm</strong></summary>
+        <textarea readonly rows="5" th:id="'gl-' + ${r.id}" th:text="${r.groupLinkMessage}">Chào ...</textarea>
+        <div class="actions">
+            <button type="button" class="btn secondary" data-copy-target="" th:attr="data-copy-target='gl-' + ${r.id}">Sao chép tin</button>
+            <form class="inline" method="post"
+                  th:action="@{/campaigns/{id}/invitations/{iid}/group-link-sent(id=${r.campaignId},iid=${r.id})}">
+                <input type="hidden" name="back" th:if="${back != null}" th:value="${back}">
+                <input type="hidden" name="groupId" th:value="${r.groupId}">
+                <button type="submit" class="btn">Đã gửi link nhóm</button>
+            </form>
+        </div>
+        <p class="muted small" th:if="${r.autoHold}">Bộ nối Zalo đang giữ khách này trong hàng thêm vào nhóm. Bấm <em>Đã gửi link nhóm</em> thì bộ nối thôi không thêm khách này nữa (khách tự vào bằng link).</p>
+    </details>
+    <span class="muted small" th:if="${r.status == 'FRIENDED' and r.groupLinkSentAt != null}"
+          th:text="'Đã gửi link nhóm ' + ${#temporals.format(r.groupLinkSentAt, 'dd/MM HH:mm')} + '. Khách vào nhóm thì bấm Đã vào nhóm.'">Đã gửi link nhóm</span>
+    <span class="muted small" th:if="${r.status == 'FRIENDED' and r.groupLinkMessage == null and r.groupLinkSentAt == null}">Chưa có nhóm còn chỗ để thêm hay gửi link. Hãy mở nhóm ở mục Nhóm Zalo.</span>
+    <span class="muted" th:if="${r.status == 'READY'}">Chưa nhắn</span>
+    <span class="muted" th:if="${r.status == 'JOINED' and r.leftAt == null}" th:text="'Xong ' + ${#temporals.format(r.joinedAt, 'dd/MM/yyyy')}">Xong</span>
+    <form class="inline" method="post" th:if="${r.status == 'JOINED' and r.leftAt == null}"
+          th:action="@{/campaigns/{id}/invitations/{iid}/left(id=${r.campaignId},iid=${r.id})}">
+        <input type="hidden" name="back" th:if="${back != null}" th:value="${back}">
+        <button type="submit" class="btn secondary sm" title="Khách đã ra khỏi nhóm: số khách của nhóm giảm 1">Khách đã rời nhóm</button>
+    </form>
+    <span class="muted" th:if="${r.status == 'JOINED' and r.leftAt != null}" th:text="'Rời nhóm ' + ${#temporals.format(r.leftAt, 'dd/MM/yyyy')}">Rời nhóm</span>
+</td>
+</body>
+</html>

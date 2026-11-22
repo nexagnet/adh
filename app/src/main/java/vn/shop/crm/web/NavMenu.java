@@ -3,6 +3,7 @@ package vn.shop.crm.web;
 import org.springframework.stereotype.Component;
 import vn.shop.crm.bot.HandoffService;
 import vn.shop.crm.contact.PrivacyService;
+import vn.shop.crm.invite.InviteService;
 import vn.shop.crm.shipping.StatusMappingService;
 import vn.shop.crm.zalo.ZaloAutoService;
 
@@ -28,8 +29,11 @@ public class NavMenu {
     private final PrivacyService privacy;
     private final StatusMappingService statuses;
     private final ZaloAutoService zalo;
+    private final InviteService invites;
 
-    public NavMenu(HandoffService handoffs, PrivacyService privacy, StatusMappingService statuses, ZaloAutoService zalo) {
+    public NavMenu(HandoffService handoffs, PrivacyService privacy, StatusMappingService statuses, ZaloAutoService zalo,
+                   InviteService invites) {
+        this.invites = invites;
         this.handoffs = handoffs;
         this.privacy = privacy;
         this.statuses = statuses;
@@ -57,11 +61,13 @@ public class NavMenu {
         long handoffOpen = handoffs.openCount();
         long privacyOpen = privacy.openCount();
         long unmapped = statuses.unmapped().size();
+        long friendWaiting = invites.friendStats().readyToAdd();
         // Mục Zalo tài khoản phụ chỉ hiện khi bộ nối được bật ở cấu hình triển khai (mặc định tắt: không ai thấy).
         boolean zaloOn = zalo.settings().props().enabled();
         List<Item> invite = new java.util.ArrayList<>(List.of(
                 item("Danh sách mời", "/contacts", "/contacts", 0, key),
                 item("Chiến dịch mời", "/campaigns", "/campaigns", 0, key),
+                item("Chờ vào nhóm", "/friends", "/friends", friendWaiting, key),
                 item("Lô nhắn hôm nay", "/today", "/today", 0, key),
                 item("Chạy thử trên Zalo", "/test-runs", "/test-runs", 0, key),
                 item("Nhóm Zalo", "/groups", "/groups", 0, key),

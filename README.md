@@ -20,7 +20,7 @@ Tài liệu gốc: [`01_DAC_TA_NGHIEP_VU.md`](01_DAC_TA_NGHIEP_VU.md) (nghiệp 
 | **1H** | Bản đồ khách theo tỉnh (Leaflet + OpenStreetMap), nhắc việc thời tiết | **Xong, có test**, thời tiết tắt mặc định, chưa thử với mạng thật (PR #5, #19) |
 | **Giao diện Penpot** | Thanh bên trái, "Việc cần làm hôm nay", thuật ngữ tiếng Việt, giấy in A5, đường `/n` | **Đã code** (PR #8, #10, #17); chưa xem bằng trình duyệt thật, chưa in thử giấy A5 |
 | **D13** | Nhắn bằng tài khoản Zalo phụ, chiến dịch theo khu vực, lô nhắn hôm nay, chạy thử `/test-runs` | **Xong, có test** (PR #16, #18); người thật nhắn tay và bấm đánh dấu |
-| **1I** | Kết bạn → vào nhóm ngay (D15, D16) | **Bộ nối Zalo không chính thức (D16) đã code, mặc định TẮT, chưa chạy với Zalo thật** (PR #29 đến #32). Đường bán tự động của D15 (gợi ý nhóm ngay lúc kết bạn, giữ chỗ, nhắc việc, "chờ nhóm") **chưa code** |
+| **1I** | Kết bạn → vào nhóm ngay (D15, D16) | **Bộ nối Zalo không chính thức (D16) đã code, mặc định TẮT, chưa chạy với Zalo thật** (PR #29 đến #32). Đường bán tự động của D15 **đã code** (gợi ý nhóm ngay lúc kết bạn, nút gộp, giữ chỗ 24 giờ, nhắc quá hạn, "chờ nhóm", khách rời nhóm, trang Chờ vào nhóm) cùng đường gửi link nhóm cho khách tự bấm (D17); chưa dùng thật |
 | **2F (làm sớm)** | Nhập đơn J&T: nhiều file, Địa chỉ hành chính, báo cần xuất từ ngày nào, tool cập nhật bằng Edge | **Đã code** (PR #9, #13, #22); **chưa chạy với một file J&T thật đã che thông tin** trong test |
 
 Ngoài ra đã gộp vào `main`: giấy giới thiệu với mã QR chung `/n` (và `/moi`) và `/print` (PR #3, #10), danh sách khách lọc/sắp xếp theo cột (PR #21), tính "mua gần nhất" theo đơn giao thành công (PR #23).

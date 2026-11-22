@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Chờ vào nhóm')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Chờ vào nhóm</h1>
+            <p class="hint">Khách đã đồng ý kết bạn mà chưa vào nhóm, từ mọi chiến dịch. Thêm họ vào nhóm cùng khu vực (hoặc gửi link nhóm cho khách tự bấm)
+                rồi bấm <em>Đã vào nhóm</em>. Hệ thống chỉ nhắc trên web, <strong>không nhắn thêm</strong> cho khách nào.</p>
+        </div>
+    </header>
+
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã ghi.</div>
+
+    <div class="cards c4">
+        <div class="card"><div class="big" th:text="${stats.readyToAdd}">0</div><div class="label">Đã có nhóm hợp, cần thêm vào nhóm</div></div>
+        <div class="card" th:classappend="${stats.waitingGroup > 0} ? 'warn'"><div class="big" th:text="${stats.waitingGroup}">0</div><div class="label">Chờ nhóm (chưa có nhóm hợp khu vực)</div></div>
+        <div class="card" th:classappend="${stats.overdue > 0} ? 'warn'"><div class="big" th:text="${stats.overdue}">0</div><div class="label" th:text="'Quá ' + ${overdueDays} + ' ngày chưa vào nhóm'">Quá 2 ngày chưa vào nhóm</div></div>
+        <div class="card"><div class="big" th:text="${stats.noReply}">0</div><div class="label" th:text="'Nhắn quá ' + ${noReplyDays} + ' ngày chưa kết bạn'">Nhắn quá 14 ngày chưa kết bạn</div></div>
+    </div>
+
+    <section>
+        <h2>Đã kết bạn, chờ vào nhóm</h2>
+        <p class="muted" th:text="'Nhóm được giữ chỗ ' + ${reserveHours} + ' giờ kể từ lúc bấm Đã kết bạn; hết hạn thì hệ thống gợi ý lại từ đầu. Khách chưa có nhóm hợp khu vực thì chờ, không bị xếp sang nhóm miền khác.'">Giữ chỗ</p>
+        <div class="table-wrap" th:if="${!friended.isEmpty()}">
+            <table>
+                <tr><th>Khách</th><th>Khu vực</th><th>Kết bạn lúc</th><th>Tình trạng</th><th>Nhóm Zalo</th><th>Bước tiếp theo</th></tr>
+                <tr th:each="r : ${friended}">
+                    <td><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.name != null ? r.name : 'Khách #' + r.customerId}">Nguyen Van A</a>
+                        <span class="sub-line"><a th:href="@{/campaigns/{id}(id=${r.campaignId})}" th:text="${r.campaignName}">Đợt 1</a></span></td>
+                    <td th:text="${r.provinceName}">Cần Thơ</td>
+                    <td th:text="${r.friendedAt != null ? #temporals.format(r.friendedAt, 'dd/MM HH:mm') : ''}">22/11 09:00</td>
+                    <td th:replace="~{invite-parts :: status(${r})}"></td>
+                    <td th:replace="~{invite-parts :: group(${r})}"></td>
+                    <td th:replace="~{invite-parts :: actions(${r}, 'friends')}"></td>
+                </tr>
+            </table>
+        </div>
+        <p class="muted" th:if="${friended.isEmpty()}">Không có khách nào đang chờ vào nhóm.</p>
+    </section>
+
+    <section>
+        <h2 th:text="'Đã nhắn quá ' + ${noReplyDays} + ' ngày mà chưa kết bạn'">Không phản hồi</h2>
+        <p class="muted">Chỉ để mẹ biết. <strong>Không nhắn lại</strong> cho các khách này (mỗi người chỉ nhận một tin chủ động).</p>
+        <div class="table-wrap" th:if="${!noReply.isEmpty()}">
+            <table>
+                <tr><th>Khách</th><th>Khu vực</th><th>Đã nhắn lúc</th><th>Tình trạng</th><th>Bước tiếp theo</th></tr>
+                <tr th:each="r : ${noReply}">
+                    <td><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.name != null ? r.name : 'Khách #' + r.customerId}">Nguyen Van A</a></td>
+                    <td th:text="${r.provinceName}">Cần Thơ</td>
+                    <td th:text="${r.sentAt != null ? #temporals.format(r.sentAt, 'dd/MM/yyyy') : ''}">01/11/2026</td>
+                    <td th:replace="~{invite-parts :: status(${r})}"></td>
+                    <td th:replace="~{invite-parts :: actions(${r}, 'friends')}"></td>
+                </tr>
+            </table>
+        </div>
+        <p class="muted" th:if="${noReply.isEmpty()}">Không có khách nào.</p>
+    </section>
+</main>
+<script th:src="@{/copy.js}" defer></script>
+</body>
+</html>

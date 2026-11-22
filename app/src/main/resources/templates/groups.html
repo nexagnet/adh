@@ -30,9 +30,9 @@
         Khách quét mã QR sẽ thấy "chưa có chỗ". Hãy thêm nhóm mới bên dưới hoặc mở nhóm đang tạm dừng.
     </div>
     <div class="notice" th:if="${!waiting.isEmpty()}">
-        <strong>Khách đã chọn tỉnh nhưng chưa có nhóm hợp (30 ngày qua)</strong>
+        <strong>Khách đang chờ nhóm hợp khu vực (quét mã chọn tỉnh trong 30 ngày qua, hoặc đã kết bạn mà chưa có nhóm)</strong>
         <span th:each="w, st : ${waiting}"><span th:text="${w.provinceName} + ' (' + ${w.count} + ')'">Hà Nội (3)</span><span th:unless="${st.last}">, </span></span>.
-        Hãy mở thêm nhóm cho khu vực này. Khách quét lại mã sẽ được xếp vào nhóm mới.
+        Hãy mở thêm nhóm cho khu vực này. Khách đã kết bạn sẽ hiện thành việc thêm vào nhóm ở mục Chờ vào nhóm; khách quét lại mã sẽ được xếp vào nhóm mới.
     </div>
 
     <div class="table-wrap" th:if="${!groups.isEmpty()}">
@@ -46,6 +46,7 @@
                 <td><span th:if="${g.hasLink()}" th:text="${g.inviteLink}">https://zalo.me/g/x</span><span class="muted" th:unless="${g.hasLink()}">Chưa có link</span></td>
                 <td><span th:text="${g.actual}">0</span> / <span th:text="${g.target}">5</span>
                     <span class="sub-line" th:if="${g.pendingClicks > 0}" th:text="${g.pendingClicks} + ' lượt bấm chờ'">2 lượt bấm chờ</span>
+                    <span class="sub-line" th:if="${g.reserved > 0}" th:text="${g.reserved} + ' chỗ đang giữ cho khách đã kết bạn'">1 chỗ đang giữ</span>
                     <span class="sub-line warn-text" th:if="${g.needsRecount()}">Cần đếm lại (quá 7 ngày)</span></td>
                 <td>
                     <span class="badge ok" th:if="${g.status.name() == 'OPEN' and !g.full()}">Đang nhận</span>
