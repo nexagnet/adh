@@ -13,6 +13,8 @@ public record SendProperties(
         @DefaultValue("07:00") LocalTime windowStart,
         @DefaultValue("22:00") LocalTime windowEnd,
         @DefaultValue("20") int dailyLimit,
+        /* Tối đa bao nhiêu tin trong 60 phút gần nhất (nhắn tay theo nhịp chậm). 0 = không giới hạn theo giờ. */
+        @DefaultValue("6") int hourlyLimit,
         @DefaultValue("30") int minGapSeconds,
         @DefaultValue("120") int maxGapSeconds,
         /* Bật bộ hẹn giờ gửi từng tin một. Chỉ có tác dụng khi có kênh gửi tự động (chưa có). */
@@ -21,5 +23,7 @@ public record SendProperties(
         @DefaultValue("1000000") long monthlyBudgetVnd,
         @DefaultValue("3") int stopAfterConsecutiveFailures,
         @DefaultValue("0.3") double stopFailureRate,
-        @DefaultValue("0.05") double stopOptOutRate) {
+        @DefaultValue("0.05") double stopOptOutRate,
+        /* Nhịp GỢI Ý cho người nhắn tay: hai tin cách nhau ít nhất bấy nhiêu phút. Chỉ hiển thị, không ép buộc. */
+        @DefaultValue("3") int suggestedGapMinutes) {
 }

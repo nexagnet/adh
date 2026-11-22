@@ -190,12 +190,52 @@ public class ContactService {
      * đúng điều kiện của danh sách mời, nên khách REPEAT, cần kiểm tra, bị chặn hay từ chối không bao giờ lọt vào.
      */
     public List<Invitee> eligibleNotInvited(int limit) {
-        return jdbc.sql("SELECT c.id, c.phone, c.name " + inviteFrom()
-                        + " AND NOT EXISTS (SELECT 1 FROM invitation i WHERE i.customer_id = c.id)"
-                        + " ORDER BY b.recorded_at, c.id LIMIT :limit")
-                .param("limit", limit)
-                .query((rs, i) -> new Invitee(rs.getLong("id"), rs.getString("phone"), rs.getString("name")))
+        return eligibleNotInvited(limit, null);
+    }
+
+    /**
+     * Như {@link #eligibleNotInvited(int)} nhưng chỉ lấy khách ở một khu vực (mã {@code R:NAM}, {@code S:...},
+     * {@code P:...}, hoặc {@code U} = chưa rõ khu vực). Mã rỗng = mọi nơi. Khách chưa rõ tỉnh không lọt vào khi đã chọn
+     * một khu vực cụ thể.
+     */
+    public List<Invitee> eligibleNotInvited(int limit, String area) {
+        StringBuilder sql = new StringBuilder("SELECT c.id, c.phone, c.name " + inviteFrom()
+                + " AND NOT EXISTS (SELECT 1 FROM invitation i WHERE i.customer_id = c.id)");
+        var areaCodes = appendArea(sql, area);
+        sql.append(" ORDER BY b.recorded_at, c.id LIMIT :limit");
+        var spec = jdbc.sql(sql.toString()).param("limit", limit);
+        if (areaCodes != null) {
+            spec = spec.param("areaCodes", areaCodes);
+        }
+        return spec.query((rs, i) -> new Invitee(rs.getLong("id"), rs.getString("phone"), rs.getString("name")))
                 .list();
+    }
+
+    /** Thêm điều kiện khu vực vào câu truy vấn; trả danh sách mã tỉnh cần gán vào {@code :areaCodes} (hoặc null). */
+    private static List<String> appendArea(StringBuilder sql, String area) {
+        if (area == null || area.isBlank()) {
+            return null;
+        }
+        if (vn.shop.crm.geo.GeoArea.UNKNOWN.equals(area)) {
+            sql.append(" AND c.province IS NULL");
+            return null;
+        }
+        var parsed = vn.shop.crm.geo.GeoArea.parse(area)
+                .orElseThrow(() -> new vn.shop.crm.common.ImportException("Khu vực không hợp lệ."));
+        sql.append(" AND c.province IN (:areaCodes)");
+        return vn.shop.crm.geo.VnGeo.in(parsed).stream().map(vn.shop.crm.geo.Province::code).toList();
+    }
+
+    /** Số khách đủ điều kiện mời mà chưa từng được mời, ở một khu vực (rỗng = mọi nơi). */
+    public long countEligibleNotInvited(String area) {
+        StringBuilder sql = new StringBuilder("SELECT count(*) " + inviteFrom()
+                + " AND NOT EXISTS (SELECT 1 FROM invitation i WHERE i.customer_id = c.id)");
+        var areaCodes = appendArea(sql, area);
+        var spec = jdbc.sql(sql.toString());
+        if (areaCodes != null) {
+            spec = spec.param("areaCodes", areaCodes);
+        }
+        return spec.query(Long.class).single();
     }
 
     /** Khách này CÒN đủ điều kiện mời ngay lúc này không (kiểm lại ở thời điểm khách bấm link và trước khi gửi). */

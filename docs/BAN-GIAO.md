@@ -74,6 +74,8 @@ Lựa chọn khác của người dùng trong các phiên: giao diện **100% ti
 - **Nội dung tin** soạn ở trang Chiến dịch mời (khung "Nội dung tin mặc định", lưu trong cài đặt `invite.template`, tối đa 800 ký tự). `{link}` không còn bắt buộc; có `{ten}`, `{cua_hang}`.
 - **Giữ nguyên:** hệ thống không tự gửi, không đăng nhập Zalo, tài khoản phụ không kết nối vào hệ thống (BR-11); chỉ khách mua 1 lần đã duyệt (BR-06); cổng chặn, danh sách từ chối, hạn mức lô và giờ gửi; đường QR trên giấy in (D10) vẫn chạy song song.
 - **Mâu thuẫn cần chủ shop biết:** (1) tin **tư vấn sản phẩm** là tin quảng cáo, khác với quy tắc cũ BR-16 "chỉ kết nối, không quảng cáo" (quy tắc đó vẫn áp dụng cho chữ trên giấy in và trang quét QR); (2) nhắn cho người **chưa đồng ý nhận tin** (chỉ để lại số khi nhận hàng) có rủi ro pháp lý về dữ liệu cá nhân và tin nhắn rác; chủ shop đã nhận rủi ro (D3), nên nên có câu cho khách biết cách xin ngừng nhận tin; (3) Zalo có thể **hạn chế tài khoản phụ** nếu nhắn hoặc gửi kết bạn cho nhiều người lạ, nên giữ lô nhỏ, chậm, và tuyệt đối không dùng công cụ tự động gửi tin lên tài khoản này; (4) người gửi phải tự đánh dấu các bước, hệ thống không biết khách có thật sự kết bạn hay vào nhóm.
+- **Chiến dịch theo khu vực + lô nhắn hôm nay (22/11/2026, V14):** tạo chiến dịch chỉ cho khách một miền/vùng/tỉnh hoặc "chưa rõ" (`invitation_campaign.geo_scope`, cùng cách ghi mã với nhóm: `R:NAM`, `S:...`, `P:...`, `U`); tối đa `app.invitations.max-campaign` (300) khách mỗi chiến dịch. Trang **Lô nhắn hôm nay** (`/today`, `SendService.today`) chỉ gợi ý đủ hạn mức còn lại của ngày (`daily-limit`) và giờ (`hourly-limit`, 60 phút gần nhất), trong giờ 07–22, không khi tạm dừng; người thật nhắn tay rồi bấm *Đã nhắn* (`SendService.markMessaged`, kênh `ZALO_PHU`, ghi nhật ký gửi). Ghi nhận *Đã nhắn* **không bị chặn theo giờ/hạn mức** vì việc đã xảy ra (chặn thì hệ thống không biết và có thể nhắn lại), nhưng vẫn từ chối khách không còn đủ điều kiện liên hệ. Nhịp gợi ý `suggested-gap-minutes` (3 phút) chỉ để hiển thị, **không ép buộc, không ngẫu nhiên hóa** để giả người thật. Hệ thống vẫn không tự gửi, không đăng nhập Zalo.
+- **Chạy thử trên Zalo thật (22/11/2026, V14):** `/test-runs` (`testrun/TestRunService`). Vài số điện thoại do người dùng tự nhập, lưu ở bảng riêng `test_run`/`test_target` (không khóa ngoại tới khách thật), có đánh dấu tay Đã nhắn/Đã kết bạn/Đã vào nhóm/Từ chối và gợi ý nhóm theo tỉnh đã chọn. **Không** đổi trạng thái lời mời của khách thật, không ghi `send_log`/`contact_event`/danh sách từ chối, không tăng số khách của nhóm (có test `TestRunTest.chayHetQuyTrinhMaDuLieuThatKhongDoi` so ảnh chụp dữ liệu trước/sau). Hướng dẫn thử từng bước cho người dùng: [`HUONG-DAN-THU-ZALO.md`](HUONG-DAN-THU-ZALO.md).
 - **Chưa làm:** gợi ý chọn nhóm khác với nhóm được gợi ý khi đánh dấu *Đã vào nhóm*; xuất file Excel có cột nhóm gợi ý; nhắc theo dõi khách đã nhắn mà quá lâu chưa kết bạn.
 
 ## 3. Cấu hình và công tắc
@@ -93,7 +95,9 @@ Biến môi trường (xem `app/src/main/resources/application.yml`; mặc đị
 | `APP_WEATHER_USER_AGENT` | Tên ứng dụng gửi cho MET Norway (họ yêu cầu có định danh; có thể thêm tên miền cửa hàng) | `adh-shop-crm/1.0` |
 | `app.grouping.allow-other-region` | Cho xếp khách vào nhóm miền khác khi hết nhóm hợp | `false` |
 | `app.entry.max-new-per-ip-per-hour` | Giới hạn lượt mới của mã QR chung | 20 |
-| `app.invitations.max-batch` | Tối đa khách mỗi lô mời | 20 |
+| `app.invitations.max-batch` | Tối đa khách mỗi lần chạy thử/xuất danh sách | 20 |
+| `app.invitations.max-campaign` | Tối đa khách trong một chiến dịch (mỗi ngày chỉ nhắn theo hạn mức) | 300 |
+| `APP_SENDING_DAILY_LIMIT`, `APP_SENDING_HOURLY_LIMIT` | Hạn mức tin mỗi ngày và mỗi 60 phút (0 = không giới hạn theo giờ) | 20, 6 |
 | `app.security.max-login-failures`, `lock-minutes` | Sai 5 lần khóa 15 phút theo cặp (IP, tên đăng nhập) | 5, 15 |
 | `app.bot.*` | Bot im lặng 30 phút sau khi mẹ trả lời; tối đa 3 trả lời/5 phút | xem yml |
 
@@ -111,9 +115,9 @@ Công tắc trên giao diện: **Tạm dừng tất cả chiến dịch** (`/cam
 - **Công nghệ:** Java 25, Spring Boot 4.2, Spring Security, JdbcClient (SQL thuần), Thymeleaf, Flyway, PostgreSQL; zxing sinh mã QR trên máy chủ; Jackson 3 (`tools.jackson`). Chính sách bảo mật nội dung (CSP): **không script hay style nội tuyến** (`default-src 'self'; style-src 'self'`), nên tương tác phải làm bằng liên kết/biểu mẫu hoặc file `.js` riêng.
 
 ### Bản đồ mã nguồn (`app/src/main/java/vn/shop/crm`)
-`imports` (nhập file), `shipping` (hãng, trạng thái chuẩn), `customers` (phân loại, danh sách), `contact` (cơ sở liên hệ, từ chối, yêu cầu dữ liệu), `invite` (nhóm Zalo, chiến dịch, lời mời, trang khách `/i`, mã QR chung `/moi`, in giấy `/print`), `send` (cổng chặn, chạy thử, xuất cho mẹ gửi tay), `bot` (lõi bot trợ lý), `geo` (63 tỉnh, vùng, đoán tỉnh), `map` (bản đồ, thời tiết), `security`, `common` (nhãn tiếng Việt `Labels`, SĐT, QR), `web` (tổng quan, trạng thái đơn, lỗi).
+`imports` (nhập file), `shipping` (hãng, trạng thái chuẩn), `customers` (phân loại, danh sách), `contact` (cơ sở liên hệ, từ chối, yêu cầu dữ liệu), `invite` (nhóm Zalo, chiến dịch, lời mời, trang khách `/i`, mã QR chung `/moi`, in giấy `/print`), `send` (cổng chặn, chạy thử, xuất cho mẹ gửi tay, lô nhắn hôm nay), `testrun` (đợt chạy thử tách khỏi khách thật), `bot` (lõi bot trợ lý), `geo` (63 tỉnh, vùng, đoán tỉnh), `map` (bản đồ, thời tiết), `security`, `common` (nhãn tiếng Việt `Labels`, SĐT, QR), `web` (tổng quan, trạng thái đơn, lỗi).
 
-Đường dẫn chính (cần đăng nhập, trừ `/login`, `/moi`, `/i/**`): `/` tổng quan, `/imports`, `/customers`, `/contacts`, `/campaigns`, `/groups`, `/print`, `/sending`, `/bot`, `/handoffs`, `/status-mappings`, `/privacy`, `/map`.
+Đường dẫn chính (cần đăng nhập, trừ `/login`, `/moi`, `/i/**`): `/` tổng quan, `/imports`, `/customers`, `/contacts`, `/campaigns`, `/today` (lô nhắn hôm nay), `/test-runs` (chạy thử Zalo), `/groups`, `/print`, `/sending`, `/bot`, `/handoffs`, `/status-mappings`, `/privacy`, `/map`.
 
 ---
 
