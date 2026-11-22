@@ -172,7 +172,7 @@ public class TestRunService {
                     return new Target(rs.getLong("id"), rs.getString("phone"), rs.getString("name"),
                             province == null ? "Chưa chọn khu vực" : province.name(), rs.getString("status"),
                             groupName, groupLink, suggested,
-                            invites.render(run.template(), rs.getString("name"), "(link riêng, chỉ có ở chiến dịch thật)"),
+                            invites.render(run.template(), rs.getString("name"), "(link riêng, chỉ có ở chiến dịch thật)", province),
                             local(rs.getObject("sent_at", OffsetDateTime.class)));
                 }).list();
     }

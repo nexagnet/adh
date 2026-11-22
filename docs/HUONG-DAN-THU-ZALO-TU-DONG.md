@@ -23,7 +23,7 @@ Toàn bộ phần mã đã được kiểm bằng test với **bộ nối giả*
    COMPOSE_PROFILES=zalo-auto
    ```
    Cần **cả ba**: cờ này, profile Docker, và chọn nấc ở trang quản trị. Thiếu một trong ba là bộ nối không chạy.
-3. Chạy lại: `docker compose up -d --build`. Lần đầu sẽ **build ảnh Docker của bộ nối, việc này chưa ai chạy thử**; nếu lỗi, gửi log `docker compose logs zalo-bridge`.
+3. Chạy lại. Trên máy chủ dùng chung (`infra/docker-compose.shared.yml`): `./deploy.sh deploy`; script kéo ảnh dựng sẵn `ghcr.io/nexagnet/adh-zalo-bridge:<thẻ>` (do GitHub Actions dựng, không build trên máy chủ) khi `.env` có `COMPOSE_PROFILES=zalo-auto`. Với `docker-compose.prod.yml` (máy riêng): `docker compose up -d --build` (build ảnh tại chỗ). Nếu lỗi, gửi log `docker compose logs zalo-bridge`. Nếu RAM trống thấp (dưới khoảng 150 MB sau khi bật), tắt bộ nối ngay (bỏ profile) và báo.
 4. Kiểm: trong menu có mục **Zalo tài khoản phụ**. Trang này lúc đầu báo "Cần quét mã QR để đăng nhập". Bộ nối **không công bố cổng ra ngoài**; không mở cổng 3100.
 5. Vào **Nhóm Zalo → Sửa** từng nhóm thử, điền **Mã nhóm trong Zalo** (chỉ chữ số, khác link mời). Nhóm không có mã thì không bao giờ được thêm tự động. **Chưa kiểm cách lấy mã nhóm trong giao diện Zalo**; đợt chạy thử 0 có mã của các nhóm thử.
 6. Tạo nhóm thử: nên do tài khoản của **mẹ làm trưởng nhóm**, tài khoản phụ là thành viên thường, và **không bật** "chỉ quản trị viên được thêm thành viên" (đã thử ở đợt 0: thành viên thường vẫn thêm được khi tắt cài đặt này).

@@ -75,7 +75,7 @@
 
         <div class="panel stack">
             <h2>Bước 2. Xem trước tin nhắn</h2>
-            <label class="field">Nội dung tin (có thể dùng {ten} và {cua_hang}; {link} chỉ cần khi gửi link mời riêng)
+            <label class="field">Nội dung tin (có thể dùng {ten}, {cua_hang} và {mien} (Miền Bắc/Trung/Nam theo tỉnh của khách); {link} chỉ cần khi gửi link mời riêng)
                 <textarea name="template" rows="5" maxlength="800" th:text="${defaultTemplate}"></textarea></label>
             <p class="muted">Tin tư vấn sản phẩm là tin quảng cáo (khác với chữ trên giấy in và trang quét QR, vẫn chỉ để kết nối). Cần có câu cho khách biết cách xin ngừng nhận tin.</p>
         </div>
@@ -106,7 +106,7 @@
         <form th:action="@{/campaigns/group-link-template}" method="post" class="stack">
             <p class="muted">Khi khách đã đồng ý kết bạn, trang chiến dịch đưa sẵn tin này kèm link nhóm Zalo cùng khu vực. Mẹ bấm sao chép,
                 dán vào cuộc trò chuyện với khách, rồi bấm <em>Đã gửi link nhóm</em>. Khách tự bấm link nếu muốn vào. Hệ thống không tự gửi.
-                Có thể dùng: <code>{ten}</code>, <code>{cua_hang}</code>, <code>{nhom}</code> (tên nhóm), <code>{link_nhom}</code> (link nhóm Zalo),
+                Có thể dùng: <code>{ten}</code>, <code>{cua_hang}</code>, <code>{mien}</code> (miền của khách), <code>{nhom}</code> (tên nhóm), <code>{link_nhom}</code> (link nhóm Zalo),
                 <code>{link}</code> (link riêng của khách, có nút xin ngừng nhận tin; chỉ dùng khi địa chỉ web của cửa hàng đã chạy thật). Phải có <code>{link_nhom}</code> hoặc <code>{link}</code>.
                 Để trống rồi lưu thì dùng lại nội dung có sẵn.</p>
             <label class="field">Nội dung

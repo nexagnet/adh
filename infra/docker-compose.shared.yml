@@ -61,8 +61,8 @@ services:
   # (đặt COMPOSE_PROFILES=zalo-auto trong .env). Không công bố cổng; chỉ ứng dụng (cùng mạng "zalo") gọi được.
   zalo-bridge:
     profiles: ["zalo-auto"]
-    build: ../zalo-bridge
-    image: adh-zalo-bridge:local
+    # Ảnh dựng sẵn bởi GitHub Actions (cùng thẻ với ứng dụng), không build trên máy chủ nhỏ. deploy.sh kéo ảnh này khi bật profile.
+    image: ghcr.io/nexagnet/adh-zalo-bridge:${ADH_TAG:-chua-dat}
     restart: unless-stopped
     environment:
       BRIDGE_KEY: ${APP_ZALO_BRIDGE_KEY:-}
@@ -72,10 +72,12 @@ services:
       ZALO_ACCOUNT_ID: ${ZALO_ACCOUNT_ID:-}
       APP_ZALO_AUTO_MAX_DAILY: ${APP_ZALO_AUTO_MAX_DAILY:-100}
       BRIDGE_PERSON_ERROR_CODES: ${ZALO_PERSON_ERROR_CODES:-}
+      # Máy dùng chung chỉ có 2 GB: giới hạn vùng nhớ của Node để bộ nối không phình ra.
+      NODE_OPTIONS: --max-old-space-size=80
     volumes:
       - zalo-bridge-data:/data
     networks: [zalo]
-    mem_limit: 192m
+    mem_limit: 160m
     read_only: true
     tmpfs: ["/tmp"]
     cap_drop: [ALL]

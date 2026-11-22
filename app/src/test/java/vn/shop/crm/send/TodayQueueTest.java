@@ -229,7 +229,7 @@ class TodayQueueTest extends AbstractPostgresTest {
         mvc.perform(get("/today").with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Lô nhắn hôm nay")))
                 .andExpect(content().string(containsString("Đã nhắn")))
-                .andExpect(content().string(containsString("Chào Khach ")));
+                .andExpect(content().string(containsString("Chào anh/chị Khach ")));
         long inv = jdbc.sql("SELECT min(id) FROM invitation").query(Long.class).single();
         mvc.perform(post("/today/" + inv + "/messaged").with(owner).with(csrf()).param("campaign", String.valueOf(campaign)))
                 .andExpect(status().is3xxRedirection());

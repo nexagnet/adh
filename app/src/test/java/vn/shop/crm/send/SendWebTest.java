@@ -57,7 +57,7 @@ class SendWebTest extends AbstractPostgresTest {
         var view = imports.open(batch, null);
         imports.commit(batch, new ImportService.Mapping(view.headerRow(), view.suggested()));
         contacts.approveAllCandidates();
-        return invites.createCampaign("Đợt 1", null, 14, 5);
+        return invites.createCampaign("Đợt 1", "Chào {ten}, {cua_hang} tư vấn. Muốn ngừng nhận tin thì bấm: {link}", 14, 5);
     }
 
     @Test

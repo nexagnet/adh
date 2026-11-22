@@ -58,7 +58,7 @@ class InviteWebTest extends AbstractPostgresTest {
         contacts.approveAllCandidates();
         long group = groups.create("Nhóm 1", "https://zalo.me/g/abc123", 5);
         groups.setStatus(group, GroupStatus.OPEN);
-        invites.createCampaign("Đợt 1", null, 14, 5);
+        invites.createCampaign("Đợt 1", "Chào {ten}, {cua_hang} tư vấn. Muốn ngừng nhận tin thì bấm: {link}", 14, 5);
         return jdbc.sql("SELECT token FROM invitation").query(String.class).single();
     }
 

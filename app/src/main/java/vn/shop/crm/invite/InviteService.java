@@ -27,17 +27,20 @@ import java.util.Optional;
 @Service
 public class InviteService {
 
-    public static final String DEFAULT_TEMPLATE = "Chào {ten}, {cua_hang} cảm ơn bạn đã mua hàng. Cửa hàng lập một "
-            + "nhóm Zalo nhỏ để hướng dẫn sử dụng và giải đáp thắc mắc cho khách đã mua. Bạn không bắt buộc tham gia. "
-            + "Nếu muốn, mời bạn bấm: {link}";
+    /**
+     * Tin 1 (tin mời, gửi MỘT lần, người gửi dán tay): chủ shop chốt nội dung 22/11/2026. {mien} thành "Miền Trung"/"Miền Nam"... theo
+     * tỉnh của khách. Khách không cần bấm link: đồng ý kết bạn thì được thêm vào nhóm; không cần thì bỏ qua, không nhắn lại.
+     */
+    public static final String DEFAULT_TEMPLATE = "Chào anh/chị {ten}, em bên {cua_hang}. Anh/chị dùng pin shop gửi thấy ổn không ạ? "
+            + "Em mời mình vào nhóm Zalo khách hàng {mien} để được hướng dẫn dùng pin và nhận ưu đãi.\n"
+            + "Anh chị mua trực tiếp qua nhóm sẽ rẻ hơn mua qua tiktok 10% và được miễn ship đó ạ.\n"
+            + "Anh/chị đồng ý kết bạn, em sẽ thêm anh chị vào nhóm ạ. Không cần thì anh/chị bỏ qua, em sẽ không nhắn lại ạ.";
 
     /**
-     * Tin gửi link nhóm cho khách ĐÃ đồng ý kết bạn (người gửi dán tay, hệ thống không tự gửi). Khách tự bấm link nếu muốn
-     * vào nhóm; không vào cũng không sao.
+     * Tin 2 (gửi link nhóm cho khách ĐÃ đồng ý kết bạn; người gửi dán tay, hệ thống không tự gửi): dùng khi khách không được
+     * thêm tự động vào nhóm. Chủ shop chốt nội dung 22/11/2026.
      */
-    public static final String DEFAULT_GROUP_LINK_TEMPLATE = "Chào {ten}, cảm ơn bạn đã kết bạn với {cua_hang}. Mời bạn "
-            + "vào nhóm Zalo nhỏ của cửa hàng ({nhom}) để hỏi cách dùng sản phẩm. Bạn bấm vào link này nếu muốn tham gia: "
-            + "{link_nhom} . Không vào cũng không sao, và bạn có thể ra khỏi nhóm bất cứ lúc nào.";
+    public static final String DEFAULT_GROUP_LINK_TEMPLATE = "Mình vào nhóm theo link này nhé: {link_nhom}.";
 
     static final String SETTING_TEMPLATE = "invite.template";
     static final String SETTING_GROUP_LINK_TEMPLATE = "invite.group-link-template";
@@ -392,7 +395,7 @@ public class InviteService {
                             status, link, groupName, rs.getInt("click_count"),
                             local(exp), exp.isBefore(OffsetDateTime.now()),
                             local(rs.getObject("sent_at", OffsetDateTime.class)), rs.getString("sent_channel"),
-                            render(template, rs.getString("name"), link), groupId, groupLink, suggested,
+                            render(template, rs.getString("name"), link, province), groupId, groupLink, suggested,
                             local(rs.getObject("friended_at", OffsetDateTime.class)),
                             local(rs.getObject("joined_at", OffsetDateTime.class)),
                             province == null ? "Chưa rõ khu vực" : province.name(),
@@ -456,10 +459,19 @@ public class InviteService {
         return new FriendStats(friended.size(), overdue, waiting, friended.size() - waiting, noReply);
     }
 
-    /** Ghép nội dung tin từ mẫu. Không đưa SĐT/địa chỉ vào tin. */
+    /** Ghép nội dung tin từ mẫu. Không đưa SĐT/địa chỉ vào tin. {mien} chưa biết khu vực thì thành "khu vực của mình". */
     public String render(String template, String customerName, String link) {
-        String who = customerName == null || customerName.isBlank() ? "bạn" : customerName.strip();
-        return template.replace("{ten}", who).replace("{cua_hang}", shopName).replace("{link}", link);
+        return render(template, customerName, link, null);
+    }
+
+    /** Như trên, có tỉnh của khách để điền {mien} (Miền Bắc/Trung/Nam). */
+    public String render(String template, String customerName, String link, vn.shop.crm.geo.Province province) {
+        boolean noName = customerName == null || customerName.isBlank();
+        String who = noName ? "bạn" : customerName.strip();
+        String region = province == null ? "khu vực của mình" : province.region().label();
+        // "Chào anh/chị {ten}" mà không có tên thì bỏ chữ "bạn" thừa
+        String t = noName ? template.replace("anh/chị {ten}", "anh/chị") : template;
+        return t.replace("{ten}", who).replace("{cua_hang}", shopName).replace("{link}", link).replace("{mien}", region);
     }
 
     /**
