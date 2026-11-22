@@ -39,7 +39,7 @@
     </div>
     <div class="notice bad" th:unless="${paused}">
         <strong>Gửi tự động đang TẮT</strong>
-        Hiện chỉ có hai cách: chạy thử (không gửi gì) hoặc xuất danh sách để mẹ gửi tay. Chưa chọn nhà cung cấp SMS.
+        Hiện chỉ có hai cách: chạy thử (không gửi gì) hoặc xuất danh sách để mẹ gửi tay qua Zalo. Tạm chưa dùng SMS.
     </div>
 
     <div class="cards c4">
@@ -84,7 +84,7 @@
             <h2>Bước 3. Làm gì với lô này?</h2>
             <div class="actions">
                 <button type="submit" class="btn">Tạo chiến dịch (chưa gửi gì)</button>
-                <button type="button" class="btn" disabled title="Chưa chọn nhà cung cấp SMS">Gửi tự động (đang khóa)</button>
+                <button type="button" class="btn" disabled title="Tạm chưa dùng SMS; tin gửi qua Zalo do mẹ gửi tay">Gửi tự động (đang khóa)</button>
             </div>
             <p class="muted">Sau khi tạo chiến dịch, mỗi ngày mở <a th:href="@{/today}">Lô nhắn hôm nay</a>, <strong>nhắn tay từng người</strong> rồi đánh dấu các bước (đã nhắn, đã kết bạn, đã vào nhóm). Hệ thống không tự gửi tin cho ai.</p>
         </div>

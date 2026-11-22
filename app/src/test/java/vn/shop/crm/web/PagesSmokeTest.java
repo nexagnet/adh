@@ -89,14 +89,15 @@ class PagesSmokeTest extends AbstractPostgresTest {
     }
 
     @Test
-    void trangTroLyAiVaViecCanMeKhongConChuBotVaNoiRoChuaChonCachKetNoi() throws Exception {
+    void trangTroLyAiVaViecCanMeNoiRoKenhZaloDaChonCachNoiChuaChon() throws Exception {
         var owner = user("admin").roles("OWNER");
         mvc.perform(get("/bot").with(owner)).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Kênh của trợ lý và việc báo mẹ là Zalo")))
                 .andExpect(content().string(containsString("Chưa chọn cách nối cụ thể")))
                 .andExpect(content().string(containsString("Kết nối (chọn một cách trước)")))
                 .andExpect(content().string(not(containsString("Bot trợ lý"))));
         mvc.perform(get("/handoffs").with(owner)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("Cách báo cho mẹ: sẽ qua Zalo")));
+                .andExpect(content().string(containsString("Cách báo cho mẹ: qua Zalo (đã chọn, chưa làm)")));
     }
 
     @Test
@@ -116,7 +117,7 @@ class PagesSmokeTest extends AbstractPostgresTest {
     }
 
     @Test
-    void trangGuiTinVaChienDichCoNutKhoaVaNhaCungCapChuaChon() throws Exception {
+    void trangGuiTinVaChienDichCoNutKhoaVaTamChuaDungSms() throws Exception {
         contacts.approveAllCandidates();
         long group = groups.create("Nhóm 1", "https://zalo.me/g/abc123", 5);
         groups.setStatus(group, GroupStatus.OPEN);
@@ -124,7 +125,8 @@ class PagesSmokeTest extends AbstractPostgresTest {
         long campaign = jdbc.sql("SELECT id FROM invitation_campaign").query(Long.class).single();
         var owner = user("admin").roles("OWNER");
         mvc.perform(get("/sending").with(owner)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("Chưa chọn")));
+                .andExpect(content().string(containsString("Tạm chưa dùng")))
+                .andExpect(content().string(not(containsString("Chưa chọn"))));
         mvc.perform(get("/campaigns/" + campaign).with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Gửi tự động (đang khóa)")))
                 .andExpect(content().string(containsString("Xuất danh sách để mẹ gửi tay")));
