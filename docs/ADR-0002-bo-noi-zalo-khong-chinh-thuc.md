@@ -1,6 +1,6 @@
 # ADR-0002: Bộ nối Zalo không chính thức cho luồng "kết bạn → vào nhóm" (D16)
 
-Ngày: 22/11/2026. Trạng thái: **đã chọn hướng, CHƯA CODE.** Quyết định D16 ở `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md`; phạm vi nghiệp vụ ở mục 1I của file đó.
+Ngày: 22/11/2026. Trạng thái: **đã chọn hướng, CHƯA CODE; đợt chạy thử 0 đã xong ngày 22/11/2026, kết quả ở mục 9.** Quyết định D16 ở `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md`; phạm vi nghiệp vụ ở mục 1I của file đó.
 
 ## 1. Bối cảnh và quyết định
 
@@ -141,4 +141,46 @@ Không làm, và nếu có yêu cầu thì ghi "ngoài phạm vi" rồi báo l�
 - **Q8 (đã trả lời 22/11/2026).** Chủ shop chọn **`AUTO`** (máy tự thêm khi khách đủ điều kiện, không cần bấm). Cách làm: bật bằng công tắc trên giao diện, **mặc định ở `CONFIRM`** cho tới khi chạy thử xong các điểm chưa kiểm chứng (2.3). Hạn mức 50 người/ngày (3.4) và cầu dao (3.3) áp dụng như nhau cho cả hai nấc.
 - **Q9 (đã trả lời 22/11/2026).** Hạn mức mở đầu **50 người/ngày**, rải từ sáng đến tối (07:00–22:00), **chỉnh được trên giao diện** (3.4).
 - **Q10 (đã trả lời 22/11/2026).** Chủ shop **chấp nhận mất tài khoản phụ nếu bị khóa**. **Mẹ hoặc chủ shop quét QR khi phiên hết hạn**, thao tác trên trang quản trị bằng tài khoản admin (3.5); hệ thống nhắc trên web khi cần quét. Cần viết hướng dẫn quét cho mẹ vào runbook khi code. Nhóm vẫn nên do tài khoản của mẹ làm chủ để không mất nhóm khi tài khoản phụ bị khóa.
-- **Q1 (cũ, còn nguyên):** tài khoản phụ có quyền thêm thành viên vào nhóm không — chỉ biết qua đợt 0.
+- **Q1 (đã có câu trả lời từ đợt 0, 22/11/2026):** có, kể cả khi tài khoản phụ chỉ là thành viên thường, miễn nhóm không bật "chỉ quản trị viên được thêm thành viên". Chi tiết và phần chưa thử ở mục 9.
+
+## 9. Kết quả đợt chạy thử 0 (22/11/2026)
+
+Chạy `zca-js` 2.3.0 riêng, ngoài mã Adh, trên máy thử: đăng nhập QR bằng **tài khoản phụ**, một tiến trình dài nghe sự kiện và nhận lệnh từng việc. Chỉ dùng **tài khoản chính của chủ shop** và **một tài khoản thử tự nguyện** (chủ shop cho phép dùng số của tài khoản này). Tài khoản phụ có sẵn 26 nhóm và 32 bạn bè thật: **không thêm ai vào nhóm có sẵn, không nhắn tin, không gửi lời mời cho ai ngoài tài khoản chính, không dò số lạ.** Nhóm thử là hai nhóm tạo riêng cho việc này (một do tài khoản phụ tạo, một do tài khoản chính tạo). Số điện thoại, mã Zalo (uid) và tên không ghi ở đây.
+
+Ba điểm chưa kiểm chứng ở mục 2.3 và Q1 đã có kết quả như sau.
+
+### 9.1 Sự kiện kết bạn (`friend_event`): phát đủ và phân biệt được
+Nghe bằng `selfListen: true`. Quan sát thật:
+
+| Tình huống | Loại | `isSelf` | Dữ liệu |
+|---|---|---|---|
+| Tài khoản phụ gửi lời mời (bấm tay trên điện thoại hoặc gọi API) | `REQUEST` (2) | `true` | `toUid`, `fromUid`, `src`, `message` |
+| **Người kia chấp nhận lời mời của tài khoản phụ** | **`ADD` (0)** | `false` | **chỉ có uid của người kia** (chuỗi), không kèm tên hay số |
+| Tài khoản phụ chấp nhận lời mời của người khác | `ADD` (0) | `false` | uid của người kia |
+| Người kia **tự gửi** lời mời tới tài khoản phụ | `REQUEST` (2) | **`false`** | `toUid` là tài khoản phụ, `fromUid` là người gửi, `src`, `message` (lời nhắn của họ) |
+| Người kia xóa kết bạn | `REMOVE` (1) | `false` | uid của người kia |
+
+Kết luận: **`ADD` phát đúng lúc người kia chấp nhận, khác hẳn `REQUEST`**, nên cổng "khách đã chấp nhận" của 3.2 (bước 2) dùng được. Phải phân biệt hai chiều: lời mời **ta gửi** thì tín hiệu thành bạn là `ADD`; lời mời **khách tự gửi tới ta** là `REQUEST` với `isSelf=false`, và chỉ thành bạn sau khi ta chấp nhận (khi đó cũng có `ADD`). Luồng D16 chỉ cần chiều thứ nhất; chiều thứ hai **không** được tự động chấp nhận, chỉ ghi nhật ký. Sự kiện `ADD` chỉ mang uid, nên việc ghép với khách phải đi qua 9.2.
+
+### 9.2 Số điện thoại: tra được uid, nhưng **không phải lúc nào cũng lấy lại được số**
+- `findUser(số)` đổi số thành uid khi người đó **cho phép tìm bằng số điện thoại**. Nếu người đó tắt cài đặt này, Zalo trả lỗi **212 "Không tìm thấy"**: không tìm được, không có đường vòng.
+- `getUserInfo(uid)` trả trường `phoneNumber` cho tài khoản thử (đã bật cho phép tìm bằng số).
+- Trong danh sách bạn của tài khoản phụ (32 người), chỉ **5 người có `phoneNumber`**, 27 người để trống. Đây là mẫu nhỏ của bạn bè thật, không phải khách, nhưng cho thấy **phần lớn người dùng không để lộ số**.
+- Hệ quả cho thiết kế: bước ghép uid với khách bằng mã băm số điện thoại (3.2, bước 2–3) **chỉ thành công với một phần khách**. Khách không lộ số sẽ rơi vào "không ghép được": đúng nguyên tắc thất bại kín, **không thêm nhóm tự động**, ghi nhật ký và để người xử lý tay (cùng lối với D13/D15). **Không** được bù bằng cách dò số hàng loạt hay tra người lạ để ghép (mục 4).
+- **Chưa thử:** `getUserInfo` trên uid của khách thật (ngoài tài khoản thử); chưa biết tỉ lệ khách bật cho phép tìm bằng số.
+
+### 9.3 Quyền thêm vào nhóm (Q1): thành viên thường thêm được
+- Tài khoản phụ là **trưởng nhóm** (nhóm do chính nó tạo): `addUserToGroup` thành công.
+- Tài khoản phụ chỉ là **thành viên thường** (nhóm do tài khoản chính tạo, cài đặt nhóm `addMemberOnly = 0`): `addUserToGroup` **vẫn thành công**: `errorMembers` rỗng, nhóm tăng thêm một thành viên, sự kiện nhóm `join` phát lại với nguồn là tài khoản phụ.
+- `createGroup` báo lỗi **261** khi mới gửi lời mời mà chưa là bạn ("cần kết bạn với ít nhất 1 người để tạo nhóm"). Điều này gợi ý người được thêm phải là bạn, hợp với luồng D16 (chỉ thêm người đã chấp nhận kết bạn), nhưng **chưa thử riêng** với `addUserToGroup`.
+- **Chưa thử:** nhóm bật "chỉ quản trị viên được thêm thành viên" (nhiều khả năng từ chối nhưng **chưa biết dạng lỗi**, nên cầu nối phải coi mọi lỗi lạ là lỗi theo người hoặc `TRIPPED` theo 3.3, không đoán); thêm người **không** phải bạn; nhóm đầy; khách chặn bị thêm.
+- Hệ quả: khuyến nghị ở 3.6 (nhóm do tài khoản của mẹ làm trưởng, tài khoản phụ chỉ là thành viên) **khả thi**, với điều kiện **không bật** "chỉ quản trị viên thêm thành viên" trong cài đặt các nhóm khu vực. Nên thêm bước kiểm này vào hướng dẫn tạo nhóm.
+
+### 9.4 Quan sát khác, ảnh hưởng đến cầu nối
+- **Phiên:** đăng nhập QR trả `imei`, `userAgent`, `cookie`. Dùng lại phiên đã lưu để đăng nhập **thành công** hơn một giờ sau, không cần quét lại. Thời gian sống thật của phiên **chưa biết**.
+- **Mất kết nối nghe:** kết nối nghe **đóng với mã 1006 sau khoảng 40 phút** chạy liên tục, và tiến trình thử **không tự kết nối lại** (chưa bật `retryOnClose`). Cầu nối phải bật kết nối lại có giới hạn số lần, và xử lý mã đóng theo 3.3 (1006 là đứt kết nối thường, **khác** `DuplicateConnection` 3000 phải `TRIPPED`).
+- **Lỗi 600 "zpw_sek bị thiếu hoặc không đúng"** gặp một lần, ở lần chạy đầu, khoảng 5 phút sau khi quét QR; các lần chạy sau không gặp lại. Nguyên nhân chưa rõ. Coi như lỗi phiên: thuộc nhóm lỗi hệ thống dẫn tới `TRIPPED`.
+- Không thấy dấu hiệu Zalo cảnh báo hay hạn chế trong đợt thử, nhưng số thao tác rất ít nên **không suy ra gì** về ngưỡng an toàn của 50 người/ngày; mục 2.3 về ngưỡng vẫn **chưa kiểm chứng**.
+
+### 9.5 Cập nhật nghiệm thu
+Mục 6 điểm 8 (a), (b), (c) đã thử một lần với tài khoản thử tự nguyện: (a) có, (b) có điều kiện (9.2), (c) có (9.3). Vẫn cần chạy lại ở nấc `LISTEN_ONLY`/`CONFIRM` với khách thật tự nguyện trước khi bật `AUTO`.
