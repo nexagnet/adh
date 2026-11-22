@@ -30,7 +30,9 @@ Sau mỗi đợt mời, mẹ đếm số khách thật trong nhóm (không tính
 Nên bắt đầu với 2 đến 3 nhóm.
 
 ### 5. Mời khách
-1. **Chiến dịch mời → Tạo lô thử**: chọn số khách (tối đa 20 mỗi lô), xem lại nội dung tin. Tin phải là chăm sóc sau mua, không quảng cáo sản phẩm.
+0. **Thử trước trên Zalo thật** (chưa đụng khách thật): xem [`HUONG-DAN-THU-ZALO.md`](HUONG-DAN-THU-ZALO.md), menu **Chạy thử trên Zalo**.
+0b. **Nhắn theo khu vực, từ từ**: tạo chiến dịch chọn khu vực (ví dụ một miền), rồi mỗi ngày mở **Lô nhắn hôm nay**, nhắn tay từng người theo hạn mức ngày/giờ và bấm *Đã nhắn*. Không nhắn ồ ạt; hệ thống không tự gửi.
+1. **Chiến dịch mời → Tạo lô thử**: chọn khu vực và số khách, xem lại nội dung tin. Tin phải là chăm sóc sau mua, không quảng cáo sản phẩm (tin tư vấn của D13 là ngoại lệ đã được chủ cửa hàng chấp nhận).
 2. Vào chiến dịch, bấm **Chạy thử** để xem hệ thống sẽ gửi gì (không gửi gì thật).
 3. Bấm **Xuất danh sách để mẹ gửi tay**: tải file CSV (số điện thoại, tên, nội dung tin có link riêng). Mẹ tự nhắn bằng điện thoại hoặc Zalo của mình. Các lời mời trong file được đánh dấu "đã gửi"; hệ thống không biết tin có tới khách hay không.
 4. Mỗi khách chỉ được mời **một lần**. Mỗi ngày chỉ xuất tối đa theo hạn mức ở **Gửi tin** (mặc định 20).

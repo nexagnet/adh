@@ -64,6 +64,8 @@ public class NavMenu {
                 new Group("Mời vào nhóm", List.of(
                         item("Danh sách mời", "/contacts", "/contacts", 0, key),
                         item("Chiến dịch mời", "/campaigns", "/campaigns", 0, key),
+                        item("Lô nhắn hôm nay", "/today", "/today", 0, key),
+                        item("Chạy thử trên Zalo", "/test-runs", "/test-runs", 0, key),
                         item("Nhóm Zalo", "/groups", "/groups", 0, key),
                         item("Cài đặt gửi tin", "/sending", "/sending", 0, key))),
                 new Group("Trợ lý AI", List.of(

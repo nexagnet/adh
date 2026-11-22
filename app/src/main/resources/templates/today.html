@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Lô nhắn hôm nay')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Lô nhắn hôm nay</h1>
+            <p class="hint">Hệ thống chỉ <strong>gợi ý</strong> ai nên được nhắn lúc này, vừa đủ hạn mức. Bạn nhắn tay từng người bằng tài khoản Zalo phụ, nhắn xong bấm <em>Đã nhắn</em>. Hệ thống không tự gửi tin và không đăng nhập Zalo.</p>
+        </div>
+    </header>
+
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã ghi.</div>
+    <div class="notice" th:if="${campaign != null}">
+        Đang xem chiến dịch <strong th:text="${campaign.name}">Rét đợt 1</strong> (<span th:text="${campaign.scopeLabel}">Miền Nam</span>).
+        <a th:href="@{/today}">Xem tất cả chiến dịch</a>
+    </div>
+
+    <div class="cards c4">
+        <div class="card"><div class="big"><span th:text="${today.sentToday}">0</span>/<span th:text="${today.dailyLimit}">20</span></div><div class="label">Đã nhắn hôm nay / hạn mức ngày</div></div>
+        <div class="card"><div class="big"><span th:text="${today.sentThisHour}">0</span><span th:if="${today.hourlyLimit > 0}">/<span th:text="${today.hourlyLimit}">6</span></span></div><div class="label">Trong 60 phút qua / hạn mức giờ</div></div>
+        <div class="card"><div class="big" th:text="${today.allowedNow}">0</div><div class="label">Có thể nhắn thêm lúc này</div></div>
+        <div class="card"><div class="big" th:text="${today.readyTotal}">0</div><div class="label">Còn chưa nhắn (cả chiến dịch)</div></div>
+    </div>
+
+    <div class="notice bad" th:if="${today.paused}">
+        <strong>Đang TẠM DỪNG tất cả chiến dịch</strong>
+        <span th:if="${!today.pausedReason.isEmpty()}" th:text="'Lý do: ' + ${today.pausedReason}">Lý do</span>
+    </div>
+    <div class="notice" th:if="${today.nextSuggestedAt != null}">
+        Nhịp gợi ý: hai tin cách nhau ít nhất <strong th:text="${today.suggestedGapMinutes}">3</strong> phút. Người kế tiếp nên nhắn sau
+        <strong th:text="${#temporals.format(today.nextSuggestedAt, 'HH:mm')}">10:30</strong>. Đây chỉ là gợi ý để nhắn thong thả, không ép buộc.
+    </div>
+
+    <section th:if="${rows.isEmpty()}">
+        <div class="panel"><p th:text="${today.emptyReason()}">Hôm nay đã đủ hạn mức.</p></div>
+    </section>
+
+    <section class="stack" th:if="${!rows.isEmpty()}">
+        <h2>Nhắn lần lượt các khách sau</h2>
+        <div class="panel stack" th:each="r : ${rows}">
+            <div class="formrow">
+                <div class="grow2">
+                    <strong th:text="${r.name != null ? r.name : 'Khách #' + r.customerId}">Nguyen Van A</strong>
+                    <span class="badge info" th:text="${r.provinceName}">Cần Thơ</span>
+                    <a class="muted" th:href="@{/today(campaign=${r.campaignId})}" th:text="${r.campaignName}">Rét đợt 1</a>
+                </div>
+                <div class="grow">
+                    <span class="muted">Nhóm Zalo nên thêm vào nếu khách kết bạn: </span>
+                    <span th:if="${r.groupName != null}" th:text="${r.groupName}">Nhóm miền Nam</span>
+                    <span class="muted" th:if="${r.groupName == null}">Chưa có nhóm còn chỗ cho khu vực này</span>
+                </div>
+            </div>
+            <p class="mono" th:text="${r.message}">Nội dung tin</p>
+            <div class="actions">
+                <form method="post" th:action="@{/today/{iid}/messaged(iid=${r.id}, campaign=${campaignId})}">
+                    <button type="submit" class="btn">Đã nhắn</button>
+                </form>
+                <a class="btn secondary" th:href="@{/customers/{id}(id=${r.customerId})}">Xem khách</a>
+            </div>
+        </div>
+        <p class="muted small">Khách xin ngừng nhận tin thì ghi ở trang chiến dịch (nút <em>Khách từ chối</em>); số đó không bao giờ được nhắn lại. Bấm <em>Đã nhắn</em> chỉ ghi lại việc bạn đã nhắn, hệ thống không biết tin có tới khách hay chưa.</p>
+    </section>
+
+    <section>
+        <h2>Về hạn mức và nhịp nhắn</h2>
+        <p class="muted">Hạn mức ngày, hạn mức giờ và giờ nhắn (<span th:text="${#temporals.format(today.windowStart, 'HH:mm')}">07:00</span> đến
+            <span th:text="${#temporals.format(today.windowEnd, 'HH:mm')}">22:00</span>) để giữ việc nhắn ở mức nhỏ, thong thả và lịch sự. Đây không phải cam kết Zalo sẽ không hạn chế tài khoản:
+            tin tư vấn cho khách chưa đồng ý nhận tin vẫn có thể bị khách báo cáo. Đổi hạn mức trong cấu hình máy chủ (xem mục <a th:href="@{/sending}">Cài đặt gửi tin</a>).</p>
+    </section>
+</main>
+</body>
+</html>
