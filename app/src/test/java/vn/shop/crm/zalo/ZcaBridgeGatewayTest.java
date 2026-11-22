@@ -122,6 +122,18 @@ class ZcaBridgeGatewayTest {
     }
 
     @Test
+    void cauNoiKhongDuocTuNoiLaChuaChamZaloVaTrangThaiChiGiuMaAnToan() {
+        reply.set("{\"outcome\":\"UNREACHABLE\"}");
+        var r = gateway.addToGroup("1", "2");
+        assertThat(r.outcome()).isEqualTo(ZaloGateway.Outcome.SYSTEM_ERROR);
+        assertThat(r.code()).isEqualTo("BAD_REPLY");
+        reply.set("{\"state\":\"TRIPPED\",\"tripReason\":\"RESTRICTED:Z1 Nguyen Van A\",\"detail\":\"0912 345 678\"}");
+        var st = gateway.status();
+        assertThat(st.tripReason()).isEqualTo("RESTRICTED:Z1NguyenVanA".replace(":", ""));
+        assertThat(st.detail()).isEqualTo("0912345678");
+    }
+
+    @Test
     void maLoiChiGomChuSoGach() {
         reply.set("{\"outcome\":\"PERSON_ERROR\",\"code\":\"Nguyen Van A 0912345678\"}");
         var r = gateway.addToGroup("1", "2");

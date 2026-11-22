@@ -13,6 +13,12 @@
         <span th:text="${n < current ? '' : n + '. '} + (${n == 1} ? 'Chọn file' : (${n == 2} ? 'Chọn cột' : (${n == 3} ? 'Xem trước' : 'Xác nhận')))">Chọn file</span>
     </li>
 </ol>
+<div th:fragment="zaloAlert" th:with="za=${@zaloAutoService.alert().orElse(null)}">
+    <div class="notice" th:if="${za != null}" th:classappend="${za.level}">
+        <strong th:text="${za.text}">Bộ nối Zalo đã dừng</strong>
+        <a th:href="@{/zalo}">Mở trang Zalo tài khoản phụ</a>
+    </div>
+</div>
 <nav th:fragment="nav" class="nav" aria-label="Menu chính">
     <a class="brand" th:href="@{/}">Chăm sóc khách</a>
     <div class="nav-group" th:each="g : ${@navMenu.groups(navKey)}">

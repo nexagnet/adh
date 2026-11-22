@@ -76,6 +76,14 @@ Vào trang khách đó, ghi nhận yêu cầu (xem, xuất, ngừng liên hệ, 
 ### 8. Khi nghi ngờ có chuyện không ổn
 Bấm **Chiến dịch mời → Tạm dừng TẤT CẢ chiến dịch**. Hệ thống cũng tự tạm dừng khi gửi lỗi liên tiếp, nhiều khách từ chối, hoặc hết ngân sách; lý do hiện trên trang **Gửi tin**. Bỏ tạm dừng chỉ sau khi đã tìm hiểu nguyên nhân.
 
+### 8b. Quét lại mã QR Zalo tài khoản phụ (khi bật bộ nối Zalo tự động)
+Chỉ áp dụng khi đã bật bộ nối (xem `docs/HUONG-DAN-THU-ZALO-TU-DONG.md`). Khi Tổng quan hoặc Lô nhắn hôm nay hiện băng đỏ **"Phiên Zalo của tài khoản phụ hết hạn, cần quét mã QR lại"**:
+1. Đăng nhập trang quản trị bằng tài khoản admin (chỉ admin mở được trang này), vào **Zalo tài khoản phụ → Quét mã QR**.
+2. Dùng **điện thoại của tài khoản phụ** quét mã và bấm xác nhận. Không bao giờ quét bằng điện thoại của mẹ (tài khoản chính): hệ thống sẽ từ chối và đăng xuất.
+3. Không chụp màn hình hay gửi mã QR cho ai: ai quét được là vào được tài khoản phụ. Hệ thống không hỏi mật khẩu hay mã OTP Zalo.
+4. Thấy "Đăng nhập xong" là được. Nếu bộ nối đang **dừng** (băng "Bộ nối Zalo đã DỪNG"), đọc nhật ký rồi mới bấm **Mở lại**; quét QR lại chỉ tự mở lại khi dừng do mất phiên hoặc do đăng xuất.
+Khi nghi ngờ: bấm **Dừng ngay** trên trang Zalo tài khoản phụ.
+
 ---
 
 ## B. Cài đặt và bảo trì máy chủ (chủ cửa hàng)

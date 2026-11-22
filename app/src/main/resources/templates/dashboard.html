@@ -14,6 +14,8 @@
         <div class="actions"><a class="btn" th:href="@{/imports/new}">Nhập file đơn hàng</a></div>
     </header>
 
+    <div th:replace="~{fragments :: zaloAlert}"></div>
+
     <div class="notice" th:if="${totalShipments == 0}">
         <strong>Chưa có dữ liệu</strong>
         Hãy bắt đầu bằng <a th:href="@{/imports/new}">nhập file đơn hàng</a> của Viettel Post hoặc J&amp;T.

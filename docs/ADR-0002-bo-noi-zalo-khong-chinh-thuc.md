@@ -193,7 +193,7 @@ Làm theo ba giai đoạn nhỏ, mỗi giai đoạn một PR có test, CI xanh. 
 |---|---|---|
 | 1 | Lõi trong Adh: `ZaloGateway`/`ZaloSession`, `ManualZaloGateway`, `ZcaBridgeGateway` (HTTP, `docs/ZALO-BRIDGE-API.md`), nấc, hạn mức, cầu dao, ghép khách, hàng đợi tay, nhật ký (V17) | Đã gộp (PR #29) |
 | 2 | Dịch vụ Node `zalo-bridge/` (zca-js 2.3.0 ghim, phiên mã hóa AES-GCM, tự nối lại có backoff, trần riêng, cầu dao ghi đĩa, chế độ giả), profile compose `zalo-auto`, job CI | Đã code, test bằng bộ điều hợp giả; bộ điều hợp zca-js thật **chưa chạy với Zalo thật** |
-| 3 | Trang quản trị "Zalo tài khoản phụ": nấc, hạn mức, quét QR, duyệt, hàng đợi tay, băng cảnh báo | Chưa |
+| 3 | Trang quản trị "Zalo tài khoản phụ" (`/zalo`, chỉ admin): nấc, hạn mức, dừng/mở lại, quét QR, duyệt, hàng đợi tay, nhật ký, băng cảnh báo, ô mã nhóm Zalo | Đã code, test bằng bộ nối giả |
 
 Các quyết định khi code (nói rõ để chủ shop biết, đổi được nếu không hợp):
 1. **Hàng đợi tay (khách không lộ số, cỡ 27/32 theo mục 9.2).** Hàng đợi chỉ giữ mã Zalo và giờ kết bạn, **không** tên, **không** số. Người xử lý thấy giờ kết bạn và vài số cuối của mã, tự đối chiếu với bạn mới trên điện thoại rồi chọn đó là khách nào trong danh sách "đã nhắn, chưa ghép". Việc ghép tay vẫn qua cùng cổng điều kiện (R2, từ chối, `REPEAT`). Người lạ có số mà không khớp lời mời nào: chỉ ghi nhật ký, **không** lưu mã Zalo.

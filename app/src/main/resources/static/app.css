@@ -502,3 +502,6 @@ tr.filter-row .range { display: flex; flex-direction: column; gap: 6px; }
 tr.filter-row .range input[type=date] { width: 100%; }
 tr.filter-row label.small-label { font-size: 14px; font-weight: 600; color: var(--muted); margin: 0; }
 tr.filter-row label.small-label input { display: block; margin-top: 2px; }
+
+/* Mã QR đăng nhập Zalo tài khoản phụ: nền trắng, không bo, giữ nét. */
+.login-qr { display: block; width: 280px; height: 280px; max-width: 100%; background: #fff; padding: 8px; image-rendering: pixelated; }

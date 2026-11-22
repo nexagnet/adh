@@ -13,7 +13,6 @@ import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
-import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -57,9 +56,9 @@ public class ZcaBridgeGateway implements ZaloLink {
     public Status status() {
         try {
             JsonNode n = call("GET", "/status", null, 10);
-            return new Status(state(n.path("state").asString("")), text(n, "tripReason"),
+            return new Status(state(n.path("state").asString("")), safeCode(text(n, "tripReason")),
                     n.hasNonNull("accountOk") ? n.path("accountOk").asBoolean() : null,
-                    instant(n, "lastEventAt"), instant(n, "sessionSince"), text(n, "detail"));
+                    instant(n, "lastEventAt"), instant(n, "sessionSince"), safeCode(text(n, "detail")));
         } catch (Unreachable e) {
             return Status.of(State.UNREACHABLE);
         } catch (Exception e) {
@@ -102,6 +101,9 @@ public class ZcaBridgeGateway implements ZaloLink {
                 outcome = Outcome.valueOf(n.path("outcome").asString(""));
             } catch (IllegalArgumentException e) {
                 return AddResult.of(Outcome.SYSTEM_ERROR, "BAD_REPLY");
+            }
+            if (outcome == Outcome.UNREACHABLE) {
+                return AddResult.of(Outcome.SYSTEM_ERROR, "BAD_REPLY"); // chỉ chính Adh quyết "không nối được", cầu nối không được nói vậy
             }
             return AddResult.of(outcome, safeCode(text(n, "code")));
         } catch (Unreachable e) {
@@ -202,9 +204,8 @@ public class ZcaBridgeGateway implements ZaloLink {
             throw new Unreachable(e);
         } catch (HttpTimeoutException e) {
             throw new TimedOut(e);
-        } catch (ClosedChannelException e) {
-            throw new Unreachable(e);
         }
+        // Mọi lỗi khác (đứt giữa chừng, kênh đóng...) có thể xảy ra SAU khi yêu cầu đã tới cầu nối: không coi là "chưa chạm Zalo".
     }
 
     private static State state(String raw) {

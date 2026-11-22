@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="refresh" content="3" th:if="${waiting}">
+    <meta name="robots" content="noindex">
+    <title>Quét mã QR - Chăm sóc khách</title>
+    <link rel="stylesheet" th:href="@{/app.css}">
+</head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Quét mã QR để đăng nhập tài khoản phụ</h1>
+            <p class="hint">Trang này tự làm mới mỗi 3 giây. Không chia sẻ ảnh chụp màn hình mã QR cho ai: ai quét được là vào được tài khoản phụ.</p>
+        </div>
+    </header>
+
+    <div class="notice" th:classappend="${state == 'ACCOUNT_MISMATCH' or state == 'FAILED' or state == 'EXPIRED'} ? 'bad' : 'info'">
+        <strong th:text="${@zaloLabels.loginState(state)}">Chờ quét mã QR</strong>
+        <span th:if="${state == 'WAITING_SCAN'}">Mở Zalo trên <strong>điện thoại của tài khoản phụ</strong> và quét mã dưới đây. Mã hết hạn sau vài phút.</span>
+        <span th:if="${state == 'SCANNED'}">Hãy bấm xác nhận đăng nhập trên điện thoại.</span>
+        <span th:if="${state == 'ACCOUNT_MISMATCH'}">Hãy quét lại bằng đúng điện thoại của tài khoản phụ.</span>
+    </div>
+
+    <div class="panel stack" th:if="${qr != null}">
+        <img class="login-qr" th:src="${qr}" alt="Mã QR đăng nhập Zalo" width="280" height="280">
+    </div>
+
+    <div class="formrow">
+        <form th:action="@{/zalo/login/start}" method="post" th:unless="${waiting}"><button type="submit" class="btn">Tạo mã QR mới</button></form>
+        <a class="btn secondary" th:href="@{/zalo}">Quay lại trang Zalo</a>
+    </div>
+</main>
+</body>
+</html>
