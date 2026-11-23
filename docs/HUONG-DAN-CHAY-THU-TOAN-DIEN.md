@@ -105,7 +105,7 @@ Nếu giai đoạn A không êm (lỗi lạ, Zalo cảnh báo), **dừng ở đ�
 
 ### Giai đoạn C: những việc nhỏ cần thử riêng
 
-- **Cầu dao:** không cố làm cầu dao nhảy trên Zalo thật. Trước hết xem `/zalo` mục "Tạm dừng, giới hạn và nhật ký gửi" hiện đúng giới hạn.
+- **Cầu dao:** không cố làm cầu dao nhảy trên Zalo thật. Trước hết xem `/zalo` mục "Tự gửi tin cho khách" hiện đúng giờ gửi, hạn mức và khoảng nghỉ, và mục "Tạm dừng và nhật ký gửi" có nút tạm dừng.
 - **Khách đã vào nhóm nhưng không có nhóm hợp khu vực:** xuất hiện ở `/zalo` mục "Khách chờ vào nhóm" (ngoại lệ mẹ xử lý).
 - **Hoàn tác:** bấm Hoàn tác một khách B1 ở `/handoffs`, thấy cờ từ chối gỡ (số vẫn còn trong hệ thống, **không bao giờ tự xóa số**).
 
