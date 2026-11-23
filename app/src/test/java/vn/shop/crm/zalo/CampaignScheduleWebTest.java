@@ -37,6 +37,25 @@ class CampaignScheduleWebTest extends AbstractPostgresTest {
     }
 
     @Test
+    void moiTabChiHienPhanCuaMinhVaTabLaThiVeTongQuan() throws Exception {
+        // Mặc định và tab lạ: Tổng quan (không có ô cấu hình riêng), bốn tab còn lại mỗi tab một phần.
+        mvc.perform(get("/campaigns/" + id).with(user("admin"))).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Tổng quan")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Lịch và nhịp riêng của chiến dịch"))));
+        mvc.perform(get("/campaigns/" + id + "?tab=khong-co").with(user("admin"))).andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Lịch và nhịp riêng của chiến dịch"))));
+        mvc.perform(get("/campaigns/" + id + "?tab=lich").with(user("admin"))).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Lịch và nhịp riêng của chiến dịch")))
+                .andExpect(content().string(containsString("Điều kiện gửi riêng")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Nhóm Zalo của chiến dịch"))));
+        mvc.perform(get("/campaigns/" + id + "?tab=nhom").with(user("admin"))).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Nhóm Zalo của chiến dịch")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Điều kiện gửi riêng"))));
+        mvc.perform(get("/campaigns/" + id + "?tab=tin").with(user("admin"))).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Số lần gửi mời")));
+    }
+
+    @Test
     void canDangNhap() throws Exception {
         mvc.perform(post("/campaigns/" + id + "/schedule").with(csrf()).param("dailyCap", "1")).andExpect(status().is3xxRedirection());
         assertThat(policy.load(id)).isEqualTo(CampaignPolicy.Raw.NONE);
@@ -53,7 +72,7 @@ class CampaignScheduleWebTest extends AbstractPostgresTest {
         assertThat(raw.windowTo()).isEqualTo(LocalTime.of(11, 30));
         assertThat(raw.dailyCap()).isEqualTo(3);
         assertThat(raw.gapSeconds()).isEqualTo(300);
-        mvc.perform(get("/campaigns/" + id).with(user("admin")))
+        mvc.perform(get("/campaigns/" + id + "?tab=lich").with(user("admin")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Lịch và nhịp riêng của chiến dịch")))
                 .andExpect(content().string(containsString("value=\"2099-01-02\"")))

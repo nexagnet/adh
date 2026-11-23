@@ -10,7 +10,11 @@
         <span th:text="${#temporals.format(campaign.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</span> · khu vực: <strong th:text="${campaign.scopeLabel}">Miền Nam</strong></p>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã tạo.</div>
-    <div class="panel stack">
+    <nav class="tabs" aria-label="Các phần của chiến dịch">
+        <a th:each="t : ${tabs}" th:href="@{/campaigns/{id}(id=${campaign.id}, tab=${t.key})}" th:text="${t.label}"
+           th:classappend="${t.key == tab} ? 'active'" th:attr="aria-current=${t.key == tab} ? 'page'">Tổng quan</a>
+    </nav>
+    <div class="panel stack" th:if="${tab == 'tong-quan'}">
         <h2>Tự gửi qua Zalo tài khoản phụ</h2>
         <p th:if="${autoApproved}"><span class="badge ok">ĐÃ DUYỆT</span> Hệ thống tự gửi Tin 1 cho các khách "Chưa gửi" của chiến dịch này, từng khách <strong>một lần</strong>,
             theo hạn mức và khoảng nghỉ cố định ở trang <a th:href="@{/zalo}">Zalo tài khoản phụ</a>. Công tắc tự gửi tin hiện
@@ -26,7 +30,7 @@
             </form>
         </div>
     </div>
-    <div class="panel stack">
+    <div class="panel stack" th:if="${tab == 'lich'}">
         <h2>Lịch và nhịp riêng của chiến dịch</h2>
         <p class="hint">Mặc định chiến dịch theo cài đặt chung ở <a th:href="@{/zalo}">Zalo tài khoản phụ</a>. Ở đây bạn chỉ có thể làm <strong>chặt hơn</strong>
             (khung giờ hẹp hơn, hạn mức ngày thấp hơn, nghỉ giữa hai tin dài hơn, giới hạn ngày), không thể nới. Để trống ô nào là theo hệ thống.
@@ -49,7 +53,7 @@
             </div>
         </form>
     </div>
-    <div class="panel stack">
+    <div class="panel stack" th:if="${tab == 'lich'}">
         <h2>Điều kiện gửi riêng</h2>
         <div class="notice bad" th:if="${stoppedReason != null}">
             <strong>Hệ thống đã tự dừng chiến dịch này</strong>: <span th:text="${stoppedReason}">Khách từ chối 2/20</span>.
@@ -76,7 +80,7 @@
             </div>
         </form>
     </div>
-    <div class="panel stack">
+    <div class="panel stack" th:if="${tab == 'nhom'}">
         <h2>Nhóm Zalo của chiến dịch</h2>
         <p class="hint">Mặc định theo hệ thống: khách đồng ý kết bạn được tự thêm vào nhóm Zalo cùng khu vực (lỗi riêng người thì gửi link nhóm). Ở đây bạn chỉ có thể làm <strong>chặt hơn</strong>,
             không nới. Nhóm do hệ thống tự tạo vẫn theo trang <a th:href="@{/zalo}">Zalo tài khoản phụ</a>.</p>
@@ -94,7 +98,7 @@
             </div>
         </form>
     </div>
-    <div class="panel stack">
+    <div class="panel stack" th:if="${tab == 'nhom'}">
         <h2>Khách từng từ chối nhưng nhắn lại muốn mua</h2>
         <p class="hint">Nấc chung của hệ thống hiện là <strong th:text="${comebackSystem.label}">Tắt</strong> (đổi ở trang <a th:href="@{/zalo}">Zalo tài khoản phụ</a>).
             Ở đây bạn chỉ có thể làm <strong>chặt hơn</strong>: nấc có hiệu lực luôn là nấc thấp hơn giữa hệ thống và chiến dịch.
@@ -108,7 +112,7 @@
             <div class="actions"><button type="submit" class="btn">Lưu</button></div>
         </form>
     </div>
-    <div class="panel stack">
+    <div class="panel stack" th:if="${tab == 'tin'}">
         <h2>Số lần gửi mời</h2>
         <div class="notice">
             <strong>Tin nhắc chỉ tự gửi khi đủ điều kiện.</strong>
@@ -161,7 +165,7 @@
             <div class="actions"><button type="submit" class="btn">Lưu số lần gửi</button></div>
         </form>
     </div>
-    <div class="panel stack" th:if="${autoApproved}">
+    <div class="panel stack" th:if="${tab == 'tong-quan' and autoApproved}">
         <h2>Tự nhận khách mới</h2>
         <p class="hint">Thay cho duyệt từng người: chiến dịch có <strong>tiêu chí duyệt sẵn</strong>. Khi bật, khách <strong>mới nhập về từ lúc bật</strong> (đồng bộ hoặc nhập đơn hằng ngày)
             mà <strong>mua một lần, không cần kiểm tra, chưa từ chối, chưa bị chặn</strong>, thuộc khu vực <strong th:text="${campaign.scopeLabel}">Miền Nam</strong>, sẽ tự được duyệt và vào chiến dịch này,
@@ -178,6 +182,7 @@
             </form>
         </div>
     </div>
+    <th:block th:if="${tab == 'tong-quan'}">
     <div class="cards">
         <div class="card"><div class="big" th:text="${campaign.total}">0</div><div class="label">Lời mời</div></div>
         <div class="card"><div class="big" th:text="${campaign.ready}">0</div><div class="label">Chưa gửi</div></div>
@@ -238,6 +243,7 @@
         <summary th:text="${r.name != null ? r.name : 'Khách #' + r.customerId}">Nguyen Van A</summary>
         <p class="mono" th:text="${r.message}">Chào ...</p>
     </details>
+    </th:block>
 </main>
 <script th:src="@{/copy.js}" defer></script>
 </body>

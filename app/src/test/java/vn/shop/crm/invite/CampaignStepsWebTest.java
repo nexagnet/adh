@@ -44,7 +44,7 @@ class CampaignStepsWebTest extends AbstractPostgresTest {
 
     @Test
     void trangHienOSoLanGuiVaDieuKienGuiTinNhac() throws Exception {
-        mvc.perform(get("/campaigns/" + id).with(user("admin")))
+        mvc.perform(get("/campaigns/" + id + "?tab=tin").with(user("admin")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Số lần gửi mời")))
                 .andExpect(content().string(containsString("Tin nhắc chỉ tự gửi khi đủ điều kiện")))
@@ -58,7 +58,7 @@ class CampaignStepsWebTest extends AbstractPostgresTest {
                         .param("text2", "Em nhắn lại phòng khi mình chưa kịp xem ạ.").param("gap2", "4"))
                 .andExpect(redirectedUrl("/campaigns/" + id));
         assertThat(steps.plan(id).maxTouches()).isEqualTo(2);
-        mvc.perform(get("/campaigns/" + id).with(user("admin")))
+        mvc.perform(get("/campaigns/" + id + "?tab=tin").with(user("admin")))
                 .andExpect(content().string(containsString("Em nhắn lại phòng khi mình chưa kịp xem ạ.")))
                 .andExpect(content().string(containsString("value=\"4\"")));
     }

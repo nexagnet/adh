@@ -198,7 +198,7 @@ class CampaignGroupTargetTest extends AbstractPostgresTest {
                         .param("linkOnly", "true").param("allowCreation", "true").param("linkTemplate", "Vào nhóm: {link_nhom}"))
                 .andExpect(redirectedUrl("/campaigns/" + campaign));
         assertThat(target.load(campaign)).isEqualTo(new Target(true, true, "Vào nhóm: {link_nhom}"));
-        mvc.perform(get("/campaigns/" + campaign).with(user("admin")))
+        mvc.perform(get("/campaigns/" + campaign + "?tab=nhom").with(user("admin")))
                 .andExpect(status().isOk()).andExpect(content().string(containsString("Nhóm Zalo của chiến dịch")));
         mvc.perform(post("/campaigns/" + campaign + "/group-target").with(user("admin")).with(csrf()).param("linkTemplate", "thiếu link"))
                 .andExpect(status().isBadRequest()).andExpect(content().string(containsString("link_nhom")));
@@ -217,7 +217,7 @@ class CampaignGroupTargetTest extends AbstractPostgresTest {
         mvc.perform(post("/campaigns/" + campaign + "/comeback").with(user("admin")).with(csrf()).param("mode", "TASKS"))
                 .andExpect(redirectedUrl("/campaigns/" + campaign));
         assertThat(comebacks.campaignMode(campaign)).isEqualTo(vn.shop.crm.inbox.ComebackService.Mode.TASKS);
-        mvc.perform(get("/campaigns/" + campaign).with(user("admin")))
+        mvc.perform(get("/campaigns/" + campaign + "?tab=nhom").with(user("admin")))
                 .andExpect(status().isOk()).andExpect(content().string(containsString("Khách từng từ chối nhưng nhắn lại muốn mua")));
         mvc.perform(post("/campaigns/" + campaign + "/comeback").with(user("admin")).with(csrf()).param("mode", "TUY_Y"))
                 .andExpect(status().isBadRequest()).andExpect(content().string(containsString("không đúng")));
