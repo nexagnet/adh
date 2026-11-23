@@ -15,7 +15,7 @@ Chủ dự án chốt: khách gửi mô tả lỗi, AI phân loại và tạo vi
 ## Dữ liệu và an toàn
 - AI chỉ nhận: văn bản khách đã che (`PiiMasker`), và vài dòng "hàng đã mua" gồm **tên hàng đã che và số ngày kể từ khi giao**. Không bao giờ tên khách, số điện thoại, địa chỉ, mã vận đơn, mã đơn hay mã Zalo. Chỉ nạp đơn của đúng khách đang nhắn (test khóa: đơn khách khác không lọt vào lời gọi).
 - Tin khách và dòng hàng là dữ liệu không đáng tin (bọc giữa `<<<` `>>>` và `[[[` `]]]`); đầu ra sai khuôn thì không dùng.
-- Bảng `warranty_case` (V34): chữ khách (đã che), tóm tắt và nháp tự xóa sau 30 ngày hoặc khi xử lý xong; không lưu số điện thoại. Nút "Xóa dữ liệu khách" của chủ shop xóa luôn việc (ON DELETE CASCADE). Không bao giờ tự xóa khách (CLAUDE.md mục 5a).
+- Bảng `warranty_case` (V35): chữ khách (đã che), tóm tắt và nháp tự xóa sau 30 ngày hoặc khi xử lý xong; không lưu số điện thoại. Nút "Xóa dữ liệu khách" của chủ shop xóa luôn việc (ON DELETE CASCADE). Không bao giờ tự xóa khách (CLAUDE.md mục 5a).
 - Không có đường gửi nào ở phần này: không dùng `ZaloMessenger`, không tạo `zalo_msg_log`, không đổi hạn mức hay cầu dao.
 
 ## Ảnh và video: chưa làm

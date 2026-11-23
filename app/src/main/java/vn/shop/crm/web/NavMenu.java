@@ -33,11 +33,13 @@ public class NavMenu {
     private final vn.shop.crm.inbox.RefusalReviewService refusals;
     private final vn.shop.crm.inbox.ReplyService replies;
     private final vn.shop.crm.inbox.WarrantyService warranty;
+    private final vn.shop.crm.zalo.ZaloHealthService zaloHealth;
 
     public NavMenu(HandoffService handoffs, PrivacyService privacy, StatusMappingService statuses, ZaloAutoService zalo,
                    InviteService invites, vn.shop.crm.inbox.RefusalReviewService refusals, vn.shop.crm.inbox.ReplyService replies,
-                   vn.shop.crm.inbox.WarrantyService warranty) {
+                   vn.shop.crm.inbox.WarrantyService warranty, vn.shop.crm.zalo.ZaloHealthService zaloHealth) {
         this.warranty = warranty;
+        this.zaloHealth = zaloHealth;
         this.refusals = refusals;
         this.replies = replies;
         this.invites = invites;
@@ -72,7 +74,7 @@ public class NavMenu {
                 item("Chạy thử trên Zalo", "/test-runs", "/test-runs", 0, key),
                 item("Nhóm Zalo", "/groups", "/groups", 0, key),
                 // Luôn hiện (D18): đây là trung tâm điều khiển tự gửi; khi bộ nối tắt, trang chỉ báo "đang tắt".
-                item("Zalo tài khoản phụ", "/zalo", "/zalo", zalo.attentionCount(), key)));
+                item("Zalo tài khoản phụ", "/zalo", "/zalo", zalo.attentionCount() + zaloHealth.openCriticalCount(), key)));
         return List.of(
                 new Group("Khách hàng", List.of(
                         item("Tổng quan", "/", "/", 0, key),

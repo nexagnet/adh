@@ -48,6 +48,7 @@ services:
       # Bộ nối Zalo không chính thức (D16): mặc định TẮT. Muốn bật cần cả cờ này, profile zalo-auto và chọn nấc ở trang quản trị.
       APP_ZALO_AUTO_ENABLED: ${APP_ZALO_AUTO_ENABLED:-false}
       APP_ZALO_BRIDGE_URL: http://zalo-bridge:3100
+      APP_ALERT_WEBHOOK_URL: ${APP_ALERT_WEBHOOK_URL:-}
       APP_ZALO_BRIDGE_KEY: ${APP_ZALO_BRIDGE_KEY:-}
       APP_ZALO_AUTO_MAX_DAILY: ${APP_ZALO_AUTO_MAX_DAILY:-100}
       APP_ZALO_GROUP_DEPUTY_ID: ${ZALO_DEPUTY_ID:-}

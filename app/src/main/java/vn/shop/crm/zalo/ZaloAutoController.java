@@ -33,9 +33,12 @@ public class ZaloAutoController {
     private final ZaloInboxService inbox;
     private final vn.shop.crm.inbox.ComebackService comebacks;
 
+    private final ZaloHealthService health;
+
     public ZaloAutoController(ZaloAutoService service, ZaloMessageService messages, vn.shop.crm.send.SendService send,
                               ZaloGroupCreationService groupMaker, ZaloDeputyService deputy, ZaloInboxService inbox,
-                              vn.shop.crm.inbox.ComebackService comebacks) {
+                              vn.shop.crm.inbox.ComebackService comebacks, ZaloHealthService health) {
+        this.health = health;
         this.inbox = inbox;
         this.comebacks = comebacks;
         this.groupMaker = groupMaker;
@@ -80,6 +83,8 @@ public class ZaloAutoController {
             model.addAttribute("manual", service.manualQueue());
             model.addAttribute("candidates", service.candidates());
             model.addAttribute("log", cfg.recentLog(40));
+            model.addAttribute("healthOpen", health.open());
+            model.addAttribute("healthRecent", health.recent(15));
             ZaloGroupSettings gs = groupMaker.settings();
             model.addAttribute("groupModes", ZaloGroupMode.values());
             model.addAttribute("groupChosen", gs.chosenMode());
