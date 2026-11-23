@@ -26,10 +26,12 @@ public class ZaloAutoController {
 
     private final ZaloAutoService service;
     private final ZaloMessageService messages;
+    private final vn.shop.crm.send.SendService send;
 
-    public ZaloAutoController(ZaloAutoService service, ZaloMessageService messages) {
+    public ZaloAutoController(ZaloAutoService service, ZaloMessageService messages, vn.shop.crm.send.SendService send) {
         this.service = service;
         this.messages = messages;
+        this.send = send;
     }
 
     private void requireEnabled() {
@@ -56,6 +58,8 @@ public class ZaloAutoController {
         model.addAttribute("trippedAt", cfg.trippedAt() == null ? null
                 : LocalDateTime.ofInstant(cfg.trippedAt(), cfg.clock().getZone()));
         model.addAttribute("props", cfg.props());
+        // Giới hạn gửi tay, tạm dừng, nhật ký chiến dịch (trước là trang /sending): hiện cả khi bộ nối tắt.
+        model.addAttribute("send", send.status());
         if (enabled) {
             ZaloGateway.Status st = service.bridgeStatus();
             model.addAttribute("bridge", st);

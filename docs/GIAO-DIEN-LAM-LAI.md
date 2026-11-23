@@ -16,8 +16,8 @@ Người dùng (chủ shop) chê giao diện "quá rác" và dặn bỏ các mà
 | Tổng quan, Nhập đơn (+ chi tiết, chọn cột, xem trước), Trạng thái đơn, Danh sách mời, Chiến dịch mời, Yêu cầu của khách, In giấy giới thiệu, Bản đồ khách, Việc cần mẹ xử lý, Tài khoản trợ lý AI, trang khách (`/moi`, `/i/{token}`) | Giữ | không đổi |
 | Khách mua 1 lần / từ 2 lần | Gộp thành **Khách hàng** | Xong (#46) |
 | **Chạy thử trên Zalo** (`/test-runs`) | **Giữ** tới khi chủ shop cấu hình xong chiến dịch thử và chạy thật, **sau đó xóa**. Chủ shop đã chốt: chiến dịch thử phải có trước khi chạy chiến dịch thật. Đừng xóa khi dọn màn lỗi thời. | Đã làm đẹp (#45); xóa sau |
-| Zalo tài khoản phụ (`/zalo`) | Giữ, **luôn hiện trên menu** (nay là trung tâm điều khiển tự gửi, không còn là tùy chọn) | Chưa làm (cần sửa `NavMenu`, hiện chỉ hiện khi bộ nối bật) |
-| Cài đặt gửi tin (`/sending`) | **Gộp** vào Zalo tài khoản phụ (hạn mức, giờ nhắn, tạm dừng) | Chưa làm |
+| Zalo tài khoản phụ (`/zalo`) | Giữ, **luôn hiện trên menu** (nay là trung tâm điều khiển tự gửi, không còn là tùy chọn) | Xong |
+| Cài đặt gửi tin (`/sending`) | **Gộp** vào Zalo tài khoản phụ (hạn mức, giờ nhắn, tạm dừng) | Xong: mục "Tạm dừng, giới hạn gửi tay và nhật ký chiến dịch" cuối `/zalo`; `/sending` chuyển hướng sang đó |
 | Nhóm Zalo (`/groups`) + gán mã nhóm (`/zalo/groups`) | **Gộp một trang** (nhóm tự thêm và nhóm link phải là một) | Chưa làm |
 | Lô nhắn hôm nay (`/today`) | **Bỏ hẳn khi tự gửi chạy** (chủ shop chọn: bỏ hẳn, không giữ dự phòng) | Chờ phần tự gửi ở backend |
 | Chờ vào nhóm (`/friends`) | Bỏ cùng đợt, chỉ giữ danh sách **ngoại lệ** (kẹt, chưa có nhóm hợp khu vực) trong chi tiết chiến dịch | Chờ phần tự gửi |
@@ -28,8 +28,8 @@ Người dùng (chủ shop) chê giao diện "quá rác" và dặn bỏ các mà
 ## 3. Việc còn dở (theo thứ tự nên làm)
 
 1. Sửa chữ lỗi thời theo D18 ("Hệ thống không tự gửi tin", "không đăng nhập Zalo", "mẹ gửi tay", "nhắn tay") ở: `campaigns.html`, `campaign-detail.html`, `today.html`, `sending.html`, `test-runs.html`, `test-run-detail.html`. Chỉ sửa sau khi chữ nghiệp vụ tự gửi được chốt (con số giãn cách, lô, hạn mức; Tin 2 có tự gửi không: xem file 03 mục 1I.11). Nhiều test kiểm chữ tiếng Việt cụ thể, sửa test theo.
-2. `NavMenu`: mục Zalo tài khoản phụ luôn hiện; gỡ "Cài đặt gửi tin" sau khi gộp.
-3. Gộp Cài đặt gửi tin vào `zalo.html`; gộp Nhóm Zalo + gán mã nhóm vào một trang (`groups.html`, `zalo-groups.html`). Hai việc này đụng file Zalo mà luồng backend đang sửa nên làm sau khi họ gộp, hoặc làm cùng họ.
+2. (Xong) `NavMenu`: mục Zalo tài khoản phụ luôn hiện; đã gỡ "Cài đặt gửi tin".
+3. (Cài đặt gửi tin đã gộp vào `zalo.html`.) Còn: gộp Nhóm Zalo + gán mã nhóm vào một trang (`groups.html`, `zalo-groups.html`). Hai việc này đụng file Zalo mà luồng backend đang sửa nên làm sau khi họ gộp, hoặc làm cùng họ.
 4. Đợt xóa màn nhắn tay (mục 2). Đợt xóa `/test-runs` sau khi chủ shop chạy chiến dịch thật.
 5. Chưa rà bản điện thoại kỹ cho các trang: Nhập đơn (chọn cột, xem trước), Trạng thái đơn, Danh sách mời, Việc cần mẹ xử lý, Tài khoản trợ lý AI, Yêu cầu của khách, In giấy giới thiệu, Zalo tài khoản phụ (`/zalo`). Chạy app cục bộ, chụp 390px, tìm chỗ tràn khung. Bảng nhiều cột đã tự thành thẻ; cần xem bảng nào nên giữ dạng bảng.
 6. Trang Tổng quan: khối "Việc cần làm hôm nay" còn mục nhắn tay (khách đã kết bạn chờ thêm vào nhóm); sửa khi bỏ màn nhắn tay.

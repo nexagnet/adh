@@ -5,7 +5,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,7 +15,7 @@ import vn.shop.crm.invite.InviteService;
 
 import java.nio.charset.StandardCharsets;
 
-/** Màn hình cài đặt gửi tin, chạy thử và xuất danh sách cho mẹ gửi tay (mốc 1D). */
+/** Chạy thử và xuất danh sách cho mẹ gửi tay (mốc 1D). */
 @Controller
 public class SendController {
 
@@ -32,10 +31,10 @@ public class SendController {
         this.manual = manual;
     }
 
+    /** Trang cũ "Cài đặt gửi tin" đã gộp vào trang Zalo tài khoản phụ (D18); giữ đường dẫn cũ để dấu trang không chết. */
     @GetMapping("/sending")
-    public String settings(Model model) {
-        model.addAttribute("status", send.status());
-        return "sending";
+    public String settings() {
+        return "redirect:/zalo#gui-tay";
     }
 
     @PostMapping("/campaigns/{id}/dry-run")

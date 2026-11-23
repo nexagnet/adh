@@ -235,7 +235,7 @@ class TodayQueueTest extends AbstractPostgresTest {
                 .andExpect(status().is3xxRedirection());
         assertThat(jdbc.sql("SELECT status FROM invitation WHERE id = :i").param("i", inv).query(String.class).single())
                 .isEqualTo("SENT");
-        mvc.perform(get("/sending").with(owner)).andExpect(status().isOk())
+        mvc.perform(get("/zalo").with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Hạn mức mỗi giờ")));
     }
 }

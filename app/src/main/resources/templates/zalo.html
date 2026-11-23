@@ -200,6 +200,91 @@
         </div>
     </section>
     </th:block>
+
+    <section id="gui-tay" class="stack">
+        <h2>Tạm dừng, giới hạn gửi tay và nhật ký chiến dịch</h2>
+        <p class="hint">Phần này áp cho đường dự phòng (lô nhắn tay, xuất danh sách) và nhật ký gửi của các chiến dịch. Tự gửi tin Zalo có hạn mức riêng ở mục "Tự gửi tin cho khách" phía trên.
+            Các giới hạn dưới đây chỉ để xem; muốn đổi, người cài đặt sửa cấu hình trên máy chủ (APP_SENDING_DAILY_LIMIT, APP_SENDING_HOURLY_LIMIT) rồi khởi động lại.</p>
+        <div class="actions">
+            <form th:action="@{/campaigns/pause-all}" method="post" th:unless="${send.paused}">
+                <button type="submit" class="btn danger">Tạm dừng tất cả chiến dịch</button>
+            </form>
+            <form th:action="@{/campaigns/resume-all}" method="post" th:if="${send.paused}">
+                <button type="submit" class="btn">Bỏ tạm dừng</button>
+            </form>
+        </div>
+<div class="notice bad" th:if="${send.paused}">
+        <strong>Đang TẠM DỪNG tất cả chiến dịch</strong>
+        <span th:if="${!send.pausedReason.isEmpty()}" th:text="'Lý do: ' + ${send.pausedReason}">Lý do</span>
+    </div>
+    <div class="notice bad" th:if="${!send.enabled and !send.paused}">
+        <strong>Gửi SMS đang TẮT</strong>
+        Đây là công tắc gửi SMS (tạm chưa dùng). Tự gửi tin Zalo có công tắc riêng ở mục "Tự gửi tin cho khách" phía trên.
+    </div>
+    <div class="notice ok" th:if="${send.enabled and !send.paused}"><strong>Gửi SMS đang BẬT</strong></div>
+
+    <div class="setrows">
+        <div class="setrow">
+            <div><div class="t">Giờ được gửi</div><div class="d">Ngoài giờ này hệ thống tự hoãn sang hôm sau.</div></div>
+            <div class="v"><span th:text="${#temporals.format(send.windowStart, 'HH:mm')}">07:00</span> đến <span th:text="${#temporals.format(send.windowEnd, 'HH:mm')}">22:00</span></div>
+        </div>
+        <div class="setrow">
+            <div><div class="t">Hạn mức mỗi ngày</div><div class="d">Gửi chậm, theo lô nhỏ. Mỗi khách chỉ nhận một lần. Hôm nay đã gửi <span th:text="${send.sentToday}">0</span>.</div></div>
+            <div class="v"><span th:text="${send.dailyLimit}">20</span> tin</div>
+        </div>
+        <div class="setrow">
+            <div><div class="t">Hạn mức mỗi giờ</div><div class="d">Tối đa số tin trong 60 phút gần nhất; 0 là không giới hạn theo giờ. Trong 60 phút qua đã gửi <span th:text="${send.sentThisHour}">0</span>.</div></div>
+            <div class="v"><span th:text="${send.hourlyLimit}">6</span> tin</div>
+        </div>
+        <div class="setrow">
+            <div><div class="t">Nhịp gợi ý khi nhắn tay</div><div class="d">Hai tin cách nhau ít nhất bấy nhiêu phút (chỉ gợi ý ở mục Lô nhắn hôm nay, không ép buộc).</div></div>
+            <div class="v"><span th:text="${send.suggestedGapMinutes}">3</span> phút</div>
+        </div>
+        <div class="setrow">
+            <div><div class="t">Trần chi SMS mỗi tháng</div><div class="d">Hết ngân sách thì tự dừng. Đã dùng tháng này: <span th:text="${#numbers.formatInteger(send.monthSpend, 1, 'POINT')}">0</span> đ.</div></div>
+            <div class="v"><span th:text="${#numbers.formatInteger(send.monthlyBudget, 1, 'POINT')}">1.000.000</span> đ</div>
+        </div>
+        <div class="setrow">
+            <div><div class="t">Gửi bằng SMS</div><div class="d">Đường gửi đang dùng: Zalo (tự gửi theo chiến dịch đã duyệt, hoặc mẹ gửi tay làm dự phòng). Tạm chưa dùng SMS.</div></div>
+            <div class="v"><span class="badge">Tạm chưa dùng</span></div>
+        </div>
+    </div>
+
+    <section>
+        <h3>Tự động dừng khi</h3>
+        <div class="table-wrap">
+            <table>
+                <tr><th>Điều kiện</th><th>Hệ thống làm gì</th></tr>
+                <tr><td>Gửi lỗi liên tiếp, hoặc tỉ lệ gửi lỗi cao</td><td>Dừng chiến dịch</td></tr>
+                <tr><td>Có khách từ chối hoặc khiếu nại</td><td>Dừng chiến dịch, báo bố mẹ xem</td></tr>
+                <tr><td>Hết ngân sách tháng</td><td>Dừng đến đầu tháng sau</td></tr>
+            </table>
+        </div>
+        <p class="muted small" style="margin-top:10px">Hệ thống luôn gửi từng tin một và nghỉ một khoảng cố định giữa các tin, chỉ để dàn trải việc gửi.</p>
+    </section>
+
+    <section>
+        <h3>Nhật ký gửi gần đây</h3>
+        <div class="table-wrap">
+            <table>
+                <tr><th>Lúc</th><th>Số (3 số cuối)</th><th>Kênh</th><th>Kết quả</th><th>Ghi chú</th></tr>
+                <tr th:each="r : ${send.recent}">
+                    <td th:text="${#temporals.format(r.at, 'dd/MM HH:mm')}">21/11 18:40</td>
+                    <td th:text="${r.phoneTail}">***678</td>
+                    <td th:text="${@labels.channel(r.channel)}">Chạy thử</td>
+                    <td>
+                        <span class="badge ok" th:if="${r.outcome == 'SENT'}">Đã gửi</span>
+                        <span class="badge" th:if="${r.outcome == 'DRY_RUN'}">Chạy thử</span>
+                        <span class="badge warn" th:if="${r.outcome == 'SKIPPED'}">Bỏ qua</span>
+                        <span class="badge bad" th:if="${r.outcome == 'FAILED'}">Lỗi</span>
+                    </td>
+                    <td th:text="${r.reason}">ghi chú</td>
+                </tr>
+                <tr th:if="${send.recent.isEmpty()}"><td colspan="5" class="muted">Chưa có lần gửi hay chạy thử nào.</td></tr>
+            </table>
+        </div>
+    </section>
+    </section>
 </main>
 </body>
 </html>
