@@ -49,6 +49,18 @@ class ZaloGatewayShapeTest {
         assertThat(names(ZaloMessenger.class)).containsExactly("sendByPhone", "sendByUid");
     }
 
+    @Test
+    void taoNhomChiCoMotHamVaKhongCoViecNguyHiem() {
+        assertThat(names(ZaloGroupMaker.class)).containsExactly("createGroup");
+        for (Class<?> c : List.of(ZaloGroupMaker.class, ZaloGroupCreationService.class, ZcaBridgeGateway.class)) {
+            for (Method m : c.getDeclaredMethods()) {
+                String n = m.getName().toLowerCase();
+                assertThat(n).as(c.getSimpleName() + "." + m.getName()).doesNotContain("disperse", "changegroupowner", "removeuser",
+                        "deletegroup", "leavegroup", "blockuser", "changegroupname");
+            }
+        }
+    }
+
     /** D18: khoảng cách giữa hai tin là CỐ ĐỊNH. Không dùng số ngẫu nhiên để rải thời gian gửi (không né phát hiện). */
     @Test
     void khongDungSoNgauNhienTrongMaGuiTin() throws IOException {

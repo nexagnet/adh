@@ -27,8 +27,11 @@ public class ZaloAutoController {
     private final ZaloAutoService service;
     private final ZaloMessageService messages;
     private final vn.shop.crm.send.SendService send;
+    private final ZaloGroupCreationService groupMaker;
 
-    public ZaloAutoController(ZaloAutoService service, ZaloMessageService messages, vn.shop.crm.send.SendService send) {
+    public ZaloAutoController(ZaloAutoService service, ZaloMessageService messages, vn.shop.crm.send.SendService send,
+                              ZaloGroupCreationService groupMaker) {
+        this.groupMaker = groupMaker;
         this.service = service;
         this.messages = messages;
         this.send = send;
@@ -69,6 +72,15 @@ public class ZaloAutoController {
             model.addAttribute("manual", service.manualQueue());
             model.addAttribute("candidates", service.candidates());
             model.addAttribute("log", cfg.recentLog(40));
+            ZaloGroupSettings gs = groupMaker.settings();
+            model.addAttribute("groupModes", ZaloGroupMode.values());
+            model.addAttribute("groupChosen", gs.chosenMode());
+            model.addAttribute("groupDaily", gs.daily());
+            model.addAttribute("groupMin", gs.minCustomers());
+            model.addAttribute("groupProps", gs.props());
+            model.addAttribute("groupDeputySet", !gs.props().deputyId().isEmpty());
+            model.addAttribute("groupMayNow", groupMaker.mayCreateNow());
+            model.addAttribute("proposals", groupMaker.recent(10));
         }
         return "zalo";
     }
@@ -80,6 +92,49 @@ public class ZaloAutoController {
         service.settings().setMode(mode, confirmedTested, by(user));
         redirect.addFlashAttribute("flash", "Đã chuyển sang nấc: " + mode.label() + ".");
         return "redirect:/zalo";
+    }
+
+    // ---------- tự tạo nhóm theo khu vực (D19) ----------
+
+    @PostMapping("/group-mode")
+    public String groupMode(@RequestParam ZaloGroupMode mode, @RequestParam(defaultValue = "false") boolean confirmedTested,
+                            Principal user, RedirectAttributes redirect) {
+        requireEnabled();
+        groupMaker.settings().setMode(mode, confirmedTested, by(user));
+        redirect.addFlashAttribute("flash", "Đã chuyển việc tự tạo nhóm sang nấc: " + mode.label() + ".");
+        return "redirect:/zalo#tao-nhom";
+    }
+
+    @PostMapping("/group-limits")
+    public String groupLimits(@RequestParam int daily, @RequestParam int minCustomers, Principal user, RedirectAttributes redirect) {
+        requireEnabled();
+        groupMaker.settings().setLimits(daily, minCustomers, by(user));
+        redirect.addFlashAttribute("flash", "Đã lưu giới hạn tạo nhóm.");
+        return "redirect:/zalo#tao-nhom";
+    }
+
+    @PostMapping("/group-proposals/{id}/approve")
+    public String approveProposal(@PathVariable long id, Principal user, RedirectAttributes redirect) {
+        requireEnabled();
+        groupMaker.approve(id, by(user));
+        redirect.addFlashAttribute("flash", "Đã duyệt. Nhóm được tạo ở nhịp kế tiếp nếu đang trong giờ và còn trần mỗi ngày.");
+        return "redirect:/zalo#tao-nhom";
+    }
+
+    @PostMapping("/group-proposals/{id}/reject")
+    public String rejectProposal(@PathVariable long id, Principal user, RedirectAttributes redirect) {
+        requireEnabled();
+        groupMaker.reject(id, by(user));
+        redirect.addFlashAttribute("flash", "Đã từ chối đề xuất. Khu vực này không được đề xuất lại trong 24 giờ.");
+        return "redirect:/zalo#tao-nhom";
+    }
+
+    @PostMapping("/group-proposals/{id}/checked")
+    public String checkedProposal(@PathVariable long id, Principal user, RedirectAttributes redirect) {
+        requireEnabled();
+        groupMaker.acknowledge(id, by(user));
+        redirect.addFlashAttribute("flash", "Đã ghi nhận bạn kiểm tra trên Zalo. Bộ nối vẫn dừng cho tới khi bấm Mở lại.");
+        return "redirect:/zalo#tao-nhom";
     }
 
     @PostMapping("/limits")

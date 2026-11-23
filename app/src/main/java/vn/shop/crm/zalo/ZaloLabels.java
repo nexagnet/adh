@@ -43,7 +43,9 @@ public class ZaloLabels {
             Map.entry("MSG_LIMIT", "Chạm trần số tin mỗi ngày của cầu nối"),
             Map.entry("NOT_ACTIVE", "Cầu nối đang dừng hoặc chưa đăng nhập"),
             Map.entry("LOGIN_REQUIRED", "Cầu nối cần quét lại mã QR"),
-            Map.entry("TRIPPED", "Cầu nối tự dừng"));
+            Map.entry("TRIPPED", "Cầu nối tự dừng"),
+            Map.entry("TAO_NHOM_INTERRUPTED", "Sập đúng lúc đang tạo nhóm, không biết nhóm đã tạo chưa"),
+            Map.entry("GROUP_LIMIT", "Chạm trần số nhóm mới mỗi ngày của cầu nối"));
 
     private static final Map<String, String> ACTION = Map.of(
             ZaloAutoSettings.A_LISTEN, "Nhận sự kiện kết bạn",
@@ -54,7 +56,8 @@ public class ZaloLabels {
             ZaloAutoSettings.A_REOPEN, "Mở lại",
             ZaloAutoSettings.A_CONFIG, "Đổi cấu hình",
             ZaloAutoSettings.A_LOGIN, "Đăng nhập QR",
-            ZaloAutoSettings.A_LOGOUT, "Đăng xuất");
+            ZaloAutoSettings.A_LOGOUT, "Đăng xuất",
+            ZaloGroupSettings.A_GROUP, "Tạo nhóm");
 
     private static final Map<String, String> RESULT = Map.ofEntries(
             Map.entry("DA_THANH_BAN", "Đã thành bạn"),
@@ -74,7 +77,17 @@ public class ZaloLabels {
             Map.entry("XONG", "Xong"),
             Map.entry("SAI_TAI_KHOAN", "Sai tài khoản"),
             Map.entry("DOI_TUONG_THU", "Số của chiến dịch thử (không ghép khách thật)"),
-            Map.entry("YEU_CAU", "Yêu cầu"));
+            Map.entry("YEU_CAU", "Yêu cầu"),
+            Map.entry("DE_XUAT", "Đề xuất tạo nhóm, chờ mẹ duyệt"),
+            Map.entry("DE_XUAT_TU_DONG", "Đề xuất tạo nhóm (nấc tự động)"),
+            Map.entry("DUYET", "Mẹ duyệt tạo nhóm"),
+            Map.entry("TU_CHOI", "Mẹ từ chối đề xuất"),
+            Map.entry("DA_KIEM_TRA", "Người đã kiểm tra trên Zalo"),
+            Map.entry("HET_HAN", "Đề xuất hết hạn (không còn đủ khách)"),
+            Map.entry("PERSON_ERROR", "Đầu vào bị từ chối, chưa tạo"),
+            Map.entry("RESTRICTED", "Zalo hạn chế hoặc chạm trần"),
+            Map.entry("SESSION_LOST", "Mất phiên đăng nhập"),
+            Map.entry("SYSTEM_ERROR", "Lỗi lạ hoặc không biết kết quả"));
 
     private static final Map<String, String> ADD_STATE = Map.of(
             "WAITING_APPROVAL", "Chờ mẹ duyệt",
@@ -114,6 +127,7 @@ public class ZaloLabels {
             return "";
         }
         String head = code.startsWith("NAC_") ? "Đổi nấc" : code.startsWith("HAN_MUC") ? "Đổi hạn mức"
+                : code.startsWith("TAO_NHOM_NAC_") ? "Đổi nấc tự tạo nhóm" : code.startsWith("TAO_NHOM_HAN_MUC") ? "Đổi hạn mức tạo nhóm"
                 : code.equals("TIN_BAT") ? "Bật tự gửi tin" : code.equals("TIN_TAT") ? "Tắt tự gửi tin"
                 : code.startsWith("DUYET_CHIEN_DICH") ? "Duyệt chiến dịch cho tự gửi" : code.startsWith("BO_DUYET_CHIEN_DICH") ? "Bỏ duyệt chiến dịch" : null;
         return head != null ? head : RESULT.getOrDefault(code, "Khác");

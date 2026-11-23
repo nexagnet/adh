@@ -171,6 +171,83 @@ public class ZcaBridgeGateway implements ZaloLink {
         }
     }
 
+    // ---------- ZaloGroupMaker: việc thứ năm (D19), tạo MỘT nhóm ----------
+
+    /** Mã cầu nối từ chối TRƯỚC khi chạm Zalo (xem bridge.mjs createGroup): chắc chắn chưa tạo nhóm nào. */
+    private static final java.util.Set<String> NOT_CREATED_CODES = java.util.Set.of("BAD_NAME", "BAD_MEMBERS", "BAD_DEPUTY", "LOGIN_REQUIRED",
+            "NOT_ACTIVE", "NOT_CONNECTED", "BUSY", "WINDOW", "GROUP_LIMIT");
+
+    @Override
+    public Created createGroup(String name, List<String> memberUids, String deputyUid) {
+        if (name == null || name.isBlank() || name.length() > 100) {
+            return Created.of(ZaloGroupMaker.GroupOutcome.PERSON_ERROR, "BAD_NAME", true);
+        }
+        if (memberUids == null || memberUids.isEmpty() || memberUids.size() > 5
+                || memberUids.stream().anyMatch(u -> u == null || !ZALO_ID.matcher(u).matches())) {
+            return Created.of(ZaloGroupMaker.GroupOutcome.PERSON_ERROR, "BAD_MEMBERS", true);
+        }
+        if (deputyUid != null && !ZALO_ID.matcher(deputyUid).matches()) {
+            return Created.of(ZaloGroupMaker.GroupOutcome.PERSON_ERROR, "BAD_DEPUTY", true);
+        }
+        try {
+            java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+            body.put("name", name);
+            body.put("members", memberUids);
+            if (deputyUid != null) {
+                body.put("deputy", deputyUid);
+            }
+            JsonNode n = call("POST", "/groups", JSON.writeValueAsString(body), 120);
+            ZaloGroupMaker.GroupOutcome outcome;
+            try {
+                outcome = ZaloGroupMaker.GroupOutcome.valueOf(n.path("outcome").asString(""));
+            } catch (IllegalArgumentException e) {
+                return Created.of(ZaloGroupMaker.GroupOutcome.SYSTEM_ERROR, "BAD_REPLY", false);
+            }
+            if (outcome == ZaloGroupMaker.GroupOutcome.UNREACHABLE) {
+                return Created.of(ZaloGroupMaker.GroupOutcome.SYSTEM_ERROR, "BAD_REPLY", false); // chỉ chính Adh quyết "không nối được"
+            }
+            String code = safeCode(text(n, "code"));
+            if (outcome != ZaloGroupMaker.GroupOutcome.OK) {
+                int retry = Math.max(0, Math.min(86400, n.path("retryAfterSec").asInt(0)));
+                boolean notCreated = outcome == ZaloGroupMaker.GroupOutcome.RATE_LIMITED || (code != null && NOT_CREATED_CODES.contains(code));
+                return new Created(outcome, code, null, null, List.of(), List.of(), "NONE", retry, notCreated);
+            }
+            String groupId = text(n, "groupId");
+            if (groupId == null || !ZALO_ID.matcher(groupId).matches()) {
+                return Created.of(ZaloGroupMaker.GroupOutcome.SYSTEM_ERROR, "BAD_REPLY", false); // nhóm có thể đã tạo nhưng không có mã: dừng
+            }
+            String link = text(n, "link");
+            if (link != null && !link.startsWith("https://")) {
+                link = null;
+            }
+            String deputy = text(n, "deputy");
+            if (!"OK".equals(deputy) && !"FAILED".equals(deputy)) {
+                deputy = "NONE";
+            }
+            return new Created(outcome, null, groupId, link, uidList(n.path("added"), memberUids), uidList(n.path("failed"), memberUids),
+                    deputy, 0, false);
+        } catch (Unreachable e) {
+            return Created.of(ZaloGroupMaker.GroupOutcome.UNREACHABLE, "BRIDGE_DOWN", true);
+        } catch (TimedOut e) {
+            return Created.of(ZaloGroupMaker.GroupOutcome.SYSTEM_ERROR, "TIMEOUT", false); // không biết đã tạo hay chưa
+        } catch (Exception e) {
+            log.warn("Lỗi khi tạo nhóm qua cầu nối: {}", e.getClass().getSimpleName());
+            return Created.of(ZaloGroupMaker.GroupOutcome.SYSTEM_ERROR, "BRIDGE_ERROR", false);
+        }
+    }
+
+    /** Chỉ nhận những mã nằm trong danh sách đã gửi đi: cầu nối không thể "thêm" người lạ vào kết quả. */
+    private static List<String> uidList(JsonNode arr, List<String> allowed) {
+        List<String> out = new ArrayList<>();
+        for (JsonNode e : arr) {
+            String v = e.asString("");
+            if (allowed.contains(v) && !out.contains(v)) {
+                out.add(v);
+            }
+        }
+        return out;
+    }
+
     // ---------- ZaloSession: phiên đăng nhập ----------
 
     @Override

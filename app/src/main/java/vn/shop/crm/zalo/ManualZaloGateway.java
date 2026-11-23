@@ -62,4 +62,9 @@ public class ManualZaloGateway implements ZaloLink {
     public Sent sendByUid(Kind kind, String uid, String text) {
         return Sent.of(Result.UNREACHABLE, "DISABLED", true);
     }
+
+    @Override
+    public Created createGroup(String name, java.util.List<String> memberUids, String deputyUid) {
+        return Created.of(ZaloGroupMaker.GroupOutcome.UNREACHABLE, "DISABLED", true);
+    }
 }
