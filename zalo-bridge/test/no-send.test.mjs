@@ -86,9 +86,10 @@ test('log chỉ nhận thông điệp ngắn, không truyền uid/phone/name', (
   }
 });
 
-test('D19: tin WELCOME chỉ theo mã Zalo, cần cờ đọc tin riêng, chỉ trả lời người vừa nhắn tới và mỗi tin đến chỉ một lần', () => {
+test('D19/D20: tin WELCOME và REPLY chỉ theo mã Zalo, cần cờ đọc tin riêng, chỉ trả lời người vừa nhắn tới và mỗi tin đến chỉ một lần', () => {
   const b = code('bridge.mjs');
-  assert.match(b, /kind === 'WELCOME' && \(uidIn === null \|\| !this\.config\.inboxEnabled\)/);
+  assert.match(b, /const isReply = kind === 'WELCOME' \|\| kind === 'REPLY'/);
+  assert.match(b, /isReply && \(uidIn === null \|\| !this\.config\.inboxEnabled\)/);
   assert.match(b, /NOT_REPLYABLE/);
   assert.equal((b.match(/this\.replyable\.delete\(uidIn\)/g) ?? []).length, 1);
   assert.equal((b.match(/this\.replyable\.set\(/g) ?? []).length, 1, 'chỉ tin đến mới mở được đường trả lời');

@@ -16,7 +16,7 @@ public record AiProperties(
         @DefaultValue("") String model,
         @DefaultValue("https://api.deepseek.com") String baseUrl,
         /* Trần số lượt gọi AI mỗi ngày (giờ Việt Nam), tính chung mọi việc. Hết thì AI im lặng, việc chuyển mẹ. */
-        @DefaultValue("200") int dailyLimit,
+        @DefaultValue("1000") int dailyLimit,
         @DefaultValue("10") int timeoutSeconds,
         @DefaultValue("300") int maxOutputTokens) {
 

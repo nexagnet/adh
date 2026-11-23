@@ -118,6 +118,31 @@ class ZaloGatewayShapeTest {
         assertThat(sender).contains("Mode.AUTO").doesNotContain("while", "for (");
     }
 
+    /** D20: tin trả lời của trợ lý AI (REPLY) chỉ có MỘT nơi gửi, chỉ theo mã Zalo, chỉ ở nấc tự động; phần soạn câu không có đường gửi nào. */
+    @Test
+    void tinTraLoiChiGuiTuMotNoiVaChiTheoMaZalo() throws IOException {
+        List<Path> offenders = new java.util.ArrayList<>();
+        try (Stream<Path> all = Files.walk(Path.of("src/main/java"))) {
+            for (Path f : all.filter(x -> x.toString().endsWith(".java")).toList()) {
+                String name = f.getFileName().toString();
+                if (Files.readString(f).contains("Kind.REPLY") && !name.equals("ZaloReplySender.java")) {
+                    offenders.add(f);
+                }
+            }
+        }
+        assertThat(offenders).isEmpty();
+        String sender = Files.readString(Path.of("src/main/java/vn/shop/crm/zalo/ZaloReplySender.java"));
+        assertThat(sender).contains("Kind.REPLY", "sendByUid", "Mode.AUTO")
+                .doesNotContain("sendByPhone", "addToGroup", "createGroup", "findByPhone", "while", "for (");
+        for (String f : List.of("ReplyService", "ReplyAssistant", "ReplyValidator", "ReplyInfo")) {
+            assertThat(Files.readString(Path.of("src/main/java/vn/shop/crm/inbox/" + f + ".java"))).as(f)
+                    .doesNotContain("ZaloMessageService", "ZaloMessenger", "sendByUid", "sendByPhone");
+        }
+        // người soạn câu chỉ nói chuyện với AI qua AiGate, không có đường khác ra ngoài
+        assertThat(Files.readString(Path.of("src/main/java/vn/shop/crm/inbox/ReplyAssistant.java"))).contains("AiGate")
+                .doesNotContain("HttpClient", "RestClient", "WebClient");
+    }
+
     /** D18: khoảng cách giữa hai tin là CỐ ĐỊNH. Không dùng số ngẫu nhiên để rải thời gian gửi (không né phát hiện). */
     @Test
     void khongDungSoNgauNhienTrongMaGuiTin() throws IOException {

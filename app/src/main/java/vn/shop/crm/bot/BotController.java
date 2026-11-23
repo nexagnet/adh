@@ -35,11 +35,13 @@ public class BotController {
     private final HandoffService handoffs;
     private final vn.shop.crm.inbox.RefusalReviewService refusals;
     private final vn.shop.crm.inbox.ComebackService comebacks;
+    private final vn.shop.crm.inbox.ReplyService replies;
 
     public BotController(JdbcClient jdbc, AppSettings settings, FaqService faqs, BotEngine engine,
                          HandoffService handoffs, vn.shop.crm.inbox.RefusalReviewService refusals,
-                         vn.shop.crm.inbox.ComebackService comebacks) {
+                         vn.shop.crm.inbox.ComebackService comebacks, vn.shop.crm.inbox.ReplyService replies) {
         this.refusals = refusals;
+        this.replies = replies;
         this.comebacks = comebacks;
         this.jdbc = jdbc;
         this.settings = settings;
@@ -154,6 +156,7 @@ public class BotController {
         model.addAttribute("autoRefusals", done ? List.of() : refusals.recentAuto(14));
         model.addAttribute("comebackTasks", done ? List.of() : comebacks.tasks());
         model.addAttribute("comebackLifted", done ? List.of() : comebacks.recentLifted(14));
+        model.addAttribute("replyHandoffs", done ? List.of() : replies.handoffs());
         return "handoffs";
     }
 
@@ -193,6 +196,15 @@ public class BotController {
         boolean restored = refusals.undo(id);
         redirect.addFlashAttribute("flash", restored ? "Đã hoàn tác: khách không còn bị ghi từ chối, lời mời trở lại như trước."
                 : "Đã gỡ ghi từ chối, nhưng lời mời của khách đã bị đổi ở chỗ khác nên không khôi phục.");
+        return "redirect:/handoffs";
+    }
+
+    // ---------- trợ lý AI trả lời khách: việc chuyển người thật và nháp (D20) ----------
+
+    @PostMapping("/handoffs/replies/{id}/done")
+    public String doneReply(@PathVariable long id, java.security.Principal user, RedirectAttributes redirect) {
+        replies.done(id, user == null ? "người thật" : user.getName());
+        redirect.addFlashAttribute("flash", "Đã xử lý xong việc trả lời khách.");
         return "redirect:/handoffs";
     }
 

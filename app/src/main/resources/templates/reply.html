@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Trợ lý AI trả lời khách')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Trợ lý AI trả lời khách</h1>
+            <p class="hint">Khi khách <strong>tự nhắn riêng</strong> cho tài khoản Zalo phụ, trợ lý AI có thể trả lời trong phạm vi hẹp: <strong>mời vào nhóm</strong> và
+                <strong>ưu đãi khi vào nhóm</strong>. Mọi câu khác (giá, còn hàng, bảo hành, đổi trả, phàn nàn, muốn mua, muốn gặp người thật) được chuyển cho
+                <a th:href="@{/handoffs}">người thật ở trang Việc cần xử lý</a>. <a th:href="@{/zalo}">Về trang Zalo tài khoản phụ</a>.</p>
+        </div>
+    </header>
+
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
+
+    <section class="panel stack">
+        <h2>Cách trợ lý làm việc</h2>
+        <ul class="hint">
+            <li>Mỗi tin khách: AI xem tin có nằm trong phạm vi không (nghi ngờ thì coi là ngoài phạm vi, cần chắc từ
+                <strong th:text="${#numbers.formatDecimal(scopeMin, 1, 2)}">0,80</strong>), rồi soạn câu <strong>chỉ từ bảng thông tin cửa hàng</strong> bên dưới.</li>
+            <li>Câu AI soạn còn qua bộ kiểm tra cứng: chặn con số không có trong bảng, đường dẫn, số điện thoại, hứa hẹn, chuyện đổi trả, nền tảng khác, xin thông tin cá nhân.
+                Không qua thì <strong>không gửi</strong>, chuyển người thật.</li>
+            <li>Trợ lý luôn nói rõ mình là trợ lý AI, không giả làm người hay chủ shop. Mỗi câu kèm chữ ký:
+                <em th:text="${signature}">— Trợ lý AI của Cửa hàng.</em></li>
+            <li>Chỉ gửi AI văn bản đã che số điện thoại, không kèm tên, địa chỉ, mã Zalo hay lịch sử. Khách từng từ chối không bao giờ được trả lời ở đây.</li>
+            <li>Khách nhắn trước thì không giới hạn số câu trả lời (mỗi tin đến một câu trả lời); vẫn theo giờ gửi, khoảng nghỉ cố định, cầu dao và phanh khẩn cấp của bộ nối.</li>
+        </ul>
+        <p><span class="badge" th:classappend="${inboxRunning} ? 'ok' : 'warn'" th:text="${inboxRunning} ? 'Đọc tin riêng: đang bật' : 'Đọc tin riêng: đang tắt'">Đang tắt</span>
+            <span class="badge" th:classappend="${sendEnabled} ? 'ok' : 'warn'" th:text="${sendEnabled} ? 'Tự gửi tin: đang bật' : 'Tự gửi tin: đang tắt'">Đang tắt</span>
+            <span class="sub-line" th:unless="${inboxRunning}">Cần bật cả ba công tắc ở máy chủ: APP_ZALO_INBOX_ENABLED, BRIDGE_INBOX_ENABLED ở cầu nối và APP_AI_ENABLED (kèm khóa và tên mô hình).</span></p>
+    </section>
+
+    <section class="panel stack" id="nac">
+        <h2>Nấc</h2>
+        <form class="stack" th:action="@{/zalo/reply/mode}" method="post">
+            <label class="field" th:each="m : ${modes}">
+                <input type="radio" name="mode" th:value="${m.name()}" th:checked="${m == chosen}">
+                <span th:text="${m.label()}">Tắt</span>
+                <span class="sub-line" th:text="${m.hint()}">Mô tả</span>
+            </label>
+            <label class="field"><input type="checkbox" name="confirmedTested" value="true">
+                Tôi đã chạy nấc "Chỉ soạn nháp" một thời gian và thấy các nháp là đúng, an toàn (bắt buộc để bật nấc Tự động).</label>
+            <p class="sub-line" th:unless="${tried}">Hãy chọn "Chỉ soạn nháp" trước; nấc Tự động chỉ mở sau khi đã chạy nấc đó.</p>
+            <div><button type="submit" class="btn">Lưu nấc</button></div>
+        </form>
+    </section>
+
+    <section class="panel stack" id="bang-thong-tin">
+        <h2>Bảng thông tin cửa hàng</h2>
+        <p class="hint">Đây là <strong>nguồn duy nhất</strong> AI được dùng để trả lời. Con số nào AI nói ra phải có trong bảng này (ví dụ "10%"), nếu không câu bị chặn.
+            Để trống ô bảo hành thì AI không nói gì cụ thể về bảo hành. Đừng ghi chính sách đổi trả của nền tảng khác.</p>
+        <form class="stack" th:action="@{/zalo/reply/info}" method="post">
+            <label class="field" th:each="r : ${infoRows}">
+                <span th:text="${r.field.label}">Ưu đãi khi vào nhóm</span>
+                <textarea th:name="${r.field.key}" rows="3" maxlength="600" th:text="${r.value}"></textarea>
+                <span class="sub-line" th:text="${r.field.hint}">Gợi ý</span>
+            </label>
+            <div><button type="submit" class="btn">Lưu bảng thông tin</button></div>
+        </form>
+    </section>
+
+    <section class="panel stack" id="thu">
+        <h2>Thử một câu</h2>
+        <p class="hint">Gõ một câu khách có thể nhắn để xem trợ lý sẽ làm gì. Không lưu, không gửi gì cho ai; chỉ tốn một vài lượt AI. Hãy thử vài chục câu (cả câu trong và ngoài phạm vi,
+            câu cố lừa AI) trước khi bật.</p>
+        <form class="stack" th:action="@{/zalo/reply/preview}" method="post">
+            <label class="field"><span>Câu khách nhắn</span>
+                <textarea name="text" rows="2" maxlength="500" th:text="${sample}"></textarea></label>
+            <div><button type="submit" class="btn secondary">Thử</button></div>
+        </form>
+        <div class="notice" th:if="${preview != null}" th:classappend="${preview.wouldReply} ? 'ok'">
+            <strong th:text="${preview.wouldReply} ? 'Trợ lý sẽ trả lời:' : 'Kết quả:'">Kết quả</strong>
+            <p th:if="${preview.reply != null}" th:text="${preview.reply}">Dạ ...</p>
+            <p class="sub-line" th:text="${preview.note}">Ghi chú</p>
+        </div>
+    </section>
+
+    <section class="stack" th:if="${!drafts.isEmpty()}" aria-label="Nháp trợ lý soạn">
+        <h2>Nháp trợ lý soạn (chưa gửi)</h2>
+        <p class="hint">Ở nấc "Chỉ soạn nháp" hệ thống <strong>không gửi</strong>. Người thật xem câu, tự trả lời khách trên Zalo nếu thấy đúng, rồi bấm "Đã xử lý".</p>
+        <div class="job" th:each="r : ${drafts}">
+            <div class="meta">
+                <a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.customerName}">Khách</a>
+                · <span th:text="${#temporals.format(r.createdAt, 'dd/MM HH:mm')}">21/11 09:12</span>
+            </div>
+            <div class="what" th:if="${r.inbound != null}" th:text="'Khách: “' + ${r.inbound} + '”'">Khách: “...”</div>
+            <div class="what" th:if="${r.reply != null}" th:text="'Nháp: ' + ${r.reply}">Nháp: ...</div>
+            <div class="actions">
+                <form th:action="@{/handoffs/replies/{id}/done(id=${r.id})}" method="post">
+                    <button type="submit" class="btn sm secondary">Đã xử lý</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <section class="stack" th:if="${!sent.isEmpty()}" aria-label="Câu trợ lý đã tự gửi">
+        <h2>Câu trợ lý đã tự gửi (14 ngày gần đây)</h2>
+        <div class="job" th:each="r : ${sent}">
+            <div class="meta">
+                <span class="badge ok">Đã gửi</span>
+                <a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.customerName}">Khách</a>
+                · <span th:text="${#temporals.format(r.sentAt, 'dd/MM HH:mm')}">21/11 09:12</span>
+            </div>
+            <div class="what" th:if="${r.inbound != null}" th:text="'Khách: “' + ${r.inbound} + '”'">Khách: “...”</div>
+            <div class="what" th:if="${r.reply != null}" th:text="'Trợ lý: ' + ${r.reply}">Trợ lý: ...</div>
+        </div>
+    </section>
+
+    <p class="hint">Việc chuyển người thật đang chờ: <a th:href="@{/handoffs}"><strong th:text="${handoffCount}">0</strong> việc</a>.</p>
+</main>
+</body>
+</html>

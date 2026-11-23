@@ -213,6 +213,8 @@
         <p><span class="badge" th:classappend="${inboxRunning} ? 'ok' : 'warn'" th:text="${inboxRunning} ? 'Đang bật' : 'Đang tắt'">Đang tắt</span>
             <span class="sub-line" th:unless="${inboxRunning}">Bật cần cả ba công tắc ở máy chủ: APP_ZALO_INBOX_ENABLED, BRIDGE_INBOX_ENABLED ở cầu nối và APP_AI_ENABLED (kèm khóa và tên mô hình).</span></p>
 
+        <p class="hint">Trợ lý AI cũng có thể <strong>trả lời</strong> khách tự nhắn tới (tắt mặc định): <a th:href="@{/zalo/reply}">Trợ lý AI trả lời khách</a>.</p>
+
         <h3>Khách từng từ chối nay nhắn lại muốn mua</h3>
         <p class="hint">Số điện thoại và sổ từ chối <strong>không bao giờ bị xóa</strong>. Khi một khách từng từ chối <strong>tự nhắn tới</strong> và AI hiểu là muốn mua, mẹ thấy việc nổi bật
             ở <a th:href="@{/handoffs}">Việc cần mẹ xử lý</a> kèm đơn khách đã mua. Ở nấc Tự động, AI chắc từ

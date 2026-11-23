@@ -54,6 +54,7 @@ class ComebackTest extends AbstractPostgresTest {
     @Autowired InviteService invites;
     @Autowired RefusalReviewService reviews;
     @Autowired ComebackService comebacks;
+    @Autowired vn.shop.crm.inbox.ReplyService replies;
     @Autowired ZaloWelcomeSender welcome;
     @Autowired ZaloMessageService messages;
     @Autowired ZaloAutoSettings auto;
@@ -93,7 +94,7 @@ class ComebackTest extends AbstractPostgresTest {
             return aiAnswer.get();
         }, p, usage, Clock.systemUTC());
         svc = new ZaloInboxService(new ZaloInboxProperties(true, 0.8, 0.85), fake, fake, auto, settings, new RefusalClassifier(gate), reviews,
-                comebacks);
+                comebacks, replies);
         aiAnswer.set(ai("MUON_MUA", 0.95));
         // khách 1 đã nhận Tin 1 rồi TỪ CHỐI (mẹ ghi tay): lời mời CANCELLED, sổ từ chối có hiệu lực
         long c1 = cust(1);
