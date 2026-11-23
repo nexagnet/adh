@@ -46,7 +46,7 @@ public class InviteService {
             + "Anh/chị đồng ý kết bạn, em sẽ thêm anh chị vào nhóm ạ.";
 
     /**
-     * Tin 2 (gửi link nhóm cho khách ĐÃ đồng ý kết bạn; người gửi dán tay, hệ thống không tự gửi): dùng khi khách không được
+     * Tin 2 (gửi link nhóm cho khách ĐÃ đồng ý kết bạn; hệ thống tự gửi qua bộ nối Zalo khi việc tự thêm vào nhóm lỗi theo từng người, xem ZaloInviteSender; chiến dịch có thể có mẫu riêng): dùng khi khách không được
      * thêm tự động vào nhóm. Chủ shop chốt nội dung 22/11/2026.
      */
     public static final String DEFAULT_GROUP_LINK_TEMPLATE = "Mình vào nhóm theo link này nhé: {link_nhom}.";

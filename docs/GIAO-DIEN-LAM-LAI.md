@@ -25,6 +25,15 @@ Người dùng (chủ shop) chê giao diện "quá rác" và dặn bỏ các mà
 
 **Vì sao chưa xóa các màn nhắn tay:** đó là đường làm việc duy nhất cho tới khi phần tự gửi của luồng Zalo gộp; xóa trước thì không ai ghi nhận được "đã nhắn". Làm đợt xóa **sau** khi backend tự gửi gộp, và nhớ gỡ luôn test, controller (`TodayController`, `FriendsController`, các `POST /campaigns/{id}/invitations/{id}/...`) và mục menu.
 
+### Rà soát màn thừa lần cuối (23/11/2026, chủ dự án chọn "chỉ dọn phần trùng")
+
+Đã rà từng đường GET của ứng dụng: **không còn màn nào mồ côi** (mọi đường đều có liên kết từ menu hoặc từ trang khác). Không xóa màn nào, lý do:
+- `/test-runs`, `/today`, `/friends`, các nút nhắn tay, "Xuất danh sách để gửi tay": còn cần cho chạy thử; chỉ xóa sau khi chủ dự án báo chạy thử xong (xem `docs/BAN-GIAO-CHIEN-DICH-THU.md` mục 6, nhớ sửa `TestMode` đang đọc bảng `test_target`).
+- `/groups` và `/zalo/groups`: hai trang liên kết qua lại, cố ý giữ để khỏi gọi bộ nối mỗi lần mở danh sách nhóm.
+- `/sending`: chỉ là đường chuyển hướng sang `/zalo#gui-tay` cho đường dẫn cũ, có test, giữ.
+- `/bot`: trang trợ lý trong nhóm (giai đoạn 2), có công tắc riêng, giữ.
+Phần "dọn" thực hiện: sửa chú thích lỗi thời của Tin 2 trong `InviteService` (còn ghi "người gửi dán tay, hệ thống không tự gửi"). Phần gỡ cấu hình trùng ở `/zalo`, `/test-runs`, `/today` thuộc PR 8 của D21, làm sau khi chạy thử xong.
+
 ## 3. Việc còn dở (theo thứ tự nên làm)
 
 1. Sửa chữ lỗi thời theo D18 ("Hệ thống không tự gửi tin", "không đăng nhập Zalo", "mẹ gửi tay", "nhắn tay") ở: `campaigns.html`, `campaign-detail.html`, `today.html`, `sending.html`, `test-runs.html`, `test-run-detail.html`. Chỉ sửa sau khi chữ nghiệp vụ tự gửi được chốt (con số giãn cách, lô, hạn mức; Tin 2 có tự gửi không: xem file 03 mục 1I.11). Nhiều test kiểm chữ tiếng Việt cụ thể, sửa test theo.
