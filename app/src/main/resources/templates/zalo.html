@@ -4,6 +4,7 @@
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
+    <div th:replace="~{fragments :: testModeAlert}"></div>
     <header class="page-head">
         <div class="titles">
             <h1>Zalo tài khoản phụ</h1>
@@ -14,6 +15,47 @@
     </header>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
+
+    <section class="panel stack" id="che-do-thu">
+        <h2>Chế độ thử: chỉ nhắn các số thử đã khai báo</h2>
+        <div class="notice info" th:if="${@testMode.testOnly()}">
+            <strong>Đang ở chế độ thử (an toàn)</strong>
+            Hệ thống chỉ được nhắn tin, thêm vào nhóm, tạo nhóm, tự nhận khách mới và để trợ lý AI trả lời với <strong>những số trong danh sách dưới đây</strong>.
+            <span th:text="${@testMode.protectedCustomers()}">0</span> khách khác trong hệ thống được bảo vệ: không vào danh sách mời, không vào chiến dịch,
+            không bị nhắn, không bị thêm nhóm, tin riêng của họ không được đọc, <strong>kể cả khi công tắc tự gửi và các nấc tự động đang bật</strong>.
+            Đã chặn <span th:text="${@testMode.blockedCount()}">0</span> lần gọi tới số không có trong danh sách kể từ lần khởi động gần nhất.
+        </div>
+        <div class="notice bad" th:if="${@testMode.live()}">
+            <strong>Đang CHẠY THẬT</strong>
+            Hệ thống có thể nhắn cho khách thật theo các chiến dịch đã duyệt. Danh sách thử bên dưới không còn giới hạn gì.
+            Muốn quay về chế độ thử, người quản máy chủ bỏ biến <code>APP_ZALO_LIVE</code> (hoặc đặt <code>false</code>) rồi khởi động lại ứng dụng.
+        </div>
+        <p class="muted">Chỉ khai báo số của bạn hoặc người quen đã đồng ý nhận tin thử và có Zalo. Số đã là khách trong hệ thống hoặc nằm trong danh sách từ chối
+            sẽ bị từ chối. Muốn thử bằng "khách giả" (nhập đơn giả), hãy khai báo số <strong>trước</strong>, rồi mới nhập đơn của số đó.
+            Chạy thật chỉ bật được bằng biến môi trường <code>APP_ZALO_LIVE=true</code> trên máy chủ, cố ý không có nút trên trang này.</p>
+        <th:block th:with="nums=${@testMode.numbers()}">
+        <div class="table-wrap" th:if="${!nums.isEmpty()}">
+            <table>
+                <tr><th>Số thử</th><th>Ghi chú</th><th>Thêm lúc</th><th>Đã là khách thử</th><th></th></tr>
+                <tr th:each="n : ${nums}">
+                    <td th:text="${n.phone}">+84911111111</td>
+                    <td th:text="${n.note}">Số của tôi</td>
+                    <td th:text="${#temporals.format(n.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
+                    <td th:text="${n.customer} ? 'Có' : 'Chưa'">Chưa</td>
+                    <td><form th:action="@{/zalo/test-numbers/remove}" method="post">
+                        <input type="hidden" name="phone" th:value="${n.phone}">
+                        <button type="submit" class="btn secondary sm">Xóa khỏi danh sách</button></form></td>
+                </tr>
+            </table>
+        </div>
+        <p class="muted" th:if="${nums.isEmpty()}">Chưa có số thử nào: ở chế độ thử, hệ thống chưa được nhắn cho ai.</p>
+        </th:block>
+        <form class="formrow" th:action="@{/zalo/test-numbers}" method="post">
+            <label class="field">Số điện thoại thử <input type="text" name="phone" inputmode="tel" maxlength="20" required placeholder="09xx xxx xxx"></label>
+            <label class="field">Ghi chú (tùy chọn) <input type="text" name="note" maxlength="100" placeholder="Số của tôi / bạn A"></label>
+            <button type="submit" class="btn">Thêm số thử</button>
+        </form>
+    </section>
 
     <div class="notice" th:unless="${enabled}">
         <strong>Bộ nối Zalo đang tắt</strong>

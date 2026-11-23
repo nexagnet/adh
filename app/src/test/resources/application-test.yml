@@ -3,6 +3,12 @@ app:
     username: admin
     password: test-password-only
 
+  zalo:
+    safety:
+      # Các test cũ kiểm luồng gửi thật với khách giả không có trong danh sách thử: giữ nguyên bằng chế độ chạy thật.
+      # Test chế độ thử bật lại bằng @TestPropertySource(properties = "app.zalo.safety.live=false").
+      live: true
+
 spring:
   thymeleaf:
     cache: false

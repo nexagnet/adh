@@ -4,6 +4,7 @@
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
+    <div th:replace="~{fragments :: testModeAlert}"></div>
     <h1 th:text="${run.name}">Thử lần 1</h1>
     <p class="hint"><a th:href="@{/test-runs}">‹ Tất cả chiến dịch thử</a> · tạo lúc
         <span th:text="${#temporals.format(run.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</span></p>

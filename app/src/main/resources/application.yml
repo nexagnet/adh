@@ -125,6 +125,10 @@ app:
       max-daily: ${APP_ZALO_AUTO_MAX_DAILY:100}
       # D18: trần cứng số KHÁCH được nhắn chủ động (Tin 1) mỗi ngày; trang quản trị chỉ chỉnh được đến mức này (chủ shop chốt 23/11/2026: 50).
       msg-max-daily: ${APP_ZALO_AUTO_MSG_MAX_DAILY:50}
+    safety:
+      # Chế độ thử (mặc định): chỉ liên hệ các số thử khai báo ở trang Zalo; khách thật không bao giờ bị chạm kể cả khi công tắc tự gửi bật.
+      # true = chạy thật (không hạn chế). Chỉ đặt bằng biến môi trường trên máy chủ, không có nút trên giao diện.
+      live: ${APP_ZALO_LIVE:false}
     group:
       # D19: tự tạo nhóm Zalo theo khu vực. Mã Zalo (chữ số) của mẹ để thêm làm phó nhóm: CHỈ đặt bằng biến môi trường trên máy chủ,
       # không ghi vào repo. Để trống = không thêm phó nhóm. Mặc định tắt: cần cả APP_ZALO_AUTO_ENABLED và nấc chọn ở trang Zalo.

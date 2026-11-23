@@ -10,6 +10,7 @@ import vn.shop.crm.geo.Province;
 import vn.shop.crm.geo.VnGeo;
 import vn.shop.crm.invite.GroupService;
 import vn.shop.crm.invite.InviteService;
+import vn.shop.crm.safety.TestMode;
 import vn.shop.crm.zalo.ZaloMessageService;
 
 import java.time.LocalDateTime;
@@ -66,8 +67,10 @@ public class TestRunService {
     private final InviteService invites;
     private final GroupService groups;
     private final ZaloMessageService messages;
+    private final TestMode testMode;
 
-    public TestRunService(JdbcClient jdbc, InviteService invites, GroupService groups, ZaloMessageService messages) {
+    public TestRunService(JdbcClient jdbc, InviteService invites, GroupService groups, ZaloMessageService messages, TestMode testMode) {
+        this.testMode = testMode;
         this.jdbc = jdbc;
         this.invites = invites;
         this.groups = groups;
@@ -135,6 +138,8 @@ public class TestRunService {
             if (!seen.add(phone)) {
                 throw new ImportException("Số " + e.phone().strip() + " bị nhập hai lần.");
             }
+            // Chạy thử không bao giờ dùng số của khách thật: số trùng khách, trùng danh sách từ chối, hoặc (chế độ thử) chưa khai báo thì từ chối
+            testMode.requireUsableForTestRun(phone);
             String province = e.province() == null || e.province().isBlank() ? null : e.province().strip();
             if (province != null && VnGeo.byCode(province).isEmpty()) {
                 throw new ImportException("Tỉnh/thành không hợp lệ.");
@@ -191,6 +196,10 @@ public class TestRunService {
         Run run = run(runId).orElseThrow(() -> new ImportException("Không tìm thấy đợt chạy thử."));
         if (run.zaloGroupId() == null) {
             throw new ImportException("Hãy chọn nhóm đích (nhóm Zalo đã gán mã) trước khi bắt đầu.");
+        }
+        // Kiểm lại lúc bắt đầu: từ lúc tạo đến giờ số có thể đã trở thành khách (nhập đơn) hoặc bị bỏ khỏi danh sách thử.
+        for (String phone : jdbc.sql("SELECT phone FROM test_target WHERE run_id = :r").param("r", runId).query(String.class).list()) {
+            testMode.requireUsableForTestRun(phone);
         }
         jdbc.sql("UPDATE test_run SET running = TRUE WHERE id = :id").param("id", runId).update();
     }

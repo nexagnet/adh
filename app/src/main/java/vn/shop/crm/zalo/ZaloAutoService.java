@@ -11,6 +11,7 @@ import vn.shop.crm.contact.ContactService;
 import vn.shop.crm.geo.VnGeo;
 import vn.shop.crm.invite.GroupService;
 import vn.shop.crm.invite.InviteService;
+import vn.shop.crm.safety.TestMode;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -58,14 +59,16 @@ public class ZaloAutoService {
     private final ReentrantLock addLock = new ReentrantLock();
     private final org.springframework.beans.factory.ObjectProvider<ZaloFriendTap> taps;
     private final ZaloMessageService messages;
+    private final TestMode testMode;
     /** Trạng thái cầu nối lần hỏi gần nhất (do bộ hẹn giờ cập nhật) để các trang không gọi cầu nối mỗi lần mở. */
     private volatile ZaloGateway.Status lastStatus;
 
     public ZaloAutoService(JdbcClient jdbc, ZaloGateway gateway, ZaloSession session, ZaloAutoSettings cfg,
                            InviteService invites, GroupService groups, ContactService contacts, TransactionTemplate tx,
                            Clock clock, org.springframework.beans.factory.ObjectProvider<ZaloFriendTap> taps,
-                           ZaloMessageService messages) {
+                           ZaloMessageService messages, TestMode testMode) {
         this.taps = taps;
+        this.testMode = testMode;
         this.messages = messages;
         this.jdbc = jdbc;
         this.gateway = gateway;
@@ -514,7 +517,7 @@ public class ZaloAutoService {
                                coalesce(i.group_id, CASE WHEN i.reserved_until > now() THEN i.reserved_group_id END) AS held_group
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
                         WHERE i.zalo_add_state IN %s AND i.zalo_uid IS NOT NULL AND i.status IN ('SENT', 'CLICKED', 'FRIENDED')
-                        ORDER BY i.friended_at NULLS LAST, i.id LIMIT 500""".formatted(states))
+                        """.formatted(states) + testMode.onlyTestSql("c.phone") + " ORDER BY i.friended_at NULLS LAST, i.id LIMIT 500")
                 .query((rs, n) -> new Task(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("zalo_uid"),
                         rs.getString("province"), rs.getString("zalo_add_state"), (Long) rs.getObject("held_group"))).list();
     }
