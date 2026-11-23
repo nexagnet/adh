@@ -1,20 +1,20 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="vi">
-<head th:replace="~{fragments :: head('Tài khoản trợ lý AI')}"></head>
+<head th:replace="~{fragments :: head('Trợ lý trong nhóm')}"></head>
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
     <header class="page-head">
         <div class="titles">
-            <h1>Tài khoản Zalo của trợ lý AI</h1>
-            <p class="hint">Trợ lý là một tài khoản Zalo RIÊNG, công khai là «Trợ lý AI của cửa hàng». Hệ thống không bao giờ dùng tài khoản của mẹ.
+            <h1>Trợ lý AI trong nhóm</h1>
+            <p class="hint">Trợ lý dùng <strong>chung một tài khoản Zalo phụ</strong> với việc mời khách (không còn tài khoản trợ lý riêng) và luôn nói rõ là «Trợ lý AI của cửa hàng», không giả làm mẹ.
                 Trợ lý chỉ trả lời bằng các câu hỏi thường gặp do cửa hàng soạn; khi khách muốn mua, khiếu nại hoặc cần người thật, trợ lý chỉ báo mẹ.</p>
         </div>
     </header>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
-    <div class="notice bad" th:if="${!botEnabled}">
-        <strong>Trợ lý AI đang TẮT và chưa kết nối</strong>
+    <div class="notice info" th:if="${!botEnabled}">
+        <strong>Trợ lý AI đang TẮT</strong>
         Trợ lý chưa đọc hay gửi tin trong nhóm nào. Mẹ vẫn trả lời khách trên Zalo như bình thường.
     </div>
     <div class="notice" th:if="${botEnabled}">
@@ -42,23 +42,14 @@
         </form>
     </div>
 
-    <div class="panel stack">
-        <h2>Cách kết nối trợ lý với Zalo (chọn sau)</h2>
-        <p class="muted">Kênh của trợ lý và việc báo mẹ là Zalo (đã chốt 22/11/2026). Chưa chọn cách nối cụ thể: chủ cửa hàng sẽ chọn sau khi thử từng cách (tài liệu ADR-0001). Việc tự thêm khách vào nhóm khi kết bạn là chức năng riêng, ở mục Zalo tài khoản phụ, không phụ thuộc cách nối này.</p>
-        <label class="option"><input type="radio" name="connect" disabled>
-            <span class="t">Zalo Bot chính thức</span><span class="badge">Chưa thử</span>
-            <span class="d">Chính thức, miễn phí đăng ký. Chưa biết trợ lý có vào được nhóm Zalo cá nhân không.</span></label>
-        <label class="option"><input type="radio" name="connect" disabled>
-            <span class="t">Trang Zalo của cửa hàng (Zalo OA) làm chủ nhóm</span><span class="badge">Chưa thử</span>
-            <span class="d">Chính thức, có phí theo nhóm. Nhóm sẽ do trang cửa hàng làm chủ, mẹ không còn là trưởng nhóm; khách vào cần được duyệt.</span></label>
-        <label class="option"><input type="radio" name="connect" disabled>
-            <span class="t">Tài khoản Zalo cá nhân riêng (không chính thức)</span><span class="badge warn">Rủi ro khóa</span>
-            <span class="d">Zalo có thể khóa tài khoản này bất cứ lúc nào. Chỉ dùng khi chủ cửa hàng chấp nhận rủi ro bằng văn bản; không dùng tài khoản của mẹ.</span></label>
-        <div class="actions"><button type="button" class="btn" disabled>Kết nối (chọn một cách trước)</button></div>
+    <div class="notice">
+        <strong>Chưa nối trợ lý vào Zalo thật</strong>
+        Trợ lý sẽ dùng tài khoản Zalo phụ ở trang <a th:href="@{/zalo}">Zalo tài khoản phụ</a>; việc đọc và trả lời tin trong nhóm sẽ làm sau và cần bạn duyệt riêng.
+        Vì chỉ có một tài khoản, nếu Zalo khóa tài khoản này thì cả việc mời khách lẫn trợ lý cùng dừng; khi cầu dao ngắt, trợ lý im lặng.
     </div>
 
     <div class="panel stack">
-        <h2>Tài khoản của mẹ (trưởng nhóm)</h2>
+        <h2>Tài khoản của mẹ</h2>
         <div><span class="badge">Không kết nối vào hệ thống</span></div>
         <p class="muted">Mẹ dùng Zalo thật trên điện thoại để trả lời và lên đơn. Hệ thống không đăng nhập, không đọc và không gửi bằng tài khoản của mẹ.</p>
     </div>

@@ -66,7 +66,7 @@ class NavMenuTest extends AbstractPostgresTest {
         var owner = user("admin").roles("OWNER");
         mvc.perform(get("/groups").with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Mời vào nhóm")))
-                .andExpect(content().string(containsString("Tài khoản trợ lý AI")))
+                .andExpect(content().string(containsString("Trợ lý trong nhóm")))
                 .andExpect(content().string(containsString("class=\"active\"")))
                 .andExpect(content().string(not(containsString(">Bot<"))));
         mvc.perform(get("/customers").param("segment", "REPEAT").with(owner)).andExpect(status().isOk())

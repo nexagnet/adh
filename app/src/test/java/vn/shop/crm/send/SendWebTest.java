@@ -79,7 +79,7 @@ class SendWebTest extends AbstractPostgresTest {
 
         mvc.perform(get("/zalo").with(owner))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("TẮT")))
+                .andExpect(content().string(containsString("Tạm dừng, giới hạn và nhật ký gửi")))
                 .andExpect(content().string(containsString("Chạy thử")))
                 .andExpect(content().string(containsString("***678")));
     }
