@@ -182,4 +182,61 @@ class JtImportTest extends AbstractPostgresTest {
         assertThat(customers.refreshProvinces(false)).isEqualTo(4);
         assertThat(jdbc.sql("SELECT count(*) FROM customer WHERE province IS NULL").query(Integer.class).single()).isZero();
     }
+
+    private static String lineWithGoods(String tracking, String status, String phone, String goods) {
+        return tracking + "," + status + "," + phone + ",\"1 A\",Nguyen Van A,\"Phường 1, Quận 1, Hà Nội\",\"" + goods
+                + "\",2026-11-01 09:30,1.0,20000,Nguoi gui tra,,300000,300000\n";
+    }
+
+    private String goodsOf(String tracking) {
+        return jdbc.sql("SELECT goods FROM shipment WHERE tracking_no = :t").param("t", tracking)
+                .query(String.class).optional().orElse(null);
+    }
+
+    @Test
+    void luuNoiDungHangHoaVaHienTrongChiTietKhach() {
+        importFiles(file("a.xlsx",
+                lineWithGoods("861000000001", "Giao thành công", "0912345678", "Pin lithium 12V 20Ah"),
+                lineWithGoods("861000000002", "Giao thành công", "0912345678", "Bộ sạc 14.6V")));
+
+        assertThat(goodsOf("861000000001")).isEqualTo("Pin lithium 12V 20Ah");
+        var customer = customers.search(null, false, null, 1, 10).items().getFirst();
+        var detail = customers.detail(customer.id());
+        assertThat(detail.shipments().values()).extracting(CustomerService.ShipmentRow::goods)
+                .containsExactlyInAnyOrder("Pin lithium 12V 20Ah", "Bộ sạc 14.6V");
+    }
+
+    @Test
+    void nhapLaiCungFileKhongLamTangSoLanMuaVaCotTrongKhongXoaHangDaCo() {
+        var first = file("a.xlsx", lineWithGoods("861000000001", "Giao thành công", "0912345678", "Pin lithium 12V 20Ah"));
+        importFiles(first);
+        importFiles(first);
+        assertThat(customers.search(null, false, null, 1, 10).items().getFirst().successfulPurchases()).isEqualTo(1);
+        assertThat(jdbc.sql("SELECT count(*) FROM shipment").query(Long.class).single()).isEqualTo(1);
+
+        // file sau cùng mã vận đơn nhưng ô hàng hóa để trống: giữ nội dung đã có, không ghi đè bằng rỗng
+        importFiles(file("b.xlsx", lineWithGoods("861000000001", "Giao thành công", "0912345678", "")));
+        assertThat(goodsOf("861000000001")).isEqualTo("Pin lithium 12V 20Ah");
+        assertThat(customers.search(null, false, null, 1, 10).items().getFirst().successfulPurchases()).isEqualTo(1);
+    }
+
+    @Test
+    void donCuLayLaiNoiDungHangTuDongGocKhiChayMigration() throws Exception {
+        importFiles(file("a.xlsx", lineWithGoods("861000000001", "Giao thành công", "0912345678", "Pin cũ 24V")));
+        // giả lập đơn nhập trước khi có cột: xóa cột goods rồi chạy lại phần lấp dữ liệu của V26
+        jdbc.sql("UPDATE shipment SET goods = NULL").update();
+        String sql = new String(getClass().getResourceAsStream("/db/migration/V26__hang_hoa.sql").readAllBytes(),
+                StandardCharsets.UTF_8);
+        jdbc.sql(sql.substring(sql.indexOf("UPDATE shipment SET goods = left"))).update();
+
+        assertThat(goodsOf("861000000001")).isEqualTo("Pin cũ 24V");
+        assertThat(customers.search(null, false, null, 1, 10).items().getFirst().successfulPurchases()).isEqualTo(1);
+    }
+
+    @Test
+    void khongLuuThemDuLieuCaNhanNgoaiCacCotDaCo() {
+        importFiles(file("a.xlsx", lineWithGoods("861000000001", "Giao thành công", "0912345678", "Pin 12V")));
+        // ô hàng hóa chỉ chứa tên hàng; tên/SĐT/địa chỉ vẫn ở đúng cột cũ
+        assertThat(goodsOf("861000000001")).doesNotContain("0912345678").doesNotContain("Nguyen");
+    }
 }

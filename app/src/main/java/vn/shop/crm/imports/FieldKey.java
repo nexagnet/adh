@@ -27,7 +27,10 @@ public enum FieldKey {
     CREATED_ON("Ngày tạo đơn", false,
             List.of("ngay tao", "ngay gui", "thoi gian tao", "created", "create time")),
     DELIVERED_ON("Ngày giao", false,
-            List.of("ngay giao", "ngay phat", "thoi gian giao", "delivered", "delivery time"));
+            List.of("ngay giao", "ngay phat", "thoi gian giao", "delivered", "delivery time")),
+    GOODS("Nội dung hàng hóa (đơn này mua gì)", false,
+            List.of("noi dung hang hoa", "ten hang hoa", "noi dung hang", "ten hang", "mo ta hang hoa", "ten san pham",
+                    "goods name", "goods", "product name", "item name"));
 
     private final String label;
     private final boolean required;

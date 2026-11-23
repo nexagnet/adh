@@ -37,10 +37,12 @@
             <h2>Các lần mua và vận đơn</h2>
             <div class="table-wrap">
                 <table>
-                    <tr><th>Hãng</th><th>Mã vận đơn</th><th>Trạng thái gốc</th><th>Tính?</th></tr>
+                    <tr><th>Hãng</th><th>Đã mua gì</th><th>Mã vận đơn</th><th>Trạng thái gốc</th><th>Tính?</th></tr>
                     <th:block th:each="p, st : ${detail.classification.purchases}">
                         <tr th:each="s : ${p.shipments}">
                             <td th:text="${detail.shipments[s.id()].carrier.label()}">Viettel Post</td>
+                            <td><span th:if="${detail.shipments[s.id()].goods != null}" th:text="${detail.shipments[s.id()].goods}">Pin 12V 20Ah</span>
+                                <span class="sub-line" th:unless="${detail.shipments[s.id()].goods != null}">Chưa có nội dung hàng</span></td>
                             <td><span th:text="${detail.shipments[s.id()].trackingNo}">VTP001</span>
                                 <span class="sub-line" th:text="'Lần mua #' + ${st.count} + (${p.hasOrderRef} ? ' · mã đơn ' + ${detail.shipments[s.id()].orderRef} : ' · không có mã đơn')
                                     + (${detail.shipments[s.id()].createdOn != null} ? ' · tạo ' + ${#temporals.format(detail.shipments[s.id()].createdOn, 'dd/MM/yyyy')} : '')">Lần mua #1</span></td>

@@ -64,7 +64,8 @@ public class CustomerService {
     }
 
     public record ShipmentRow(long id, Carrier carrier, String trackingNo, String orderRef, String rawStatus,
-                              CanonicalStatus status, LocalDateTime createdOn, LocalDateTime deliveredOn) {
+                              CanonicalStatus status, LocalDateTime createdOn, LocalDateTime deliveredOn,
+                              String goods) {
     }
 
     public record Page<T>(List<T> items, long total, int page, int size) {
@@ -125,7 +126,7 @@ public class CustomerService {
     private void recalculateOne(String phone) {
         List<ShipmentWithContact> rows = jdbc.sql("""
                         SELECT id, carrier, tracking_no, order_ref, raw_status, canonical_status,
-                               created_on, delivered_on, receiver_name, receiver_address
+                               created_on, delivered_on, goods, receiver_name, receiver_address
                         FROM shipment WHERE receiver_phone = :phone
                         """)
                 .param("phone", phone)
@@ -416,7 +417,7 @@ public class CustomerService {
                 .orElseThrow(() -> new ImportException("Không tìm thấy khách."));
         List<ShipmentRow> shipments = jdbc.sql("""
                         SELECT id, carrier, tracking_no, order_ref, raw_status, canonical_status,
-                               created_on, delivered_on, receiver_name, receiver_address
+                               created_on, delivered_on, goods, receiver_name, receiver_address
                         FROM shipment WHERE receiver_phone = :phone""")
                 .param("phone", customer.phone())
                 .query(CustomerService::mapShipmentWithContact).list()
@@ -522,7 +523,8 @@ public class CustomerService {
         ShipmentRow row = new ShipmentRow(rs.getLong("id"), Carrier.valueOf(rs.getString("carrier")),
                 rs.getString("tracking_no"), rs.getString("order_ref"), rs.getString("raw_status"),
                 CanonicalStatus.valueOf(rs.getString("canonical_status")),
-                toLocal(rs.getTimestamp("created_on")), toLocal(rs.getTimestamp("delivered_on")));
+                toLocal(rs.getTimestamp("created_on")), toLocal(rs.getTimestamp("delivered_on")),
+                rs.getString("goods"));
         return new ShipmentWithContact(row, rs.getString("receiver_name"), rs.getString("receiver_address"));
     }
 
