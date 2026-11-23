@@ -32,9 +32,9 @@ class ZaloAdminPageOffTest extends AbstractPostgresTest {
     }
 
     @Test
-    void menuKhongCoMucZaloVaTrangBaoDangTat() throws Exception {
+    void menuVanCoMucZaloVaTrangBaoDangTat() throws Exception {
         var owner = user("admin").roles("OWNER");
-        mvc.perform(get("/groups").with(owner)).andExpect(content().string(not(containsString("Zalo tài khoản phụ"))));
+        mvc.perform(get("/groups").with(owner)).andExpect(content().string(containsString("Zalo tài khoản phụ")));
         mvc.perform(get("/zalo").with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Bộ nối Zalo đang tắt")))
                 .andExpect(content().string(not(containsString("Quét mã QR"))));

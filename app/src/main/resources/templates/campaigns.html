@@ -20,13 +20,13 @@
         </div>
     </header>
     <details class="notice">
-        <summary>Cách làm hiện nay (tài khoản Zalo phụ)</summary>
+        <summary>Cách làm (tài khoản Zalo phụ)</summary>
         <ol>
             <li>Tạo chiến dịch (có thể chỉ chọn khách một miền, ví dụ trời rét thì chọn miền cần nhắn).</li>
-            <li>Mỗi ngày mở <a th:href="@{/today}">Lô nhắn hôm nay</a>: hệ thống chỉ gợi ý vài người theo hạn mức ngày và giờ, bạn nhắn tay từng người bằng tài khoản Zalo phụ rồi bấm <em>Đã nhắn</em>.</li>
-            <li>Khách nào đồng ý kết bạn thì vào chiến dịch bấm <em>Đã kết bạn</em>.</li>
-            <li>Thêm khách vào nhóm Zalo cùng khu vực (hệ thống gợi ý nhóm) rồi bấm <em>Đã vào nhóm</em>.</li>
+            <li>Chạy thử trước ở <a th:href="@{/test-runs}">Chạy thử trên Zalo</a> với vài số của chính bạn để xem tin có đến nơi không.</li>
+            <li>Khi ổn, vào trang chi tiết chiến dịch bấm <em>Duyệt cho hệ thống tự gửi</em>. Hệ thống gửi Tin 1 một lần cho mỗi khách, trong giờ và hạn mức ngày đã đặt ở <a th:href="@{/zalo}">Zalo tài khoản phụ</a>. Khách nào đồng ý kết bạn thì tự được thêm vào nhóm Zalo cùng khu vực.</li>
             <li>Khách từ chối hoặc nhắn xin ngừng nhận tin thì bấm <em>Khách từ chối</em>: số này không bao giờ được nhắn lại.</li>
+            <li>Khi tự gửi chưa bật (mặc định) thì dùng cách dự phòng: mỗi ngày mở <a th:href="@{/today}">Lô nhắn hôm nay</a>, nhắn tay từng người bằng tài khoản Zalo phụ rồi bấm <em>Đã nhắn</em>, <em>Đã kết bạn</em>, <em>Đã vào nhóm</em>.</li>
         </ol>
         Gửi tin tư vấn cho khách chưa đồng ý nhận tin có thể bị Zalo hạn chế tài khoản và có rủi ro pháp lý; chủ cửa hàng đã nhận rủi ro này,
         nên giữ lô nhỏ, một lần duy nhất, và tôn trọng ngay mọi lời xin ngừng nhận tin.
@@ -38,8 +38,8 @@
         <span th:if="${!pausedReason.isEmpty()}" th:text="'Lý do: ' + ${pausedReason}">Lý do</span>
     </div>
     <div class="notice bad" th:unless="${paused}">
-        <strong>Gửi tự động đang TẮT</strong>
-        Hiện chỉ có hai cách: chạy thử (không gửi gì) hoặc xuất danh sách để mẹ gửi tay qua Zalo. Tạm chưa dùng SMS.
+        <strong>Hệ thống không tự gửi tin cho ai khi chưa bật và chưa duyệt</strong>
+        Bật công tắc ở <a th:href="@{/zalo}">Zalo tài khoản phụ</a>, rồi duyệt từng chiến dịch ở trang chi tiết. Chưa bật thì chỉ có chạy thử (không gửi gì) hoặc xuất danh sách để mẹ gửi tay qua Zalo. Tạm chưa dùng SMS.
     </div>
 
     <div class="cards c4">
@@ -84,9 +84,9 @@
             <h2>Bước 3. Làm gì với lô này?</h2>
             <div class="actions">
                 <button type="submit" class="btn">Tạo chiến dịch (chưa gửi gì)</button>
-                <button type="button" class="btn" disabled title="Tạm chưa dùng SMS; tin gửi qua Zalo do mẹ gửi tay">Gửi tự động (đang khóa)</button>
+                <button type="button" class="btn" disabled title="Tạm chưa dùng SMS. Tự gửi qua Zalo được duyệt ở trang chi tiết chiến dịch sau khi tạo">Gửi SMS (đang khóa)</button>
             </div>
-            <p class="muted">Sau khi tạo chiến dịch, mỗi ngày mở <a th:href="@{/today}">Lô nhắn hôm nay</a>, <strong>nhắn tay từng người</strong> rồi đánh dấu các bước (đã nhắn, đã kết bạn, đã vào nhóm). Cách tự gửi (khi được bật và duyệt) nằm ở trang chi tiết chiến dịch; mặc định hệ thống không tự gửi tin cho ai.</p>
+            <p class="muted">Sau khi tạo chiến dịch, bạn vào trang chi tiết để chạy thử và duyệt cho hệ thống tự gửi (khi công tắc ở <a th:href="@{/zalo}">Zalo tài khoản phụ</a> đã bật). Chưa bật thì làm tay ở <a th:href="@{/today}">Lô nhắn hôm nay</a>. Mặc định hệ thống không tự gửi tin cho ai.</p>
         </div>
     </form>
 
