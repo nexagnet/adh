@@ -46,6 +46,50 @@
         </div>
     </section>
 
+    <section class="stack" th:if="${!comebackTasks.isEmpty()}" aria-label="Khách từng từ chối nhắn lại muốn mua">
+        <h2>Khách từng từ chối nay nhắn lại</h2>
+        <p class="hint">Khách này trước đó bảo đừng nhắn nữa, nay <strong>tự nhắn tới</strong>. Hệ thống chưa nhắn gì và vẫn giữ cờ "không nhắn nữa". Mẹ xem tin trên Zalo rồi chọn.
+            Gỡ cờ chỉ đánh dấu "đã gỡ", số điện thoại vẫn giữ nguyên.</p>
+        <div class="job" th:each="r : ${comebackTasks}">
+            <div class="meta">
+                <span class="badge info" th:text="${r.reason.label()}">Khách muốn mua</span>
+                <span><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.customerName}">Khách</a>
+                    · <span th:text="${#temporals.format(r.createdAt, 'dd/MM HH:mm')}">21/11 09:12</span></span>
+            </div>
+            <div class="what" th:if="${r.excerpt != null}" th:text="'“' + ${r.excerpt} + '”'">“Cho mình hỏi mua pin”</div>
+            <ul class="sub-line" th:if="${!r.orders.isEmpty()}"><li th:each="o : ${r.orders}" th:text="${o}">12/05/2026 · pin 48V · DELIVERED</li></ul>
+            <div class="actions">
+                <form th:action="@{/handoffs/comebacks/{id}/lift(id=${r.id})}" method="post">
+                    <button type="submit" class="btn sm">Gỡ không nhắn nữa, cho vào nhóm</button>
+                </form>
+                <form th:action="@{/handoffs/comebacks/{id}/keep(id=${r.id})}" method="post">
+                    <button type="submit" class="btn sm secondary">Giữ nguyên, vẫn không nhắn</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <section class="stack" th:if="${!comebackLifted.isEmpty()}" aria-label="Khách quay lại đã được gỡ cờ">
+        <h2>Khách quay lại đã gỡ cờ (14 ngày gần đây)</h2>
+        <p class="hint">Gỡ nhầm thì bấm Hoàn tác: khách lại bị đánh dấu không nhắn nữa. Khách đã vào nhóm rồi thì hệ thống không đưa ra khỏi nhóm được, mẹ tự mời ra trên Zalo.</p>
+        <div class="job" th:each="r : ${comebackLifted}">
+            <div class="meta">
+                <span class="badge ok" th:text="${r.liftedBy == 'tro-ly-ai'} ? 'Trợ lý AI gỡ' : 'Mẹ gỡ'">Trợ lý AI gỡ</span>
+                <span><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.customerName}">Khách</a>
+                    · <span th:text="${#temporals.format(r.createdAt, 'dd/MM HH:mm')}">21/11 09:12</span></span>
+                <span class="sub-line" th:if="${r.welcomeState == 'SENT'}">Đã gửi tin mẫu</span>
+                <span class="sub-line" th:if="${r.welcomeState == 'PENDING' or r.welcomeState == 'SENDING'}">Tin mẫu đang chờ gửi</span>
+                <span class="sub-line" th:if="${r.welcomeState == 'FAILED'}">Tin mẫu chưa gửi được, mẹ nhắn tay nhé</span>
+            </div>
+            <ul class="sub-line" th:if="${!r.orders.isEmpty()}"><li th:each="o : ${r.orders}" th:text="${o}">12/05/2026 · pin 48V</li></ul>
+            <div class="actions">
+                <form th:action="@{/handoffs/comebacks/{id}/undo(id=${r.id})}" method="post">
+                    <button type="submit" class="btn sm secondary">Hoàn tác</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
     <section class="stack" th:if="${!autoRefusals.isEmpty()}" aria-label="Khách trợ lý AI đã ghi từ chối">
         <h2>Trợ lý AI đã ghi khách từ chối (14 ngày gần đây)</h2>
         <p class="hint">AI rất chắc khách từ chối nên đã ghi sổ và không nhắn lại. Nếu ghi nhầm, mẹ bấm Hoàn tác. Hệ thống không giữ nội dung tin của khách.</p>

@@ -35,6 +35,7 @@ class RefusalReviewPageTest extends AbstractPostgresTest {
     @Autowired ContactService contacts;
     @Autowired InviteService invites;
     @Autowired RefusalReviewService reviews;
+    @Autowired vn.shop.crm.inbox.ComebackService comebacks;
     MockMvc mvc;
 
     @BeforeEach
@@ -70,7 +71,7 @@ class RefusalReviewPageTest extends AbstractPostgresTest {
                 .andExpect(content().string(containsString("Anh Hung")))
                 .andExpect(content().string(containsString("Hoàn tác")));
         mvc.perform(get("/").with(user("me").roles("STAFF"))).andExpect(status().isOk())
-                .andExpect(content().string(containsString("khách nhắn riêng có thể là từ chối")));
+                .andExpect(content().string(containsString("khách nhắn riêng cần mẹ xem")));
     }
 
     @Test
@@ -101,5 +102,42 @@ class RefusalReviewPageTest extends AbstractPostgresTest {
         mvc.perform(post("/handoffs/refusals/999/confirm").with(user("me").roles("STAFF")).with(csrf()))
                 .andExpect(status().is4xxClientError())
                 .andExpect(content().string(containsString("Việc này đã được xử lý")));
+    }
+
+    /** Khách từng từ chối nhắn lại: việc nổi bật, nút gỡ tay, giữ nguyên, Hoàn tác; số điện thoại không bị xóa. */
+    @Test
+    void viecKhachQuayLaiHienRaVaCacNutChayDuoc() throws Exception {
+        long c1 = jdbc.sql("SELECT id FROM customer WHERE phone = '+84900000001'").query(Long.class).single();
+        long c2 = jdbc.sql("SELECT id FROM customer WHERE phone = '+84900000002'").query(Long.class).single();
+        contacts.suppress(c1, "khách từ chối");
+        contacts.suppress(c2, "khách từ chối");
+        for (long c : new long[]{c1, c2}) {
+            jdbc.sql("""
+                    INSERT INTO comeback (customer_id, invitation_id, state, reason, excerpt)
+                    VALUES (:c, (SELECT id FROM invitation WHERE customer_id = :c), 'TASK', 'CHI_TAO_VIEC', 'cho hỏi mua pin')""")
+                    .param("c", c).update();
+        }
+        mvc.perform(get("/handoffs").with(user("me").roles("STAFF"))).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Khách từng từ chối nay nhắn lại")))
+                .andExpect(content().string(containsString("cho hỏi mua pin")))
+                .andExpect(content().string(containsString("Gỡ không nhắn nữa, cho vào nhóm")));
+        long first = comebacks.tasks().get(0).id();
+        long second = comebacks.tasks().get(1).id();
+        mvc.perform(post("/handoffs/comebacks/" + first + "/keep").with(user("me").roles("STAFF")).with(csrf()))
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/handoffs"));
+        mvc.perform(post("/handoffs/comebacks/" + second + "/lift").with(user("me").roles("STAFF")).with(csrf()))
+                .andExpect(status().is3xxRedirection());
+        assertThat(jdbc.sql("SELECT count(*) FROM customer").query(Long.class).single()).isEqualTo(2L);
+        assertThat(jdbc.sql("SELECT count(*) FROM suppression").query(Long.class).single()).isEqualTo(2L);
+        mvc.perform(get("/handoffs").with(user("me").roles("STAFF")))
+                .andExpect(content().string(containsString("Khách quay lại đã gỡ cờ")))
+                .andExpect(content().string(containsString("Hoàn tác")));
+        long lifted = comebacks.recentLifted(14).get(0).id();
+        mvc.perform(post("/handoffs/comebacks/" + lifted + "/undo").with(user("me").roles("STAFF")).with(csrf()))
+                .andExpect(status().is3xxRedirection());
+        assertThat(jdbc.sql("SELECT count(*) FROM suppression WHERE lifted_at IS NULL").query(Long.class).single()).isEqualTo(2L);
+        mvc.perform(post("/handoffs/comebacks/" + first + "/lift").with(user("me").roles("STAFF")).with(csrf()))
+                .andExpect(status().is4xxClientError()).andExpect(content().string(containsString("Việc này đã được xử lý")));
+        mvc.perform(post("/handoffs/comebacks/1/undo")).andExpect(status().isForbidden());
     }
 }

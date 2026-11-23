@@ -15,6 +15,8 @@ const MAX_STARTS = 5; // quá 5 lần khởi động trong 10 phút là vòng s�
 const START_WINDOW_MS = 10 * 60 * 1000;
 const MAX_GROUP_NAME = 100;
 const MAX_GROUP_MEMBERS = 5;
+const REPLY_WINDOW_MS = 24 * 3600 * 1000; // WELCOME chỉ trả lời người vừa nhắn trong khoảng này
+const MAX_REPLYABLE = 500;
 const MAX_TEXT = 1000; // ký tự; tin mời của shop chỉ vài trăm ký tự
 
 function withTimeout(promise, ms) {
@@ -60,6 +62,7 @@ export class Bridge {
     this.groupLedger = groupLedger ?? new AddLedger(null);
     this.events = events;
     this.inbox = inbox ?? new InboxBuffer({ now: () => this.now() });
+    this.replyable = new Map(); // mã Zalo -> giờ tin riêng gần nhất (chỉ trong bộ nhớ); căn cứ duy nhất cho phép trả lời WELCOME
     this.now = now;
     this.log = log;
     this.stateFile = new StateFile(path.join(config.dataDir, 'bridge-state.json'));
@@ -229,6 +232,12 @@ export class Bridge {
     if (body.length === 0) return;
     if (!this.msgLedger.has('INVITE', String(uid)) && !this.msgLedger.has('LINK', String(uid))) return;
     this.inbox.push({ uid: String(uid), text: body });
+    const t = this.now();
+    this.replyable.set(String(uid), t);
+    if (this.replyable.size > MAX_REPLYABLE) {
+      for (const [k, v] of this.replyable) if (t - v > REPLY_WINDOW_MS) this.replyable.delete(k);
+      while (this.replyable.size > MAX_REPLYABLE) this.replyable.delete(this.replyable.keys().next().value);
+    }
   }
 
   onDisconnected(gen, code) {
@@ -379,17 +388,20 @@ export class Bridge {
    * Chốt chặn, tất cả công khai và cố định, không ngẫu nhiên hóa: khung giờ, trần mỗi ngày (vượt thì dừng cầu dao), khoảng nghỉ tối
    * thiểu CỐ ĐỊNH giữa hai tin (gửi sớm hơn thì chỉ bị từ chối RATE_LIMITED, không dừng), mỗi loại tin một lần cho một người, một lúc
    * một việc, lỗi lạ thì dừng. Văn bản, số điện thoại, mã Zalo không vào log.
-   * @param {{kind: 'INVITE'|'LINK', phone?: string, uid?: string, text: string}} m
+   * Loại WELCOME (D19, khách từng từ chối nhắn lại): chỉ theo mã Zalo, chỉ cho người VỪA tự nhắn tới (trong 24 giờ), MỖI tin đến chỉ được trả lời
+   * MỘT lần, và cần bật cờ đọc tin riêng. Không có đường nào để nhắn người chưa nhắn trước. Vẫn chịu trần ngày, khoảng nghỉ và cầu dao chung.
+   * @param {{kind: 'INVITE'|'LINK'|'WELCOME', phone?: string, uid?: string, text: string}} m
    */
   async sendMessage(m) {
     const kind = m?.kind;
     const text = typeof m?.text === 'string' ? m.text : '';
-    if ((kind !== 'INVITE' && kind !== 'LINK') || text.trim().length === 0 || text.length > MAX_TEXT) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' };
+    if ((kind !== 'INVITE' && kind !== 'LINK' && kind !== 'WELCOME') || text.trim().length === 0 || text.length > MAX_TEXT) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' };
     const phone = m.phone === undefined || m.phone === null ? null : String(m.phone).replace(/\D/g, '');
     const uidIn = m.uid === undefined || m.uid === null ? null : String(m.uid);
     if ((phone === null) === (uidIn === null)) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' }; // đúng một trong hai
     if (phone !== null && !/^\d{8,15}$/.test(phone)) return { outcome: 'PERSON_ERROR', code: 'BAD_PHONE' };
     if (uidIn !== null && !ZALO_ID.test(uidIn)) return { outcome: 'PERSON_ERROR', code: 'BAD_ID' };
+    if (kind === 'WELCOME' && (uidIn === null || !this.config.inboxEnabled)) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' };
     if (this.state === 'LOGIN_REQUIRED') return { outcome: 'SESSION_LOST', code: 'LOGIN_REQUIRED' };
     if (this.state === 'TRIPPED' || this.state === 'STOPPED') return { outcome: 'RESTRICTED', code: 'NOT_ACTIVE' };
     if (this.state !== 'LISTENING') return { outcome: 'SYSTEM_ERROR', code: 'NOT_CONNECTED' };
@@ -407,10 +419,15 @@ export class Bridge {
     if (last !== null && t - last < this.config.msgGapMs) {
       return { outcome: 'RATE_LIMITED', retryAfterSec: Math.ceil((this.config.msgGapMs - (t - last)) / 1000) };
     }
-    if (uidIn !== null && this.msgLedger.has(kind, uidIn)) return { outcome: 'PERSON_ERROR', code: 'DUPLICATE' };
+    if (kind === 'WELCOME') {
+      // chỉ trả lời người vừa nhắn tới và chưa được trả lời cho tin đó; kiểm trước khi chạm Zalo
+      const at = this.replyable.get(uidIn);
+      if (at === undefined || t - at > REPLY_WINDOW_MS) return { outcome: 'PERSON_ERROR', code: 'NOT_REPLYABLE' };
+    } else if (uidIn !== null && this.msgLedger.has(kind, uidIn)) return { outcome: 'PERSON_ERROR', code: 'DUPLICATE' };
     this.busy = true;
     try {
       this.msgLedger.record(t); // ghi trước khi gọi, tính cả lần lỗi và lần không tìm thấy
+      if (kind === 'WELCOME') this.replyable.delete(uidIn); // mỗi tin đến chỉ được trả lời một lần, kể cả khi lần gửi lỗi
       this.stateFile.write({ inflight: true });
       let c;
       let uid = uidIn;
@@ -434,7 +451,7 @@ export class Bridge {
           // Zalo không xác nhận có tin: không biết đã gửi hay chưa, dừng thay vì đoán
           c = { outcome: 'SYSTEM_ERROR', code: 'NO_ACK' };
         } else {
-          this.msgLedger.markSent(kind, uid);
+          if (kind !== 'WELCOME') this.msgLedger.markSent(kind, uid); // WELCOME có thể lặp ở lần nhắn sau (Adh giữ quy tắc 30 ngày)
           c = { outcome: 'OK' };
         }
       } catch (e) {

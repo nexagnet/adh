@@ -47,6 +47,7 @@ class RefusalDetectionTest extends AbstractPostgresTest {
     @Autowired ContactService contacts;
     @Autowired InviteService invites;
     @Autowired RefusalReviewService reviews;
+    @Autowired vn.shop.crm.inbox.ComebackService comebacks;
     @Autowired ZaloAutoSettings auto;
     @Autowired AppSettings settings;
     @Autowired AiUsage usage;
@@ -90,8 +91,8 @@ class RefusalDetectionTest extends AbstractPostgresTest {
             }
             return aiAnswer.get();
         }, p, usage, Clock.systemUTC());
-        return new ZaloInboxService(new ZaloInboxProperties(true, threshold), fake, fake, auto, settings,
-                new RefusalClassifier(gate), reviews);
+        return new ZaloInboxService(new ZaloInboxProperties(true, threshold, 0.85), fake, fake, auto, settings,
+                new RefusalClassifier(gate), reviews, comebacks);
     }
 
     private long inv(int n) {
@@ -138,9 +139,9 @@ class RefusalDetectionTest extends AbstractPostgresTest {
     @Test
     void tatThiKhongHoiCauNoiVaKhongGoiAi() {
         fake.pushInbound(uid(1), "đừng nhắn nữa");
-        ZaloInboxService off = new ZaloInboxService(new ZaloInboxProperties(false, 0.8), fake, fake, auto, settings,
+        ZaloInboxService off = new ZaloInboxService(new ZaloInboxProperties(false, 0.8, 0.85), fake, fake, auto, settings,
                 new RefusalClassifier(new AiGate((s, u, j) -> "x", new AiProperties(true, "k", "m", "u", 5, 10, 300), usage,
-                        Clock.systemUTC())), reviews);
+                        Clock.systemUTC())), reviews, comebacks);
         assertThat(off.poll()).isZero();
         assertThat(fake.inboxCalls).isZero();
         ZaloInboxService noAi = service(false, 0.8);
@@ -270,8 +271,8 @@ class RefusalDetectionTest extends AbstractPostgresTest {
         assertThat(reviews.held()).singleElement().satisfies(r -> assertThat(r.reason()).isEqualTo(RefusalReviewService.Reason.AI_LOI));
         // hết hạn mức ngày cũng vậy
         AiProperties zero = new AiProperties(true, "khoa", "m", "https://api.deepseek.com", 0, 10, 300);
-        ZaloInboxService limited = new ZaloInboxService(new ZaloInboxProperties(true, 0.8), fake, fake, auto, settings,
-                new RefusalClassifier(new AiGate((s, u, j) -> "x", zero, usage, Clock.systemUTC())), reviews);
+        ZaloInboxService limited = new ZaloInboxService(new ZaloInboxProperties(true, 0.8, 0.85), fake, fake, auto, settings,
+                new RefusalClassifier(new AiGate((s, u, j) -> "x", zero, usage, Clock.systemUTC())), reviews, comebacks);
         fake.pushInbound(uid(2), "khỏi nhé");
         limited.poll();
         assertThat(status(2)).isEqualTo("CANCELLED");

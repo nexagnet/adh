@@ -147,7 +147,7 @@ public class ZcaBridgeGateway implements ZaloLink {
 
     /** Mã không gửi được vì chính cầu nối từ chối TRƯỚC khi chạm Zalo (xem bridge.mjs): chắc chắn chưa có tin nào đi. */
     private static final java.util.Set<String> NOT_SENT_CODES = java.util.Set.of("BUSY", "NOT_CONNECTED", "NOT_ACTIVE", "WINDOW",
-            "MSG_LIMIT", "LOGIN_REQUIRED", "BAD_INPUT", "BAD_PHONE", "BAD_ID");
+            "MSG_LIMIT", "LOGIN_REQUIRED", "BAD_INPUT", "BAD_PHONE", "BAD_ID", "NOT_REPLYABLE");
 
     @Override
     public Sent sendByPhone(Kind kind, String phoneDigits, String text) {

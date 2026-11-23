@@ -34,7 +34,7 @@ public class ContactService {
     /** Điều kiện của "ứng viên": một lần mua, không cần kiểm tra, chưa từ chối, chưa có dòng cơ sở liên hệ nào. */
     private static final String CANDIDATE_WHERE = """
             c.segment = 'ONE_TIME' AND c.needs_review = FALSE
-            AND NOT EXISTS (SELECT 1 FROM suppression s WHERE s.phone_hash = %s)
+            AND NOT EXISTS (SELECT 1 FROM suppression s WHERE s.phone_hash = %s AND s.lifted_at IS NULL)
             AND NOT EXISTS (SELECT 1 FROM contact_basis b WHERE b.customer_id = c.id AND b.purpose = '%s')
             """.formatted(SUPPRESSED_HASH, PURPOSE);
 
@@ -90,7 +90,7 @@ public class ContactService {
         long candidates = count("SELECT count(*) FROM customer c WHERE " + CANDIDATE_WHERE);
         long blocked = count("SELECT count(*) FROM contact_basis WHERE purpose = '" + PURPOSE
                 + "' AND status = 'BLOCKED'");
-        long optedOut = count("SELECT count(*) FROM suppression WHERE reason = 'OPT_OUT'");
+        long optedOut = count("SELECT count(*) FROM suppression WHERE reason = 'OPT_OUT' AND lifted_at IS NULL");
         long erased = count("SELECT count(*) FROM suppression WHERE reason = 'ERASED'");
         long review = count("SELECT count(*) FROM customer c WHERE c.segment = 'ONE_TIME' AND c.needs_review");
         return new Stats(oneTime, eligible, candidates, blocked, optedOut, erased, review);
@@ -116,7 +116,7 @@ public class ContactService {
                 .list().forEach(e -> basis.put(e.getKey(), e.getValue()));
         java.util.Set<Long> suppressed = new java.util.HashSet<>(jdbc.sql(
                         "SELECT c.id FROM customer c WHERE c.id IN (:ids) AND EXISTS (SELECT 1 FROM suppression s "
-                                + "WHERE s.phone_hash = " + SUPPRESSED_HASH + ")")
+                                + "WHERE s.phone_hash = " + SUPPRESSED_HASH + " AND s.lifted_at IS NULL)")
                 .param("ids", ids).query(Long.class).list());
         java.util.Map<Long, String> invites = new java.util.HashMap<>();
         jdbc.sql("SELECT customer_id, status FROM invitation WHERE customer_id IN (:ids)").param("ids", ids)
@@ -158,7 +158,7 @@ public class ContactService {
                 FROM customer c
                 JOIN contact_basis b ON b.customer_id = c.id AND b.purpose = '%s' AND b.status = 'ELIGIBLE'
                 WHERE c.segment = 'ONE_TIME' AND c.needs_review = FALSE
-                  AND NOT EXISTS (SELECT 1 FROM suppression s WHERE s.phone_hash = %s)
+                  AND NOT EXISTS (SELECT 1 FROM suppression s WHERE s.phone_hash = %s AND s.lifted_at IS NULL)
                 """.formatted(PURPOSE, SUPPRESSED_HASH);
     }
 
@@ -342,21 +342,35 @@ public class ContactService {
      * trong danh sách từ chối từ trước chưa (nếu rồi thì hoàn tác không được gỡ).
      */
     public record AiOptOutUndo(boolean suppressionCreated, boolean hadBasis, String basis, String status, String note,
-                               String recordedBy, String recordedAt) {
+                               String recordedBy, String recordedAt, String priorLiftedAt, String priorLiftedBy) {
+        /** Bản ghi cũ (trước V29) chưa có hai trường cuối. */
+        public AiOptOutUndo(boolean suppressionCreated, boolean hadBasis, String basis, String status, String note,
+                            String recordedBy, String recordedAt) {
+            this(suppressionCreated, hadBasis, basis, status, note, recordedBy, recordedAt, null, null);
+        }
     }
 
     /** Như {@link #suppressAs} với người ghi là trợ lý AI, và trả thông tin để {@link #undoAiOptOut} đưa mọi thứ về như trước. */
     @Transactional
     public AiOptOutUndo suppressByAi(long customerId, String source) {
         String phone = phoneOf(customerId);
-        boolean existed = isSuppressed(phone);
+        // Dòng sổ có từ trước (kể cả dòng đã gỡ) thì hoàn tác KHÔNG được xóa; dòng đã gỡ thì hoàn tác gỡ lại như cũ.
+        String[] row = jdbc.sql("SELECT lifted_at, lifted_by FROM suppression WHERE phone_hash = :h")
+                .param("h", PhoneHash.of(phone))
+                .query((rs, i) -> new String[]{rs.getObject("lifted_at", OffsetDateTime.class) == null ? null
+                        : rs.getObject("lifted_at", OffsetDateTime.class).toInstant().toString(), rs.getString("lifted_by")})
+                .optional().orElse(null);
+        boolean created = row == null;
+        String liftedAt = row == null ? null : row[0];
+        String liftedBy = row == null ? null : row[1];
         AiOptOutUndo undo = jdbc.sql("""
                         SELECT basis, status, note, recorded_by, recorded_at FROM contact_basis
                         WHERE customer_id = :id AND purpose = :p""")
                 .param("id", customerId).param("p", PURPOSE)
-                .query((rs, i) -> new AiOptOutUndo(!existed, true, rs.getString("basis"), rs.getString("status"), rs.getString("note"),
-                        rs.getString("recorded_by"), rs.getObject("recorded_at", OffsetDateTime.class).toInstant().toString()))
-                .optional().orElse(new AiOptOutUndo(!existed, false, null, null, null, null, null));
+                .query((rs, i) -> new AiOptOutUndo(created, true, rs.getString("basis"), rs.getString("status"), rs.getString("note"),
+                        rs.getString("recorded_by"), rs.getObject("recorded_at", OffsetDateTime.class).toInstant().toString(),
+                        liftedAt, liftedBy))
+                .optional().orElse(new AiOptOutUndo(created, false, null, null, null, null, null, liftedAt, liftedBy));
         suppressAs(customerId, source, AI_ACTOR);
         return undo;
     }
@@ -369,8 +383,16 @@ public class ContactService {
     public void undoAiOptOut(long customerId, AiOptOutUndo u) {
         String phone = phoneOf(customerId);
         if (u.suppressionCreated()) {
-            jdbc.sql("DELETE FROM suppression WHERE phone_hash = :h AND reason = 'OPT_OUT' AND recorded_by = :by")
-                    .param("h", PhoneHash.of(phone)).param("by", AI_ACTOR).update();
+            // Dòng này do chính trợ lý AI vừa tạo và chủ shop bấm Hoàn tác: KHÔNG xóa dòng sổ, chỉ đánh dấu đã gỡ kèm giờ (quy tắc 23/11).
+            jdbc.sql("""
+                            UPDATE suppression SET lifted_at = now(), lifted_by = :by
+                            WHERE phone_hash = :h AND reason = 'OPT_OUT' AND recorded_by = :ai AND lifted_at IS NULL""")
+                    .param("by", actor()).param("h", PhoneHash.of(phone)).param("ai", AI_ACTOR).update();
+        } else if (u.priorLiftedAt() != null) {
+            // Dòng đã gỡ từ trước và bị trợ lý kích hoạt lại: gỡ lại như cũ, giữ nguyên dòng.
+            jdbc.sql("UPDATE suppression SET lifted_at = :at, lifted_by = :by WHERE phone_hash = :h AND reason = 'OPT_OUT' AND recorded_by = :ai")
+                    .param("at", OffsetDateTime.ofInstant(java.time.Instant.parse(u.priorLiftedAt()), java.time.ZoneOffset.UTC))
+                    .param("by", u.priorLiftedBy()).param("h", PhoneHash.of(phone)).param("ai", AI_ACTOR).update();
         }
         if (u.hadBasis()) {
             jdbc.sql("""
@@ -385,6 +407,69 @@ public class ContactService {
                     .param("id", customerId).param("p", PURPOSE).param("ai", AI_ACTOR).update();
         }
         event(customerId, phone, "OPT_OUT_UNDONE", "Hoàn tác: trợ lý AI nhận nhầm");
+    }
+
+    /** Những gì cần để hoàn tác một lần gỡ cờ "không nhắn nữa": cơ sở liên hệ cũ (giờ gỡ nằm ở chính dòng sổ). */
+    public record LiftUndo(boolean hadBasis, String basis, String status, String note, String recordedBy, String recordedAt) {
+    }
+
+    /**
+     * Gỡ cờ "không nhắn nữa" của một khách TỰ rút (OPT_OUT) khi chính khách tự nhắn muốn mua lại. KHÔNG xóa dòng sổ từ chối (mã băm): chỉ đánh dấu
+     * đã gỡ kèm giờ và người gỡ, nên có lịch sử và hoàn tác được. Dòng ERASED (khách yêu cầu xóa dữ liệu) không bao giờ gỡ được. Cơ sở liên hệ
+     * thành {@code OPT_IN} (khách tự mở lời). Lời mời do bên gọi khôi phục.
+     */
+    @Transactional
+    public LiftUndo liftOptOut(long customerId, String by) {
+        String phone = phoneOf(customerId);
+        int n = jdbc.sql("""
+                        UPDATE suppression SET lifted_at = now(), lifted_by = :by
+                        WHERE phone_hash = :h AND reason = 'OPT_OUT' AND lifted_at IS NULL""")
+                .param("by", by).param("h", PhoneHash.of(phone)).update();
+        if (n == 0) {
+            throw new ImportException("Khách này không có dòng \"không nhắn nữa\" còn hiệu lực để gỡ (hoặc đã yêu cầu xóa dữ liệu).");
+        }
+        LiftUndo undo = jdbc.sql("""
+                        SELECT basis, status, note, recorded_by, recorded_at FROM contact_basis
+                        WHERE customer_id = :id AND purpose = :p""")
+                .param("id", customerId).param("p", PURPOSE)
+                .query((rs, i) -> new LiftUndo(true, rs.getString("basis"), rs.getString("status"), rs.getString("note"),
+                        rs.getString("recorded_by"), rs.getObject("recorded_at", OffsetDateTime.class).toInstant().toString()))
+                .optional().orElse(new LiftUndo(false, null, null, null, null, null));
+        jdbc.sql("""
+                        INSERT INTO contact_basis (customer_id, purpose, basis, status, statement, note, recorded_by)
+                        VALUES (:id, :purpose, 'OPT_IN', 'ELIGIBLE', :statement, :note, :by)
+                        ON CONFLICT (customer_id, purpose) DO UPDATE
+                           SET basis = 'OPT_IN', status = 'ELIGIBLE', note = EXCLUDED.note,
+                               recorded_by = EXCLUDED.recorded_by, recorded_at = now()""")
+                .param("id", customerId).param("purpose", PURPOSE).param("statement", "Khách tự nhắn muốn mua lại")
+                .param("note", "Khách từng từ chối, nay tự nhắn muốn mua").param("by", by).update();
+        eventAs(customerId, phone, "OPT_OUT_LIFTED", "Khách tự nhắn muốn mua lại, đã gỡ cờ không nhắn nữa", by);
+        return undo;
+    }
+
+    /** Hoàn tác {@link #liftOptOut}: đánh dấu hiệu lực lại (không tạo dòng mới) và đưa cơ sở liên hệ về như cũ. */
+    @Transactional
+    public void undoLiftOptOut(long customerId, LiftUndo u, String liftedBy) {
+        String phone = phoneOf(customerId);
+        jdbc.sql("""
+                        UPDATE suppression SET lifted_at = NULL, lifted_by = NULL
+                        WHERE phone_hash = :h AND reason = 'OPT_OUT' AND lifted_by = :by""")
+                .param("h", PhoneHash.of(phone)).param("by", liftedBy).update();
+        if (u.hadBasis()) {
+            jdbc.sql("""
+                            UPDATE contact_basis SET basis = :basis, status = :status, note = :note, recorded_by = :by, recorded_at = :at
+                            WHERE customer_id = :id AND purpose = :p AND basis = 'OPT_IN' AND recorded_by = :lifter""")
+                    .param("basis", u.basis()).param("status", u.status()).param("note", u.note()).param("by", u.recordedBy())
+                    .param("at", OffsetDateTime.ofInstant(java.time.Instant.parse(u.recordedAt()), java.time.ZoneOffset.UTC))
+                    .param("id", customerId).param("p", PURPOSE).param("lifter", liftedBy).update();
+        }
+        eventAs(customerId, phone, "OPT_OUT_RELIFTED", "Hoàn tác: khách lại không được nhắn", actor());
+    }
+
+    /** Khách này có dòng "không nhắn nữa" do KHÁCH TỰ RÚT còn hiệu lực không (loại ERASED, loại đã gỡ). */
+    public boolean hasActiveOptOut(String phone) {
+        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM suppression WHERE phone_hash = :h AND reason = 'OPT_OUT' AND lifted_at IS NULL)")
+                .param("h", PhoneHash.of(phone)).query(Boolean.class).single();
     }
 
     /**
@@ -427,13 +512,18 @@ public class ContactService {
         jdbc.sql("""
                         INSERT INTO suppression (phone_hash, reason, source, recorded_by)
                         VALUES (:hash, :reason, :source, :by)
-                        ON CONFLICT (phone_hash) DO NOTHING""")
+                        ON CONFLICT (phone_hash) DO UPDATE SET
+                            reason = CASE WHEN EXCLUDED.reason = 'ERASED' THEN 'ERASED' ELSE suppression.reason END,
+                            source = EXCLUDED.source, recorded_by = EXCLUDED.recorded_by, recorded_at = now(),
+                            lifted_at = NULL, lifted_by = NULL
+                        WHERE suppression.lifted_at IS NOT NULL
+                           OR (EXCLUDED.reason = 'ERASED' AND suppression.reason <> 'ERASED')""")
                 .param("hash", PhoneHash.of(phone)).param("reason", reason)
                 .param("source", blankToNull(source)).param("by", by).update();
     }
 
     public boolean isSuppressed(String phone) {
-        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM suppression WHERE phone_hash = :h)")
+        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM suppression WHERE phone_hash = :h AND lifted_at IS NULL)")
                 .param("h", PhoneHash.of(phone)).query(Boolean.class).single();
     }
 
