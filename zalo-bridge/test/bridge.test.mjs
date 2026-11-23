@@ -820,3 +820,72 @@ test('tạo nhóm: sổ tạo nhóm lưu ra đĩa nên khởi động lại khô
   assert.equal(b3.status().tripReason, 'LEDGER_CORRUPT');
   c.cleanup();
 });
+
+// ---------- D19: tra tên và ảnh của MỘT số để xác nhận mẹ ----------
+
+async function readyLookup(env = {}) {
+  const c = await ready(env);
+  c.adapter.profiles = new Map([['84900000009', { uid: '900', name: 'Mẹ của shop', avatarUrl: 'https://s120.zadn.vn/a.jpg' }]]);
+  return c;
+}
+
+test('tra người: đúng một số, trả mã, tên và ảnh (data URI); không nhắn, không kết bạn; log không có số, mã hay tên', async () => {
+  const c = await readyLookup();
+  const r = await c.bridge.lookupPerson({ phone: '84900000009' });
+  assert.equal(r.outcome, 'OK');
+  assert.equal(r.uid, '900');
+  assert.equal(r.name, 'Mẹ của shop');
+  assert.match(r.avatar, /^data:image\/png;base64,/);
+  assert.deepEqual(c.adapter.profileLookups, ['84900000009']);
+  assert.equal(c.adapter.sent, undefined);
+  assert.equal(c.adapter.adds.length, 0);
+  assert.ok(!c.logs.join('\n').match(/84900000009|900|Mẹ/));
+  c.cleanup();
+});
+
+test('tra người: số sai bị từ chối trước khi chạm Zalo; không thấy thì NOT_FOUND (không dừng); ảnh lỗi thì chỉ mất ảnh', async () => {
+  const c = await readyLookup();
+  for (const phone of [undefined, null, '', '12', '1'.repeat(16), 'abc']) {
+    assert.deepEqual(await c.bridge.lookupPerson({ phone }), { outcome: 'PERSON_ERROR', code: 'BAD_PHONE' }, String(phone));
+  }
+  assert.equal(c.adapter.profileLookups, undefined);
+  assert.deepEqual(await c.bridge.lookupPerson({ phone: '84900000010' }), { outcome: 'PERSON_ERROR', code: 'NOT_FOUND' });
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  c.adapter.avatarError = new Error('ảnh hỏng');
+  const r = await c.bridge.lookupPerson({ phone: '84900000009' });
+  assert.equal(r.outcome, 'OK');
+  assert.equal(r.avatar, null);
+  c.cleanup();
+});
+
+test('tra người: trần mỗi giờ công khai và cố định (mặc định 5), quá thì RATE_LIMITED, không dừng, hết giờ thì được lại', async () => {
+  const c = await readyLookup();
+  for (let i = 0; i < 5; i += 1) assert.equal((await c.bridge.lookupPerson({ phone: '84900000009' })).outcome, 'OK');
+  const r = await c.bridge.lookupPerson({ phone: '84900000009' });
+  assert.equal(r.outcome, 'RATE_LIMITED');
+  assert.ok(r.retryAfterSec > 0);
+  assert.equal(c.adapter.profileLookups.length, 5);
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  c.clock.t += 61 * 60 * 1000;
+  assert.equal((await c.bridge.lookupPerson({ phone: '84900000009' })).outcome, 'OK');
+  c.cleanup();
+});
+
+test('tra người: lỗi lạ thì dừng cầu dao; chưa đăng nhập, đã dừng hay ngoài khung giờ thì không gọi Zalo', async () => {
+  const c = await readyLookup();
+  c.adapter.profileError = new Error('lạ');
+  assert.equal((await c.bridge.lookupPerson({ phone: '84900000009' })).outcome, 'SYSTEM_ERROR');
+  assert.equal(c.bridge.status().state, 'TRIPPED');
+  assert.deepEqual(await c.bridge.lookupPerson({ phone: '84900000009' }), { outcome: 'RESTRICTED', code: 'NOT_ACTIVE' });
+  c.cleanup();
+  const d = await readyLookup();
+  d.clock.t += 14 * 3600 * 1000; // 00:00 giờ Việt Nam hôm sau
+  assert.deepEqual(await d.bridge.lookupPerson({ phone: '84900000009' }), { outcome: 'RESTRICTED', code: 'WINDOW' });
+  assert.equal(d.adapter.profileLookups, undefined);
+  assert.equal(d.bridge.status().state, 'LISTENING');
+  d.cleanup();
+  const e = setup();
+  await e.bridge.start();
+  assert.equal((await e.bridge.lookupPerson({ phone: '84900000009' })).outcome, 'SESSION_LOST');
+  e.cleanup();
+});

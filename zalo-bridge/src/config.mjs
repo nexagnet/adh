@@ -62,6 +62,8 @@ export function loadConfig(env = process.env) {
     // Vượt trần ngày thì cầu nối tự dừng; tạo sớm hơn khoảng nghỉ thì chỉ bị từ chối (RATE_LIMITED). Không ngẫu nhiên hóa.
     groupDaily: int(env, 'BRIDGE_GROUP_DAILY', 3, 1, 3),
     groupGapMs: int(env, 'BRIDGE_GROUP_GAP_SEC', 300, 300, 86400) * 1000,
+    // Tra tên và ảnh của MỘT số điện thoại để xác nhận mẹ làm phó nhóm: tối đa mỗi giờ (công khai, cố định); quá thì bị từ chối, không dừng.
+    profileLookupsPerHour: int(env, 'BRIDGE_PROFILE_LOOKUPS_PER_HOUR', 5, 0, 20),
     // Nối lại khi kết nối nghe đứt bất thường (đo thật: mã 1006 sau khoảng 40 phút).
     reconnectDelaysMs: [5000, 15000, 45000, 120000, 300000],
     reconnectMaxAttempts: int(env, 'BRIDGE_RECONNECT_MAX', 8, 1, 100),

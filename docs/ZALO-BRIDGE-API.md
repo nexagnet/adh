@@ -7,7 +7,7 @@
 - Mọi trả lời là JSON, mã `200` cho mọi kết quả đã xử lý (kể cả lỗi riêng một người); mã khác `200` là lỗi hạ tầng và Adh coi là "lạ".
 - **D18 (23/11/2026):** thêm đường `POST /messages` (gửi MỘT tin văn bản cho MỘT khách, có hạn mức và khoảng nghỉ cố định). **Vẫn không có** đường gửi lời mời kết bạn, nhận lời mời, liệt kê bạn bè hay lệnh tùy ý. Chỉ có thêm đường đọc `GET /groups` (nhóm của chính tài khoản phụ). Test `ZaloGatewayShapeTest` (Java), `zalo-bridge/test/server.test.mjs` và `no-send.test.mjs` (Node) khóa việc này, kể cả số lần xuất hiện của `findUser`/`sendMessage` (đúng một lần mỗi hàm, chỉ trong `zca-adapter.mjs`).
 
-## Việc của Zalo (ba việc gốc, cộng `POST /messages` từ D18 và `POST /groups` từ D19)
+## Việc của Zalo (ba việc gốc, cộng `POST /messages` từ D18, `POST /groups` và `POST /people/lookup` từ D19)
 
 ### `GET /status`
 ```json
@@ -58,6 +58,18 @@ Tạo đúng MỘT nhóm Zalo, bật link mời và (nếu có `deputy`) thêm n
 - `RATE_LIMITED`: chưa đủ khoảng nghỉ cố định giữa hai lần tạo (`BRIDGE_GROUP_GAP_SEC`, mặc định và tối thiểu 300 giây). Chắc chắn chưa tạo.
 - `RESTRICTED` (`WINDOW` ngoài 07:00–22:00; `GROUP_LIMIT` quá `BRIDGE_GROUP_DAILY` mỗi ngày, mặc định 3 và **trần cứng 3**: cầu nối tự dừng; `NOT_ACTIVE`), `SESSION_LOST` (`LOGIN_REQUIRED`), `SYSTEM_ERROR` (`BUSY`, `NOT_CONNECTED`, `NO_ACK` khi Zalo không trả mã nhóm: **không biết đã tạo hay chưa**, cầu nối tự dừng, không tự thử lại).
 - Sổ đếm lần tạo (`group-creates.json`) ghi TRƯỚC khi gọi Zalo; sổ hỏng thì dừng (`LEDGER_CORRUPT`). Không có độ trễ ngẫu nhiên; tên nhóm, mã nhóm, mã người không vào log. Bộ nối **không** đổi chủ nhóm, đổi tên, xóa nhóm, đuổi người hay chặn ai.
+
+### `POST /people/lookup` (D19)  body `{"phone":"84912345678"}`
+Tra tên và ảnh đại diện của **đúng một** số điện thoại (số của mẹ, chủ shop nhập tay ở trang Zalo) để chủ shop bấm xác nhận đúng người trước khi làm phó nhóm. Chỉ đọc: không nhắn, không kết bạn. Chỉ tra được khi người đó đã bật cho phép tìm bằng số điện thoại trong Zalo. Trả:
+```json
+{ "outcome": "OK", "uid": "123456789", "name": "Tên hiển thị", "avatar": "data:image/jpeg;base64,..." }
+{ "outcome": "PERSON_ERROR", "code": "NOT_FOUND" }
+{ "outcome": "RATE_LIMITED", "retryAfterSec": 1800 }
+```
+- `avatar` là ảnh nhỏ (≤ 100 KB) đã tải về thành data URI (chỉ https tới máy chủ ảnh của Zalo, không theo chuyển hướng); `null` khi tải ảnh lỗi (chỉ mất ảnh, việc tra vẫn `OK`).
+- `PERSON_ERROR`: `BAD_PHONE`, `NOT_FOUND` (không có Zalo hoặc không cho tìm bằng số). Không làm cầu dao nhảy.
+- `RATE_LIMITED`: quá `BRIDGE_PROFILE_LOOKUPS_PER_HOUR` lần mỗi giờ (mặc định 5, tối đa 20; tính cả lần lỗi). `RESTRICTED` mã `WINDOW` ngoài 07:00–22:00 (không dừng), `NOT_ACTIVE`; `SESSION_LOST`; `SYSTEM_ERROR` (`BUSY`, `NOT_CONNECTED`, lỗi lạ: cầu nối tự dừng).
+- Số điện thoại, mã Zalo và tên không vào log. Gọi `findUser` của thư viện vẫn chỉ ở một chỗ (`zca-adapter.mjs`).
 
 ## Đọc danh sách nhóm (chỉ đọc, chỉ trang quản trị gọi)
 ### `GET /groups`

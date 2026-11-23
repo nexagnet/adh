@@ -61,6 +61,17 @@ class ZaloGatewayShapeTest {
         }
     }
 
+    @Test
+    void traNguoiChiCoMotHamChiDocVaKhongCoViecNhacHayKetBan() {
+        assertThat(names(ZaloPersonFinder.class)).containsExactly("findByPhone");
+        for (Class<?> c : List.of(ZaloPersonFinder.class, ZaloDeputyService.class)) {
+            for (Method m : c.getDeclaredMethods()) {
+                String n = m.getName().toLowerCase();
+                assertThat(n).as(c.getSimpleName() + "." + m.getName()).doesNotContain("send", "friend", "invite", "broadcast", "scan", "list");
+            }
+        }
+    }
+
     /** D18: khoảng cách giữa hai tin là CỐ ĐỊNH. Không dùng số ngẫu nhiên để rải thời gian gửi (không né phát hiện). */
     @Test
     void khongDungSoNgauNhienTrongMaGuiTin() throws IOException {

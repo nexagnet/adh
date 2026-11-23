@@ -308,4 +308,47 @@ class ZcaBridgeGatewayTest {
         assertThat(r.link()).isNull();
         assertThat(r.deputy()).isEqualTo("NONE");
     }
+
+    // ---------- tra người để xác nhận mẹ (D19) ----------
+
+    private static final String AVATAR = "data:image/png;base64,iVBORw0KGgo=";
+
+    @Test
+    void traNguoiGuiDungSoVaDocTenAnhHopLe() {
+        reply.set("{\"outcome\":\"OK\",\"uid\":\"900\",\"name\":\"Mẹ\\u0007 Lan\",\"avatar\":\"" + AVATAR + "\"}");
+        var r = gateway.findByPhone("84900000009");
+        assertThat(requests).containsExactly("POST /people/lookup");
+        assertThat(keys).containsExactly("khoa-chung");
+        assertThat(bodies.getFirst()).isEqualTo("{\"phone\":\"84900000009\"}");
+        assertThat(r.result()).isEqualTo(ZaloPersonFinder.FindResult.OK);
+        assertThat(r.uid()).isEqualTo("900");
+        assertThat(r.name()).isEqualTo("Mẹ  Lan");
+        assertThat(r.avatar()).isEqualTo(AVATAR);
+    }
+
+    @Test
+    void traNguoiBoAnhLaVaKhongNhanMaSai() {
+        reply.set("{\"outcome\":\"OK\",\"uid\":\"900\",\"name\":\"A\",\"avatar\":\"https://evil.example/x.png\"}");
+        assertThat(gateway.findByPhone("84900000009").avatar()).isNull(); // chỉ nhận ảnh nhỏ dạng data URI, không mở nguồn ngoài
+        reply.set("{\"outcome\":\"OK\",\"uid\":\"9;x\",\"name\":\"A\"}");
+        assertThat(gateway.findByPhone("84900000009").result()).isEqualTo(ZaloPersonFinder.FindResult.SYSTEM_ERROR);
+        reply.set("{\"outcome\":\"UNREACHABLE\"}"); // cầu nối không được tự nói "không nối được"
+        assertThat(gateway.findByPhone("84900000009").result()).isEqualTo(ZaloPersonFinder.FindResult.SYSTEM_ERROR);
+        reply.set("{\"outcome\":\"PERSON_ERROR\",\"code\":\"NOT_FOUND\"}");
+        var nf = gateway.findByPhone("84900000009");
+        assertThat(nf.result()).isEqualTo(ZaloPersonFinder.FindResult.PERSON_ERROR);
+        assertThat(nf.code()).isEqualTo("NOT_FOUND");
+        reply.set("{\"outcome\":\"RATE_LIMITED\",\"retryAfterSec\":1800}");
+        assertThat(gateway.findByPhone("84900000009").retryAfterSeconds()).isEqualTo(1800);
+    }
+
+    @Test
+    void traNguoiSoSaiKhongGoiCauNoiVaCauNoiTatThiUnreachable() {
+        assertThat(gateway.findByPhone("12").code()).isEqualTo("BAD_PHONE");
+        assertThat(gateway.findByPhone("84; DROP").code()).isEqualTo("BAD_PHONE");
+        assertThat(gateway.findByPhone(null).code()).isEqualTo("BAD_PHONE");
+        assertThat(requests).isEmpty();
+        server.stop(0);
+        assertThat(gateway.findByPhone("84900000009").result()).isEqualTo(ZaloPersonFinder.FindResult.UNREACHABLE);
+    }
 }

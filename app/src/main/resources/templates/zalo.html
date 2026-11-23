@@ -128,9 +128,41 @@
         <p class="hint">Khi có <strong th:text="${groupMin}">3</strong> khách trở lên đã kết bạn mà chưa có nhóm hợp khu vực, hệ thống đề xuất tạo một nhóm mới ở khu vực
             <strong>nhỏ nhất</strong> đủ khách (tỉnh, rồi vùng, rồi miền), lấy tối đa <span th:text="${groupProps.maxMembers}">5</span> khách kết bạn sớm nhất.
             Xét mười phút một lần, chỉ trong khung giờ <span th:text="${groupProps.windowStart}">08:00</span>–<span th:text="${groupProps.windowEnd}">20:00</span>,
-            khoảng nghỉ cố định <span th:text="${groupProps.gapMinutes}">60</span> phút giữa hai lần tạo. Tài khoản phụ là trưởng nhóm; mẹ được thêm làm phó nhóm
-            (<strong th:text="${groupDeputySet ? 'đã khai báo mã Zalo của mẹ' : 'CHƯA khai báo mã Zalo của mẹ ở cấu hình triển khai, nên chưa thêm phó nhóm'}">chưa</strong>).
+            khoảng nghỉ cố định <span th:text="${groupProps.gapMinutes}">60</span> phút giữa hai lần tạo. Tài khoản phụ là trưởng nhóm; mẹ được thêm làm phó nhóm (đặt ở mục <a href="#pho-nhom">Mẹ làm phó nhóm</a> bên dưới).
             Zalo cảnh báo hoặc có lỗi lạ thì <strong>tự dừng</strong> chung cầu dao với gửi tin, không tự thử lại. Hệ thống không làm gì để né Zalo.</p>
+        <div class="stack" id="pho-nhom">
+            <h3>Mẹ làm phó nhóm</h3>
+            <p class="hint">Nhập số điện thoại của mẹ: hệ thống tra tên và ảnh đại diện trên Zalo để anh/chị xem đúng người rồi bấm xác nhận. Số điện thoại không được lưu lại.
+                Tra được khi mẹ đã bật cho phép tìm bằng số điện thoại. <strong>Cần kết bạn tài khoản phụ với mẹ trên Zalo trước</strong>, nếu không Zalo có thể không cho thêm mẹ làm phó nhóm
+                (khi đó nhóm vẫn được tạo, trang này ghi "chưa thêm được phó nhóm" để mẹ làm tay).</p>
+            <div class="notice" th:if="${deputyMsg}" th:classappend="${deputyStatus == 'FOUND'} ? 'ok' : (${deputyStatus == 'STOPPED'} ? 'bad')" th:text="${deputyMsg}">Đã tìm thấy.</div>
+            <div class="person" th:if="${deputyCurrent.person != null}">
+                <img class="avatar" th:if="${deputyCurrent.person.avatar != null}" th:src="${deputyCurrent.person.avatar}" alt="Ảnh đại diện của mẹ" width="64" height="64">
+                <span class="avatar ph" th:unless="${deputyCurrent.person.avatar != null}" aria-hidden="true">Mẹ</span>
+                <div>
+                    <strong th:text="${deputyCurrent.source == 'SETTING'} ? ${deputyCurrent.person.name} : 'Mã Zalo khai báo ở cấu hình triển khai'">Tên của mẹ</strong>
+                    <span class="sub-line" th:if="${deputyCurrent.source == 'SETTING'}">Đã xác nhận. Là phó nhóm của các nhóm tạo từ nay.</span>
+                    <span class="sub-line" th:if="${deputyCurrent.source == 'ENV'}">Đang dùng ZALO_DEPUTY_ID. Nhập số điện thoại bên dưới để thấy tên và ảnh và đổi sang cách này.</span>
+                </div>
+                <form th:if="${deputyCurrent.source == 'SETTING'}" th:action="@{/zalo/deputy/clear}" method="post">
+                    <button type="submit" class="btn secondary sm">Bỏ phó nhóm này</button></form>
+            </div>
+            <p class="muted" th:if="${deputyCurrent.person == null}">Chưa chọn mẹ làm phó nhóm: nhóm mới tạo sẽ chưa có phó nhóm.</p>
+            <div class="person cand" th:if="${deputyCandidate != null}">
+                <img class="avatar" th:if="${deputyCandidate.avatar != null}" th:src="${deputyCandidate.avatar}" alt="Ảnh đại diện vừa tra được" width="64" height="64">
+                <span class="avatar ph" th:unless="${deputyCandidate.avatar != null}" aria-hidden="true">?</span>
+                <div>
+                    <strong th:text="${deputyCandidate.name}">Tên hiển thị</strong>
+                    <span class="sub-line">Có đúng là mẹ không?</span>
+                </div>
+                <form th:action="@{/zalo/deputy/confirm}" method="post"><button type="submit" class="btn sm">Đúng, làm phó nhóm</button></form>
+                <form th:action="@{/zalo/deputy/cancel}" method="post"><button type="submit" class="btn secondary sm">Không phải</button></form>
+            </div>
+            <form class="inline" th:action="@{/zalo/deputy/lookup}" method="post" autocomplete="off">
+                <input type="tel" name="phone" inputmode="tel" maxlength="20" placeholder="Số điện thoại của mẹ, ví dụ 0912 345 678" aria-label="Số điện thoại của mẹ" required>
+                <button type="submit" class="btn secondary">Tra tên và ảnh</button>
+            </form>
+        </div>
         <form class="stack" th:action="@{/zalo/group-mode}" method="post">
             <label class="field" th:each="m : ${groupModes}">
                 <input type="radio" name="mode" th:value="${m.name()}" th:checked="${m == groupChosen}">

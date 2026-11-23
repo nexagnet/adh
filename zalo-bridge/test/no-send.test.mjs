@@ -28,7 +28,7 @@ test('findUser và sendMessage (D18) chỉ nằm trong bộ điều hợp thật
     const find = (c.match(/\bapi\??\.findUser\b/g) ?? []).length;
     const send = (c.match(/\bapi\??\.sendMessage\b/g) ?? []).length;
     if (f === 'zca-adapter.mjs') {
-      assert.equal(find, 1, 'findUser phải đúng một lần');
+      assert.equal(find, 1, 'findUser phải đúng một lần (findOne dùng chung cho tra số gửi tin và tra mẹ)');
       assert.equal(send, 1, 'sendMessage phải đúng một lần');
     } else {
       assert.equal(find + send, 0, `${f} không được gọi findUser/sendMessage`);

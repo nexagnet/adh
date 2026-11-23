@@ -36,6 +36,8 @@ Mỗi lần chạy (một lần mỗi 10 phút, chỉ trong 08:00 đến 20:00):
 
 Tôi đề xuất: **tài khoản của hệ thống là người tạo (trưởng nhóm)** vì nó phải tạo nhóm, bật link và thêm người; **mẹ được thêm làm phó nhóm** để quản lý nhóm trên Zalo thật. Đổi ngược lại (đưa quyền trưởng nhóm cho mẹ rồi để tài khoản hệ thống làm phó) cũng làm được nhưng thêm một bước dễ lỗi, nên tôi không làm bước đầu. Cần bạn cho biết mã Zalo của mẹ (đặt bằng biến môi trường trên máy chủ, không ghi vào repo).
 
+**Cập nhật 23/11/2026:** chủ dự án muốn nhập SỐ ĐIỆN THOẠI của mẹ thay cho mã Zalo. Trang `/zalo` có ô nhập số, bộ nối tra tên và ảnh đại diện (`POST /people/lookup`, chỉ được khi mẹ bật cho tìm bằng số, và cần kết bạn tài khoản phụ với mẹ để thêm làm phó nhóm), chủ shop xem rồi bấm xác nhận thì Adh mới lưu mã Zalo. Số điện thoại không được lưu. Biến môi trường vẫn dùng được làm dự phòng.
+
 ## 5. Rủi ro (đã gộp một tài khoản, nên rủi ro cao hơn)
 
 1. **Tài khoản bị Zalo khóa** là rủi ro lớn nhất: giờ mất cả mời, thêm nhóm, tạo nhóm và (sau này) trợ lý. Tạo nhóm là hành động mà Zalo có thể coi bất thường nếu làm nhiều. Vì vậy trần mặc định thấp (1 nhóm một ngày), có nấc Xác nhận, và cầu dao.

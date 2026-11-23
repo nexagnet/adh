@@ -6,7 +6,7 @@
 // và sendMessage (văn bản, một người). Có trần ngày, khoảng nghỉ cố định, khung giờ và cầu dao ở bridge.mjs; không che việc dùng thư viện.
 // Không đặt userAgent, không đổi dấu vân tay, không proxy: dùng mặc định của thư viện, không thêm lớp nào để che.
 
-import { Zalo, FriendEventType, LoginQRCallbackEventType, ThreadType } from 'zca-js';
+import { Zalo, AvatarSize, FriendEventType, LoginQRCallbackEventType, ThreadType } from 'zca-js';
 
 export class ZcaAdapter {
   constructor() {
@@ -54,8 +54,44 @@ export class ZcaAdapter {
 
   /** Tìm mã Zalo của MỘT số điện thoại khách đã mua (để gửi tin mời). Không liệt kê, không dò hàng loạt. */
   async findUid(phone) {
-    const u = await this.api.findUser(phone);
+    const u = await this.findOne(phone, AvatarSize.Large);
     return u?.uid ? String(u.uid) : null;
+  }
+
+  /** Chỗ DUY NHẤT gọi findUser của thư viện (test no-send khóa số chỗ gọi). */
+  async findOne(phone, avatarSize) {
+    return this.api.findUser(phone, avatarSize);
+  }
+
+  /**
+   * Tra MỘT số điện thoại: mã Zalo, tên hiển thị và đường dẫn ảnh đại diện (cỡ nhỏ). Chỉ để chủ shop xác nhận đúng mẹ trước khi làm phó
+   * nhóm. Không liệt kê, không dò hàng loạt, không nhắn, không kết bạn.
+   */
+  async findProfile(phone) {
+    const u = await this.findOne(phone, AvatarSize.Small);
+    if (!u?.uid) return null;
+    return { uid: String(u.uid), name: String(u.zalo_name || u.display_name || ''), avatarUrl: typeof u.avatar === 'string' ? u.avatar : null };
+  }
+
+  /**
+   * Tải ảnh đại diện (nhỏ) thành data URI để trang quản trị hiện được mà không phải mở thêm nguồn ảnh ngoài. Chỉ https tới máy chủ ảnh của
+   * Zalo, không theo chuyển hướng, giới hạn dung lượng và loại tệp. Lỗi thì trả null (chỉ mất ảnh).
+   */
+  async fetchAvatar(url) {
+    let u;
+    try {
+      u = new URL(String(url));
+    } catch {
+      return null;
+    }
+    if (u.protocol !== 'https:' || u.port !== '' || !/(^|\.)(zadn\.vn|zdn\.vn|zalo\.me|zaloapp\.com)$/.test(u.hostname)) return null;
+    const r = await fetch(u, { redirect: 'error', signal: AbortSignal.timeout(6000) });
+    if (!r.ok) return null;
+    const type = (r.headers.get('content-type') ?? '').split(';')[0].trim();
+    if (!/^image\/(jpeg|png|webp)$/.test(type)) return null;
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (buf.length === 0 || buf.length > 100 * 1024) return null;
+    return `data:${type};base64,${buf.toString('base64')}`;
   }
 
   /** Gửi MỘT tin văn bản cho MỘT người. Không đính kèm, không gửi lời mời kết bạn. */
