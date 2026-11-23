@@ -344,7 +344,7 @@ Thiết kế dựa trên file 01 (BR-01..BR-16, mục 6–9, 11) và quyết đ�
 | 11 | Nhóm Zalo (link, mục tiêu ~5 khách, số khách thật) | 1C | BR-07, mục 6.5–6.7 | Chưa |
 | 12 | Chiến dịch mời (lô nhỏ, xem trước tin, tạm dừng tất cả, kết quả) | 1C, 1D | BR-08/16, mục 6, D5, D6 | Chưa |
 | 13 | Trang khách bấm link (điện thoại, chữ to, 1 nút) | 1C | Mục 6.2–6.4, tiêu chí 7 | Chưa |
-| 14 | Việc cần mẹ xử lý (bot báo người thật) | 1E | BR-12, mục 7 "Ở V1" | Chưa |
+| 14 | Việc cần người thật xử lý (bot báo người thật) | 1E | BR-12, mục 7 "Ở V1" | Chưa |
 | 15 | Cài đặt gửi tin (bật/tắt gửi thật, giờ gửi, hạn mức ngày, trần ngân sách SMS) | 1D | D3–D6, mục 3.3 | Chưa |
 
 **Quy tắc thiết kế rút từ nghiệp vụ (không được vi phạm khi code):**

@@ -54,11 +54,11 @@
                 <a class="btn secondary" th:href="@{/privacy}">Xem yêu cầu</a>
             </li>
             <li th:if="${handoffOpen > 0}">
-                <span><span class="todo-num" th:text="${handoffOpen}">0</span>việc trợ lý AI chuyển cho mẹ</span>
+                <span><span class="todo-num" th:text="${handoffOpen}">0</span>việc trợ lý AI chuyển cho người thật</span>
                 <a class="btn secondary" th:href="@{/handoffs}">Xem việc</a>
             </li>
             <li th:if="${refusalHeld > 0}">
-                <span><span class="todo-num" th:text="${refusalHeld}">0</span>khách nhắn riêng cần mẹ xem (nghi từ chối và đã tạm dừng tin, hoặc khách cũ muốn mua lại)</span>
+                <span><span class="todo-num" th:text="${refusalHeld}">0</span>khách nhắn riêng cần người thật xem (nghi từ chối và đã tạm dừng tin, hoặc khách cũ muốn mua lại)</span>
                 <a class="btn secondary" th:href="@{/handoffs}">Xem tin</a>
             </li>
             <li th:if="${unmapped > 0}">

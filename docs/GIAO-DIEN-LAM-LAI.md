@@ -13,7 +13,7 @@ Người dùng (chủ shop) chê giao diện "quá rác" và dặn bỏ các mà
 
 | Màn | Quyết định | Trạng thái |
 |---|---|---|
-| Tổng quan, Nhập đơn (+ chi tiết, chọn cột, xem trước), Trạng thái đơn, Danh sách mời, Chiến dịch mời, Yêu cầu của khách, In giấy giới thiệu, Bản đồ khách, Việc cần mẹ xử lý, Tài khoản trợ lý AI, trang khách (`/moi`, `/i/{token}`) | Giữ | không đổi |
+| Tổng quan, Nhập đơn (+ chi tiết, chọn cột, xem trước), Trạng thái đơn, Danh sách mời, Chiến dịch mời, Yêu cầu của khách, In giấy giới thiệu, Bản đồ khách, Việc cần người thật xử lý, Tài khoản trợ lý AI, trang khách (`/moi`, `/i/{token}`) | Giữ | không đổi |
 | Khách mua 1 lần / từ 2 lần | Gộp thành **Khách hàng** | Xong (#46) |
 | **Chạy thử trên Zalo** (`/test-runs`) | **Giữ** tới khi chủ shop cấu hình xong chiến dịch thử và chạy thật, **sau đó xóa**. Chủ shop đã chốt: chiến dịch thử phải có trước khi chạy chiến dịch thật. Đừng xóa khi dọn màn lỗi thời. | Đã làm đẹp (#45); xóa sau |
 | Zalo tài khoản phụ (`/zalo`) | Giữ, **luôn hiện trên menu** (nay là trung tâm điều khiển tự gửi, không còn là tùy chọn) | Xong |
@@ -31,7 +31,7 @@ Người dùng (chủ shop) chê giao diện "quá rác" và dặn bỏ các mà
 2. (Xong) `NavMenu`: mục Zalo tài khoản phụ luôn hiện; đã gỡ "Cài đặt gửi tin".
 3. (Cài đặt gửi tin đã gộp vào `zalo.html`.) Còn: gộp Nhóm Zalo + gán mã nhóm vào một trang (`groups.html`, `zalo-groups.html`). Hai việc này đụng file Zalo mà luồng backend đang sửa nên làm sau khi họ gộp, hoặc làm cùng họ.
 4. Đợt xóa màn nhắn tay (mục 2). Đợt xóa `/test-runs` sau khi chủ shop chạy chiến dịch thật.
-5. Chưa rà bản điện thoại kỹ cho các trang: Nhập đơn (chọn cột, xem trước), Trạng thái đơn, Danh sách mời, Việc cần mẹ xử lý, Tài khoản trợ lý AI, Yêu cầu của khách, In giấy giới thiệu, Zalo tài khoản phụ (`/zalo`). Chạy app cục bộ, chụp 390px, tìm chỗ tràn khung. Bảng nhiều cột đã tự thành thẻ; cần xem bảng nào nên giữ dạng bảng.
+5. Chưa rà bản điện thoại kỹ cho các trang: Nhập đơn (chọn cột, xem trước), Trạng thái đơn, Danh sách mời, Việc cần người thật xử lý, Tài khoản trợ lý AI, Yêu cầu của khách, In giấy giới thiệu, Zalo tài khoản phụ (`/zalo`). Chạy app cục bộ, chụp 390px, tìm chỗ tràn khung. Bảng nhiều cột đã tự thành thẻ; cần xem bảng nào nên giữ dạng bảng.
 6. Trang Tổng quan: khối "Việc cần làm hôm nay" còn mục nhắn tay (khách đã kết bạn chờ thêm vào nhóm); sửa khi bỏ màn nhắn tay.
 
 ## 4. Mẹo cho phiên sau

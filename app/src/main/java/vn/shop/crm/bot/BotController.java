@@ -150,7 +150,7 @@ public class BotController {
         model.addAttribute("all", all);
         model.addAttribute("done", done);
         model.addAttribute("doneCount", doneCount);
-        model.addAttribute("openCount", everything.size() - doneCount);
+        model.addAttribute("openCount", everything.size() - doneCount + (done ? 0 : replies.openCount()));
         model.addAttribute("botEnabled", settings.botEnabled());
         model.addAttribute("heldRefusals", done ? List.of() : refusals.held());
         model.addAttribute("autoRefusals", done ? List.of() : refusals.recentAuto(14));

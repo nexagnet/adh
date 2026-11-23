@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="vi">
-<head th:replace="~{fragments :: head('Việc cần mẹ xử lý')}"></head>
+<head th:replace="~{fragments :: head('Việc cần người thật xử lý')}"></head>
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
     <header class="page-head">
         <div class="titles">
-            <h1>Việc cần mẹ xử lý</h1>
-            <p class="hint">Mẹ trả lời khách trên Zalo thật, rồi bấm «Mẹ đã xem» hoặc «Đã xử lý xong» ở đây để cả nhà biết.
+            <h1>Việc cần người thật xử lý</h1>
+            <p class="hint">Người thật (mẹ, sau này là đội bán hàng) trả lời khách trên Zalo thật, rồi bấm «Mẹ đã xem» hoặc «Đã xử lý xong» ở đây để mọi người biết.
                 Trợ lý AI không tự chốt đơn, không tự hứa giá hay bảo hành.</p>
         </div>
         <div class="actions" th:if="${botEnabled}">
@@ -24,8 +24,8 @@
         Nếu mẹ không mở trang này, việc khách muốn mua có thể bị bỏ sót. Chưa có tin Zalo tự báo tới mẹ; phần đó để sau, chờ duyệt.
     </div>
 
-    <section class="stack" th:if="${!heldRefusals.isEmpty()}" aria-label="Tin khách nhắn riêng cần mẹ xem">
-        <h2>Khách nhắn riêng, cần mẹ xem</h2>
+    <section class="stack" th:if="${!heldRefusals.isEmpty()}" aria-label="Tin khách nhắn riêng cần người thật xem">
+        <h2>Khách nhắn riêng, cần người thật xem</h2>
         <p class="hint">Trợ lý AI đọc tin riêng của khách đã nhận lời mời và nghi khách không muốn nhận tin nữa (hoặc chưa đọc được). Hệ thống đã
             <strong>tạm dừng mọi tin cho khách này</strong>. Mẹ xem tin trên Zalo rồi chọn. Trợ lý không tự trả lời khách.</p>
         <div class="job" th:each="r : ${heldRefusals}">
@@ -150,7 +150,7 @@
                 </form>
             </div>
         </div>
-        <p class="muted" th:if="${rows.isEmpty()}">Không có việc nào đang chờ.</p>
+        <p class="muted" th:if="${rows.isEmpty() and replyHandoffs.isEmpty()}">Không có việc nào đang chờ.</p>
     </div>
 </main>
 </body>

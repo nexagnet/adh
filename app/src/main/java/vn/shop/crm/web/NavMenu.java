@@ -78,7 +78,7 @@ public class NavMenu {
                         item("Trạng thái đơn", "/status-mappings", "/status-mappings", unmapped, key))),
                 new Group("Mời vào nhóm", List.copyOf(invite)),
                 new Group("Trợ lý AI", List.of(
-                        item("Việc cần mẹ xử lý", "/handoffs", "/handoffs", handoffOpen, key),
+                        item("Việc cần người thật xử lý", "/handoffs", "/handoffs", handoffOpen, key),
                         item("Trợ lý trong nhóm", "/bot", "/bot", 0, key))),
                 new Group("Khác", List.of(
                         item("Yêu cầu của khách", "/privacy", "/privacy", privacyOpen, key),

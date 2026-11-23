@@ -12,7 +12,7 @@ Lõi bot nằm ở `app/src/main/java/vn/shop/crm/bot`:
   lời, có công tắc tắt toàn hệ thống và theo nhóm, mặc định **chạy thử** (chỉ ghi "sẽ trả lời gì").
 - `BotChannel`: giao diện gửi tin vào nhóm. Bản duy nhất hiện có là `NoopBotChannel` (không gửi gì).
 - `AiProvider` + `MockAiProvider`: AI tùy chọn, chỉ nhận văn bản đã che SĐT/email/số dài; mặc định không đưa ra câu trả lời.
-- "Việc cần mẹ xử lý" (`HandoffService`): OPEN → ACKNOWLEDGED → RESOLVED, hiện trên web và thẻ ở màn Tổng quan.
+- "Việc cần người thật xử lý" (`HandoffService`): OPEN → ACKNOWLEDGED → RESOLVED, hiện trên web và thẻ ở màn Tổng quan.
 
 Adapter kênh (Zalo Bot, GMF hay `zca-js`) chỉ cần: (1) gọi `BotEngine.handle` cho mỗi tin nhóm với `SenderKind` đúng
 (`CUSTOMER`, `OWNER` là mẹ, `BOT` là chính bot), (2) cài `BotChannel.send`.
@@ -38,7 +38,7 @@ Adapter kênh (Zalo Bot, GMF hay `zca-js`) chỉ cần: (1) gọi `BotEngine.han
 
 ## Báo việc cho mẹ qua Zalo (thiết kế, chưa code; chủ shop chọn Zalo ngày 22/11/2026)
 
-Chủ shop chọn Zalo cho cả hai việc: kênh của trợ lý trong nhóm và cách báo việc cho mẹ. Hiện việc ("Việc cần mẹ xử lý", `HandoffService`) chỉ hiện trên web, mẹ không mở thì bỏ sót.
+Chủ shop chọn Zalo cho cả hai việc: kênh của trợ lý trong nhóm và cách báo việc cho mẹ. Hiện việc ("Việc cần người thật xử lý", `HandoffService`) chỉ hiện trên web, mẹ không mở thì bỏ sót.
 
 **Đề xuất (chưa được chủ shop duyệt, vì khác với một đường gửi riêng):** trợ lý nhắc mẹ **ngay trong chính nhóm Zalo** nơi khách hỏi (ví dụ "Mẹ ơi, khách vừa hỏi giá, xin mẹ xem"). Lý do:
 - Mẹ vốn là trưởng nhóm nên Zalo tự báo cho mẹ; **không cần thêm đường gửi tin riêng cho mẹ**.
