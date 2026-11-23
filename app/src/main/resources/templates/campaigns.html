@@ -117,7 +117,7 @@
     <section>
         <h2>Các chiến dịch</h2>
         <div class="table-wrap" th:if="${!campaigns.isEmpty()}">
-            <table>
+            <table data-filter data-sticky>
                 <tr><th>Chiến dịch</th><th>Khu vực</th><th>Tạo lúc</th><th>Lời mời</th><th>Chưa gửi</th><th>Đã nhắn</th><th>Đã kết bạn</th><th>Đã vào nhóm</th><th>Đã bấm link</th></tr>
                 <tr th:each="c : ${campaigns}">
                     <td><a th:href="@{/campaigns/{id}(id=${c.id})}" th:text="${c.name}">Đợt 1</a></td>

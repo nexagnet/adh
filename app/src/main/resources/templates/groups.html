@@ -42,7 +42,7 @@
     </div>
 
     <div class="table-wrap" th:if="${!groups.isEmpty()}">
-        <table class="groups">
+        <table class="groups" data-filter data-sticky>
             <tr><th>Tên nhóm</th><th>Link nhóm Zalo</th><th>Khách / mục tiêu</th><th>Trạng thái</th><th>Thao tác</th></tr>
             <th:block th:each="g : ${groups}">
             <tr>

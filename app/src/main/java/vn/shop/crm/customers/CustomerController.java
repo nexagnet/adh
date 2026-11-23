@@ -70,6 +70,7 @@ public class CustomerController {
         model.addAttribute("searchHidden", links.hiddenExcept(List.of("q")));
         model.addAttribute("moreHidden", links.hiddenExcept(List.of("segment", "area", "q", "review")));
         model.addAttribute("activeFilters", links.activeFilters());
+        model.addAttribute("chips", CustomerFilterChips.of(query, links));
         return "customers-list";
     }
 

@@ -16,7 +16,7 @@
         <h2>Cần chọn nghĩa (<span th:text="${unmapped.size()}">0</span>)</h2>
         <p class="muted" th:if="${unmapped.isEmpty()}">Không có trạng thái nào cần gán.</p>
         <div class="table-wrap" th:if="${!unmapped.isEmpty()}">
-            <table>
+            <table data-filter>
                 <tr><th>Hãng</th><th>Trạng thái gốc</th><th>Số đơn</th><th>Nghĩa của nó là gì?</th></tr>
                 <tr th:each="u : ${unmapped}">
                     <td th:text="${u.carrier.label()}">J&amp;T Express</td>
@@ -46,7 +46,7 @@
             Khách có đơn kẹt mang nhãn "Cần kiểm tra". Muốn gỡ, xuất lại file mới của hãng rồi nhập vào để đơn có trạng thái cuối.</p>
         <p class="muted" th:if="${stuck.isEmpty()}">Không có đơn nào bị kẹt.</p>
         <div class="table-wrap" th:if="${!stuck.isEmpty()}">
-            <table>
+            <table data-filter>
                 <tr><th>Hãng</th><th>Trạng thái gốc</th><th>Số đơn</th><th>Đơn cũ nhất</th><th>Đơn mới nhất</th></tr>
                 <tr th:each="r : ${stuck}">
                     <td th:text="${r.carrier.label()}">J&amp;T Express</td>
@@ -62,7 +62,7 @@
     <details class="more">
         <summary>Đã biết nghĩa (<span th:text="${mappings.size()}">0</span>): bấm để xem hoặc đổi</summary>
         <div class="table-wrap">
-            <table>
+            <table data-filter>
                 <tr><th>Hãng</th><th>Trạng thái gốc</th><th>Nghĩa chuẩn</th><th>Tính là mua?</th></tr>
                 <tr th:each="m : ${mappings}">
                     <td th:text="${m.carrier.label()}">Viettel Post</td>
@@ -78,7 +78,7 @@
         <details class="more">
             <summary>Đổi nghĩa đã gán</summary>
             <div class="table-wrap">
-                <table>
+                <table data-filter>
                     <tr><th>Hãng</th><th>Trạng thái gốc</th><th>Đổi thành</th></tr>
                     <tr th:each="m : ${mappings}">
                         <td th:text="${m.carrier.label()}">Viettel Post</td>

@@ -36,7 +36,7 @@
         <section>
             <h2>Các lần mua và vận đơn</h2>
             <div class="table-wrap">
-                <table>
+                <table data-filter>
                     <tr><th>Hãng</th><th>Đã mua gì</th><th>Mã vận đơn</th><th>Trạng thái gốc</th><th>Tính?</th></tr>
                     <th:block th:each="p, st : ${detail.classification.purchases}">
                         <tr th:each="s : ${p.shipments}">
@@ -75,7 +75,7 @@
         <section th:if="${!events.isEmpty()}">
             <h2>Nhật ký</h2>
             <div class="table-wrap">
-                <table>
+                <table data-filter>
                     <tr><th>Lúc</th><th>Việc</th><th>Ai</th></tr>
                     <tr th:each="e : ${events}">
                         <td th:text="${#temporals.format(e.recordedAt, 'dd/MM HH:mm')}">21/11 18:30</td>

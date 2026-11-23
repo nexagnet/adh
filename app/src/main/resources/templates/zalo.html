@@ -149,7 +149,7 @@
             <button type="submit" class="btn">Lưu giới hạn</button>
         </form>
         <div class="table-wrap">
-            <table>
+            <table data-filter>
                 <tr><th>Lúc</th><th>Khu vực và tên nhóm</th><th>Lý do</th><th>Trạng thái</th><th></th></tr>
                 <tr th:each="p : ${proposals}">
                     <td th:text="${#temporals.format(p.createdAt, 'dd/MM HH:mm')}">22/11 10:00</td>
@@ -176,7 +176,7 @@
         <h2>Khách chờ vào nhóm</h2>
         <p class="muted" th:if="${waiting.isEmpty()}">Chưa có khách nào chờ.</p>
         <div class="table-wrap" th:if="${!waiting.isEmpty()}">
-            <table>
+            <table data-filter data-sticky>
                 <tr><th>Khách</th><th>Khu vực</th><th>Nhóm dự kiến</th><th>Trạng thái</th><th>Thao tác</th></tr>
                 <tr th:each="w : ${waiting}">
                     <td th:text="${w.customerName}">Nguyễn Văn A</td>
@@ -207,7 +207,7 @@
             trong danh sách đã nhắn mời.</p>
         <p class="muted" th:if="${manual.isEmpty()}">Không có dòng nào cần xử lý.</p>
         <div class="table-wrap" th:if="${!manual.isEmpty()}">
-            <table>
+            <table data-filter>
                 <tr><th>Lúc kết bạn</th><th>Mã cuối</th><th>Là khách nào?</th></tr>
                 <tr th:each="e : ${manual}">
                     <td th:text="${#temporals.format(e.at, 'dd/MM HH:mm')}">22/11 10:00</td>
@@ -235,7 +235,7 @@
         <h2>Nhật ký gần đây</h2>
         <p class="hint">Nhật ký không có số điện thoại, tên hay mã Zalo của khách.</p>
         <div class="table-wrap">
-            <table>
+            <table data-filter>
                 <tr><th>Lúc</th><th>Việc</th><th>Kết quả</th><th>Chi tiết</th><th>Người làm</th></tr>
                 <tr th:each="r : ${log}">
                     <td th:text="${#temporals.format(r.at, 'dd/MM HH:mm')}">22/11 10:00</td>
@@ -301,7 +301,7 @@
     <section>
         <h3>Nhật ký gửi gần đây</h3>
         <div class="table-wrap">
-            <table>
+            <table data-filter>
                 <tr><th>Lúc</th><th>Số (3 số cuối)</th><th>Kênh</th><th>Kết quả</th><th>Ghi chú</th></tr>
                 <tr th:each="r : ${send.recent}">
                     <td th:text="${#temporals.format(r.at, 'dd/MM HH:mm')}">21/11 18:40</td>
