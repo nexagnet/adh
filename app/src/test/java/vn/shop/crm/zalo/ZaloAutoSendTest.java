@@ -252,6 +252,24 @@ class ZaloAutoSendTest extends AbstractPostgresTest {
         assertThat(messages.quota().maxDaily()).isEqualTo(50);
     }
 
+    /** D21 PR 5b: tin nhắc (FOLLOWUP2/3) là tin shop chủ động nhắn nên tính vào hạn mức ngày cùng Tin 1, và chịu khoảng nghỉ chung. */
+    @Test
+    void tinNhacTinhVaoHanMucNgayCungTin1() {
+        ready(ZaloMode.AUTO);
+        messages.setLimits(2, 100, "mẹ");
+        assertThat(sender.step()).isEqualTo(Step.INVITE_SENT);
+        assertThat(messages.usedToday(null)).isEqualTo(1);
+        after(100);
+        var d = messages.sendByUid(ZaloMessageService.SCOPE_REAL, Kind.FOLLOWUP2, 1L, "9123456", "Nhắc", null, null);
+        assertThat(d.status()).isEqualTo(ZaloMessageService.Status.SENT);
+        assertThat(messages.usedToday(null)).isEqualTo(2); // tin nhắc tính vào hạn mức
+        after(100);
+        assertThat(messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.FOLLOWUP3, null, null)).contains(ZaloMessageService.Block.DAILY_LIMIT);
+        assertThat(messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.INVITE, null, null)).contains(ZaloMessageService.Block.DAILY_LIMIT);
+        assertThat(messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.LINK, null, null)).isEmpty(); // Tin 2 vẫn không bị hạn mức ngày chặn
+        assertThat(fake.messages.stream().filter(m -> m.kind() == Kind.FOLLOWUP2)).hasSize(1);
+    }
+
     // ---------- người không đủ điều kiện, lỗi ----------
 
     @Test

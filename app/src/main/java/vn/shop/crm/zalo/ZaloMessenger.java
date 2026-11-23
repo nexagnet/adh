@@ -15,7 +15,20 @@ public interface ZaloMessenger {
         /** Tin thứ ba (D19): MỘT tin mẫu cố định trả lời người từng từ chối mà vừa TỰ nhắn tới muốn mua. Chỉ theo mã Zalo, chỉ cho người vừa nhắn trước. */
         WELCOME,
         /** Tin thứ tư (D20): câu trả lời do trợ lý AI soạn (đã qua kiểm tra cứng) cho người vừa TỰ nhắn tới. Chỉ theo mã Zalo, cùng chốt chặn như WELCOME. */
-        REPLY
+        REPLY,
+        /** Tin nhắc lần hai của chiến dịch nhiều lần gửi (D21): chỉ theo mã Zalo của người ĐÃ nhận Tin 1, tính vào hạn mức ngày như Tin 1. */
+        FOLLOWUP2,
+        /** Tin nhắc lần ba (D21), cùng luật như {@link #FOLLOWUP2}; cầu nối chỉ nhận khi lần hai đã gửi. */
+        FOLLOWUP3;
+
+        /** Tin do shop chủ động nhắn khách (không phải trả lời, không phải Tin 2): tính vào hạn mức ngày. */
+        public boolean proactive() {
+            return this == INVITE || this == FOLLOWUP2 || this == FOLLOWUP3;
+        }
+
+        public boolean followup() {
+            return this == FOLLOWUP2 || this == FOLLOWUP3;
+        }
     }
 
     enum Result {

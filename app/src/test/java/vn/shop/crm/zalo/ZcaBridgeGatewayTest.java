@@ -205,6 +205,22 @@ class ZcaBridgeGatewayTest {
     }
 
     @Test
+    void tinNhacChiTheoMaZaloVaCauNoiTuChoiThiLaChacChanChuaGui() {
+        // tin nhắc không có đường theo số điện thoại: Adh từ chối trước khi gọi cầu nối
+        var byPhone = gateway.sendByPhone(ZaloMessenger.Kind.FOLLOWUP2, "84912345678", "nhắc");
+        assertThat(byPhone.result()).isEqualTo(ZaloMessenger.Result.PERSON_ERROR);
+        assertThat(byPhone.notSent()).isTrue();
+        assertThat(bodies).isEmpty();
+        for (String code : new String[]{"NO_INVITE", "NO_PREVIOUS", "CUSTOMER_REPLIED"}) {
+            reply.set("{\"outcome\":\"PERSON_ERROR\",\"code\":\"" + code + "\"}");
+            var r = gateway.sendByUid(ZaloMessenger.Kind.FOLLOWUP3, "654321", "nhắc");
+            assertThat(r.result()).isEqualTo(ZaloMessenger.Result.PERSON_ERROR);
+            assertThat(r.notSent()).as(code).isTrue(); // cầu nối từ chối trước khi chạm Zalo
+        }
+        assertThat(bodies.get(0)).contains("\"kind\":\"FOLLOWUP3\"", "\"uid\":\"654321\"").doesNotContain("phone");
+    }
+
+    @Test
     void tinMauGuiTheoMaVaKhongTraLoiDuocThiLaChacChanChuaGui() {
         reply.set("{\"outcome\":\"PERSON_ERROR\",\"code\":\"NOT_REPLYABLE\"}");
         var r = gateway.sendByUid(ZaloMessenger.Kind.WELCOME, "654321", "chào");
