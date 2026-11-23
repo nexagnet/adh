@@ -43,11 +43,11 @@ class CampaignStepsWebTest extends AbstractPostgresTest {
     }
 
     @Test
-    void trangHienOSoLanGuiVaGhiRoChuaGuiTinNhac() throws Exception {
+    void trangHienOSoLanGuiVaDieuKienGuiTinNhac() throws Exception {
         mvc.perform(get("/campaigns/" + id).with(user("admin")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Số lần gửi mời")))
-                .andExpect(content().string(containsString("Tin nhắc CHƯA được gửi")))
+                .andExpect(content().string(containsString("Tin nhắc chỉ tự gửi khi đủ điều kiện")))
                 .andExpect(content().string(containsString("cứ nhắn")))
                 .andExpect(content().string(containsString("Mẫu Tin 1 cho chiến dịch gửi nhiều lần")));
     }

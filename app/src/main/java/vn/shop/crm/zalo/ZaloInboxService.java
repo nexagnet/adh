@@ -150,6 +150,7 @@ public class ZaloInboxService implements ZaloTickHook {
             return;
         }
         Target t = target.get();
+        reviews.noteInbound(t.invitationId()); // khách đã lên tiếng: các tin nhắc của chiến dịch nhiều lần gửi dừng, dù AI gắn nhãn gì
         String text = RefusalClassifier.prepare(m.text());
         if (text.isBlank()) {
             return;

@@ -80,6 +80,14 @@ public class RefusalReviewService {
                 .query((rs, i) -> new Target(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("status"))).optional();
     }
 
+    /**
+     * Ghi nhận khách đã tự nhắn riêng (D21): mọi tin nhắc của lời mời này dừng vĩnh viễn. Chỉ ghi giờ lần đầu, không ghi nội dung.
+     * Gọi cho MỌI tin riêng của người đang có lời mời, bất kể AI gắn nhãn gì hay AI có lỗi hay không.
+     */
+    public void noteInbound(long invitationId) {
+        jdbc.sql("UPDATE invitation SET inbound_at = now() WHERE id = :id AND inbound_at IS NULL").param("id", invitationId).update();
+    }
+
     // ---------- trợ lý quyết ----------
 
     /** AI chắc: ghi sổ từ chối, hủy Tin 2 và việc thêm nhóm (lời mời thành CANCELLED). Không lưu nội dung. */

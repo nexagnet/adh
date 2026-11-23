@@ -23,6 +23,7 @@ public class Labels {
             "OPTED_OUT", "Khách xin ngừng nhận tin",
             "INVITATION_CREATED", "Tạo lời mời",
             "INVITATION_SENT", "Đã gửi lời mời",
+            "INVITATION_FOLLOWUP", "Đã gửi tin nhắc",
             "REQUEST_OPENED", "Ghi nhận yêu cầu của khách",
             "EXPORTED", "Xuất dữ liệu khách",
             "ERASED", "Xóa dữ liệu khách");
