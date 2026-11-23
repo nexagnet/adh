@@ -17,7 +17,7 @@
     <div class="cards c4">
         <div class="card"><div class="big" th:text="${groups.?[status.name() == 'OPEN'].size()}">0</div><div class="label">Nhóm đang nhận khách</div></div>
         <div class="card"><div class="big" th:text="${spotsLeft}">0</div><div class="label">Chỗ trống trong các nhóm</div></div>
-        <div class="card"><div class="big" th:text="${#aggregates.sum(groups.![actual])}">0</div><div class="label">Khách ước tính trong các nhóm</div></div>
+        <div class="card"><div class="big" th:text="${groups.isEmpty()} ? 0 : ${#aggregates.sum(groups.![actual])}">0</div><div class="label">Khách ước tính trong các nhóm</div></div>
         <div class="card"><div class="big" th:text="${groups.?[status.name() != 'OPEN' or full()].size()}">0</div><div class="label">Nhóm đã đầy hoặc tạm đóng</div></div>
     </div>
 
@@ -111,7 +111,6 @@
             <label class="field grow">Tên nhóm <input type="text" name="name" placeholder="Nhóm 5" required maxlength="100"></label>
             <label class="field grow2">Link nhóm (dán từ Zalo) <input type="text" name="link" placeholder="https://zalo.me/g/..." maxlength="300"></label>
             <label class="field">Mục tiêu số khách <input type="number" name="target" value="5" min="1" max="500"></label>
-            <button type="submit" class="btn">Thêm nhóm</button>
         </div>
         <label class="field">Khu vực nhóm nhận khách (không bắt buộc)
             <select name="scope" title="Khu vực nhóm nhận khách" aria-label="Khu vực nhóm nhận khách">
@@ -120,6 +119,7 @@
                     <optgroup label="Vùng"><option th:each="o : ${scopes[1]}" th:value="${o.code}" th:text="${o.label}">Vùng Đông Nam Bộ</option></optgroup>
                     <optgroup label="Tỉnh/thành"><option th:each="o : ${scopes[2]}" th:value="${o.code}" th:text="${o.label}">Cần Thơ</option></optgroup>
                 </select></label>
+        <div class="actions"><button type="submit" class="btn">Thêm nhóm</button></div>
     </form>
 
     <div class="notice info">

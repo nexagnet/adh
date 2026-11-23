@@ -127,8 +127,8 @@
         </div>
     </section>
 
-    <section th:if="${!shipments.isEmpty()}">
-        <h2>Đơn hàng theo hãng và trạng thái</h2>
+    <details class="more" th:if="${!shipments.isEmpty()}">
+        <summary>Đơn hàng theo hãng và trạng thái</summary>
         <div class="table-wrap">
             <table>
                 <tr><th>Hãng</th><th>Trạng thái</th><th>Số đơn</th></tr>
@@ -139,10 +139,10 @@
                 </tr>
             </table>
         </div>
-    </section>
+    </details>
 
-    <section th:if="${!batches.isEmpty()}">
-        <h2>Các lần nhập gần đây</h2>
+    <details class="more" th:if="${!batches.isEmpty()}">
+        <summary>Các lần nhập gần đây</summary>
         <div class="table-wrap">
             <table>
                 <tr><th>Thời gian</th><th>Hãng</th><th>File</th><th>Tình trạng</th></tr>
@@ -157,7 +157,7 @@
                 </tr>
             </table>
         </div>
-    </section>
+    </details>
 </main>
 </body>
 </html>

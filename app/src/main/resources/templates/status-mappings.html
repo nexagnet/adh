@@ -59,8 +59,8 @@
         </div>
     </section>
 
-    <section>
-        <h2>Đã biết nghĩa (<span th:text="${mappings.size()}">0</span>)</h2>
+    <details class="more">
+        <summary>Đã biết nghĩa (<span th:text="${mappings.size()}">0</span>): bấm để xem hoặc đổi</summary>
         <div class="table-wrap">
             <table>
                 <tr><th>Hãng</th><th>Trạng thái gốc</th><th>Nghĩa chuẩn</th><th>Tính là mua?</th></tr>
@@ -75,7 +75,7 @@
                 </tr>
             </table>
         </div>
-        <details class="more" style="margin-top:16px">
+        <details class="more">
             <summary>Đổi nghĩa đã gán</summary>
             <div class="table-wrap">
                 <table>
@@ -99,7 +99,7 @@
                 </table>
             </div>
         </details>
-    </section>
+    </details>
 </main>
 </body>
 </html>
