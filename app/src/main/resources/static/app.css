@@ -763,3 +763,9 @@ pre.code { white-space: pre-wrap; word-break: break-word; overflow: auto; max-he
 
 /* Khối chữ xem trước (pre) tự xuống dòng, không làm tràn ngang trên điện thoại. */
 pre.wrap { white-space: pre-wrap; overflow-wrap: anywhere; margin: 6px 0 0; }
+
+/* Các tab của trang chiến dịch: liên kết thường (không JavaScript), cuộn ngang trên điện thoại */
+.tabs { display: flex; gap: 4px; overflow-x: auto; margin: 12px 0 16px; border-bottom: 2px solid var(--line); -webkit-overflow-scrolling: touch; }
+.tabs a { flex: none; padding: 10px 16px; font-weight: 600; text-decoration: none; color: var(--muted); border-bottom: 3px solid transparent; margin-bottom: -2px; }
+.tabs a:hover { color: var(--text); }
+.tabs a.active { color: var(--primary-dark); border-bottom-color: var(--primary); }

@@ -94,8 +94,29 @@ public class CampaignController {
         return "redirect:/campaigns";
     }
 
+    /** Các tab của trang chi tiết chiến dịch (D21 PR 8). Mỗi cài đặt nằm ở đúng một tab; mặc định là tab đầu. */
+    public record Tab(String key, String label) {
+    }
+
+    static final java.util.List<Tab> TABS = java.util.List.of(
+            new Tab("tong-quan", "Tổng quan và lời mời"), new Tab("lich", "Lịch và điều kiện gửi"),
+            new Tab("tin", "Chuỗi tin"), new Tab("nhom", "Nhóm Zalo và khách quay lại"));
+
+    /** Tab được chọn: tham số {@code tab}, hoặc tab vừa lưu (gửi qua thuộc tính flash để địa chỉ chuyển hướng không đổi); lạ thì về tab đầu. */
+    private static String pickTab(String param, Model model) {
+        Object flash = model.asMap().get("tab");
+        for (String candidate : new String[]{param, flash instanceof String f ? f : null}) {
+            if (candidate != null && TABS.stream().anyMatch(t -> t.key().equals(candidate))) {
+                return candidate;
+            }
+        }
+        return TABS.get(0).key();
+    }
+
     @GetMapping("/campaigns/{id}")
-    public String detail(@PathVariable long id, Model model) {
+    public String detail(@PathVariable long id, @RequestParam(required = false) String tab, Model model) {
+        model.addAttribute("tabs", TABS);
+        model.addAttribute("tab", pickTab(tab, model));
         var campaign = invites.campaign(id).orElseThrow(() -> new ImportException("Không tìm thấy chiến dịch."));
         model.addAttribute("campaign", campaign);
         model.addAttribute("rows", invites.invitations(id, campaign.template()));
@@ -142,6 +163,7 @@ public class CampaignController {
                 time(windowFrom, "Giờ bắt đầu"), time(windowTo, "Giờ kết thúc"), number(dailyCap, "Hạn mức ngày"),
                 number(gapSeconds, "Khoảng nghỉ"));
         policy.save(id, raw, ContactService.actor());
+        redirect.addFlashAttribute("tab", "lich");
         redirect.addFlashAttribute("flash", reset
                 ? "Đã bỏ lịch và nhịp riêng: chiến dịch theo cài đặt chung của hệ thống."
                 : "Đã lưu lịch và nhịp riêng. Các giới hạn chung của hệ thống vẫn áp dụng thêm.");
@@ -161,6 +183,7 @@ public class CampaignController {
                 : new vn.shop.crm.zalo.CampaignPolicy.Extra(vn.shop.crm.zalo.CampaignPolicy.Extra.maskOf(
                         days == null ? java.util.List.of() : days), holdOnRain, number(stopPct, "Ngưỡng tự dừng"));
         policy.saveExtra(id, extra, ContactService.actor());
+        redirect.addFlashAttribute("tab", "lich");
         redirect.addFlashAttribute("flash", reset
                 ? "Đã bỏ điều kiện gửi riêng: chiến dịch theo cài đặt chung của hệ thống."
                 : "Đã lưu điều kiện gửi riêng. Các giới hạn chung của hệ thống vẫn áp dụng thêm.");
@@ -180,6 +203,7 @@ public class CampaignController {
         var target = reset ? vn.shop.crm.zalo.CampaignGroupTarget.Target.SYSTEM
                 : new vn.shop.crm.zalo.CampaignGroupTarget.Target(linkOnly, allowCreation, linkTemplate);
         groupTarget.save(id, target, ContactService.actor());
+        redirect.addFlashAttribute("tab", "nhom");
         redirect.addFlashAttribute("flash", reset
                 ? "Đã bỏ cài đặt nhóm riêng: chiến dịch theo cài đặt chung của hệ thống."
                 : "Đã lưu cài đặt nhóm Zalo của chiến dịch.");
@@ -195,6 +219,7 @@ public class CampaignController {
         invites.campaign(id).orElseThrow(() -> new ImportException("Không tìm thấy chiến dịch."));
         comebacks.saveCampaignMode(id, vn.shop.crm.inbox.ComebackService.Mode.ofCampaign(mode), ContactService.actor());
         messages.audit("KHACH_QUAY_LAI_CHIEN_DICH", id, ContactService.actor());
+        redirect.addFlashAttribute("tab", "nhom");
         redirect.addFlashAttribute("flash", "Đã lưu cách xử lý khách từng từ chối nhắn lại của chiến dịch. Nấc chung của hệ thống vẫn áp dụng thêm (lấy nấc thấp hơn).");
         return "redirect:/campaigns/" + id;
     }
@@ -216,6 +241,7 @@ public class CampaignController {
             list.add(new CampaignSteps.Step(3, text3, java.util.Objects.requireNonNullElse(number(gap3, "Khoảng cách lần 3"), 0)));
         }
         steps.saveFollowups(id, list, ContactService.actor());
+        redirect.addFlashAttribute("tab", "tin");
         redirect.addFlashAttribute("flash", touches == 1
                 ? "Chiến dịch gửi mời 1 lần."
                 : "Đã lưu: chiến dịch gửi mời " + touches + " lần. Lưu ý: hệ thống CHƯA tự gửi tin nhắc (phần gửi làm ở bước sau); hiện chỉ lưu cấu hình.");
@@ -226,6 +252,7 @@ public class CampaignController {
     @PostMapping("/campaigns/{id}/first-message")
     public String saveFirstMessage(@PathVariable long id, @RequestParam String template, RedirectAttributes redirect) {
         steps.saveFirstMessage(id, template, ContactService.actor());
+        redirect.addFlashAttribute("tab", "tin");
         redirect.addFlashAttribute("flash", "Đã lưu nội dung Tin 1 của chiến dịch.");
         return "redirect:/campaigns/" + id;
     }

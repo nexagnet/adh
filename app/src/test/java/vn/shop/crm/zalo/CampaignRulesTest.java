@@ -287,7 +287,7 @@ class CampaignRulesTest extends AbstractPostgresTest {
                         .param("days", "1").param("days", "2").param("holdOnRain", "true").param("stopPct", "3"))
                 .andExpect(redirectedUrl("/campaigns/" + campaign));
         assertThat(policy.loadExtra(campaign)).isEqualTo(new Extra(3, true, 3));
-        mvc.perform(get("/campaigns/" + campaign).with(user("admin")))
+        mvc.perform(get("/campaigns/" + campaign + "?tab=lich").with(user("admin")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Điều kiện gửi riêng")));
         mvc.perform(post("/campaigns/" + campaign + "/rules").with(user("admin")).with(csrf()))

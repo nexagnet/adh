@@ -91,7 +91,7 @@ Chỉ làm khi chủ dự án **báo thử xong**. Một PR, review backend kỹ
 **Mã chưa làm (D21):**
 - **PR 4 phần còn dở** (PR nhỏ riêng): phạm vi khách mở rộng (nhiều khu vực, độ mới lần mua), tăng dần theo ngày bằng bậc thang cố định, thử A/B. (**Đã làm 23/11, V41:** ngày trong tuần được gửi, hoãn khi mưa lớn, tự dừng khi khách từ chối từ 5% sau 20 tin: xem `docs/THIET-KE-AI-DE-XUAT-CHIEN-DICH.md` mục 6, PR 4.) Mỗi núm mới đi qua `CampaignPolicy.effective`/`blocker` và **chỉ làm chặt hơn** trần hệ thống.
 - **PR 6 (đã làm một phần, V42):** nhóm đích riêng của chiến dịch (`CampaignGroupTarget`): "chỉ gửi link nhóm", tắt gom vào nhóm tự tạo, Tin 2 riêng. **Chưa làm:** ghim một nhóm cố định cho chiến dịch và mẫu tên nhóm riêng (đề xuất tạo nhóm hiện gom khách của mọi chiến dịch theo khu vực, nên cần thiết kế thêm). **PR 7 (đã làm, V43):** nấc khách quay lại riêng của chiến dịch (chỉ chặt hơn hệ thống; tự nhận khách mới đã nằm ở trang chiến dịch từ V30).
-- **PR 8:** gom giao diện chiến dịch thành một trang nhiều tab, gỡ cấu hình trùng ở `/zalo`, `/test-runs`, `/today`. **Chỉ làm sau khi tự gửi chạy ổn trên thật** và sau khi dọn ở mục 6.
+- **PR 8:** phần gom trang chiến dịch thành 4 tab (`?tab=tong-quan|lich|tin|nhom`) **ĐÃ làm** (chỉ giao diện). Phần còn lại, gỡ cấu hình trùng ở `/zalo`, `/test-runs`, `/today`, **chỉ làm sau khi tự gửi chạy ổn trên thật** và sau khi dọn ở mục 6.
 - Đưa `PerformanceService.anonymized()` vào `AdvisorSnapshot` (dùng nhãn phạm vi và số, **không bao giờ tên chiến dịch**).
 - Job dọn `advisor_run.snapshot_json` / `ai_output` (bảng lớn dần, chưa có job dọn).
 
