@@ -576,6 +576,9 @@ details.notice > summary::marker { color: var(--warn); }
 
 /* ---------- Điện thoại (mẹ dùng) ---------- */
 @media screen and (max-width: 700px) {
+    /* Bảng không thành thẻ (ít cột, hoặc đang trống): không ép rộng 560px làm cả trang tràn ngang; quá rộng thì cuộn trong khung. */
+    .table-wrap > table:not(.stack-m):not(.grid) { min-width: 0; }
+    .table-wrap:has(> table:not(.stack-m):not(.grid)) { overflow-x: auto; }
     body { font-size: 17px; }
     main { padding: 20px 16px 40px; }
     main > :not(:first-child) { margin-top: 20px; }
