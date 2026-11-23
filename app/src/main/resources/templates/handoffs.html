@@ -46,6 +46,38 @@
         </div>
     </section>
 
+    <section class="stack" th:if="${!warrantyCases.isEmpty()}" aria-label="Bảo hành và khiếu nại">
+        <h2>Bảo hành và khiếu nại</h2>
+        <p class="hint">Khách tự nhắn riêng báo lỗi hoặc phàn nàn. Trợ lý AI chỉ <strong>phân loại, tóm tắt và soạn nháp</strong>; hệ thống <strong>không tự trả lời</strong> và
+            không hứa bảo hành hay hoàn tiền. Mẹ xem tin trên Zalo (hệ thống chỉ đọc chữ, <strong>không đọc ảnh hay video</strong> khách gửi), quyết định rồi tự trả lời khách,
+            sau đó bấm "Đã xử lý". Nháp chỉ để tham khảo, mẹ sửa thoải mái.</p>
+        <div class="job" th:each="w : ${warrantyCases}">
+            <div class="meta">
+                <span class="badge" th:classappend="${w.urgency.name() == 'CAO'} ? 'bad' : (${w.urgency.name() == 'THAP'} ? 'info' : 'warn')" th:text="${w.urgency.label()}">Gấp</span>
+                <span class="badge info" th:text="${w.category.label()}">Sản phẩm lỗi hoặc hỏng</span>
+                <span><a th:href="@{/customers/{id}(id=${w.customerId})}" th:text="${w.customerName}">Khách</a>
+                    · <span th:text="${#temporals.format(w.updatedAt, 'dd/MM HH:mm')}">21/11 09:12</span>
+                    <span th:if="${w.messageCount > 1}" th:text="'· khách nhắn ' + ${w.messageCount} + ' tin'">· khách nhắn 2 tin</span></span>
+            </div>
+            <div class="what" th:if="${w.summary != null}" th:text="'Tóm tắt: ' + ${w.summary}">Tóm tắt: ...</div>
+            <div class="what" th:if="${w.inbound != null}" th:text="'Khách: “' + ${w.inbound} + '”'">Khách: “...”</div>
+            <div class="sub-line" th:if="${w.needsPhoto}">Nên xin khách ảnh hoặc video sản phẩm để xem lỗi.</div>
+            <div class="sub-line" th:if="${w.category.name() == 'CHUA_PHAN_LOAI'}">AI chưa đọc được tin này nên chưa phân loại. Mẹ đọc tin trên Zalo nhé.</div>
+            <div class="what" th:if="${w.draft != null}" th:text="'Nháp (chưa gửi): ' + ${w.draft}">Nháp (chưa gửi): ...</div>
+            <div class="what" th:if="${w.orders.isEmpty()}">Chưa tìm thấy đơn nào của khách này trong dữ liệu đã nhập.</div>
+            <div class="sub-line" th:each="o : ${w.orders}"
+                 th:text="'Đơn: ' + (${o.goods} ?: 'không rõ tên hàng') + ' · ' + ${o.carrier} + ' ' + ${o.trackingNo}
+                          + (${o.createdOn} != null ? ' · tạo ' + ${#temporals.format(o.createdOn, 'dd/MM/yyyy')} : '')
+                          + (${o.deliveredOn} != null ? ' · giao ' + ${#temporals.format(o.deliveredOn, 'dd/MM/yyyy')} : '')
+                          + ' · ' + ${o.status}">Đơn: ...</div>
+            <div class="actions">
+                <form th:action="@{/handoffs/warranty/{id}/done(id=${w.id})}" method="post">
+                    <button type="submit" class="btn sm">Đã xử lý</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
     <section class="stack" th:if="${!replyHandoffs.isEmpty()}" aria-label="Khách nhắn riêng, cần người thật trả lời">
         <h2>Khách nhắn riêng, cần người thật trả lời</h2>
         <p class="hint">Trợ lý AI <strong>không tự trả lời</strong> những tin này (ngoài việc mời vào nhóm và ưu đãi, hoặc chưa đủ chắc). Người thật xem tin, trả lời khách
@@ -150,7 +182,7 @@
                 </form>
             </div>
         </div>
-        <p class="muted" th:if="${rows.isEmpty() and replyHandoffs.isEmpty()}">Không có việc nào đang chờ.</p>
+        <p class="muted" th:if="${rows.isEmpty() and replyHandoffs.isEmpty() and warrantyCases.isEmpty()}">Không có việc nào đang chờ.</p>
     </div>
 </main>
 </body>

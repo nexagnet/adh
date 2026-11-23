@@ -36,10 +36,13 @@ public class BotController {
     private final vn.shop.crm.inbox.RefusalReviewService refusals;
     private final vn.shop.crm.inbox.ComebackService comebacks;
     private final vn.shop.crm.inbox.ReplyService replies;
+    private final vn.shop.crm.inbox.WarrantyService warranty;
 
     public BotController(JdbcClient jdbc, AppSettings settings, FaqService faqs, BotEngine engine,
                          HandoffService handoffs, vn.shop.crm.inbox.RefusalReviewService refusals,
-                         vn.shop.crm.inbox.ComebackService comebacks, vn.shop.crm.inbox.ReplyService replies) {
+                         vn.shop.crm.inbox.ComebackService comebacks, vn.shop.crm.inbox.ReplyService replies,
+                         vn.shop.crm.inbox.WarrantyService warranty) {
+        this.warranty = warranty;
         this.refusals = refusals;
         this.replies = replies;
         this.comebacks = comebacks;
@@ -150,13 +153,14 @@ public class BotController {
         model.addAttribute("all", all);
         model.addAttribute("done", done);
         model.addAttribute("doneCount", doneCount);
-        model.addAttribute("openCount", everything.size() - doneCount + (done ? 0 : replies.openCount()));
+        model.addAttribute("openCount", everything.size() - doneCount + (done ? 0 : replies.openCount() + warranty.openCount()));
         model.addAttribute("botEnabled", settings.botEnabled());
         model.addAttribute("heldRefusals", done ? List.of() : refusals.held());
         model.addAttribute("autoRefusals", done ? List.of() : refusals.recentAuto(14));
         model.addAttribute("comebackTasks", done ? List.of() : comebacks.tasks());
         model.addAttribute("comebackLifted", done ? List.of() : comebacks.recentLifted(14));
         model.addAttribute("replyHandoffs", done ? List.of() : replies.handoffs());
+        model.addAttribute("warrantyCases", done ? List.of() : warranty.open());
         return "handoffs";
     }
 
@@ -205,6 +209,15 @@ public class BotController {
     public String doneReply(@PathVariable long id, java.security.Principal user, RedirectAttributes redirect) {
         replies.done(id, user == null ? "người thật" : user.getName());
         redirect.addFlashAttribute("flash", "Đã xử lý xong việc trả lời khách.");
+        return "redirect:/handoffs";
+    }
+
+    // ---------- bảo hành và khiếu nại: AI phân loại, người thật xử lý ----------
+
+    @PostMapping("/handoffs/warranty/{id}/done")
+    public String doneWarranty(@PathVariable long id, java.security.Principal user, RedirectAttributes redirect) {
+        warranty.done(id, user == null ? "người thật" : user.getName());
+        redirect.addFlashAttribute("flash", "Đã xử lý xong việc bảo hành hoặc khiếu nại.");
         return "redirect:/handoffs";
     }
 
