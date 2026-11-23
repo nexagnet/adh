@@ -249,4 +249,63 @@ class ZcaBridgeGatewayTest {
         assertThat(down.result()).isEqualTo(ZaloMessenger.Result.UNREACHABLE);
         assertThat(down.notSent()).isTrue();
     }
+
+    // ---------- tạo nhóm (D19) ----------
+
+    @Test
+    void taoNhomGuiDungBodyVaDocKetQuaChiLayNguoiTrongDanhSach() {
+        reply.set("""
+                {"outcome":"OK","groupId":"9876","link":"https://zalo.me/g/abc","added":["111","999"],"failed":["222"],"deputy":"OK"}""");
+        var r = gateway.createGroup("Pin ADH - Miền Nam - 01", List.of("111", "222"), "333");
+        assertThat(requests).containsExactly("POST /groups");
+        assertThat(keys).containsExactly("khoa-chung");
+        assertThat(bodies.getFirst()).contains("\"name\":\"Pin ADH - Miền Nam - 01\"").contains("\"members\":[\"111\",\"222\"]").contains("\"deputy\":\"333\"");
+        assertThat(r.outcome()).isEqualTo(ZaloGroupMaker.GroupOutcome.OK);
+        assertThat(r.groupId()).isEqualTo("9876");
+        assertThat(r.link()).isEqualTo("https://zalo.me/g/abc");
+        assertThat(r.added()).containsExactly("111"); // "999" không nằm trong danh sách đã gửi: bỏ
+        assertThat(r.failed()).containsExactly("222");
+        assertThat(r.deputy()).isEqualTo("OK");
+    }
+
+    @Test
+    void taoNhomDauVaoSaiThiKhongGoiCauNoi() {
+        assertThat(gateway.createGroup("", List.of("111"), null).code()).isEqualTo("BAD_NAME");
+        assertThat(gateway.createGroup("x", List.of(), null).code()).isEqualTo("BAD_MEMBERS");
+        assertThat(gateway.createGroup("x", List.of("1; DROP"), null).code()).isEqualTo("BAD_MEMBERS");
+        assertThat(gateway.createGroup("x", List.of("1", "2", "3", "4", "5", "6"), null).code()).isEqualTo("BAD_MEMBERS");
+        assertThat(gateway.createGroup("x", List.of("111"), "abc").code()).isEqualTo("BAD_DEPUTY");
+        assertThat(requests).isEmpty();
+    }
+
+    @Test
+    void taoNhomPhanLoaiChuaTaoVaKhongBiet() {
+        reply.set("{\"outcome\":\"RATE_LIMITED\",\"retryAfterSec\":120}");
+        var limited = gateway.createGroup("x", List.of("111"), null);
+        assertThat(limited.outcome()).isEqualTo(ZaloGroupMaker.GroupOutcome.RATE_LIMITED);
+        assertThat(limited.notCreated()).isTrue();
+        assertThat(limited.retryAfterSeconds()).isEqualTo(120);
+        reply.set("{\"outcome\":\"RESTRICTED\",\"code\":\"GROUP_LIMIT\"}");
+        assertThat(gateway.createGroup("x", List.of("111"), null).notCreated()).isTrue();
+        reply.set("{\"outcome\":\"SYSTEM_ERROR\",\"code\":\"NO_ACK\"}");
+        assertThat(gateway.createGroup("x", List.of("111"), null).notCreated()).isFalse();
+        reply.set("{\"outcome\":\"OK\",\"groupId\":\"abc\"}"); // thiếu mã nhóm hợp lệ: nhóm có thể đã tạo, dừng
+        var noId = gateway.createGroup("x", List.of("111"), null);
+        assertThat(noId.outcome()).isEqualTo(ZaloGroupMaker.GroupOutcome.SYSTEM_ERROR);
+        assertThat(noId.notCreated()).isFalse();
+        reply.set("{\"outcome\":\"UNREACHABLE\"}"); // cầu nối không được tự nói "không nối được"
+        assertThat(gateway.createGroup("x", List.of("111"), null).outcome()).isEqualTo(ZaloGroupMaker.GroupOutcome.SYSTEM_ERROR);
+        server.stop(0);
+        var down = gateway.createGroup("x", List.of("111"), null);
+        assertThat(down.outcome()).isEqualTo(ZaloGroupMaker.GroupOutcome.UNREACHABLE);
+        assertThat(down.notCreated()).isTrue();
+    }
+
+    @Test
+    void taoNhomLinkLaThiBoVaPhoNhomLaThiLaKhong() {
+        reply.set("{\"outcome\":\"OK\",\"groupId\":\"9876\",\"link\":\"http://x\",\"added\":[],\"failed\":[\"111\"],\"deputy\":\"lạ\"}");
+        var r = gateway.createGroup("x", List.of("111"), null);
+        assertThat(r.link()).isNull();
+        assertThat(r.deputy()).isEqualTo("NONE");
+    }
 }

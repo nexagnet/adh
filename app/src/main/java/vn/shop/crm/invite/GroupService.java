@@ -289,7 +289,7 @@ public class GroupService {
     // ---------- kiểm tra đầu vào ----------
 
     /** Link chỉ được là https tới zalo.me: chặn chuyển hướng ra trang lạ nếu nhập nhầm hoặc bị sửa. */
-    static String validateLink(String link) {
+    public static String validateLink(String link) {
         if (link == null || link.isBlank()) {
             return null;
         }

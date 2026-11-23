@@ -123,6 +123,10 @@ app:
       bridge-key: ${APP_ZALO_BRIDGE_KEY:}
       # Trần cứng của số người thêm mỗi ngày; trang quản trị chỉ chỉnh được đến mức này. Mặc định 50/ngày, 5/giờ, cách nhau 2 phút.
       max-daily: ${APP_ZALO_AUTO_MAX_DAILY:100}
+    group:
+      # D19: tự tạo nhóm Zalo theo khu vực. Mã Zalo (chữ số) của mẹ để thêm làm phó nhóm: CHỈ đặt bằng biến môi trường trên máy chủ,
+      # không ghi vào repo. Để trống = không thêm phó nhóm. Mặc định tắt: cần cả APP_ZALO_AUTO_ENABLED và nấc chọn ở trang Zalo.
+      deputy-id: ${APP_ZALO_GROUP_DEPUTY_ID:}
   bot:
     # Mẹ vừa trả lời trong nhóm thì bot im lặng bao nhiêu phút (tránh trả lời trùng).
     human-quiet-minutes: 30

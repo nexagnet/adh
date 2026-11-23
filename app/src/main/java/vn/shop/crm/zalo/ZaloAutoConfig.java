@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Configuration;
 
 /** Chọn bộ nối: mặc định {@link ManualZaloGateway} (không làm gì); chỉ khi bật cờ môi trường mới có {@link ZcaBridgeGateway}. */
 @Configuration
-@EnableConfigurationProperties(ZaloAutoProperties.class)
+@EnableConfigurationProperties({ZaloAutoProperties.class, ZaloGroupProperties.class})
 public class ZaloAutoConfig {
 
     @Bean

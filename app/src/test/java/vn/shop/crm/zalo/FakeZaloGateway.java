@@ -49,6 +49,36 @@ public class FakeZaloGateway implements ZaloLink {
         defaultMessage = null;
         phoneToUid.clear();
         uidSeq = 0;
+        creates.clear();
+        createResults.clear();
+        defaultCreate = null;
+    }
+
+    // ---------- tạo nhóm (D19) ----------
+
+    public record Create(String name, List<String> members, String deputy) {
+    }
+
+    public final List<Create> creates = new ArrayList<>();
+    private final Deque<Created> createResults = new ArrayDeque<>();
+    /** Mặc định: tạo OK, mã nhóm 5555, có link, mọi người vào được. */
+    public Created defaultCreate;
+
+    public void willCreate(Created... r) {
+        createResults.addAll(List.of(r));
+    }
+
+    @Override
+    public Created createGroup(String name, List<String> memberUids, String deputyUid) {
+        creates.add(new Create(name, List.copyOf(memberUids), deputyUid));
+        if (!createResults.isEmpty()) {
+            return createResults.poll();
+        }
+        if (defaultCreate != null) {
+            return defaultCreate;
+        }
+        return new Created(ZaloGroupMaker.GroupOutcome.OK, null, "5555", "https://zalo.me/g/fake5555", List.copyOf(memberUids), List.of(),
+                deputyUid == null ? "NONE" : "OK", 0, false);
     }
 
     // ---------- gửi tin (D18) ----------
@@ -103,7 +133,7 @@ public class FakeZaloGateway implements ZaloLink {
     }
 
     public int totalCalls() {
-        return statusCalls + eventCalls + adds.size() + stops + resumes + logouts + messages.size();
+        return statusCalls + eventCalls + adds.size() + stops + resumes + logouts + messages.size() + creates.size();
     }
 
     @Override

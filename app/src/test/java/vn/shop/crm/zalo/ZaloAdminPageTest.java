@@ -249,4 +249,20 @@ class ZaloAdminPageTest extends AbstractPostgresTest {
         mvc.perform(post("/zalo/groups/assign").with(staff).with(csrf())
                 .param("adhGroupId", String.valueOf(id)).param("zaloGroupId", "1")).andExpect(status().isForbidden());
     }
+
+    @Test
+    void trangZaloCoKhoiTuTaoNhomVaNutDuyetChiAdminBamDuoc() throws Exception {
+        mvc.perform(get("/zalo").with(owner())).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Tự tạo nhóm Zalo theo khu vực")))
+                .andExpect(content().string(containsString("Chưa có đề xuất nào")))
+                .andExpect(content().string(not(containsString("99887766"))));
+        var staff = user("nhanvien").roles("STAFF");
+        mvc.perform(post("/zalo/group-mode").param("mode", "CONFIRM").with(staff).with(csrf())).andExpect(status().isForbidden());
+        mvc.perform(post("/zalo/group-mode").param("mode", "CONFIRM")).andExpect(status().isForbidden()); // thiếu CSRF
+        mvc.perform(post("/zalo/group-mode").param("mode", "CONFIRM").with(owner()).with(csrf()))
+                .andExpect(status().is3xxRedirection());
+        mvc.perform(post("/zalo/group-mode").param("mode", "AUTO").with(owner()).with(csrf())) // thiếu tick đã thử tay
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/zalo/group-proposals/999/approve").with(owner()).with(csrf())).andExpect(status().isBadRequest());
+    }
 }

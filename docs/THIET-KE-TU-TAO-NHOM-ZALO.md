@@ -1,6 +1,6 @@
-# Thiết kế: tự tạo nhóm Zalo theo khu vực (bản để Phùng Việt duyệt, CHƯA code)
+# Thiết kế: tự tạo nhóm Zalo theo khu vực (đã duyệt 23/11/2026; đã có mã, chưa chạy với Zalo thật)
 
-Viết 23/11/2026. Bạn đã đồng ý cho hệ thống **tự tạo nhóm Zalo**, phải hợp với cách chia khu vực và số lượng người, và tôi tự chọn thuật toán tốt nhất. Dưới đây là thuật toán, rủi ro và những điều chưa kiểm với Zalo thật. **Tôi chưa viết dòng mã nào cho phần này; xin bạn duyệt trước.**
+Viết 23/11/2026. Bạn đã đồng ý cho hệ thống **tự tạo nhóm Zalo**, phải hợp với cách chia khu vực và số lượng người, và tôi tự chọn thuật toán tốt nhất. Dưới đây là thuật toán, rủi ro và những điều chưa kiểm với Zalo thật. **Cập nhật 23/11/2026:** bạn đã duyệt; mã đã viết (bộ nối `POST /groups`, phía Adh `ZaloGroupCreationService`), chưa chạy với Zalo thật.
 
 ## 1. Hiện trạng (đã có trong Adh)
 

@@ -50,6 +50,7 @@ services:
       APP_ZALO_BRIDGE_URL: http://zalo-bridge:3100
       APP_ZALO_BRIDGE_KEY: ${APP_ZALO_BRIDGE_KEY:-}
       APP_ZALO_AUTO_MAX_DAILY: ${APP_ZALO_AUTO_MAX_DAILY:-100}
+      APP_ZALO_GROUP_DEPUTY_ID: ${ZALO_DEPUTY_ID:-}
       # Tự gửi tin (D18): trần cứng số tin/ngày mà trang quản trị được phép đặt. Công tắc mặc định TẮT.
       APP_ZALO_AUTO_MSG_MAX_DAILY: ${APP_ZALO_AUTO_MSG_MAX_DAILY:-25}
       # Trần Java thấp hơn bản mặc định (512m) vì máy dùng chung; ghi đè được bằng ADH_JAVA_OPTS.
