@@ -5,13 +5,15 @@
 
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { MessageLedger, ZALO_ID, inWindow, vnDayStart } from './guard.mjs';
+import { AddLedger, MessageLedger, ZALO_ID, inWindow, vnDayStart } from './guard.mjs';
 import { classifyError, classifyResult, isSessionDead } from './classify.mjs';
 
 const CLOSE_DUPLICATE = 3000; // cùng tài khoản mở Zalo Web/PC nơi khác: kết nối nghe bị đá
 const CLOSE_KICK = 3003;
 const MAX_STARTS = 5; // quá 5 lần khởi động trong 10 phút là vòng sập-bật lại
 const START_WINDOW_MS = 10 * 60 * 1000;
+const MAX_GROUP_NAME = 100;
+const MAX_GROUP_MEMBERS = 5;
 const MAX_TEXT = 1000; // ký tự; tin mời của shop chỉ vài trăm ký tự
 
 function withTimeout(promise, ms) {
@@ -48,12 +50,13 @@ class StateFile {
 }
 
 export class Bridge {
-  constructor({ config, adapter, store, ledger, msgLedger = null, events, now = () => Date.now(), log = () => {} }) {
+  constructor({ config, adapter, store, ledger, msgLedger = null, groupLedger = null, events, now = () => Date.now(), log = () => {} }) {
     this.config = config;
     this.adapter = adapter;
     this.store = store;
     this.ledger = ledger;
     this.msgLedger = msgLedger ?? new MessageLedger(null, Buffer.alloc(32));
+    this.groupLedger = groupLedger ?? new AddLedger(null);
     this.events = events;
     this.now = now;
     this.log = log;
@@ -79,7 +82,7 @@ export class Bridge {
       this.trip('LEDGER_CORRUPT');
       return;
     }
-    if (this.msgLedger.corrupt) {
+    if (this.msgLedger.corrupt || this.groupLedger.corrupt) {
       this.trip('LEDGER_CORRUPT');
       return;
     }
@@ -430,6 +433,101 @@ export class Bridge {
       if (c.code) out.code = c.code;
       if (uid) out.uid = uid;
       return out;
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  // ---------- việc thứ năm (D19): tạo MỘT nhóm theo khu vực ----------
+
+  /**
+   * Tạo đúng MỘT nhóm Zalo với vài khách đã đồng ý vào nhóm, bật link mời, và (nếu có) thêm mẹ làm phó nhóm. Chốt chặn công khai và
+   * cố định, không ngẫu nhiên hóa: khung giờ, trần mỗi ngày (vượt thì dừng cầu dao), khoảng nghỉ tối thiểu giữa hai lần tạo (sớm hơn thì
+   * chỉ bị từ chối RATE_LIMITED), một lúc một việc, lỗi lạ hoặc không rõ kết quả thì dừng và không tự thử lại. Tên nhóm, mã Zalo không vào log.
+   * Bật link hoặc thêm phó nhóm lỗi thì KHÔNG dừng: nhóm đã tạo, báo lại để Adh ghi và nhắc mẹ làm tay.
+   * @param {{name: string, members: string[], deputy?: string}} m
+   */
+  async createGroup(m) {
+    const name = typeof m?.name === 'string' ? m.name.trim() : '';
+    const members = Array.isArray(m?.members) ? m.members.map(String) : [];
+    const deputy = m?.deputy === undefined || m?.deputy === null ? null : String(m.deputy);
+    // eslint-disable-next-line no-control-regex
+    if (name.length === 0 || name.length > MAX_GROUP_NAME || /[\u0000-\u001f]/.test(name)) return { outcome: 'PERSON_ERROR', code: 'BAD_NAME' };
+    if (members.length < 1 || members.length > MAX_GROUP_MEMBERS || new Set(members).size !== members.length || !members.every((x) => ZALO_ID.test(x))) {
+      return { outcome: 'PERSON_ERROR', code: 'BAD_MEMBERS' };
+    }
+    if (deputy !== null && (!ZALO_ID.test(deputy) || members.includes(deputy))) return { outcome: 'PERSON_ERROR', code: 'BAD_DEPUTY' };
+    if (this.state === 'LOGIN_REQUIRED') return { outcome: 'SESSION_LOST', code: 'LOGIN_REQUIRED' };
+    if (this.state === 'TRIPPED' || this.state === 'STOPPED') return { outcome: 'RESTRICTED', code: 'NOT_ACTIVE' };
+    if (this.state !== 'LISTENING') return { outcome: 'SYSTEM_ERROR', code: 'NOT_CONNECTED' };
+    if (this.busy) return { outcome: 'SYSTEM_ERROR', code: 'BUSY' };
+    const t = this.now();
+    if (!inWindow(t, this.config.windowStartMin, this.config.windowEndMin)) {
+      this.trip('WINDOW');
+      return { outcome: 'RESTRICTED', code: 'WINDOW' };
+    }
+    if (this.groupLedger.countSince(vnDayStart(t)) >= this.config.groupDaily) {
+      this.trip('GROUP_LIMIT');
+      return { outcome: 'RESTRICTED', code: 'GROUP_LIMIT' };
+    }
+    const times = this.groupLedger.times;
+    const last = times.length ? Math.max(...times) : null;
+    if (last !== null && t - last < this.config.groupGapMs) {
+      return { outcome: 'RATE_LIMITED', retryAfterSec: Math.ceil((this.config.groupGapMs - (t - last)) / 1000) };
+    }
+    this.busy = true;
+    try {
+      this.groupLedger.record(t); // ghi trước khi gọi, tính cả lần lỗi
+      this.stateFile.write({ inflight: true });
+      let created;
+      try {
+        created = await withTimeout(this.adapter.createGroup(name, members), this.config.addTimeoutMs * 2);
+      } catch (e) {
+        const c = classifyError(e, this.config.personErrorCodes);
+        if (c.outcome !== 'PERSON_ERROR') {
+          this.trip(c.code ? `${c.outcome}:${c.code}` : c.outcome);
+        } else {
+          this.stateFile.write({});
+        }
+        this.log(`tạo nhóm: ${c.outcome}`);
+        return c.code ? { outcome: c.outcome, code: c.code } : { outcome: c.outcome };
+      }
+      const groupId = created?.groupId === undefined || created?.groupId === null ? '' : String(created.groupId);
+      if (!ZALO_ID.test(groupId)) {
+        // Zalo không xác nhận có nhóm: không biết đã tạo hay chưa, dừng thay vì đoán
+        this.trip('SYSTEM_ERROR:NO_ACK');
+        this.log('tạo nhóm: SYSTEM_ERROR');
+        return { outcome: 'SYSTEM_ERROR', code: 'NO_ACK' };
+      }
+      const added = (created.sucessMembers ?? []).map(String).filter((x) => members.includes(x));
+      const failed = members.filter((x) => !added.includes(x));
+      let link = null;
+      let deputyState = deputy === null ? 'NONE' : 'FAILED';
+      let tripped = false;
+      const after = (e) => {
+        const c = classifyError(e, this.config.personErrorCodes);
+        if (c.outcome === 'RESTRICTED' || c.outcome === 'SESSION_LOST') {
+          tripped = true;
+          this.trip(c.code ? `${c.outcome}:${c.code}` : c.outcome);
+        }
+      };
+      try {
+        const l = await withTimeout(this.adapter.enableGroupLink(groupId), this.config.addTimeoutMs);
+        link = typeof l?.link === 'string' && l.link.startsWith('https://') ? l.link : null;
+      } catch (e) {
+        after(e);
+      }
+      if (deputy !== null && !tripped) {
+        try {
+          await withTimeout(this.adapter.addGroupDeputy(deputy, groupId), this.config.addTimeoutMs);
+          deputyState = 'OK';
+        } catch (e) {
+          after(e);
+        }
+      }
+      if (!tripped) this.stateFile.write({});
+      this.log(`tạo nhóm: OK (link ${link ? 'có' : 'không'}, phó nhóm ${deputyState})`);
+      return { outcome: 'OK', groupId, link, added, failed, deputy: deputyState };
     } finally {
       this.busy = false;
     }

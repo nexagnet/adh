@@ -692,3 +692,131 @@ test('tệp sổ tin hỏng thì dừng ngay; nhật ký không chứa nội dun
   assert.equal(b2.status().tripReason, 'LEDGER_CORRUPT');
   c.cleanup();
 });
+
+// ---------- D19: tạo MỘT nhóm theo khu vực ----------
+
+const GROUP_GAP = 300 * 1000;
+const NEW_GROUP = { name: 'Pin ADH - Miền Nam - 01', members: ['501', '502', '503'], deputy: '900' };
+
+test('tạo nhóm: tạo một nhóm với đúng các thành viên, bật link, thêm phó nhóm, trả mã nhóm và link', async () => {
+  const c = await ready();
+  const r = await c.bridge.createGroup(NEW_GROUP);
+  assert.deepEqual(r, { outcome: 'OK', groupId: '9001', link: 'https://zalo.me/g/fake9001', added: ['501', '502', '503'], failed: [], deputy: 'OK' });
+  assert.deepEqual(c.adapter.created, [{ name: 'Pin ADH - Miền Nam - 01', members: ['501', '502', '503'] }]);
+  assert.deepEqual(c.adapter.deputies, [{ uid: '900', groupId: '9001' }]);
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  c.cleanup();
+});
+
+test('tạo nhóm: người không vào được báo ở failed, không dừng', async () => {
+  const c = await ready();
+  c.adapter.createFailMembers = ['502'];
+  const r = await c.bridge.createGroup({ name: 'Nhóm', members: ['501', '502', '503'] });
+  assert.equal(r.outcome, 'OK');
+  assert.deepEqual(r.added, ['501', '503']);
+  assert.deepEqual(r.failed, ['502']);
+  assert.equal(r.deputy, 'NONE');
+  c.cleanup();
+});
+
+test('tạo nhóm: đầu vào sai bị từ chối trước khi chạm Zalo (tên, thành viên, phó nhóm)', async () => {
+  const c = await ready();
+  const bad = [
+    { name: '', members: ['1'] },
+    { name: 'a'.repeat(101), members: ['1'] },
+    { name: 'a\nb', members: ['1'] },
+    { name: 'N', members: [] },
+    { name: 'N', members: ['1', '2', '3', '4', '5', '6'] },
+    { name: 'N', members: ['1', '1'] },
+    { name: 'N', members: ['1; rm'] },
+    { name: 'N', members: ['1'], deputy: 'x' },
+    { name: 'N', members: ['1'], deputy: '1' },
+    { name: 'N', members: '123' },
+  ];
+  for (const m of bad) assert.equal((await c.bridge.createGroup(m)).outcome, 'PERSON_ERROR', JSON.stringify(m));
+  assert.equal(c.adapter.created?.length ?? 0, 0);
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  c.cleanup();
+});
+
+test('tạo nhóm: khoảng nghỉ cố định, tạo sớm hơn thì RATE_LIMITED (không dừng, không gọi Zalo)', async () => {
+  const c = await ready();
+  assert.equal((await c.bridge.createGroup(NEW_GROUP)).outcome, 'OK');
+  c.clock.t += 60 * 1000;
+  assert.deepEqual(await c.bridge.createGroup({ name: 'Nhóm 2', members: ['601'] }), { outcome: 'RATE_LIMITED', retryAfterSec: 240 });
+  assert.equal(c.adapter.created.length, 1);
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  c.clock.t += GROUP_GAP;
+  assert.equal((await c.bridge.createGroup({ name: 'Nhóm 2', members: ['601'] })).outcome, 'OK');
+  c.cleanup();
+});
+
+test('tạo nhóm: vượt trần ngày thì cầu nối tự dừng (cầu dao), không tạo thêm', async () => {
+  const c = await ready({ BRIDGE_GROUP_DAILY: '2' });
+  for (const n of ['A', 'B']) {
+    assert.equal((await c.bridge.createGroup({ name: n, members: ['601'] })).outcome, 'OK');
+    c.clock.t += GROUP_GAP;
+  }
+  assert.deepEqual(await c.bridge.createGroup({ name: 'C', members: ['601'] }), { outcome: 'RESTRICTED', code: 'GROUP_LIMIT' });
+  assert.equal(c.bridge.status().state, 'TRIPPED');
+  assert.equal(c.adapter.created.length, 2);
+  c.cleanup();
+});
+
+test('tạo nhóm: trần cứng của cầu nối không cho đặt quá 3 mỗi ngày hay nghỉ dưới 300 giây', () => {
+  assert.throws(() => setup({ env: { BRIDGE_GROUP_DAILY: '4' } }), /BRIDGE_GROUP_DAILY/);
+  assert.throws(() => setup({ env: { BRIDGE_GROUP_GAP_SEC: '60' } }), /BRIDGE_GROUP_GAP_SEC/);
+});
+
+test('tạo nhóm: ngoài khung giờ thì từ chối và dừng; chưa đăng nhập hoặc đã dừng thì không gọi Zalo', async () => {
+  const c = await ready();
+  c.clock.t = Date.parse('2026-11-22T17:00:00Z'); // 00:00 giờ Việt Nam
+  assert.deepEqual(await c.bridge.createGroup(NEW_GROUP), { outcome: 'RESTRICTED', code: 'WINDOW' });
+  assert.equal(c.bridge.status().state, 'TRIPPED');
+  assert.equal((await c.bridge.createGroup(NEW_GROUP)).outcome, 'RESTRICTED');
+  assert.equal(c.adapter.created?.length ?? 0, 0);
+  c.cleanup();
+  const d = setup();
+  await d.bridge.start();
+  assert.equal((await d.bridge.createGroup(NEW_GROUP)).outcome, 'SESSION_LOST');
+  d.cleanup();
+});
+
+test('tạo nhóm: Zalo không trả mã nhóm (không biết đã tạo chưa) thì dừng, không tự thử lại', async () => {
+  const c = await ready();
+  c.adapter.createNoAck = true;
+  assert.deepEqual(await c.bridge.createGroup(NEW_GROUP), { outcome: 'SYSTEM_ERROR', code: 'NO_ACK' });
+  assert.equal(c.bridge.status().state, 'TRIPPED');
+  c.cleanup();
+});
+
+test('tạo nhóm: lỗi lạ khi tạo thì dừng; bật link hoặc thêm phó nhóm lỗi thì KHÔNG dừng, nhóm vẫn báo đã tạo', async () => {
+  const c = await ready();
+  c.adapter.createError = new Error('lạ');
+  assert.equal((await c.bridge.createGroup(NEW_GROUP)).outcome, 'SYSTEM_ERROR');
+  assert.equal(c.bridge.status().state, 'TRIPPED');
+  c.cleanup();
+  const d = await ready();
+  d.adapter.linkError = new Error('link lỗi');
+  d.adapter.deputyError = new Error('phó lỗi');
+  const r = await d.bridge.createGroup(NEW_GROUP);
+  assert.equal(r.outcome, 'OK');
+  assert.equal(r.link, null);
+  assert.equal(r.deputy, 'FAILED');
+  assert.equal(d.bridge.status().state, 'LISTENING');
+  d.cleanup();
+});
+
+test('tạo nhóm: sổ tạo nhóm lưu ra đĩa nên khởi động lại không xóa số đếm; tệp hỏng thì dừng; log không chứa tên nhóm hay mã Zalo', async () => {
+  const c = await ready();
+  await c.bridge.createGroup({ name: 'TENBIMAT', members: ['501'], deputy: '900' });
+  assert.ok(!c.logs.join('\n').match(/TENBIMAT|501|900|9001/));
+  const b2 = c.rebuild();
+  assert.equal(b2.groupLedger.times.length, 1);
+  const { writeFileSync } = await import('node:fs');
+  writeFileSync(path.join(c.dir, 'group-creates.json'), '[hỏng');
+  const b3 = c.rebuild();
+  await b3.start();
+  assert.equal(b3.status().tripReason, 'LEDGER_CORRUPT');
+  c.cleanup();
+});

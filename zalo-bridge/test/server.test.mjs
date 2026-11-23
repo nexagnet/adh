@@ -76,7 +76,7 @@ test('KHÔNG có đường gửi hàng loạt, gửi lời mời kết bạn, t�
   const forbidden = [
     ['POST', '/message'], ['POST', '/messages/1'], ['GET', '/messages'], ['POST', '/send'], ['POST', '/sendMessage'], ['POST', '/friends/request'],
     ['POST', '/friends'], ['GET', '/friends'], ['GET', '/users'], ['POST', '/users/find'], ['GET', '/users/84912345678'],
-    ['POST', '/broadcast'], ['POST', '/groups'], ['PUT', '/groups'],  // GET /groups (đọc nhóm của chính tài khoản phụ) là đường được phép riêng
+    ['POST', '/broadcast'], ['PUT', '/groups'], ['POST', '/groups/create'], ['POST', '/groups/1'],  // GET /groups và POST /groups (D19, tạo một nhóm) là đường được phép riêng
     ['GET', '/groups/1/members'], ['DELETE', '/groups/1/members'],
     ['POST', '/fake/friend'],
   ];
@@ -90,7 +90,7 @@ test('KHÔNG có đường gửi hàng loạt, gửi lời mời kết bạn, t�
 
 test('danh sách đường được phép là cố định', () => {
   assert.deepEqual(ROUTES, [
-    'GET /healthz', 'GET /status', 'GET /events', 'GET /groups', 'POST /groups/{id}/members', 'POST /messages', 'POST /session/login', 'GET /session/login',
+    'GET /healthz', 'GET /status', 'GET /events', 'GET /groups', 'POST /groups', 'POST /groups/{id}/members', 'POST /messages', 'POST /session/login', 'GET /session/login',
     'POST /session/logout', 'POST /session/stop', 'POST /session/resume',
   ]);
 });
@@ -121,8 +121,20 @@ test('GET /groups cần khóa và trả nhóm của tài khoản phụ; chỉ c�
   assert.equal(r.status, 200);
   assert.equal(r.json.ok, true);
   assert.equal(r.json.groups[0].id, '222');
-  assert.equal((await s.call('POST', '/groups', { body: {} })).status, 404);
+  assert.equal((await s.call('PUT', '/groups', { body: {} })).status, 404);
   assert.equal(s.c.adapter.adds.length, 0);
+  await s.close();
+});
+
+test('POST /groups (D19) cần khóa, tạo đúng một nhóm, body sai không gọi Zalo', async () => {
+  const s = await boot();
+  assert.equal((await s.call('POST', '/groups', { key: '', body: {} })).status, 401);
+  const bad = await s.call('POST', '/groups', { body: {} });
+  assert.equal(bad.json.outcome, 'PERSON_ERROR');
+  assert.equal((s.c.adapter.created ?? []).length, 0);
+  const ok = await s.call('POST', '/groups', { body: { name: 'Pin ADH - Miền Nam - 01', members: ['111', '222'], deputy: '333' } });
+  assert.equal(ok.json.outcome, 'OK');
+  assert.equal(s.c.adapter.created.length, 1);
   await s.close();
 });
 

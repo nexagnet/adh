@@ -64,6 +64,25 @@ export class FakeAdapter {
     return { message: { msgId: 1 }, attachment: [] };
   }
 
+  async createGroup(name, members) {
+    if (this.createError) throw this.createError;
+    (this.created ??= []).push({ name, members });
+    if (this.createNoAck) return {};
+    const failed = members.filter((m) => (this.createFailMembers ?? []).includes(m));
+    return { groupId: String(9000 + this.created.length), sucessMembers: members.filter((m) => !failed.includes(m)), errorMembers: failed };
+  }
+
+  async enableGroupLink(groupId) {
+    if (this.linkError) throw this.linkError;
+    return { link: `https://zalo.me/g/fake${groupId}`, enabled: 1, expiration_date: 0 };
+  }
+
+  async addGroupDeputy(uid, groupId) {
+    if (this.deputyError) throw this.deputyError;
+    (this.deputies ??= []).push({ uid, groupId });
+    return '';
+  }
+
   async listGroups() {
     if (this.groupsError) throw this.groupsError;
     this.groupListCalls = (this.groupListCalls ?? 0) + 1;
