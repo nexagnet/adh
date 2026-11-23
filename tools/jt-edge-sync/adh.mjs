@@ -66,3 +66,37 @@ export async function commitImport(page) {
   await Promise.all([page.waitForURL(/\/imports\/\d+$/), page.click('form[action*="/commit"] button[type=submit]')]);
   return page.url();
 }
+
+// ---------- File "Lịch sử đối soát" (Dòng tiền của J&T) ----------
+
+/** Tên file đối soát J&T tải về: "<mã khách>-<yyyyMMdd>-<MMdd>.xlsx". */
+export const SETTLEMENT_FILE = /^[A-Za-z0-9]+-\d{8}-\d{4}\.xlsx$/;
+
+/** Đọc "Kỳ mới nhất đã nhập kết thúc ngày dd/MM/yyyy" trên trang nhập đối soát; null nếu chưa nhập kỳ nào. */
+export async function readSettlementAdvice(page, adhUrl) {
+  await page.goto(`${adhUrl}/imports/settlement`, { waitUntil: 'domcontentloaded' });
+  const text = await page.locator('main').innerText();
+  const m = text.match(/Kỳ mới nhất đã nhập kết thúc ngày\s+(\d{2}\/\d{2}\/\d{4})/);
+  return m ? { latestEnd: m[1] } : { latestEnd: null };
+}
+
+/** Tải các file đối soát lên adh; dừng ở trang xem trước và trả về số liệu (chưa lưu gì). */
+export async function uploadSettlementAndPreview(page, adhUrl, files) {
+  await page.goto(`${adhUrl}/imports/settlement`, { waitUntil: 'domcontentloaded' });
+  await page.setInputFiles('#file', files);
+  await Promise.all([
+    page.waitForURL(/\/imports\/settlement\/\d+$/),
+    page.click('form[enctype="multipart/form-data"] button[type=submit]'),
+  ]);
+  const cards = await page.locator('.cards.c5 .card').evaluateAll((els) =>
+    els.map((e) => ({ label: e.querySelector('.label').innerText.trim(), value: Number(e.querySelector('.big').innerText) })));
+  const notices = await page.locator('.notice').allInnerTexts();
+  return { cards, notices };
+}
+
+/** Bấm "Xác nhận nhập" ở trang xem trước đối soát; trả về dòng thông báo kết quả của adh. */
+export async function commitSettlement(page) {
+  await Promise.all([page.waitForURL(/\/imports\/settlement$/), page.click('form[action*="/commit"] button[type=submit]')]);
+  return (await page.locator('.notice.ok').first().innerText().catch(() => '')).replace(/\s+/g, ' ');
+}
+

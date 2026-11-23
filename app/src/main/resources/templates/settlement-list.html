@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Nhập file đối soát J&T')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Nhập file đối soát J&amp;T</h1>
+            <p class="hint">File "Lịch sử đối soát" tải từ trang J&amp;T: Dòng tiền, Lịch sử đối soát, cột "Tải về". Mỗi file là một kỳ (J&amp;T đối soát thứ 2, 4, 6).</p>
+        </div>
+        <div class="actions"><a class="btn secondary" th:href="@{/imports}">Về Nhập đơn</a></div>
+    </header>
+
+    <div class="notice ok" th:if="${result != null}">
+        <strong>Đã nhập xong <span th:text="${result.periods.size()}">1</span> kỳ đối soát
+            (<span th:text="${result.validRows}">0</span> dòng)</strong>
+        <span th:text="${result.matchedShipments}">0</span> đơn khớp với đơn đã có trong Adh,
+        <span th:text="${result.unknownShipments}">0</span> đơn chưa có trong Adh.
+        Bổ sung mã đơn cho <span th:text="${result.orderRefToFill}">0</span> đơn,
+        ngày ký nhận cho <span th:text="${result.deliveredOnToFill}">0</span> đơn;
+        tính lại <span th:text="${result.customersRecalculated}">0</span> khách.
+    </div>
+
+    <div class="notice info">
+        <strong>Những gì hệ thống làm và không làm với file này</strong>
+        File có tên, SĐT và địa chỉ khách, nhưng Adh chỉ lưu mã vận đơn, mã đơn khách hàng, thời gian ký nhận và các khoản tiền;
+        file gốc bị xóa ngay sau khi xác nhận. File này không tạo đơn hay khách mới và không đổi trạng thái đơn.
+        Nhập lại một kỳ đã nhập thì kỳ cũ được thay bằng bản mới.
+    </div>
+
+    <section>
+        <h2>Tải file lên</h2>
+        <p class="hint" th:if="${latestEnd != null}">Kỳ mới nhất đã nhập kết thúc ngày
+            <strong th:text="${#temporals.format(latestEnd, 'dd/MM/yyyy')}">01/01/2026</strong>;
+            hãy tải các kỳ sau ngày đó.</p>
+        <p class="hint" th:if="${latestEnd == null}">Chưa nhập kỳ đối soát nào. Có thể chọn nhiều file cùng lúc (giữ phím Ctrl khi bấm chọn).</p>
+        <form class="panel" th:action="@{/imports/settlement(_csrf=${_csrf.token})}" method="post" enctype="multipart/form-data">
+            <label for="file">File đối soát (.xlsx), tối đa <span th:text="${maxFiles}">60</span> file mỗi lần</label>
+            <input type="file" id="file" name="file" accept=".xlsx,.csv,.txt" multiple required>
+            <div class="actions">
+                <button type="submit" class="btn">Xem trước</button>
+            </div>
+        </form>
+    </section>
+
+    <section>
+        <h2>Các kỳ đã nhập</h2>
+        <div class="table-wrap">
+            <table>
+                <tr>
+                    <th>Kỳ</th><th>Từ ngày</th><th>Đến ngày</th><th>Số dòng</th>
+                    <th>COD đã ký nhận</th><th>Thực trả sau cấn</th><th>Nhập lúc</th>
+                </tr>
+                <tr th:each="p : ${periods}">
+                    <td class="mono" th:text="${p.code}">KH-20261021-1022</td>
+                    <td th:text="${p.from != null} ? ${#temporals.format(p.from, 'dd/MM/yyyy')} : '-'">21/10/2026</td>
+                    <td th:text="${p.to != null} ? ${#temporals.format(p.to, 'dd/MM/yyyy')} : '-'">22/10/2026</td>
+                    <td th:text="${p.lines}">0</td>
+                    <td th:text="${#numbers.formatDecimal(p.codCollected, 1, 'POINT', 0, 'COMMA')}">0</td>
+                    <td>
+                        <span th:text="${#numbers.formatDecimal(p.net, 1, 'POINT', 0, 'COMMA')}">0</span>
+                        <span class="badge warn" th:if="${p.footerDiffers()}"
+                              th:title="'J&amp;T ghi tổng cuối file là ' + ${#numbers.formatDecimal(p.footerNet, 1, 'POINT', 0, 'COMMA')}">Khác tổng J&amp;T ghi</span>
+                    </td>
+                    <td th:text="${#temporals.format(p.importedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
+                </tr>
+                <tr th:if="${periods.isEmpty()}"><td colspan="7" class="muted">Chưa có kỳ đối soát nào.</td></tr>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>

@@ -106,7 +106,7 @@ public class ExportWindowService {
 
         Timestamp latest = jdbc.sql("SELECT max(created_on) FROM shipment WHERE carrier = :c")
                 .param("c", carrier.name()).query(Timestamp.class).optional().orElse(null);
-        OffsetDateTime lastBatch = jdbc.sql("SELECT max(committed_at) FROM import_batch WHERE carrier = :c AND status = 'COMMITTED'")
+        OffsetDateTime lastBatch = jdbc.sql("SELECT max(committed_at) FROM import_batch WHERE carrier = :c AND status = 'COMMITTED' AND kind = 'SHIPMENTS'")
                 .param("c", carrier.name()).query(OffsetDateTime.class).optional().orElse(null);
         int fileLimit = fileLimit(carrier);
         if (latest == null) {

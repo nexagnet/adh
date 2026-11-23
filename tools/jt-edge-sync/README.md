@@ -42,6 +42,20 @@ Tool dừng và chờ bạn nếu bị đưa về trang đăng nhập (adh hoặ
 
 **Trạng thái kiểm chứng:** phần lọc ngày và bấm Xuất trên J&T, cùng luồng tải lên, xem trước, xác nhận trên adh đã được làm đúng bằng Cách 1 (các bộ chọn như trên). Phần mã Playwright của Cách 2 mới được viết, chưa chạy trọn một lần vì bạn chưa đăng nhập được J&T trong hồ sơ riêng.
 
+## Lấy file "Lịch sử đối soát" (kỳ đối soát J&T)
+
+File đối soát là sổ tiền của J&T (thứ 2, 4, 6 mỗi tuần một kỳ), tải ở **Dòng tiền > Lịch sử đối soát > Tải về**, tên dạng `<mã khách>-yyyyMMdd-MMdd.xlsx`. Adh nhập vào mục **Nhập đơn > Nhập file đối soát J&T** (`/imports/settlement`): lưu mã vận đơn, mã đơn KH, thời gian ký nhận và các khoản tiền (không lưu tên, SĐT, địa chỉ), bổ sung mã đơn và ngày ký nhận cho đơn đã có, **không** đổi trạng thái đơn, không tạo đơn hay khách mới. Vẫn **không tự đăng nhập, không bấm thay bạn trên J&T**.
+
+```powershell
+cd tools\jt-edge-sync
+node sync.mjs --doi-soat                       # mở Edge riêng; bạn tự bấm "Tải về" từng kỳ trong J&T, tool chỉ nhận file tải về
+node sync.mjs --doi-soat --folder C:\ThuMuc    # nhập các file đối soát bạn đã tải sẵn trong một thư mục
+```
+
+Hoặc bấm đúp `chay-doi-soat.bat`. Tool đọc "Kỳ mới nhất đã nhập kết thúc ngày ..." từ adh để nhắc bạn tải các kỳ sau ngày đó, tải file lên, in số liệu xem trước (kỳ, dòng hợp lệ, đơn khớp, đơn ký nhận nhưng chưa tính Giao thành công, dòng lỗi) rồi hỏi xác nhận trước khi nhập. Tùy chọn dùng chung với chế độ đơn hàng: `--yes`, `--dry`, `--keep`, `--adh`; riêng đối soát có `--folder <thư mục>` và `--delete` (xóa các file trong thư mục sau khi nhập xong). Nhập lại một kỳ đã nhập thì kỳ cũ được thay bằng bản mới, nên tải lại kỳ gần nhất cũng được.
+
+**Trạng thái kiểm chứng:** importer phía adh đã chạy thử trên 13 file kỳ thật (142 dòng, không lỗi) và có test tự động. Phần Playwright của chế độ `--doi-soat` mới kiểm tra các bộ chọn của adh trên trang thật do adh dựng ra; phần nhận file tải về từ J&T và chạy trọn một vòng với Edge chưa thử vì cần bạn đăng nhập J&T.
+
 ## Giới hạn và lưu ý
 
 - J&T hết phiên khoảng 1 ngày, có OTP và dấu hiệu captcha lúc đăng nhập, nên đăng nhập luôn là việc của người. Không dùng trình duyệt "ẩn danh" để né captcha.

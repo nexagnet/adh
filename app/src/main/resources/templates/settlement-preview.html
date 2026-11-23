@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Xem trước đối soát J&T')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Xem trước đối soát J&amp;T (chưa lưu gì)</h1>
+            <p class="hint"><strong th:text="${batch.filename}">file.xlsx</strong>.
+                Kiểm tra bên dưới rồi mới bấm «Xác nhận nhập». Nhập lại một kỳ thì kỳ cũ được thay bằng bản mới.</p>
+        </div>
+    </header>
+
+    <div class="cards c5">
+        <div class="card"><div class="big" th:text="${report.periods.size()}">0</div><div class="label">Kỳ đối soát</div></div>
+        <div class="card"><div class="big" th:text="${report.validRows}">0</div><div class="label">Dòng hợp lệ</div></div>
+        <div class="card"><div class="big" th:text="${report.matchedShipments}">0</div><div class="label">Đơn khớp với đơn đã có</div></div>
+        <div class="card" th:classappend="${report.unknownShipments > 0} ? 'warn'"><div class="big" th:text="${report.unknownShipments}">0</div><div class="label">Đơn chưa có trong Adh</div></div>
+        <div class="card" th:classappend="${report.errorRows > 0} ? 'warn'"><div class="big" th:text="${report.errorRows}">0</div><div class="label">Dòng lỗi</div></div>
+    </div>
+
+    <section>
+        <h2>Các kỳ trong file</h2>
+        <div class="table-wrap">
+            <table>
+                <tr><th>Kỳ</th><th>Từ ngày</th><th>Đến ngày</th><th>Số dòng</th><th>COD đã ký nhận</th><th>Thực trả sau cấn</th><th>Ghi chú</th></tr>
+                <tr th:each="p : ${report.periods}">
+                    <td class="mono" th:text="${p.code}">KH-20261021-1022</td>
+                    <td th:text="${p.from != null} ? ${#temporals.format(p.from, 'dd/MM/yyyy')} : '-'">21/10/2026</td>
+                    <td th:text="${p.to != null} ? ${#temporals.format(p.to, 'dd/MM/yyyy')} : '-'">22/10/2026</td>
+                    <td th:text="${p.lines}">0</td>
+                    <td th:text="${#numbers.formatDecimal(p.codCollected, 1, 'POINT', 0, 'COMMA')}">0</td>
+                    <td th:text="${#numbers.formatDecimal(p.net, 1, 'POINT', 0, 'COMMA')}">0</td>
+                    <td>
+                        <span class="badge warn" th:if="${p.replacesExisting}">Thay kỳ đã nhập</span>
+                        <span class="badge warn" th:if="${p.footerDiffers()}"
+                              th:title="'J&amp;T ghi tổng cuối file là ' + ${p.footerNet != null ? #numbers.formatDecimal(p.footerNet, 1, 'POINT', 0, 'COMMA') : '-'}">Khác tổng J&amp;T ghi</span>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </section>
+
+    <section>
+        <h2>Sẽ bổ sung vào đơn đã có</h2>
+        <div class="cards c2">
+            <div class="card"><div class="big" th:text="${report.orderRefToFill}">0</div><div class="label">Đơn được điền "Mã đơn KH" (đơn chưa có mã đơn)</div></div>
+            <div class="card"><div class="big" th:text="${report.deliveredOnToFill}">0</div><div class="label">Đơn Giao thành công được điền ngày ký nhận</div></div>
+        </div>
+        <p class="hint">Trạng thái đơn không bị đổi. File đối soát không tạo đơn hay khách mới.</p>
+    </section>
+
+    <div class="notice" th:if="${report.signedNotDelivered > 0}">
+        <strong><span th:text="${report.signedNotDelivered}">0</span> đơn đã ký nhận theo J&amp;T nhưng Adh chưa tính là Giao thành công</strong>
+        Hệ thống không tự đổi trạng thái; đơn này vẫn chưa được tính là một lần mua. Nếu các trạng thái dưới đây thực ra là đã giao,
+        hãy chọn nghĩa ở mục <a th:href="@{/status-mappings}">Trạng thái đơn</a>:
+        <ul class="choices">
+            <li th:each="s : ${report.signedNotDeliveredByStatus}"><strong th:text="'«' + ${s.key} + '»'">«Kí nhận CPN»</strong>
+                (<span th:text="${s.value}">3</span> đơn)</li>
+        </ul>
+    </div>
+
+    <div class="notice" th:if="${report.unknownShipments > 0}">
+        <strong><span th:text="${report.unknownShipments}">0</span> đơn trong file đối soát chưa có trong Adh</strong>
+        Hãy nhập file đơn hàng J&amp;T cho khoảng ngày tương ứng ở mục <a th:href="@{/imports/new}">Nhập đơn</a>.
+        Dòng tiền của các đơn này vẫn được lưu. Mã đơn KH và ngày ký nhận chỉ được điền cho đơn đã có trong Adh,
+        nên sau khi nhập đơn hãy nhập lại các kỳ này (nhập lại an toàn, kỳ cũ được thay bằng bản mới).
+    </div>
+
+    <div class="notice" th:if="${report.netMismatchLines > 0}">
+        <strong><span th:text="${report.netMismatchLines}">0</span> dòng có "Số tiền phải trả" không khớp công thức</strong>
+        Công thức: COD đã ký nhận trừ cước, phí thu hộ, phí chuyển hoàn, phí giao một phần, cộng điều chỉnh. Số liệu vẫn được lưu đúng như file.
+    </div>
+
+    <div class="notice" th:if="${report.duplicatesInFile > 0}">
+        <strong>Có dòng trùng mã vận đơn trong cùng một kỳ</strong>
+        <span th:text="${report.duplicatesInFile}">0</span> dòng trùng; dòng sau cùng được giữ lại.
+    </div>
+
+    <div class="notice" th:if="${report.erasedRows > 0}">
+        <strong><span th:text="${report.erasedRows}">0</span> dòng của khách đã yêu cầu xóa dữ liệu bị bỏ qua</strong>
+    </div>
+
+    <section th:if="${!report.sampleErrors.isEmpty()}">
+        <h2>Dòng bị loại</h2>
+        <div class="table-wrap">
+            <table>
+                <tr><th>Dòng</th><th>Lỗi</th><th>Mã vận đơn</th></tr>
+                <tr th:each="e : ${report.sampleErrors}">
+                    <td th:text="${e.rowNumber}">2</td>
+                    <td th:text="${e.message}">Lỗi</td>
+                    <td class="mono" th:text="${e.rawRow}">...</td>
+                </tr>
+            </table>
+        </div>
+        <p class="hint small">Chỉ hiện tối đa 50 dòng lỗi đầu tiên.</p>
+    </section>
+
+    <form th:action="@{/imports/settlement/{id}/commit(id=${batch.id})}" method="post">
+        <div class="actions">
+            <button type="submit" class="btn" th:disabled="${report.validRows == 0}">Xác nhận nhập</button>
+            <a class="linkbtn" th:href="@{/imports/settlement}">Hủy</a>
+        </div>
+    </form>
+</main>
+</body>
+</html>
