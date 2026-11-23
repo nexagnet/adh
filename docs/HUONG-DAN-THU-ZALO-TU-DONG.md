@@ -5,6 +5,8 @@ Dành cho chủ cửa hàng và người cài đặt. Bộ nối này **mặc đ
 Toàn bộ phần mã đã được kiểm bằng test với **bộ nối giả**. **Chưa có lần nào chạy bản này với Zalo thật.** Mục "Những điều chưa ai kiểm" ở cuối nói rõ cái gì còn trống. Hãy đi từng bước nhỏ, dừng ngay khi thấy bất thường.
 
 ## Ranh giới (không đổi, có test khóa)
+> **D18 (23/11/2026):** chủ shop đã bỏ nguyên tắc "không tự gửi tin" (gửi từ từ, như người thật, tài khoản phụ). Mới ghi tài liệu, chưa có mã; các ý "không có chức năng gửi tin" dưới đây mô tả bộ nối hiện tại. Xem ADR-0002 mục 12.
+
 
 - Bộ nối chỉ làm **ba việc**: báo trạng thái, đọc sự kiện "đã thành bạn", thêm **một** người vào **một** nhóm. Không có chức năng gửi tin, gửi lời mời kết bạn, tìm người theo số, liệt kê bạn bè.
 - **Không có cách nào làm cho giống người thật bấm** (không ngẫu nhiên giờ giấc, không đổi dấu vân tay thiết bị, không dùng proxy). Chỉ có giới hạn tốc độ và khung giờ 07:00 đến 22:00.
@@ -65,6 +67,9 @@ Mỗi nấc chạy thử vài ngày với 2 đến 3 người **tự nguyện** 
 
 ### Nấc 3: "Tự thêm" (chỉ sau nhiều tuần ổn)
 Chỉ bật khi nấc 2 đã chạy ổn nhiều tuần với khách thật và không có cảnh báo nào của Zalo. Chọn nấc **Tự thêm trong hạn mức** và tick ô xác nhận đã chạy thử. Vẫn giữ hạn mức mặc định (50 người/ngày, tối đa 5/giờ, cách nhau ít nhất 2 phút). **Chưa ai biết 50 người/ngày có an toàn với Zalo không**; nếu muốn chắc hơn, bắt đầu bằng 10 đến 20 người/ngày và tăng dần.
+
+### Một nhóm cho cả hai đường (23/11/2026)
+Khách vào nhóm bằng link hay do bộ nối tự thêm thì **luôn là cùng một nhóm**. Khi khách kết bạn, hệ thống giữ chỗ một nhóm (nhóm gợi ý ở tin gửi link); bộ nối tự thêm đúng nhóm đó, không tự chọn nhóm khác. Muốn vậy mỗi nhóm cần **cả link mời lẫn mã nhóm Zalo** và đang ở trạng thái "Đang nhận khách". Nhóm được giữ cho khách mà thiếu mã hoặc thiếu link thì khách đó **chờ** (báo "chưa có nhóm hợp"), không bị thêm vào nhóm khác.
 
 ## 3. Khi Zalo cảnh báo hoặc khóa tài khoản
 Bộ nối tự dừng khi gặp yêu cầu xác minh, captcha hay báo hạn chế. **Không bấm Mở lại để thử tiếp.** Xem nhật ký, đọc thông báo trên điện thoại tài khoản phụ, để vài ngày rồi mới quyết. Nếu tài khoản bị khóa: dừng hẳn bộ nối (đăng xuất, bỏ profile `zalo-auto`), quay về nhóm bằng link/QR và thêm tay như trước. Dữ liệu khách không mất.

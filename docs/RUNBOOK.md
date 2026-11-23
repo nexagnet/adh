@@ -31,7 +31,7 @@ Nên bắt đầu với 2 đến 3 nhóm.
 
 ### 5. Mời khách
 0. **Thử trước trên Zalo thật** (chưa đụng khách thật): xem [`HUONG-DAN-THU-ZALO.md`](HUONG-DAN-THU-ZALO.md), menu **Chạy thử trên Zalo**.
-0b. **Nhắn theo khu vực, từ từ**: tạo chiến dịch chọn khu vực (ví dụ một miền), rồi mỗi ngày mở **Lô nhắn hôm nay**, nhắn tay từng người theo hạn mức ngày/giờ và bấm *Đã nhắn*. Không nhắn ồ ạt; hệ thống không tự gửi.
+0b. **Nhắn theo khu vực, từ từ**: tạo chiến dịch chọn khu vực (ví dụ một miền), rồi mỗi ngày mở **Lô nhắn hôm nay**, nhắn tay từng người theo hạn mức ngày/giờ và bấm *Đã nhắn*. Không nhắn ồ ạt; hệ thống không tự gửi. *(Bản hiện tại. D18, 23/11/2026: chủ shop đã bỏ nguyên tắc không tự gửi, hệ thống sẽ tự gửi Tin 1 khi tạo chiến dịch, từ từ; chưa có mã, mục này sẽ được sửa khi có.)*
 1. **Chiến dịch mời → Tạo lô thử**: chọn khu vực và số khách, xem lại nội dung tin. Tin phải là chăm sóc sau mua, không quảng cáo sản phẩm (tin tư vấn của D13 là ngoại lệ đã được chủ cửa hàng chấp nhận).
 2. Vào chiến dịch, bấm **Chạy thử** để xem hệ thống sẽ gửi gì (không gửi gì thật).
 3. Bấm **Xuất danh sách để mẹ gửi tay**: tải file CSV (số điện thoại, tên, nội dung tin có link riêng). Mẹ tự nhắn bằng điện thoại hoặc Zalo của mình. Các lời mời trong file được đánh dấu "đã gửi"; hệ thống không biết tin có tới khách hay không.
@@ -39,7 +39,7 @@ Nên bắt đầu với 2 đến 3 nhóm.
 5. Cột "Đã bấm" chỉ là **lượt bấm link**, không có nghĩa khách đã vào nhóm.
 6. Khách bấm "không muốn nhận tin nữa" trên trang mời sẽ vào danh sách từ chối vĩnh viễn.
 
-**Đường mời hiện dùng: Zalo, mẹ gửi tay** (quyết định của chủ cửa hàng ngày 21/11/2026). Mẹ nhắn từng khách bằng Zalo của mình, lô nhỏ, đúng hạn mức ngày; không dùng phần mềm tự gửi và không đăng nhập Zalo bằng công cụ. **SMS và Zalo thông báo (ZBS): chưa dùng**, đang tắt, chưa có bộ gửi (xem phần B.7).
+**Đường mời hiện dùng: Zalo, mẹ gửi tay** (quyết định của chủ cửa hàng ngày 21/11/2026; **D18, 23/11/2026, đã chọn bỏ "gửi tay" và để hệ thống tự gửi như người thật, từ từ, nhưng chưa có mã nên hiện vẫn gửi tay**). Mẹ nhắn từng khách bằng Zalo của mình, lô nhỏ, đúng hạn mức ngày; không dùng phần mềm tự gửi và không đăng nhập Zalo bằng công cụ. **SMS và Zalo thông báo (ZBS): chưa dùng**, đang tắt, chưa có bộ gửi (xem phần B.7).
 
 ### 5b. Giấy giới thiệu bỏ vào gói hàng (mã QR chung)
 Trang **In giấy giới thiệu**: một mã QR tĩnh và một link ngắn giống hệt nhau trên mọi tờ, mẹ in như tờ rơi thường (A6, A5, hoặc 4 tờ A6 trên một tờ A4 rồi cắt).

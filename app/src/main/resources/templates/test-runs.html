@@ -12,8 +12,8 @@
     </header>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã tạo.</div>
-    <div class="notice">
-        <strong>Hướng dẫn thử từng bước (hệ thống không tự gửi tin và không đăng nhập Zalo):</strong>
+    <details class="notice">
+        <summary>Hướng dẫn thử từng bước (hệ thống không tự gửi tin và không đăng nhập Zalo)</summary>
         <ol>
             <li>Soạn nội dung tin ở dưới (hoặc ở mục <a th:href="@{/campaigns}">Chiến dịch mời</a>, phần "Nội dung tin mặc định").</li>
             <li>Nhập 1 đến <span th:text="${maxTargets}">10</span> số điện thoại thử. Chọn tỉnh khác miền nhau để thử gợi ý nhóm theo khu vực.</li>
@@ -22,7 +22,7 @@
             <li>Xem cột "Nhóm Zalo nên thêm vào": phải đúng nhóm cùng khu vực. Thêm vào nhóm bằng tay rồi bấm <em>Đã vào nhóm</em>.</li>
             <li>Thử thêm <em>Khách từ chối</em>, rồi <em>Thử lại từ đầu</em> hoặc <em>Xóa đợt thử</em> khi xong.</li>
         </ol>
-    </div>
+    </details>
 
     <form th:action="@{/test-runs}" method="post" class="stack">
         <div class="panel stack">
@@ -30,20 +30,33 @@
             <label class="field">Tên đợt thử <input type="text" name="name" required maxlength="100" placeholder="Thử lần 1"></label>
             <label class="field">Nội dung tin
                 <textarea name="template" rows="5" maxlength="800" th:text="${defaultTemplate}"></textarea></label>
-            <div class="table-wrap">
-                <table>
-                    <tr><th>Số điện thoại thử</th><th>Tên (tùy chọn)</th><th>Khu vực (tỉnh/thành)</th></tr>
-                    <tr th:each="i : ${slots}">
-                        <td><input type="text" name="phone" inputmode="tel" maxlength="20" placeholder="09..."></td>
-                        <td><input type="text" name="personName" maxlength="100"></td>
-                        <td>
+            <div class="slots">
+                <div class="slot slot-head" aria-hidden="true"><span>Số điện thoại thử</span><span>Tên (tùy chọn)</span><span>Khu vực (tỉnh/thành)</span></div>
+                <div class="slot" th:each="i : ${slots}" th:if="${i < 3}">
+                    <label class="field"><span class="slot-label">Số điện thoại thử</span>
+                        <input type="text" name="phone" inputmode="tel" maxlength="20" placeholder="09..."></label>
+                    <label class="field"><span class="slot-label">Tên (tùy chọn)</span>
+                        <input type="text" name="personName" maxlength="100"></label>
+                    <label class="field"><span class="slot-label">Khu vực (tỉnh/thành)</span>
+                        <select name="province">
+                            <option value="">Chưa chọn</option>
+                            <option th:each="p : ${provinces}" th:value="${p.code}" th:text="${p.name}">Cần Thơ</option>
+                        </select></label>
+                </div>
+                <details class="more-slots" th:if="${slots.size() > 3}">
+                    <summary>Thêm số khác (tối đa <span th:text="${slots.size()}">10</span> số)</summary>
+                    <div class="slot" th:each="i : ${slots}" th:if="${i >= 3}">
+                        <label class="field"><span class="slot-label">Số điện thoại thử</span>
+                            <input type="text" name="phone" inputmode="tel" maxlength="20" placeholder="09..."></label>
+                        <label class="field"><span class="slot-label">Tên (tùy chọn)</span>
+                            <input type="text" name="personName" maxlength="100"></label>
+                        <label class="field"><span class="slot-label">Khu vực (tỉnh/thành)</span>
                             <select name="province">
                                 <option value="">Chưa chọn</option>
                                 <option th:each="p : ${provinces}" th:value="${p.code}" th:text="${p.name}">Cần Thơ</option>
-                            </select>
-                        </td>
-                    </tr>
-                </table>
+                            </select></label>
+                    </div>
+                </details>
             </div>
             <div class="actions"><button type="submit" class="btn">Tạo đợt chạy thử</button></div>
         </div>

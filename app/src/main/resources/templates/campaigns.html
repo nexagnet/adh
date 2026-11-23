@@ -19,8 +19,8 @@
             </form>
         </div>
     </header>
-    <div class="notice">
-        <strong>Cách làm hiện nay (tài khoản Zalo phụ):</strong>
+    <details class="notice">
+        <summary>Cách làm hiện nay (tài khoản Zalo phụ)</summary>
         <ol>
             <li>Tạo chiến dịch (có thể chỉ chọn khách một miền, ví dụ trời rét thì chọn miền cần nhắn).</li>
             <li>Mỗi ngày mở <a th:href="@{/today}">Lô nhắn hôm nay</a>: hệ thống chỉ gợi ý vài người theo hạn mức ngày và giờ, bạn nhắn tay từng người bằng tài khoản Zalo phụ rồi bấm <em>Đã nhắn</em>.</li>
@@ -30,7 +30,7 @@
         </ol>
         Gửi tin tư vấn cho khách chưa đồng ý nhận tin có thể bị Zalo hạn chế tài khoản và có rủi ro pháp lý; chủ cửa hàng đã nhận rủi ro này,
         nên giữ lô nhỏ, một lần duy nhất, và tôn trọng ngay mọi lời xin ngừng nhận tin.
-    </div>
+    </details>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã tạo.</div>
     <div class="notice bad" th:if="${paused}">
@@ -91,18 +91,18 @@
     </form>
 
 
-    <section class="panel stack">
-        <h2>Nội dung tin mặc định</h2>
+    <details class="more">
+        <summary>Nội dung tin mặc định</summary>
         <form th:action="@{/campaigns/default-template}" method="post" class="stack">
             <p class="muted">Soạn một lần ở đây, các chiến dịch mới sẽ điền sẵn nội dung này (vẫn sửa được cho từng chiến dịch). Để trống rồi lưu thì dùng lại nội dung có sẵn.</p>
             <label class="field">Nội dung
                 <textarea name="template" rows="5" maxlength="800" th:text="${defaultTemplate}"></textarea></label>
             <div class="actions"><button type="submit" class="btn">Lưu nội dung mặc định</button></div>
         </form>
-    </section>
+    </details>
 
-    <section class="panel stack">
-        <h2>Tin gửi link nhóm (sau khi khách đã kết bạn)</h2>
+    <details class="more">
+        <summary>Tin gửi link nhóm (sau khi khách đã kết bạn)</summary>
         <form th:action="@{/campaigns/group-link-template}" method="post" class="stack">
             <p class="muted">Khi khách đã đồng ý kết bạn, trang chiến dịch đưa sẵn tin này kèm link nhóm Zalo cùng khu vực. Mẹ bấm sao chép,
                 dán vào cuộc trò chuyện với khách, rồi bấm <em>Đã gửi link nhóm</em>. Khách tự bấm link nếu muốn vào. Hệ thống không tự gửi.
@@ -113,7 +113,7 @@
                 <textarea name="template" rows="5" maxlength="800" th:text="${groupLinkTemplate}"></textarea></label>
             <div class="actions"><button type="submit" class="btn">Lưu tin gửi link nhóm</button></div>
         </form>
-    </section>
+    </details>
 
     <section>
         <h2>Các chiến dịch</h2>

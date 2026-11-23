@@ -52,6 +52,19 @@ class GeoGroupingTest extends AbstractPostgresTest {
     }
 
     @Test
+    void cungThuTuUuTienThiNhomDaCoMaNhomZaloDungTruoc() {
+        // "A" có id nhỏ hơn nên bình thường thắng; "B" có mã nhóm Zalo nên bộ nối tự thêm được, và đứng trước khi cùng thứ tự ưu tiên
+        open("A", "https://zalo.me/g/a", "R:NAM");
+        long b = open("B", "https://zalo.me/g/b", "R:NAM");
+        assertThat(pick("can-tho")).isEqualTo("A");
+        groups.setZaloGroupId(b, "555");
+        assertThat(pick("can-tho")).isEqualTo("B");
+        // khác thứ tự ưu tiên thì vẫn theo khu vực: nhóm cùng tỉnh (không có mã) thắng nhóm cùng miền có mã
+        open("Cần Thơ", "https://zalo.me/g/ct", "P:can-tho");
+        assertThat(pick("can-tho")).isEqualTo("Cần Thơ");
+    }
+
+    @Test
     void khongXepKhachVaoNhomCuaMienKhacTruKhiChoPhep() {
         open("Miền Nam", "https://zalo.me/g/nam", "R:NAM");
         assertThat(pick("ha-noi")).isNull();

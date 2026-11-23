@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title th:text="${title} + ' - Chăm sóc khách'">Chăm sóc khách</title>
     <link rel="stylesheet" th:href="@{/app.css}">
+    <script defer th:src="@{/responsive-tables.js}"></script>
 </head>
 <body>
 <ol th:fragment="steps(current)" class="steps" aria-label="Các bước nhập file">
@@ -20,19 +21,25 @@
     </div>
 </div>
 <nav th:fragment="nav" class="nav" aria-label="Menu chính">
-    <a class="brand" th:href="@{/}">Chăm sóc khách</a>
-    <div class="nav-group" th:each="g : ${@navMenu.groups(navKey)}">
-        <div class="nav-title" th:text="${g.title}">Khách hàng</div>
-        <a th:each="i : ${g.items}" th:href="@{${i.url}}" th:classappend="${i.active} ? 'active'">
-            <span th:text="${i.label}">Tổng quan</span>
-            <span class="count" th:if="${i.hasBadge()}" th:text="${i.badge}">3</span>
-        </a>
+    <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Mở hoặc đóng menu">
+    <div class="nav-bar">
+        <a class="brand" th:href="@{/}">Chăm sóc khách</a>
+        <label for="nav-toggle" class="nav-burger"><span class="nav-burger-open">Menu</span><span class="nav-burger-close">Đóng</span></label>
     </div>
-    <div class="nav-account">
-        <div class="who">Đang đăng nhập: Chủ cửa hàng</div>
-        <form th:action="@{/logout}" method="post">
-            <button type="submit">Đăng xuất</button>
-        </form>
+    <div class="nav-body">
+        <div class="nav-group" th:each="g : ${@navMenu.groups(navKey)}">
+            <div class="nav-title" th:text="${g.title}">Khách hàng</div>
+            <a th:each="i : ${g.items}" th:href="@{${i.url}}" th:classappend="${i.active} ? 'active'">
+                <span th:text="${i.label}">Tổng quan</span>
+                <span class="count" th:if="${i.hasBadge()}" th:text="${i.badge}">3</span>
+            </a>
+        </div>
+        <div class="nav-account">
+            <div class="who">Đang đăng nhập: Chủ cửa hàng</div>
+            <form th:action="@{/logout}" method="post">
+                <button type="submit">Đăng xuất</button>
+            </form>
+        </div>
     </div>
 </nav>
 </body>
