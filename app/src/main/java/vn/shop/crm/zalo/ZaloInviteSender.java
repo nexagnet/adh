@@ -60,9 +60,12 @@ public class ZaloInviteSender {
     private final GroupService groups;
     private final SendService sends;
     private final Clock clock;
+    private final ZaloCampaignIntake intake;
 
     public ZaloInviteSender(JdbcClient jdbc, AppSettings settings, ZaloMessageService messages, ContactService contacts,
-                            InviteService invites, GroupService groups, SendService sends, Clock clock) {
+                            InviteService invites, GroupService groups, SendService sends, Clock clock,
+                            ZaloCampaignIntake intake) {
+        this.intake = intake;
         this.jdbc = jdbc;
         this.settings = settings;
         this.messages = messages;
@@ -78,6 +81,8 @@ public class ZaloInviteSender {
         if (!messages.enabled() || settings.paused()) {
             return Step.NOT_ACTIVE;
         }
+        // Chiến dịch đang tự nhận khách mới thì nhận khách mới đủ tiêu chí vào hàng chờ trước (không gọi Zalo).
+        intake.intake();
         // Tin 2 (link nhóm) không bị hạn mức ngày riêng: chỉ giờ gửi, khoảng nghỉ và cầu dao.
         if (messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.LINK, null, null).isPresent()) {
             return Step.BLOCKED;

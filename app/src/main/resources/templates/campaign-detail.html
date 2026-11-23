@@ -25,6 +25,23 @@
             </form>
         </div>
     </div>
+    <div class="panel stack" th:if="${autoApproved}">
+        <h2>Tự nhận khách mới</h2>
+        <p class="hint">Thay cho duyệt từng người: chiến dịch có <strong>tiêu chí duyệt sẵn</strong>. Khi bật, khách <strong>mới nhập về từ lúc bật</strong> (đồng bộ hoặc nhập đơn hằng ngày)
+            mà <strong>mua một lần, không cần kiểm tra, chưa từ chối, chưa bị chặn</strong>, thuộc khu vực <strong th:text="${campaign.scopeLabel}">Miền Nam</strong>, sẽ tự được duyệt và vào chiến dịch này,
+            rồi nhận Tin 1 theo hạn mức, giờ gửi và cầu dao như các khách khác (mỗi khách đúng một lần). Khách đã nhập từ trước không bị tự duyệt.</p>
+        <p th:if="${intake.active}"><span class="badge ok">ĐANG TỰ NHẬN</span> từ <span th:text="${#temporals.format(intake.since.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">01/01/2026</span>:
+            đã tự nhận <strong th:text="${intake.taken}">0</strong> khách, đang chờ gửi <strong th:text="${intake.ready}">0</strong>.</p>
+        <p th:unless="${intake.active}"><span class="badge">TẮT</span> <span th:if="${intake.otherActive}">Một chiến dịch khác đang tự nhận khách mới; mỗi lúc chỉ một chiến dịch.</span></p>
+        <div class="actions">
+            <form th:action="@{/campaigns/{id}/auto-intake/enable(id=${campaign.id})}" method="post" th:unless="${intake.active}">
+                <button type="submit" class="btn" th:disabled="${intake.otherActive}">Bật tự nhận khách mới</button>
+            </form>
+            <form th:action="@{/campaigns/{id}/auto-intake/disable(id=${campaign.id})}" method="post" th:if="${intake.active}">
+                <button type="submit" class="btn danger">Tắt tự nhận khách mới</button>
+            </form>
+        </div>
+    </div>
     <div class="notice">Tin có thể do hệ thống tự gửi (sau khi bạn duyệt ở trên) hoặc do mẹ gửi tay. Cách gửi tay: xuất danh sách, nhắn từng khách <strong>một lần duy nhất</strong> bằng
         tài khoản Zalo phụ của cửa hàng. Khách đồng ý kết bạn thì bấm <em>Đã kết bạn</em>; thêm họ vào nhóm cùng khu vực (cột "Nhóm Zalo") rồi bấm
         <em>Đã vào nhóm</em>, hoặc gửi link nhóm cho khách tự bấm (mục <em>Gửi link nhóm</em> ở cột Bước tiếp theo) rồi bấm <em>Đã gửi link nhóm</em>. Khách từ chối thì bấm <em>Khách từ chối</em>, số đó không bao giờ được nhắn lại. Bạn có thể chạy thử trước để xem sẽ gửi gì.</div>
