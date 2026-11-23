@@ -202,6 +202,11 @@ class CustomerListFilterTest extends AbstractPostgresTest {
                 .andExpect(content().string(not(containsString("Trần Thị Bé"))))
                 .andExpect(content().string(containsString("Duyệt mời")))
                 .andExpect(content().string(containsString("Xóa bộ lọc cột (1)")))
+                // biểu tượng phễu ở từng tiêu đề cột (bật/tắt ô lọc của cột), biểu tượng sắp xếp là hình, không còn ký tự mũi tên
+                .andExpect(content().string(containsString("class=\"fbtn\"")))
+                .andExpect(content().string(containsString("data-col=\"name\"")))
+                .andExpect(content().string(containsString("class=\"sort-ico\"")))
+                .andExpect(content().string(not(containsString("&#8597;"))))
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         // thanh lọc khu vực nằm trên bảng và trên các nút "Tất cả / Cần kiểm tra"
         assertThat(html.indexOf("Lọc theo khu vực và công cụ khác")).isLessThan(html.indexOf("aria-label=\"Lọc khách\""));

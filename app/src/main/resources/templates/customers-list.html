@@ -81,29 +81,37 @@
         <input type="hidden" th:each="h : ${hiddenFields}" th:name="${h.name}" th:value="${h.value}">
     </form>
     <div class="table-tools">
-        <span class="muted">Bấm tiêu đề cột để sắp xếp tăng hoặc giảm. Gõ hoặc chọn ở ô dưới tiêu đề để lọc theo cột.</span>
+        <span class="muted">Bấm tên cột để sắp xếp tăng hoặc giảm. Rê chuột vào tên cột rồi bấm biểu tượng phễu để lọc cột đó (trên điện thoại: chạm vào biểu tượng phễu).</span>
         <span class="actions">
             <a class="btn secondary sm" th:if="${activeFilters > 0}" th:href="@{${links.clearFilters()}}"
                th:text="'Xóa bộ lọc cột (' + ${activeFilters} + ')'">Xóa bộ lọc cột</a>
-            <button type="submit" form="colfilters" class="btn sm">Lọc</button>
+            <button type="submit" form="colfilters" class="btn sm" id="applyfilters" hidden>Lọc</button>
         </span>
     </div>
 
     <div class="table-wrap">
-        <table class="grid">
+        <table class="grid" id="grid">
             <thead>
             <tr>
                 <th th:each="col : ${columns}" scope="col" th:attr="aria-sort=${links.ariaSort(col.key)}"
                     th:classappend="${col.key == 'purchases'} ? 'num'">
-                    <a class="sort" th:href="@{${links.sort(col.key)}}" th:title="'Sắp xếp theo ' + ${#strings.toLowerCase(col.label)}">
-                        <span th:text="${col.label}">Số điện thoại</span>
-                        <span class="arrow" aria-hidden="true" th:classappend="${links.ariaSort(col.key) != 'none'} ? 'on'"
-                              th:text="${links.arrow(col.key)}">&#8597;</span>
-                    </a>
+                    <div class="th-in">
+                        <a class="sort" th:href="@{${links.sort(col.key)}}" th:title="'Sắp xếp theo ' + ${#strings.toLowerCase(col.label)}">
+                            <span th:text="${col.label}">Số điện thoại</span>
+                            <svg class="sort-ico" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true" focusable="false">
+                                <path class="u" d="M5 2 9 7H1z"/><path class="d" d="M5 14 1 9h8z"/></svg>
+                        </a>
+                        <button type="button" class="fbtn" th:attr="data-col=${col.key},aria-label='Lọc theo ' + ${#strings.toLowerCase(col.label)},title='Lọc theo ' + ${#strings.toLowerCase(col.label)}"
+                                aria-expanded="false" hidden>
+                            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+                                <path d="M1.5 2.5h13l-5 5.8v4.4l-3 1.8V8.3z" fill="currentColor"/></svg>
+                            <span class="fdot" aria-hidden="true"></span>
+                        </button>
+                    </div>
                 </th>
             </tr>
             <tr class="filter-row">
-                <td th:each="col : ${columns}" th:switch="${col.kind.name()}">
+                <td th:each="col : ${columns}" th:switch="${col.kind.name()}" th:attr="data-col=${col.key}">
                     <input th:case="'TEXT'" type="search" form="colfilters" th:name="${col.param}" th:value="${values.get(col.param)}"
                            placeholder="Lọc…" th:attr="aria-label='Lọc theo ' + ${#strings.toLowerCase(col.label)}">
                     <select th:case="'AREA'" form="colfilters" name="area" aria-label="Lọc theo khu vực">
