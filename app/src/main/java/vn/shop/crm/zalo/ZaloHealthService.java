@@ -40,6 +40,7 @@ public class ZaloHealthService implements ZaloTickHook {
     public static final String K_STOPPED = "DUNG_KHAC";
     public static final String K_FAIL_RATE = "TY_LE_LOI";
     public static final String K_BRIDGE_DOWN = "CAU_NOI_MAT";
+    public static final String K_REFUSAL = "TU_CHOI_CAO";
 
     /** Số tin tối thiểu trong 24 giờ để xét tỷ lệ lỗi, và các ngưỡng. */
     static final int MIN_ATTEMPTS = 5;
@@ -139,6 +140,13 @@ public class ZaloHealthService implements ZaloTickHook {
             unreachableSince = null;
         }
         failRate(now).ifPresent(s -> out.put(s.kind(), s));
+        // chiến dịch bị hệ thống tự bỏ duyệt vì khách từ chối nhiều và chưa ai duyệt lại: cần người xem
+        long stoppedCampaigns = jdbc.sql("""
+                        SELECT count(*) FROM invitation_campaign WHERE auto_stopped_at IS NOT NULL AND auto_send_approved_at IS NULL""")
+                .query(Long.class).single();
+        if (stoppedCampaigns > 0) {
+            out.put(K_REFUSAL, new Signal(K_REFUSAL, "WARN", Long.toString(stoppedCampaigns)));
+        }
         return new ArrayList<>(out.values());
     }
 

@@ -23,11 +23,13 @@ public class CampaignController {
     private final vn.shop.crm.zalo.ZaloCampaignIntake intake;
     private final vn.shop.crm.zalo.CampaignPolicy policy;
     private final CampaignSteps steps;
+    private final vn.shop.crm.zalo.CampaignAutoStop autoStop;
 
     public CampaignController(InviteService invites, ContactService contacts, AppSettings settings,
                               vn.shop.crm.zalo.ZaloInviteSender autoSender, vn.shop.crm.zalo.ZaloMessageService messages,
                               vn.shop.crm.zalo.ZaloCampaignIntake intake, vn.shop.crm.zalo.CampaignPolicy policy,
-                              CampaignSteps steps) {
+                              CampaignSteps steps, vn.shop.crm.zalo.CampaignAutoStop autoStop) {
+        this.autoStop = autoStop;
         this.steps = steps;
         this.intake = intake;
         this.policy = policy;
@@ -106,6 +108,10 @@ public class CampaignController {
         model.addAttribute("minGapDays", CampaignSteps.MIN_GAP_DAYS);
         model.addAttribute("stopFooter", CampaignSteps.STOP_FOOTER);
         model.addAttribute("multiTemplate", InviteService.MULTI_TEMPLATE);
+        model.addAttribute("extra", policy.loadExtra(id));
+        model.addAttribute("sysStopPct", vn.shop.crm.zalo.CampaignAutoStop.SYSTEM_PCT);
+        model.addAttribute("minStopSent", vn.shop.crm.zalo.CampaignAutoStop.MIN_SENT);
+        model.addAttribute("stoppedReason", autoStop.stoppedReason(id).orElse(null));
         model.addAttribute("schedBlock", policy.blocker(id).map(vn.shop.crm.zalo.CampaignPolicy.Block::label).orElse(null));
         return "campaign-detail";
     }
@@ -129,6 +135,25 @@ public class CampaignController {
         redirect.addFlashAttribute("flash", reset
                 ? "Đã bỏ lịch và nhịp riêng: chiến dịch theo cài đặt chung của hệ thống."
                 : "Đã lưu lịch và nhịp riêng. Các giới hạn chung của hệ thống vẫn áp dụng thêm.");
+        return "redirect:/campaigns/" + id;
+    }
+
+    /**
+     * Điều kiện gửi riêng thêm (D21 PR 4): ngày trong tuần được gửi, hoãn khi mưa lớn, ngưỡng tự dừng khi khách từ chối nhiều.
+     * Chỉ làm chặt hơn hệ thống. Nút "Theo hệ thống" (reset) xóa hết.
+     */
+    @PostMapping("/campaigns/{id}/rules")
+    public String saveRules(@PathVariable long id, @RequestParam(required = false) java.util.List<Integer> days,
+                            @RequestParam(defaultValue = "false") boolean holdOnRain, @RequestParam(required = false) String stopPct,
+                            @RequestParam(defaultValue = "false") boolean reset, RedirectAttributes redirect) {
+        invites.campaign(id).orElseThrow(() -> new ImportException("Không tìm thấy chiến dịch."));
+        var extra = reset ? vn.shop.crm.zalo.CampaignPolicy.Extra.NONE
+                : new vn.shop.crm.zalo.CampaignPolicy.Extra(vn.shop.crm.zalo.CampaignPolicy.Extra.maskOf(
+                        days == null ? java.util.List.of() : days), holdOnRain, number(stopPct, "Ngưỡng tự dừng"));
+        policy.saveExtra(id, extra, ContactService.actor());
+        redirect.addFlashAttribute("flash", reset
+                ? "Đã bỏ điều kiện gửi riêng: chiến dịch theo cài đặt chung của hệ thống."
+                : "Đã lưu điều kiện gửi riêng. Các giới hạn chung của hệ thống vẫn áp dụng thêm.");
         return "redirect:/campaigns/" + id;
     }
 

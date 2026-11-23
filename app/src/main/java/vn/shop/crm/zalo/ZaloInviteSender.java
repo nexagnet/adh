@@ -67,11 +67,15 @@ public class ZaloInviteSender {
     private final CampaignPolicy policy;
     private final CampaignSteps steps;
     private final ZaloFollowupSender followups;
+    private final CampaignAutoStop autoStop;
+    private final RainHold rain;
 
     public ZaloInviteSender(JdbcClient jdbc, AppSettings settings, ZaloMessageService messages, ContactService contacts,
                             InviteService invites, GroupService groups, SendService sends, Clock clock,
                             ZaloCampaignIntake intake, TestMode testMode, CampaignPolicy policy, CampaignSteps steps,
-                            ZaloFollowupSender followups) {
+                            ZaloFollowupSender followups, CampaignAutoStop autoStop, RainHold rain) {
+        this.autoStop = autoStop;
+        this.rain = rain;
         this.steps = steps;
         this.followups = followups;
         this.intake = intake;
@@ -92,6 +96,8 @@ public class ZaloInviteSender {
         if (!messages.enabled() || settings.paused()) {
             return Step.NOT_ACTIVE;
         }
+        // Chiến dịch có khách từ chối nhiều thì bị bỏ duyệt trước (không gọi Zalo); rồi mới tới chuyện nhận khách mới và gửi.
+        autoStop.evaluate();
         // Chiến dịch đang tự nhận khách mới thì nhận khách mới đủ tiêu chí vào hàng chờ trước (không gọi Zalo).
         intake.intake();
         // Tin 2 (link nhóm) không bị hạn mức ngày riêng: chỉ giờ gửi, khoảng nghỉ và cầu dao.
@@ -147,13 +153,17 @@ public class ZaloInviteSender {
         if (open.isEmpty()) {
             return Step.NOTHING;
         }
+        // Chiến dịch bật "hoãn khi mưa lớn": khách ở tỉnh đang mưa lớn bị bỏ qua nhịp này (chỉ hoãn); lọc ngay trong truy vấn để
+        // những khách bị hoãn không chiếm hết SCAN và làm tắc khách ở tỉnh khác.
+        String[] rainy = rain.rainyProvinces().toArray(new String[0]);
         List<Invite> candidates = jdbc.sql("""
                         SELECT i.id, i.campaign_id, i.customer_id, c.phone, c.name, c.province, i.token, i.expires_at, k.message_template
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
                         JOIN invitation_campaign k ON k.id = i.campaign_id
                         WHERE i.status = 'READY' AND k.auto_send_approved_at IS NOT NULL AND i.campaign_id IN (:open)
+                          AND (k.hold_on_rain = false OR c.province IS NULL OR NOT (c.province = ANY(:rainy)))
                         """ + testMode.onlyTestSql("c.phone") + " ORDER BY i.campaign_id, i.id LIMIT :n")
-                .param("open", open).param("n", SCAN)
+                .param("open", open).param("rainy", rainy).param("n", SCAN)
                 .query((rs, n) -> new Invite(rs.getLong("id"), rs.getLong("campaign_id"), rs.getLong("customer_id"),
                         rs.getString("phone"), rs.getString("name"), rs.getString("province"), rs.getString("token"),
                         rs.getObject("expires_at", OffsetDateTime.class), rs.getString("message_template"))).list();
@@ -361,7 +371,9 @@ public class ZaloInviteSender {
     /** Người dùng DUYỆT chiến dịch cho hệ thống tự gửi Tin 1. Chưa duyệt thì không tự gửi gì. */
     public void approveCampaign(long campaignId, String by) {
         int n = jdbc.sql("""
-                        UPDATE invitation_campaign SET auto_send_approved_at = now(), auto_send_approved_by = :by
+                        UPDATE invitation_campaign SET auto_send_approved_at = now(), auto_send_approved_by = :by,
+                               auto_stop_since = CASE WHEN auto_stopped_at IS NOT NULL THEN now() ELSE auto_stop_since END,
+                               auto_stopped_at = NULL, auto_stopped_reason = NULL
                         WHERE id = :id AND auto_send_approved_at IS NULL""").param("by", by).param("id", campaignId).update();
         if (n == 0 && !campaignExists(campaignId)) {
             throw new ImportException("Không tìm thấy chiến dịch.");
