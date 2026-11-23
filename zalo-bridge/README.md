@@ -9,12 +9,14 @@ Dịch vụ Node nhỏ nằm sau giao diện `ZaloGateway` của Adh (`docs/ADR-
 2. `GET /events?after=`: các lần "thành bạn" (sự kiện `ADD` của người khác); chỉ hỏi số điện thoại của đúng người đó.
 3. `POST /groups/{id}/members`: thêm MỘT người vào MỘT nhóm.
 
+> **D18 (23/11/2026):** chủ shop đã bỏ nguyên tắc "không tự gửi tin" (gửi từ từ, như người thật, qua tài khoản phụ). Mới ghi tài liệu, chưa có mã; các câu "không có gửi tin" dưới đây mô tả mã hiện tại và sẽ đổi cùng PR mã. Xem `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md` mục 12.
+
 Cộng với quản lý phiên cho trang quản trị (quét QR, đăng xuất, dừng, nghe lại). **Không có** gửi tin, gửi lời mời kết bạn, tìm người theo số, liệt kê bạn bè hay lệnh tùy ý. Ba bài test khóa điều này: `test/no-send.test.mjs`, `test/server.test.mjs`, và `ZaloGatewayShapeTest` bên Java.
 
 Cộng thêm một đường **chỉ đọc** `GET /groups`: nhóm Zalo mà tài khoản phụ đang tham gia (mã, tên, số thành viên), để trang quản trị chọn "mã nhóm Zalo". Không phải liệt kê bạn bè.
 
 ## Ranh giới (ngoài phạm vi)
-Không có và sẽ không thêm: giả gõ phím, độ trễ ngẫu nhiên cho giống người, đổi `imei`/`userAgent`, proxy xoay, nhiều tài khoản luân phiên, gửi tin hàng loạt. Cầu nối chỉ có giới hạn khối lượng (trần mỗi ngày, khung giờ 07:00–22:00 giờ Việt Nam), không phải màn che.
+Không có và sẽ không thêm: giả gõ phím, độ trễ ngẫu nhiên cho giống người, đổi `imei`/`userAgent`, proxy xoay, nhiều tài khoản luân phiên, gửi tin hàng loạt. *(D18, 23/11/2026: "gửi tin hàng loạt" không còn bị cấm; chủ shop cho phép gửi từ từ, giãn cách, lô nhỏ. Các thứ còn lại trong danh sách D18 không nhắc tới nên giữ nguyên; xem ADR-0002 mục 12.)* Cầu nối chỉ có giới hạn khối lượng (trần mỗi ngày, khung giờ 07:00–22:00 giờ Việt Nam), không phải màn che.
 
 ## Cầu nối tự bảo vệ
 - Phiên (`imei`, `cookie`, `userAgent`) mã hóa **AES-256-GCM** trước khi ghi (`/data/session.enc`, quyền 600); khóa `SESSION_KEY` ở biến môi trường, tách khỏi tệp và sao lưu. Thiếu khóa thì không khởi động.

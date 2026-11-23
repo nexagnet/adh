@@ -5,6 +5,8 @@ Dành cho chủ cửa hàng và người cài đặt. Bộ nối này **mặc đ
 Toàn bộ phần mã đã được kiểm bằng test với **bộ nối giả**. **Chưa có lần nào chạy bản này với Zalo thật.** Mục "Những điều chưa ai kiểm" ở cuối nói rõ cái gì còn trống. Hãy đi từng bước nhỏ, dừng ngay khi thấy bất thường.
 
 ## Ranh giới (không đổi, có test khóa)
+> **D18 (23/11/2026):** chủ shop đã bỏ nguyên tắc "không tự gửi tin" (gửi từ từ, như người thật, tài khoản phụ). Mới ghi tài liệu, chưa có mã; các ý "không có chức năng gửi tin" dưới đây mô tả bộ nối hiện tại. Xem ADR-0002 mục 12.
+
 
 - Bộ nối chỉ làm **ba việc**: báo trạng thái, đọc sự kiện "đã thành bạn", thêm **một** người vào **một** nhóm. Không có chức năng gửi tin, gửi lời mời kết bạn, tìm người theo số, liệt kê bạn bè.
 - **Không có cách nào làm cho giống người thật bấm** (không ngẫu nhiên giờ giấc, không đổi dấu vân tay thiết bị, không dùng proxy). Chỉ có giới hạn tốc độ và khung giờ 07:00 đến 22:00.
