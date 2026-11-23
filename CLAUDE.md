@@ -88,11 +88,14 @@ Người dùng **bỏ nguyên tắc cũ "không tự gửi tin"** (D9). Hệ th�
 
 ## 7. Việc còn mở (theo thứ tự nên làm)
 
-1. **Thử Zalo thật:** người dùng chạy Chiến dịch thử với 3 số (cách làm ở `docs/BAN-GIAO.md` mục 1A và `docs/HUONG-DAN-THU-ZALO-TU-DONG.md`). Sau đó đọc nhật ký bộ nối, điền `ZALO_PERSON_ERROR_CODES` bằng mã lỗi thật, cập nhật mục "chưa kiểm chứng". Rồi mới duyệt chiến dịch thật.
-2. **`--doi-soat` với J&T thật:** người dùng đăng nhập J&T trong hồ sơ Edge riêng và chạy một vòng đầy đủ; báo lại các chỗ lệch.
-3. **Gộp các màn còn lại** (`docs/GIAO-DIEN-LAM-LAI.md` mục 3): sửa chữ "không tự gửi tin" lỗi thời; mục Zalo tài khoản phụ luôn hiện trên menu; gộp Cài đặt gửi tin vào `/zalo`; gộp Nhóm Zalo + gán mã nhóm; rà bản điện thoại các trang còn lại; rồi xóa màn nhắn tay và `/test-runs` theo mục 3 ở trên.
-4. Quy ước tên nhóm Zalo; tên miền thật rồi mới in giấy QR A5; thử in A5 và xem giao diện bằng trình duyệt thật.
-5. Còn chờ quyết định: kênh trợ lý trong nhóm Zalo và báo việc cho mẹ (ADR-0001), SMS/ZBS (đang hoãn), hạn trả lời yêu cầu dữ liệu của khách. Danh sách đầy đủ: `docs/BAN-GIAO.md` mục 5 đến 7.
+**Giai đoạn 1 đã code xong (23/11/2026)** đến hết "AI mời vào nhóm": tự gửi Tin 1 (D18), chiến dịch tự nhận khách mới, AI nhận diện từ chối, khách từng từ chối quay lại, tự tạo nhóm, AI tự soạn trả lời tin riêng (D20). **Tất cả tắt mặc định và chưa chạy với Zalo hay DeepSeek thật.** Việc còn lại cần người dùng tự kiểm, theo thứ tự:
+
+1. **Thử Zalo thật:** chạy Chiến dịch thử với 3 số (cách làm ở `docs/BAN-GIAO.md` mục 1A và `docs/HUONG-DAN-THU-ZALO-TU-DONG.md`); đọc nhật ký bộ nối, điền `ZALO_PERSON_ERROR_CODES` bằng mã lỗi thật, cập nhật mục "chưa kiểm chứng". Thử tay tạo 1 nhóm thật với 2 số của chủ dự án. Rồi mới duyệt chiến dịch thật và (tuỳ chọn) bật tự nhận khách mới.
+2. **Thử AI:** bật `APP_AI_ENABLED` (kèm khóa, tên mô hình), thử vài chục câu giả ở ô "Thử một câu" ở `/zalo/reply`, chạy nấc "Chỉ soạn nháp" vài ngày, xem nháp, rồi mới bật "Tự động". Cũng chạy nấc "Chỉ tạo việc" của khách quay lại trước khi bật Tự động.
+3. **`--doi-soat` với J&T thật:** người dùng đăng nhập J&T trong hồ sơ Edge riêng và chạy một vòng đầy đủ; báo lại các chỗ lệch.
+4. **Dọn giao diện sau khi tự gửi chạy ổn trên thật:** xóa màn nhắn tay và `/test-runs` theo mục 3 ở trên (`docs/GIAO-DIEN-LAM-LAI.md` mục 3); khối "Việc cần làm hôm nay" ở Tổng quan còn mục nhắn tay. Đừng xóa sớm. Trang `/groups` và `/zalo/groups` (gán mã nhóm) cố ý giữ hai trang liên kết qua lại để khỏi gọi bộ nối mỗi lần mở danh sách nhóm.
+5. Tên miền thật rồi mới in giấy QR A5; thử in A5. Tên nhóm Zalo mẫu đã chốt ("Áo điều hòa ADH - Khu vực - 01").
+6. **Giai đoạn 2** (máy lớn, chưa làm): AI trả lời trong nhóm Zalo, đội bán hàng nhiều người (Chatwoot; kênh trợ lý và báo việc: ADR-0001), tra cứu nhiều sản phẩm. Còn chờ quyết định: SMS/ZBS (đang hoãn), hạn trả lời yêu cầu dữ liệu của khách. Danh sách đầy đủ: `docs/BAN-GIAO.md` mục 5 đến 7.
 
 ## 8. Cấu trúc repo ngắn gọn
 
