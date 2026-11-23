@@ -185,7 +185,7 @@
                 <tr><th>Lúc</th><th>Khu vực và tên nhóm</th><th>Lý do</th><th>Trạng thái</th><th></th></tr>
                 <tr th:each="p : ${proposals}">
                     <td th:text="${#temporals.format(p.createdAt, 'dd/MM HH:mm')}">22/11 10:00</td>
-                    <td><span th:text="${p.groupName}">Pin ADH - Miền Nam - 01</span>
+                    <td><span th:text="${p.groupName}">Áo điều hòa ADH - Miền Nam - 01</span>
                         <span class="sub-line" th:text="${p.members} + ' khách trong đề xuất'">5 khách</span></td>
                     <td th:text="${p.reason}">Tạo nhóm vì có 3 khách chờ</td>
                     <td><span th:text="${T(vn.shop.crm.zalo.ZaloGroupCreationService).stateLabel(p.state)}">Chờ mẹ duyệt</span>

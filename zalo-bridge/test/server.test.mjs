@@ -148,7 +148,7 @@ test('POST /groups (D19) cần khóa, tạo đúng một nhóm, body sai không 
   const bad = await s.call('POST', '/groups', { body: {} });
   assert.equal(bad.json.outcome, 'PERSON_ERROR');
   assert.equal((s.c.adapter.created ?? []).length, 0);
-  const ok = await s.call('POST', '/groups', { body: { name: 'Pin ADH - Miền Nam - 01', members: ['111', '222'], deputy: '333' } });
+  const ok = await s.call('POST', '/groups', { body: { name: 'Áo điều hòa ADH - Miền Nam - 01', members: ['111', '222'], deputy: '333' } });
   assert.equal(ok.json.outcome, 'OK');
   assert.equal(s.c.adapter.created.length, 1);
   await s.close();

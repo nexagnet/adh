@@ -31,8 +31,8 @@ public class InviteService {
      * Tin 1 (tin mời, gửi MỘT lần, người gửi dán tay): chủ shop chốt nội dung 22/11/2026. {mien} thành "Miền Trung"/"Miền Nam"... theo
      * tỉnh của khách. Khách không cần bấm link: đồng ý kết bạn thì được thêm vào nhóm; không cần thì bỏ qua, không nhắn lại.
      */
-    public static final String DEFAULT_TEMPLATE = "Chào anh/chị {ten}, em bên {cua_hang}. Anh/chị dùng pin shop gửi thấy ổn không ạ? "
-            + "Em mời mình vào nhóm Zalo khách hàng {mien} để được hướng dẫn dùng pin và nhận ưu đãi.\n"
+    public static final String DEFAULT_TEMPLATE = "Chào anh/chị {ten}, em bên {cua_hang}. Anh/chị dùng sản phẩm shop gửi thấy ổn không ạ? "
+            + "Em mời mình vào nhóm Zalo khách hàng {mien} để được hướng dẫn sử dụng sản phẩm và nhận ưu đãi.\n"
             + "Anh chị mua trực tiếp qua nhóm sẽ rẻ hơn mua qua tiktok 10% và được miễn ship đó ạ.\n"
             + "Anh/chị đồng ý kết bạn, em sẽ thêm anh chị vào nhóm ạ. Không cần thì anh/chị bỏ qua, em sẽ không nhắn lại ạ.";
 

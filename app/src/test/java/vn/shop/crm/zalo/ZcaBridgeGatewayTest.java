@@ -265,10 +265,10 @@ class ZcaBridgeGatewayTest {
     void taoNhomGuiDungBodyVaDocKetQuaChiLayNguoiTrongDanhSach() {
         reply.set("""
                 {"outcome":"OK","groupId":"9876","link":"https://zalo.me/g/abc","added":["111","999"],"failed":["222"],"deputy":"OK"}""");
-        var r = gateway.createGroup("Pin ADH - Miền Nam - 01", List.of("111", "222"), "333");
+        var r = gateway.createGroup("Áo điều hòa ADH - Miền Nam - 01", List.of("111", "222"), "333");
         assertThat(requests).containsExactly("POST /groups");
         assertThat(keys).containsExactly("khoa-chung");
-        assertThat(bodies.getFirst()).contains("\"name\":\"Pin ADH - Miền Nam - 01\"").contains("\"members\":[\"111\",\"222\"]").contains("\"deputy\":\"333\"");
+        assertThat(bodies.getFirst()).contains("\"name\":\"Áo điều hòa ADH - Miền Nam - 01\"").contains("\"members\":[\"111\",\"222\"]").contains("\"deputy\":\"333\"");
         assertThat(r.outcome()).isEqualTo(ZaloGroupMaker.GroupOutcome.OK);
         assertThat(r.groupId()).isEqualTo("9876");
         assertThat(r.link()).isEqualTo("https://zalo.me/g/abc");

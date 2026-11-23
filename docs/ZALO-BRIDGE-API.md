@@ -54,7 +54,7 @@ Cầu nối có **trần cứng riêng** (gấp đôi `APP_ZALO_AUTO_MAX_DAILY` 
 - **`WELCOME` (D19, khách từng từ chối tự nhắn lại muốn mua):** CHỈ theo `uid` (không có `phone`), cần bật `BRIDGE_INBOX_ENABLED`, và chỉ cho người **vừa nhắn tới trong 24 giờ**: cầu nối giữ trong bộ nhớ "mã Zalo -> giờ tin riêng gần nhất" (chỉ người đã nhận Tin 1/Tin 2, như bộ đệm tin đến) và cho trả lời đúng MỘT lần cho mỗi tin đến. Không có đường nào nhắn người chưa nhắn trước: không khớp thì trả `PERSON_ERROR` mã `NOT_REPLYABLE` (từ chối trước khi chạm Zalo, Adh coi là "chưa gửi" và không tính cầu dao). Vẫn chịu khoảng nghỉ cố định, khung giờ, trần ngày và cầu dao chung; không ghi vào sổ `DUPLICATE` (quy tắc "tối đa một lần tự gỡ trong 30 ngày" do Adh giữ).
 - Không có độ trễ ngẫu nhiên, không giả người: khoảng nghỉ là **cố định**, trần và khung giờ là cầu dao thật. Nhật ký bộ nối không chứa số, mã, tên hay nội dung tin.
 
-### `POST /groups` (D19)  body `{"name":"Pin ADH - Miền Nam - 01", "members":["111","222"], "deputy":"333"}`
+### `POST /groups` (D19)  body `{"name":"Áo điều hòa ADH - Miền Nam - 01", "members":["111","222"], "deputy":"333"}`
 Tạo đúng MỘT nhóm Zalo, bật link mời và (nếu có `deputy`) thêm người đó làm phó nhóm. `name` 1–100 ký tự, không có ký tự điều khiển; `members` 1–5 mã Zalo chữ số (khách đã đồng ý vào nhóm); `deputy` tùy chọn (mã của mẹ, Adh đọc từ biến môi trường, không ghi vào repo). Trả:
 ```json
 { "outcome": "OK", "groupId": "9876", "link": "https://zalo.me/g/xxxx", "added": ["111"], "failed": ["222"], "deputy": "OK" }
