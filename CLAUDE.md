@@ -103,13 +103,18 @@ Người dùng **bỏ nguyên tắc cũ "không tự gửi tin"** (D9). Hệ th�
 3. **`--doi-soat` với J&T thật:** người dùng đăng nhập J&T trong hồ sơ Edge riêng và chạy một vòng đầy đủ; báo lại các chỗ lệch.
 4. **Dọn giao diện sau khi tự gửi chạy ổn trên thật:** xóa màn nhắn tay và `/test-runs` theo mục 3 ở trên (`docs/GIAO-DIEN-LAM-LAI.md` mục 3); khối "Việc cần làm hôm nay" ở Tổng quan còn mục nhắn tay. Đừng xóa sớm. Trang `/groups` và `/zalo/groups` (gán mã nhóm) cố ý giữ hai trang liên kết qua lại để khỏi gọi bộ nối mỗi lần mở danh sách nhóm.
 5. Tên miền thật rồi mới in giấy QR A5; thử in A5. Tên nhóm Zalo mẫu đã chốt ("Áo điều hòa ADH - Khu vực - 01").
+5a. **Hiệu quả chiến dịch:** hỏi chủ dự án chốt cách ghi nhận đơn qua nhóm (tiền tố `NHOM-`), nhập file đối soát J&T thật rồi xem `/performance` có khớp không (xem mục 8).
 6. **Giai đoạn 2** (máy lớn, chưa làm): AI trả lời trong nhóm Zalo, đội bán hàng nhiều người (Chatwoot; kênh trợ lý và báo việc: ADR-0001), tra cứu nhiều sản phẩm. Còn chờ quyết định: SMS/ZBS (đang hoãn), hạn trả lời yêu cầu dữ liệu của khách. Danh sách đầy đủ: `docs/BAN-GIAO.md` mục 5 đến 7.
 
 ## 8. Cấu trúc repo ngắn gọn
 
 `app/` ứng dụng Java (gói `vn.shop.crm`), `zalo-bridge/` bộ nối Node, `infra/` Docker và script deploy, `tools/` tool J&T (Edge) và dựng bản đồ, `fixtures/` dữ liệu giả, `docs/` tài liệu, `.github/workflows/` CI (`ci`, `image`). Bản đồ mã nguồn chi tiết: `docs/BAN-GIAO.md` mục 4.
 
-**Bảng theo dõi hiệu quả chiến dịch (23/11/2026, `/performance`, gói `vn.shop.crm.performance`, không migration):** phễu mời, kết bạn, vào nhóm, mua trực tiếp, doanh thu (từ đối soát J&T) cho mỗi chiến dịch, hòa vốn so với TikTok và so sánh mua lại. Hệ thống không có đơn TikTok nên không đo doanh thu TikTok thật. Chi tiết và câu hỏi còn mở (cách phân biệt đơn qua nhóm): `docs/THIET-KE-THEO-DOI-HIEU-QUA.md`.
+**Bảng theo dõi hiệu quả chiến dịch (23/11/2026, PR #82, `/performance` và `/performance.csv`, gói `vn.shop.crm.performance`, không migration; chi tiết `docs/THIET-KE-THEO-DOI-HIEU-QUA.md`):**
+- Mỗi chiến dịch một dòng phễu: đã mời (`sent_at`), đã kết bạn (`friended_at`), đã vào nhóm (`joined_at`), người mua và lần mua (giao thành công SAU khi vào nhóm, trước khi rời nhóm; một mã đơn là một lần mua), doanh thu = tổng `settlement_line.cod_collected` (file "Lịch sử đối soát" J&T; lần mua chưa đối soát được đếm nhưng chưa có tiền).
+- **Hệ thống không có đơn TikTok** (BR-01) nên không đo doanh thu TikTok thật. So với TikTok bằng: mức phí TikTok hòa vốn = (ưu đãi + ship miễn) / giá TikTok ước tính (`Economics`); lời lỗ cụ thể khi chủ shop nhập % TikTok thu; so sánh tỉ lệ mua lại 30 ngày giữa khách vào nhóm và khách được mời nhưng chưa vào nhóm. Bốn giá trị chủ shop nhập nằm ở `app_setting` khóa `performance.*` (ưu đãi %, miễn ship, % TikTok thu, tiền tố mã đơn).
+- **Cho AI đề xuất chiến dịch (D21):** dùng `PerformanceService.anonymized()` (chỉ số, ô dưới 5 người vào nhóm bị ẩn); đừng đưa tên chiến dịch cho AI. Chưa nối vào `AdvisorSnapshot`.
+- **Việc còn mở (cần chủ dự án quyết):** không phân biệt được đơn qua nhóm với đơn khác nên mặc định coi mọi đơn sau khi vào nhóm là đơn qua nhóm (trang ghi "ước tính"). Đề xuất đã nêu: ghi mã đơn bán trong nhóm bắt đầu bằng `NHOM-` rồi đặt tiền tố `NHOM` ở trang; chủ dự án chưa trả lời. Cần có file đối soát J&T thật nhập vào thì mới có doanh thu. Viettel Post chỉ có ngày nên đơn cùng ngày vào nhóm có thể bị xếp là trước. Chưa có phân tích theo khu vực hoặc theo thời tiết.
 
 ## 9. Những chỗ `docs/BAN-GIAO.md` đã cũ (đừng làm theo)
 

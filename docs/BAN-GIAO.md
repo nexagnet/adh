@@ -63,7 +63,8 @@ Người dùng làm theo hướng dẫn đó: bước 0 chuẩn bị (kiểm Tin
 4. Tên miền thật rồi mới in giấy A5 (đang dùng tên miền tạm nên **chưa in**).
 5. `--doi-soat` với J&T thật (người dùng đăng nhập J&T trong hồ sơ Edge riêng của tool).
 6. Dọn chữ cũ còn sót ("mẹ gửi tay, hệ thống không tự gửi", chú thích Tin 2 trong `InviteService`) khi xóa màn nhắn tay.
-7. Viết lại mục 1 đến 10 bên dưới cho khớp (hoặc bỏ phần đã lỗi thời).
+7. **Hiệu quả chiến dịch (PR #82, `/performance`):** đã code và gộp; chờ chủ dự án chốt cách phân biệt đơn qua nhóm (đề xuất ghi mã đơn bắt đầu bằng `NHOM-` rồi đặt tiền tố ở trang; mặc định đang là "mọi đơn sau khi vào nhóm", số ước tính). Doanh thu chỉ có khi đã nhập file đối soát J&T. Không có đơn TikTok trong hệ thống nên so với TikTok bằng mức hòa vốn phí TikTok, lời lỗ khi nhập % TikTok thu, và so sánh mua lại 30 ngày. Cách tính và giới hạn: `docs/THIET-KE-THEO-DOI-HIEU-QUA.md`; tóm tắt ở `CLAUDE.md` mục 8. Gói `vn.shop.crm.performance`, hàm cho AI đề xuất chiến dịch `PerformanceService.anonymized()`.
+8. Viết lại mục 1 đến 10 bên dưới cho khớp (hoặc bỏ phần đã lỗi thời).
 
 ---
 
