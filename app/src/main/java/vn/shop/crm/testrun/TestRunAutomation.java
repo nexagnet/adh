@@ -8,6 +8,7 @@ import vn.shop.crm.geo.Province;
 import vn.shop.crm.geo.VnGeo;
 import vn.shop.crm.invite.GroupService;
 import vn.shop.crm.invite.InviteService;
+import vn.shop.crm.safety.TestMode;
 import vn.shop.crm.zalo.ZaloAutoService;
 import vn.shop.crm.zalo.ZaloFriendTap;
 import vn.shop.crm.zalo.ZaloGateway;
@@ -44,8 +45,11 @@ public class TestRunAutomation implements ZaloFriendTap, ZaloTickHook {
     private final ZaloAutoService zalo;
     private final GroupService groups;
     private final InviteService invites;
+    private final TestMode testMode;
 
-    public TestRunAutomation(JdbcClient jdbc, ZaloMessageService messages, ZaloAutoService zalo, GroupService groups, InviteService invites) {
+    public TestRunAutomation(JdbcClient jdbc, ZaloMessageService messages, ZaloAutoService zalo, GroupService groups, InviteService invites,
+                             TestMode testMode) {
+        this.testMode = testMode;
         this.jdbc = jdbc;
         this.messages = messages;
         this.zalo = zalo;
@@ -144,7 +148,10 @@ public class TestRunAutomation implements ZaloFriendTap, ZaloTickHook {
     }
 
     private Optional<Target> target(long runId, String cond) {
-        return jdbc.sql("SELECT id, phone, name, province, zalo_uid FROM test_target WHERE run_id = :r AND " + cond + " ORDER BY id LIMIT 1")
+        // Số thử không bao giờ trùng khách trong hệ thống (kể cả khách nhập sau khi tạo đợt), và ở chế độ thử phải nằm trong danh sách thử.
+        return jdbc.sql("SELECT id, phone, name, province, zalo_uid FROM test_target WHERE run_id = :r AND " + cond
+                        + " AND NOT EXISTS (SELECT 1 FROM customer c WHERE c.phone = test_target.phone)"
+                        + testMode.onlyTestSql("test_target.phone") + " ORDER BY id LIMIT 1")
                 .param("r", runId)
                 .query((rs, n) -> new Target(rs.getLong("id"), rs.getString("phone"), rs.getString("name"), rs.getString("province"),
                         rs.getString("zalo_uid")))

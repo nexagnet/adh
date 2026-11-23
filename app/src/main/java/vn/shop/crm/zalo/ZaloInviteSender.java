@@ -11,6 +11,7 @@ import vn.shop.crm.geo.VnGeo;
 import vn.shop.crm.invite.GroupService;
 import vn.shop.crm.invite.GroupStatus;
 import vn.shop.crm.invite.InviteService;
+import vn.shop.crm.safety.TestMode;
 import vn.shop.crm.send.SendService;
 import vn.shop.crm.zalo.ZaloMessageService.Delivery;
 import vn.shop.crm.zalo.ZaloMessenger.Kind;
@@ -61,11 +62,13 @@ public class ZaloInviteSender {
     private final SendService sends;
     private final Clock clock;
     private final ZaloCampaignIntake intake;
+    private final TestMode testMode;
 
     public ZaloInviteSender(JdbcClient jdbc, AppSettings settings, ZaloMessageService messages, ContactService contacts,
                             InviteService invites, GroupService groups, SendService sends, Clock clock,
-                            ZaloCampaignIntake intake) {
+                            ZaloCampaignIntake intake, TestMode testMode) {
         this.intake = intake;
+        this.testMode = testMode;
         this.jdbc = jdbc;
         this.settings = settings;
         this.messages = messages;
@@ -106,7 +109,7 @@ public class ZaloInviteSender {
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
                         JOIN invitation_campaign k ON k.id = i.campaign_id
                         WHERE i.status = 'READY' AND k.auto_send_approved_at IS NOT NULL
-                        ORDER BY i.campaign_id, i.id LIMIT :n""")
+                        """ + testMode.onlyTestSql("c.phone") + " ORDER BY i.campaign_id, i.id LIMIT :n")
                 .param("n", SCAN)
                 .query((rs, n) -> new Invite(rs.getLong("id"), rs.getLong("campaign_id"), rs.getLong("customer_id"),
                         rs.getString("phone"), rs.getString("name"), rs.getString("province"), rs.getString("token"),
@@ -229,7 +232,7 @@ public class ZaloInviteSender {
                         JOIN invitation_campaign k ON k.id = i.campaign_id
                         WHERE i.zalo_link_state = 'PENDING' AND i.zalo_uid IS NOT NULL AND i.status = 'FRIENDED'
                           AND i.group_link_sent_at IS NULL AND k.auto_send_approved_at IS NOT NULL
-                        ORDER BY i.id LIMIT 1""")
+                        """ + testMode.onlyTestSql("c.phone") + " ORDER BY i.id LIMIT 1")
                 .query((rs, n) -> new LinkTask(rs.getLong("id"), rs.getLong("campaign_id"), rs.getLong("customer_id"),
                         rs.getString("phone"), rs.getString("zalo_uid"), rs.getString("name"), rs.getString("province"),
                         rs.getString("token"), (Long) rs.getObject("held")))
