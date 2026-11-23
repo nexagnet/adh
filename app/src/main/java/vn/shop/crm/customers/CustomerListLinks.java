@@ -45,14 +45,6 @@ public final class CustomerListLinks {
         return query.effectiveDesc() ? "descending" : "ascending";
     }
 
-    /** Mũi tên hiển thị: ▲ tăng, ▼ giảm, ↕ chưa sắp theo cột này. */
-    public String arrow(String key) {
-        if (!query.effectiveSort().param().equals(key)) {
-            return "↕";
-        }
-        return query.effectiveDesc() ? "▼" : "▲";
-    }
-
     public String with(String key, String value) {
         return url(LIST, query.with(key, value).params());
     }

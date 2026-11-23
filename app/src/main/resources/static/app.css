@@ -512,11 +512,33 @@ details.rowedit > summary::-webkit-details-marker { display: none; }
 .table-tools { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; margin: 0; }
 .table-wrap > table.grid { min-width: 860px; }
 table.grid th, table.grid td { padding-left: 10px; padding-right: 10px; }
+.th-in { display: flex; align-items: center; gap: 4px; }
 th a.sort { display: inline-flex; align-items: center; gap: 6px; color: inherit; text-decoration: none; white-space: nowrap; }
 th a.sort:hover { color: var(--primary); }
-th a.sort .arrow { color: var(--faint); font-size: 14px; }
-th a.sort .arrow.on { color: var(--primary); }
+/* Biểu tượng sắp xếp: hai tam giác nhỏ; chưa sắp xếp thì mờ cả hai, đang sắp xếp thì chỉ còn mũi tên đúng chiều, màu xanh. */
+.sort-ico { flex: none; fill: var(--faint); opacity: .55; }
+th a.sort:hover .sort-ico, th a.sort:focus-visible .sort-ico { opacity: 1; fill: var(--primary); }
+th[aria-sort=ascending] .sort-ico, th[aria-sort=descending] .sort-ico { fill: var(--primary); opacity: 1; }
+th[aria-sort=ascending] .sort-ico .d, th[aria-sort=descending] .sort-ico .u { display: none; }
 th[aria-sort=ascending], th[aria-sort=descending] { background: #e3ecf6; }
+/* Biểu tượng phễu: ẩn cho tới khi rê chuột vào tiêu đề cột (điện thoại không có chuột nên hiện mờ). Cột đang lọc luôn hiện, có chấm xanh. */
+.fbtn { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none; width: 28px; height: 28px; padding: 0;
+    border: 0; border-radius: 8px; background: transparent; color: var(--faint); cursor: pointer; opacity: 0; transition: opacity .12s, background .12s; }
+th:hover .fbtn, th:focus-within .fbtn, .fbtn[aria-expanded=true], .fbtn.active { opacity: 1; }
+@media (hover: none), (max-width: 700px) { .fbtn { opacity: .75; } }
+.fbtn:hover { background: #cfdceb; color: var(--primary); }
+.fbtn:focus-visible { outline: 3px solid var(--primary); outline-offset: 1px; opacity: 1; }
+.fbtn[aria-expanded=true] { background: #cfdceb; color: var(--primary); }
+.fbtn.active { color: var(--primary); }
+.fbtn .fdot { display: none; position: absolute; top: 3px; right: 3px; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); border: 1.5px solid #fff; }
+.fbtn.active .fdot { display: block; }
+.fbtn[hidden], #applyfilters[hidden] { display: none; }
+/* Hàng lọc: chỉ hiện ô của các cột đã bấm phễu (bảng có class js-filters do table-filter.js gắn). */
+table.js-filters tr.filter-row { display: none; }
+table.js-filters.has-open tr.filter-row { display: table-row; }
+table.js-filters tr.filter-row > td > * { display: none; }
+table.js-filters tr.filter-row > td.open > * { display: block; }
+table.js-filters tr.filter-row > td.open > .range { display: flex; }
 tr.filter-row > td { background: #f8fafc; padding: 8px 10px; vertical-align: top; }
 tr.filter-row input, tr.filter-row select { font-size: 15px; padding: 7px 8px; width: 100%; max-width: none; min-width: 84px; }
 tr.filter-row input[type=date] { font-size: 14px; padding: 6px; min-width: 128px; }
@@ -594,8 +616,32 @@ details.notice > summary::marker { color: var(--warn); }
     .login { margin: 40px auto; }
     .login .card { padding: 24px; }
 
+    /* Bảng khách có sắp xếp và lọc: tiêu đề cột thành hàng nút nhỏ (bấm để sắp xếp, phễu để lọc), mỗi khách là một thẻ. */
+    .table-wrap:has(> table.grid) { overflow: visible; }
+    .table-wrap > table.grid { min-width: 0; display: block; border: 0; background: transparent; }
+    table.grid thead, table.grid tbody { display: block; }
+    table.grid thead tr:first-child { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 0 12px; background: transparent; }
+    table.grid thead th { display: block; padding: 2px 2px 2px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); }
+    table.grid thead th[aria-sort=ascending], table.grid thead th[aria-sort=descending] { background: #e3ecf6; border-color: var(--primary); }
+    table.grid thead th .th-in { gap: 2px; }
+    table.grid thead th a.sort { padding: 8px 4px; font-size: 16px; }
+    .fbtn { width: 40px; height: 40px; }
+    table.js-filters tr.filter-row > td { display: none; }
+    table.js-filters tr.filter-row > td.open { display: block; padding: 12px 16px; background: var(--card); border: 1px solid var(--primary); border-radius: 12px; margin-bottom: 8px; }
+    table.js-filters tr.filter-row > td.open::before { content: "Lọc theo " attr(data-label); display: block; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+    table.js-filters.has-open tr.filter-row { display: block; padding-bottom: 4px; }
+    table.grid tbody tr { display: block; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 6px 16px; margin-bottom: 12px; }
+    table.grid tbody td { display: block; padding: 8px 0; border-bottom: 1px solid var(--line); text-align: left; overflow-wrap: anywhere; }
+    table.grid tbody td:last-child, table.grid tbody td.last-shown { border-bottom: 0; }
+    table.grid tbody td.blank { display: none; }
+    table.grid tbody td[data-label]::before { content: attr(data-label); display: block; color: var(--muted); font-size: 15px; font-weight: 700; margin-bottom: 1px; }
+    table.grid tbody td.num { text-align: left; }
+    table.grid tbody td[colspan] { border: 0; }
+    table.grid tbody td[colspan]::before { content: none; }
+
     /* Bảng từ 4 cột: mỗi dòng thành một thẻ, tên cột hiện trên giá trị (responsive-tables.js gắn data-label cho từng ô theo tiêu đề cột) */
     .table-wrap { overflow: visible; }
+    .table-wrap:has(> table.grid) { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .table-wrap > table.stack-m, table.stack-m { min-width: 0; display: block; border: 0; background: transparent; border-radius: 0; }
     table.stack-m tbody, table.stack-m thead { display: block; }
     table.stack-m tr:has(> th) { display: none; }
