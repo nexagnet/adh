@@ -7,7 +7,7 @@
 - Mọi trả lời là JSON, mã `200` cho mọi kết quả đã xử lý (kể cả lỗi riêng một người); mã khác `200` là lỗi hạ tầng và Adh coi là "lạ".
 - **D18 (23/11/2026):** thêm đường `POST /messages` (gửi MỘT tin văn bản cho MỘT khách, có hạn mức và khoảng nghỉ cố định). **Vẫn không có** đường gửi lời mời kết bạn, nhận lời mời, liệt kê bạn bè hay lệnh tùy ý. Chỉ có thêm đường đọc `GET /groups` (nhóm của chính tài khoản phụ). Test `ZaloGatewayShapeTest` (Java), `zalo-bridge/test/server.test.mjs` và `no-send.test.mjs` (Node) khóa việc này, kể cả số lần xuất hiện của `findUser`/`sendMessage` (đúng một lần mỗi hàm, chỉ trong `zca-adapter.mjs`).
 
-## Việc của Zalo (ba việc gốc, cộng `POST /messages` từ D18)
+## Việc của Zalo (ba việc gốc, cộng `POST /messages` từ D18 và `POST /groups` từ D19)
 
 ### `GET /status`
 ```json
@@ -45,6 +45,19 @@ Cầu nối có **trần cứng riêng** (gấp đôi `APP_ZALO_AUTO_MAX_DAILY` 
 - `PERSON_ERROR`: lỗi riêng người này, không làm cầu dao nhảy: `NOT_FOUND` (số không có Zalo hoặc không tìm thấy), `DUPLICATE` (đã gửi tin loại này cho người này rồi, sổ nhớ bằng mã băm HMAC, không bao giờ gửi lần hai), `BAD_INPUT`, `BAD_PHONE`, `BAD_ID`.
 - `RESTRICTED` (`WINDOW` ngoài 07:00–22:00; `MSG_LIMIT` quá `BRIDGE_MSG_DAILY` mỗi ngày, mặc định 60; `NOT_ACTIVE`), `SESSION_LOST` (`LOGIN_REQUIRED`), `SYSTEM_ERROR` (`BUSY`, `NOT_CONNECTED`, và `NO_ACK` khi Zalo không xác nhận: **không biết đã gửi hay chưa**, cầu nối tự dừng). Các mã `BUSY`, `NOT_CONNECTED`, `NOT_ACTIVE`, `WINDOW`, `MSG_LIMIT`, `LOGIN_REQUIRED`, `BAD_*` là bị từ chối TRƯỚC khi chạm Zalo (Adh coi là "chưa gửi"); mọi kết quả lạ khác Adh coi là "không biết", đánh dấu thất bại và dừng, không tự gửi lại.
 - Không có độ trễ ngẫu nhiên, không giả người: khoảng nghỉ là **cố định**, trần và khung giờ là cầu dao thật. Nhật ký bộ nối không chứa số, mã, tên hay nội dung tin.
+
+### `POST /groups` (D19)  body `{"name":"Pin ADH - Miền Nam - 01", "members":["111","222"], "deputy":"333"}`
+Tạo đúng MỘT nhóm Zalo, bật link mời và (nếu có `deputy`) thêm người đó làm phó nhóm. `name` 1–100 ký tự, không có ký tự điều khiển; `members` 1–5 mã Zalo chữ số (khách đã đồng ý vào nhóm); `deputy` tùy chọn (mã của mẹ, Adh đọc từ biến môi trường, không ghi vào repo). Trả:
+```json
+{ "outcome": "OK", "groupId": "9876", "link": "https://zalo.me/g/xxxx", "added": ["111"], "failed": ["222"], "deputy": "OK" }
+{ "outcome": "RATE_LIMITED", "retryAfterSec": 120 }
+{ "outcome": "PERSON_ERROR", "code": "BAD_NAME" }
+```
+- `OK`: nhóm đã tạo. `added` là người Zalo xác nhận đã vào, `failed` là người chưa vào (Adh dùng link mời làm dự phòng). `link` là `null` khi bật link lỗi; `deputy` là `OK`, `FAILED` hoặc `NONE`. Bật link hoặc thêm phó nhóm lỗi **không** làm cầu dao nhảy (nhóm đã có; Adh ghi lại và nhắc mẹ làm tay), trừ khi Zalo báo hạn chế/mất phiên.
+- `PERSON_ERROR`: `BAD_NAME`, `BAD_MEMBERS`, `BAD_DEPUTY` (đầu vào sai, chưa chạm Zalo).
+- `RATE_LIMITED`: chưa đủ khoảng nghỉ cố định giữa hai lần tạo (`BRIDGE_GROUP_GAP_SEC`, mặc định và tối thiểu 300 giây). Chắc chắn chưa tạo.
+- `RESTRICTED` (`WINDOW` ngoài 07:00–22:00; `GROUP_LIMIT` quá `BRIDGE_GROUP_DAILY` mỗi ngày, mặc định 3 và **trần cứng 3**: cầu nối tự dừng; `NOT_ACTIVE`), `SESSION_LOST` (`LOGIN_REQUIRED`), `SYSTEM_ERROR` (`BUSY`, `NOT_CONNECTED`, `NO_ACK` khi Zalo không trả mã nhóm: **không biết đã tạo hay chưa**, cầu nối tự dừng, không tự thử lại).
+- Sổ đếm lần tạo (`group-creates.json`) ghi TRƯỚC khi gọi Zalo; sổ hỏng thì dừng (`LEDGER_CORRUPT`). Không có độ trễ ngẫu nhiên; tên nhóm, mã nhóm, mã người không vào log. Bộ nối **không** đổi chủ nhóm, đổi tên, xóa nhóm, đuổi người hay chặn ai.
 
 ## Đọc danh sách nhóm (chỉ đọc, chỉ trang quản trị gọi)
 ### `GET /groups`

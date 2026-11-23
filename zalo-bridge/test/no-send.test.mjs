@@ -38,9 +38,20 @@ test('findUser và sendMessage (D18) chỉ nằm trong bộ điều hợp thật
   assert.match(code('zca-adapter.mjs'), /sendMessage\(\{ msg: text \}, uid, ThreadType\.User\)/);
 });
 
-test('bộ điều hợp zca-js chỉ dùng đúng chín thành phần của api (thêm hai hàm chỉ đọc nhóm, findUser và sendMessage của D18)', () => {
+test('bộ điều hợp zca-js chỉ dùng đúng mười hai thành phần của api (thêm hai hàm chỉ đọc nhóm, findUser và sendMessage của D18, ba hàm tạo nhóm của D19)', () => {
   const used = new Set([...code('zca-adapter.mjs').matchAll(/this\.api\??\.([A-Za-z]+)/g)].map((m) => m[1]));
-  assert.deepEqual([...used].sort(), ['addUserToGroup', 'findUser', 'getAllGroups', 'getGroupInfo', 'getOwnId', 'getUserInfo', 'listener', 'logout', 'sendMessage'].sort());
+  assert.deepEqual([...used].sort(), ['addGroupDeputy', 'addUserToGroup', 'createGroup', 'enableGroupLink', 'findUser', 'getAllGroups', 'getGroupInfo', 'getOwnId', 'getUserInfo', 'listener', 'logout', 'sendMessage'].sort());
+});
+
+test('D19: createGroup, enableGroupLink, addGroupDeputy mỗi hàm đúng một chỗ gọi, chỉ ở bộ điều hợp thật; không đổi chủ nhóm, không giải tán, không đổi tên', () => {
+  for (const f of files) {
+    const c = code(f);
+    for (const fn of ['createGroup', 'enableGroupLink', 'addGroupDeputy']) {
+      const n = (c.match(new RegExp(`\\bapi\\??\\.${fn}\\b`, 'g')) ?? []).length;
+      assert.equal(n, f === 'zca-adapter.mjs' ? 1 : 0, `${f}: ${fn}`);
+    }
+    assert.ok(!/(changeGroupOwner|disperseGroup|changeGroupName|removeGroupDeputy|removeUserFromGroup|leaveGroup|blockUser|deleteGroup)\b/.test(c), `${f} có hàm nhóm bị cấm`);
+  }
 });
 
 test('không đặt userAgent, không proxy, không đổi dấu vân tay (không che việc dùng thư viện)', () => {
