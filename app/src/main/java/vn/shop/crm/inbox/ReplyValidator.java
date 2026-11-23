@@ -64,6 +64,14 @@ public final class ReplyValidator {
 
     /** Rỗng nghĩa là qua. Có giá trị là mã lý do chặn (không chứa nội dung khách). */
     public static Optional<String> check(String reply, String infoText) {
+        return check(reply, infoText, "");
+    }
+
+    /**
+     * Như trên; {@code profileText} là hồ sơ của khách đang nhắn: chỉ để cho phép AI nhắc lại CON SỐ có trong hồ sơ (ví dụ ngày, số lần mua). Hồ sơ
+     * không mở thêm từ nào khác: các chữ như "bảo hành", "TikTok" vẫn chỉ được nhắc khi bảng thông tin cửa hàng có.
+     */
+    public static Optional<String> check(String reply, String infoText, String profileText) {
         if (reply == null || reply.isBlank()) {
             return Optional.of("RONG");
         }
@@ -78,7 +86,9 @@ public final class ReplyValidator {
             return Optional.of("CO_SO_DIEN_THOAI_HOAC_EMAIL");
         }
         String info = fold(infoText);
-        if (!numbers(info).containsAll(numbers(folded))) {
+        Set<String> allowedNumbers = numbers(info);
+        allowedNumbers.addAll(numbers(fold(profileText)));
+        if (!allowedNumbers.containsAll(numbers(folded))) {
             return Optional.of("CON_SO_NGOAI_BANG");
         }
         for (Pattern w : ALWAYS) {
