@@ -3,6 +3,7 @@ package vn.shop.crm.zalo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import vn.shop.crm.common.AppSettings;
 import vn.shop.crm.inbox.ComebackService;
 import vn.shop.crm.inbox.RefusalClassifier;
@@ -10,6 +11,7 @@ import vn.shop.crm.inbox.RefusalClassifier.Label;
 import vn.shop.crm.inbox.RefusalClassifier.Verdict;
 import vn.shop.crm.inbox.RefusalReviewService;
 import vn.shop.crm.inbox.ReplyService;
+import vn.shop.crm.inbox.WarrantyService;
 import vn.shop.crm.inbox.RefusalReviewService.Reason;
 import vn.shop.crm.inbox.RefusalReviewService.Target;
 
@@ -45,10 +47,19 @@ public class ZaloInboxService implements ZaloTickHook {
     private final RefusalReviewService reviews;
     private final ComebackService comebacks;
     private final ReplyService replies;
+    /** Phần phân loại bảo hành và khiếu nại; null nghĩa là không có (các bài test dựng tay). */
+    private final WarrantyService warranty;
 
     public ZaloInboxService(ZaloInboxProperties props, ZaloInboxReader reader, ZaloGateway gateway, ZaloAutoSettings cfg,
                             AppSettings settings, RefusalClassifier classifier, RefusalReviewService reviews,
                             ComebackService comebacks, ReplyService replies) {
+        this(props, reader, gateway, cfg, settings, classifier, reviews, comebacks, replies, null);
+    }
+
+    @Autowired
+    public ZaloInboxService(ZaloInboxProperties props, ZaloInboxReader reader, ZaloGateway gateway, ZaloAutoSettings cfg,
+                            AppSettings settings, RefusalClassifier classifier, RefusalReviewService reviews,
+                            ComebackService comebacks, ReplyService replies, WarrantyService warranty) {
         this.props = props;
         this.reader = reader;
         this.gateway = gateway;
@@ -58,6 +69,7 @@ public class ZaloInboxService implements ZaloTickHook {
         this.reviews = reviews;
         this.comebacks = comebacks;
         this.replies = replies;
+        this.warranty = warranty;
     }
 
     public boolean running() {
@@ -77,6 +89,9 @@ public class ZaloInboxService implements ZaloTickHook {
         try {
             reviews.purgeOld();
             comebacks.purgeOld();
+            if (warranty != null) {
+                warranty.purgeOld();
+            }
             // việc trả lời khách do ZaloReplySender dọn; ở đây chỉ nhận tin
         } catch (RuntimeException e) {
             log.warn("Không dọn được trích đoạn cũ: {}", e.getClass().getSimpleName());
@@ -180,11 +195,11 @@ public class ZaloInboxService implements ZaloTickHook {
     }
 
     /**
-     * Khách ĐÃ vào nhóm (lời mời JOINED, không có cờ từ chối) nhắn riêng: chỉ khi trợ lý trả lời không TẮT. AI gắn nhãn, rồi phần trả lời quyết
+     * Khách ĐÃ vào nhóm (lời mời JOINED, không có cờ từ chối) nhắn riêng: chỉ khi trợ lý trả lời không TẮT hoặc phần bảo hành đang bật. AI gắn nhãn, rồi phần trả lời quyết
      * (trả lời trong phạm vi hẹp hoặc chuyển người thật). Khách từng từ chối không bao giờ vào đường này. Mode TẮT thì không gọi AI.
      */
     private boolean joined(ZaloInboxReader.Inbound m) {
-        if (replies.mode() == ReplyService.Mode.OFF) {
+        if (replies.mode() == ReplyService.Mode.OFF && !warrantyOn()) {
             return false;
         }
         Optional<ReplyService.Subject> s = replies.joinedSubject(m.uid());
@@ -198,9 +213,18 @@ public class ZaloInboxService implements ZaloTickHook {
         return true;
     }
 
+    private boolean warrantyOn() {
+        return warranty != null && warranty.enabled();
+    }
+
     /** Việc trả lời lỗi không được làm kẹt con trỏ tin đến hay phần nhận diện từ chối: ghi log và bỏ qua tin này. */
     private void answer(ReplyService.Subject s, Verdict v, String text, ZaloInboxReader.Inbound m) {
         try {
+            // Báo lỗi, phàn nàn: phần bảo hành lập việc cho người thật (kèm đơn đã mua), không để AI trả lời chen vào.
+            if (warranty != null && warranty.take(s, v, text, m.at())) {
+                cfg.log(A_INBOX, s.invitationId(), null, "BAO_HANH_NHAN_VIEC", null, "system");
+                return;
+            }
             ReplyService.Result r = replies.handle(s, v, text, m.at());
             cfg.log(A_INBOX, s.invitationId(), null, "TRA_LOI_" + r.name(), null, "system");
         } catch (RuntimeException e) {

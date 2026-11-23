@@ -33,6 +33,25 @@
             <span class="sub-line" th:unless="${inboxRunning}">Cần bật cả ba công tắc ở máy chủ: APP_ZALO_INBOX_ENABLED, BRIDGE_INBOX_ENABLED ở cầu nối và APP_AI_ENABLED (kèm khóa và tên mô hình).</span></p>
     </section>
 
+    <section class="panel stack" id="bao-hanh">
+        <h2>Phân loại bảo hành và khiếu nại</h2>
+        <p class="hint">Khách đã nhận tin của hệ thống tự nhắn riêng <strong>báo lỗi hoặc phàn nàn</strong>: AI phân loại (sản phẩm lỗi, giao hàng, hỏi cách dùng, hoàn tiền), đánh dấu mức gấp
+            (pin nóng, phồng, mùi khét là gấp), tóm tắt và soạn <strong>nháp</strong>. Hệ thống tạo một việc ở <a th:href="@{/handoffs}">Việc cần xử lý</a> kèm các đơn khách đã mua.
+            Phần này <strong>không bao giờ tự gửi gì cho khách</strong> và không hứa bảo hành hay hoàn tiền; người thật quyết định.</p>
+        <ul class="hint">
+            <li>Chỉ gửi AI văn bản đã che số điện thoại, tên hàng và số ngày kể từ khi giao. Không gửi tên, số điện thoại, địa chỉ, mã vận đơn hay mã Zalo.</li>
+            <li>Chỉ đọc chữ: ảnh và video khách gửi không được đọc (mô hình hiện dùng chỉ nhận chữ); AI chỉ gợi ý có nên xin ảnh không. Mẹ xem ảnh trên Zalo.</li>
+            <li>Chữ khách, tóm tắt và nháp bị xóa khi bấm "Đã xử lý" hoặc sau 30 ngày. Nháp có lời hứa, con số, đường dẫn hay thông tin cá nhân bị bỏ, việc vẫn được tạo.</li>
+            <li>Cần cùng điều kiện đọc tin riêng như bên trên (ba công tắc ở máy chủ); không cần bật nấc trả lời.</li>
+        </ul>
+        <p>Đang có <a th:href="@{/handoffs}"><strong th:text="${warrantyOpen}">0</strong> việc</a> chờ xử lý.</p>
+        <form class="stack" th:action="@{/zalo/reply/warranty}" method="post">
+            <label class="field"><input type="radio" name="enabled" value="false" th:checked="${!warrantyOn}"> <span>Tắt</span></label>
+            <label class="field"><input type="radio" name="enabled" value="true" th:checked="${warrantyOn}"> <span>Bật phân loại bảo hành và khiếu nại</span></label>
+            <div><button type="submit" class="btn">Lưu</button></div>
+        </form>
+    </section>
+
     <section class="panel stack" id="nac">
         <h2>Nấc</h2>
         <form class="stack" th:action="@{/zalo/reply/mode}" method="post">

@@ -32,11 +32,13 @@ public class NavMenu {
     private final InviteService invites;
     private final vn.shop.crm.inbox.RefusalReviewService refusals;
     private final vn.shop.crm.inbox.ReplyService replies;
+    private final vn.shop.crm.inbox.WarrantyService warranty;
     private final vn.shop.crm.zalo.ZaloHealthService zaloHealth;
 
     public NavMenu(HandoffService handoffs, PrivacyService privacy, StatusMappingService statuses, ZaloAutoService zalo,
                    InviteService invites, vn.shop.crm.inbox.RefusalReviewService refusals, vn.shop.crm.inbox.ReplyService replies,
-                   vn.shop.crm.zalo.ZaloHealthService zaloHealth) {
+                   vn.shop.crm.inbox.WarrantyService warranty, vn.shop.crm.zalo.ZaloHealthService zaloHealth) {
+        this.warranty = warranty;
         this.zaloHealth = zaloHealth;
         this.refusals = refusals;
         this.replies = replies;
@@ -60,7 +62,7 @@ public class NavMenu {
 
     public List<Group> groups(String currentKey) {
         String key = currentKey == null ? "/" : currentKey;
-        long handoffOpen = handoffs.openCount() + refusals.heldCount() + replies.openCount();
+        long handoffOpen = handoffs.openCount() + refusals.heldCount() + replies.openCount() + warranty.openCount();
         long privacyOpen = privacy.openCount();
         long unmapped = statuses.unmapped().size();
         long friendWaiting = invites.friendStats().readyToAdd();
