@@ -26,6 +26,29 @@
             </form>
         </div>
     </div>
+    <div class="panel stack">
+        <h2>Lịch và nhịp riêng của chiến dịch</h2>
+        <p class="hint">Mặc định chiến dịch theo cài đặt chung ở <a th:href="@{/zalo}">Zalo tài khoản phụ</a>. Ở đây bạn chỉ có thể làm <strong>chặt hơn</strong>
+            (khung giờ hẹp hơn, hạn mức ngày thấp hơn, nghỉ giữa hai tin dài hơn, giới hạn ngày), không thể nới. Để trống ô nào là theo hệ thống.
+            Các giới hạn chung (công tắc, giờ gửi, hạn mức ngày, khoảng nghỉ, cầu dao, mỗi khách một Tin 1) vẫn áp dụng thêm.</p>
+        <p th:if="${schedBlock != null}"><span class="badge warn">ĐANG CHỜ</span> <span th:text="${schedBlock}">Chưa tới ngày bắt đầu</span>.</p>
+        <p class="muted small" th:text="'Đang có hiệu lực: khung giờ ' + ${#temporals.format(schedEffective.windowFrom, 'HH:mm')} + ' đến ' + ${#temporals.format(schedEffective.windowTo, 'HH:mm')}
+            + ', tối đa ' + ${schedEffective.dailyCap} + ' khách mỗi ngày, nghỉ ít nhất ' + ${schedEffective.gapSeconds} + ' giây giữa hai tin'">Đang có hiệu lực</p>
+        <form th:action="@{/campaigns/{id}/schedule(id=${campaign.id})}" method="post" class="stack">
+            <div class="formrow">
+                <label class="field">Bắt đầu từ ngày <input type="date" name="startOn" th:value="${sched.startOn}"></label>
+                <label class="field">Kết thúc ngày <input type="date" name="endOn" th:value="${sched.endOn}"></label>
+                <label class="field">Khung giờ từ <input type="time" name="windowFrom" th:value="${sched.windowFrom}"></label>
+                <label class="field">đến <input type="time" name="windowTo" th:value="${sched.windowTo}"></label>
+                <label class="field">Khách mỗi ngày (tối đa) <input type="number" name="dailyCap" min="1" th:value="${sched.dailyCap}" placeholder="theo hệ thống"></label>
+                <label class="field">Nghỉ giữa hai tin (giây) <input type="number" name="gapSeconds" min="30" max="3600" th:value="${sched.gapSeconds}" placeholder="theo hệ thống"></label>
+            </div>
+            <div class="actions">
+                <button type="submit" class="btn">Lưu lịch và nhịp</button>
+                <button type="submit" class="btn secondary" name="reset" value="true" th:if="${sched.any()}">Theo hệ thống (xóa giá trị riêng)</button>
+            </div>
+        </form>
+    </div>
     <div class="panel stack" th:if="${autoApproved}">
         <h2>Tự nhận khách mới</h2>
         <p class="hint">Thay cho duyệt từng người: chiến dịch có <strong>tiêu chí duyệt sẵn</strong>. Khi bật, khách <strong>mới nhập về từ lúc bật</strong> (đồng bộ hoặc nhập đơn hằng ngày)

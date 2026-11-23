@@ -21,11 +21,13 @@ public class CampaignController {
     private final vn.shop.crm.zalo.ZaloInviteSender autoSender;
     private final vn.shop.crm.zalo.ZaloMessageService messages;
     private final vn.shop.crm.zalo.ZaloCampaignIntake intake;
+    private final vn.shop.crm.zalo.CampaignPolicy policy;
 
     public CampaignController(InviteService invites, ContactService contacts, AppSettings settings,
                               vn.shop.crm.zalo.ZaloInviteSender autoSender, vn.shop.crm.zalo.ZaloMessageService messages,
-                              vn.shop.crm.zalo.ZaloCampaignIntake intake) {
+                              vn.shop.crm.zalo.ZaloCampaignIntake intake, vn.shop.crm.zalo.CampaignPolicy policy) {
         this.intake = intake;
+        this.policy = policy;
         this.invites = invites;
         this.contacts = contacts;
         this.settings = settings;
@@ -92,7 +94,66 @@ public class CampaignController {
         model.addAttribute("autoApproved", autoSender.approved(id));
         model.addAttribute("autoSwitch", messages.enabled());
         model.addAttribute("intake", intake.status(id));
+        var raw = policy.load(id);
+        model.addAttribute("sched", raw);
+        model.addAttribute("schedEffective", policy.effective(raw));
+        model.addAttribute("schedBlock", policy.blocker(id).map(vn.shop.crm.zalo.CampaignPolicy.Block::label).orElse(null));
         return "campaign-detail";
+    }
+
+    /**
+     * Lịch và nhịp RIÊNG của chiến dịch (D21 PR 4): chỉ làm chặt hơn trần hệ thống, để trống là theo hệ thống.
+     * Nút "Theo hệ thống" (reset) xóa hết giá trị riêng.
+     */
+    @PostMapping("/campaigns/{id}/schedule")
+    public String saveSchedule(@PathVariable long id, @RequestParam(required = false) String startOn,
+                               @RequestParam(required = false) String endOn, @RequestParam(required = false) String windowFrom,
+                               @RequestParam(required = false) String windowTo, @RequestParam(required = false) String dailyCap,
+                               @RequestParam(required = false) String gapSeconds, @RequestParam(defaultValue = "false") boolean reset,
+                               RedirectAttributes redirect) {
+        invites.campaign(id).orElseThrow(() -> new ImportException("Không tìm thấy chiến dịch."));
+        var raw = reset ? vn.shop.crm.zalo.CampaignPolicy.Raw.NONE
+                : new vn.shop.crm.zalo.CampaignPolicy.Raw(date(startOn, "Ngày bắt đầu"), date(endOn, "Ngày kết thúc"),
+                time(windowFrom, "Giờ bắt đầu"), time(windowTo, "Giờ kết thúc"), number(dailyCap, "Hạn mức ngày"),
+                number(gapSeconds, "Khoảng nghỉ"));
+        policy.save(id, raw, ContactService.actor());
+        redirect.addFlashAttribute("flash", reset
+                ? "Đã bỏ lịch và nhịp riêng: chiến dịch theo cài đặt chung của hệ thống."
+                : "Đã lưu lịch và nhịp riêng. Các giới hạn chung của hệ thống vẫn áp dụng thêm.");
+        return "redirect:/campaigns/" + id;
+    }
+
+    private static java.time.LocalDate date(String v, String label) {
+        if (v == null || v.isBlank()) {
+            return null;
+        }
+        try {
+            return java.time.LocalDate.parse(v.strip());
+        } catch (java.time.format.DateTimeParseException e) {
+            throw new ImportException(label + " không đúng (cần dạng năm-tháng-ngày).");
+        }
+    }
+
+    private static java.time.LocalTime time(String v, String label) {
+        if (v == null || v.isBlank()) {
+            return null;
+        }
+        try {
+            return java.time.LocalTime.parse(v.strip());
+        } catch (java.time.format.DateTimeParseException e) {
+            throw new ImportException(label + " không đúng (cần dạng giờ:phút).");
+        }
+    }
+
+    private static Integer number(String v, String label) {
+        if (v == null || v.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(v.strip());
+        } catch (NumberFormatException e) {
+            throw new ImportException(label + " phải là một số nguyên.");
+        }
     }
 
     /** Đánh dấu tay các bước của đường nhắn bằng tài khoản Zalo phụ: đã kết bạn, đã vào nhóm, khách từ chối. */

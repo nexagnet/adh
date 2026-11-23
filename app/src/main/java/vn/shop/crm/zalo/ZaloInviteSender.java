@@ -63,11 +63,13 @@ public class ZaloInviteSender {
     private final Clock clock;
     private final ZaloCampaignIntake intake;
     private final TestMode testMode;
+    private final CampaignPolicy policy;
 
     public ZaloInviteSender(JdbcClient jdbc, AppSettings settings, ZaloMessageService messages, ContactService contacts,
                             InviteService invites, GroupService groups, SendService sends, Clock clock,
-                            ZaloCampaignIntake intake, TestMode testMode) {
+                            ZaloCampaignIntake intake, TestMode testMode, CampaignPolicy policy) {
         this.intake = intake;
+        this.policy = policy;
         this.testMode = testMode;
         this.jdbc = jdbc;
         this.settings = settings;
@@ -104,13 +106,22 @@ public class ZaloInviteSender {
     // ---------- Tin 1 ----------
 
     private Step sendNextInvite() {
+        // Lịch và nhịp riêng của chiến dịch (D21 PR 4) chỉ để BỎ QUA chiến dịch chưa tới lượt, không bao giờ để gửi thêm; chiến dịch
+        // chưa đặt gì thì không bị kiểm gì. Bỏ qua từ đầu để một chiến dịch đang chờ không làm tắc hàng của chiến dịch khác.
+        List<Long> open = jdbc.sql("""
+                        SELECT DISTINCT i.campaign_id FROM invitation i JOIN invitation_campaign k ON k.id = i.campaign_id
+                        WHERE i.status = 'READY' AND k.auto_send_approved_at IS NOT NULL ORDER BY i.campaign_id""")
+                .query(Long.class).list().stream().filter(id -> policy.blocker(id).isEmpty()).toList();
+        if (open.isEmpty()) {
+            return Step.NOTHING;
+        }
         List<Invite> candidates = jdbc.sql("""
                         SELECT i.id, i.campaign_id, i.customer_id, c.phone, c.name, c.province, i.token, i.expires_at, k.message_template
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
                         JOIN invitation_campaign k ON k.id = i.campaign_id
-                        WHERE i.status = 'READY' AND k.auto_send_approved_at IS NOT NULL
+                        WHERE i.status = 'READY' AND k.auto_send_approved_at IS NOT NULL AND i.campaign_id IN (:open)
                         """ + testMode.onlyTestSql("c.phone") + " ORDER BY i.campaign_id, i.id LIMIT :n")
-                .param("n", SCAN)
+                .param("open", open).param("n", SCAN)
                 .query((rs, n) -> new Invite(rs.getLong("id"), rs.getLong("campaign_id"), rs.getLong("customer_id"),
                         rs.getString("phone"), rs.getString("name"), rs.getString("province"), rs.getString("token"),
                         rs.getObject("expires_at", OffsetDateTime.class), rs.getString("message_template"))).list();

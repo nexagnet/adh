@@ -68,8 +68,8 @@ class AdvisorController {
         try {
             long campaignId = proposals.approve(id, ContactService.actor());
             redirect.addFlashAttribute("flash", "Đã tạo chiến dịch từ đề xuất của AI. Chưa có tin nào được gửi: "
-                    + "bạn kiểm tra danh sách khách rồi mới duyệt cho hệ thống tự gửi. Lịch, khung giờ và hạn mức ngày AI gợi ý chỉ để tham khảo, "
-                    + "hệ thống vẫn dùng cài đặt chung ở Zalo tài khoản phụ.");
+                    + "bạn kiểm tra danh sách khách và lịch rồi mới duyệt cho hệ thống tự gửi. Ngày bắt đầu, khung giờ và hạn mức ngày AI gợi ý đã được đặt vào chiến dịch "
+                    + "(luôn trong giới hạn chung của hệ thống); bạn chỉnh được ở mục Lịch và nhịp riêng.");
             return "redirect:/campaigns/" + campaignId;
         } catch (ImportException e) {
             redirect.addFlashAttribute("flashBad", e.getMessage());
