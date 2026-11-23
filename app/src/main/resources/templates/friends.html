@@ -28,7 +28,7 @@
             <table>
                 <tr><th>Khách</th><th>Khu vực</th><th>Kết bạn lúc</th><th>Tình trạng</th><th>Nhóm Zalo</th><th>Bước tiếp theo</th></tr>
                 <tr th:each="r : ${friended}">
-                    <td><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.name != null ? r.name : 'Khách #' + r.customerId}">Nguyen Van A</a>
+                    <td class="who"><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.name != null ? r.name : 'Khách #' + r.customerId}">Nguyen Van A</a>
                         <span class="sub-line"><a th:href="@{/campaigns/{id}(id=${r.campaignId})}" th:text="${r.campaignName}">Đợt 1</a></span></td>
                     <td th:text="${r.provinceName}">Cần Thơ</td>
                     <td th:text="${r.friendedAt != null ? #temporals.format(r.friendedAt, 'dd/MM HH:mm') : ''}">22/11 09:00</td>
@@ -48,7 +48,7 @@
             <table>
                 <tr><th>Khách</th><th>Khu vực</th><th>Đã nhắn lúc</th><th>Tình trạng</th><th>Bước tiếp theo</th></tr>
                 <tr th:each="r : ${noReply}">
-                    <td><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.name != null ? r.name : 'Khách #' + r.customerId}">Nguyen Van A</a></td>
+                    <td class="who"><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.name != null ? r.name : 'Khách #' + r.customerId}">Nguyen Van A</a></td>
                     <td th:text="${r.provinceName}">Cần Thơ</td>
                     <td th:text="${r.sentAt != null ? #temporals.format(r.sentAt, 'dd/MM/yyyy') : ''}">01/11/2026</td>
                     <td th:replace="~{invite-parts :: status(${r})}"></td>

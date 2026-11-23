@@ -1,6 +1,6 @@
 # ADR-0002: Bộ nối Zalo không chính thức cho luồng "kết bạn → vào nhóm" (D16)
 
-Ngày: 22/11/2026. Trạng thái: **đã chọn hướng; đợt chạy thử 0 đã xong ngày 22/11/2026 (mục 9); đang code theo giai đoạn, xem mục 10; chủ shop chốt thêm hai đường vào nhóm, xem mục 11.** Quyết định D16 ở `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md`; phạm vi nghiệp vụ ở mục 1I của file đó.
+Ngày: 22/11/2026. Trạng thái: **đã chọn hướng; đợt chạy thử 0 đã xong ngày 22/11/2026 (mục 9); đang code theo giai đoạn, xem mục 10; chủ shop chốt thêm hai đường vào nhóm, xem mục 11; ngày 23/11/2026 chủ shop bỏ nguyên tắc "không tự gửi tin", xem mục 12 (D18, mới ghi tài liệu, mục 4 và mục 3.1.2 mô tả mã hiện tại và sẽ đổi theo mục 12).** Quyết định D16 ở `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md`; phạm vi nghiệp vụ ở mục 1I của file đó.
 
 ## 1. Bối cảnh và quyết định
 
@@ -104,6 +104,8 @@ Phiên gồm `imei + cookie + userAgent`; ai có phiên là **chiếm được t
 - Hậu quả nếu tài khoản phụ bị khóa: mất danh sách bạn và nhóm do tài khoản phụ tạo; D13/D15 chạy tay vẫn dùng được bằng một tài khoản phụ mới. Vì vậy **nhóm nên do tài khoản của mẹ làm trưởng nhóm** (mẹ chỉ cần là chủ nhóm, không đăng nhập cầu nối) và tài khoản phụ chỉ là thành viên có quyền thêm. Cần xác nhận được ở bước chạy thử (Q1).
 
 ## 4. Ranh giới: ngoài phạm vi
+> **Cập nhật D18 (23/11/2026, mục 12):** hai gạch đầu "làm sao cho giống người thật" và "gửi tin hàng loạt tự động" bị thay thế một phần: chủ shop cho phép hệ thống tự gửi tin từ tài khoản phụ, gửi từ từ (giãn cách, lô nhỏ). Các gạch còn lại, và việc né phát hiện bằng đổi dấu vân tay/`imei`/`userAgent`, proxy xoay, nhiều tài khoản luân phiên, giả gõ phím, **vẫn ngoài phạm vi**.
+
 Không làm, và nếu có yêu cầu thì ghi "ngoài phạm vi" rồi báo lại chủ shop:
 - Bất kỳ thứ gì để **giả dạng người dùng bình thường nhằm né phát hiện của Zalo**: giả lập gõ/click, độ trễ ngẫu nhiên giả người, đổi dấu vân tay thiết bị/`imei`/`userAgent` hoặc xoay vòng, proxy xoay, nhiều tài khoản luân phiên, đăng ký tài khoản mới để thay thế tự động.
 - **"Làm sao cho giống người thật làm"** (chủ shop hỏi 22/11/2026): **không làm** như một tính năng thêm. Phần được làm chỉ là **giới hạn tốc độ và khung giờ** của 3.4 (trần theo ngày/giờ, khoảng cách tối thiểu, chỉ 07:00–22:00, xếp hàng sang sau khi hết hạn mức). Đó là giới hạn khối lượng, **không** nhằm làm cho Zalo không phân biệt được với người. Bản thân zca-js vốn đã giả lập trình duyệt Zalo Web (đó là cách nó hoạt động); ta không thêm lớp nào phía trên để che. Nếu có yêu cầu thêm, ghi "ngoài phạm vi" và báo lại.
@@ -215,3 +217,16 @@ Chủ shop chọn **làm cả hai**: khách tự bấm link nhóm, **hoặc** kh
 - Còn một khe hẹp: bộ nối đang gọi Zalo thêm khách ngay lúc người gửi bấm *Đã gửi link nhóm*. Khi đó khách có thể được thêm một lần và còn nhận link; kết quả lành tính (Zalo báo đã ở trong nhóm hoặc không đổi gì), không làm cầu dao nhảy vì là lỗi theo người.
 
 "tk trợ lý" trong lời chủ shop được hiểu là **tài khoản Zalo phụ đang nối vào bộ nối** (D13/D16). Tài khoản Zalo riêng cho trợ lý AI trong nhóm (ADR-0001) là việc khác, chưa làm.
+
+## 12. Cập nhật 23/11/2026 (D18): bỏ "không tự gửi tin"
+Chủ shop (Phùng Việt) chốt: **bỏ** D9 "không tự gửi tin". Phạm vi mở rộng của giai đoạn 1 (đầy đủ ở `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md` mục 1I.11):
+- Hệ thống **tự gửi tin như người thật qua tài khoản Zalo phụ, gửi từ từ** (giãn cách giữa các tin, lô nhỏ) để tránh bị Zalo quét là bot.
+- Khi **khởi tạo chiến dịch** (chọn phạm vi khách), hệ thống tự gửi **Tin 1** và **tự thêm khách đồng ý kết bạn vào nhóm phù hợp**.
+- Khách vẫn có thể vào nhóm qua link, nhưng **nhóm tự thêm và nhóm của link phải là MỘT nhóm** (mục 11 ghi hai đường loại trừ nhau theo từng khách; D18 thêm điều kiện: không bao giờ trỏ hai nhóm khác nhau).
+- Chủ shop **chấp nhận rủi ro khóa tài khoản phụ** (đã báo ở mục 1 và 3.6; không tài khoản của bố mẹ).
+
+**Phần của ADR này bị ảnh hưởng:** mục 1 (ranh giới "đọc sự kiện và thêm vào nhóm" không còn là toàn bộ việc của bộ nối), mục 3.1.2 và 3.2 bước 1 ("người cầm tài khoản phụ vẫn nhắn tay", "cầu nối không nhắn, không gửi lời mời kết bạn"), mục 4 (hai gạch đầu, xem ghi chú ở đầu mục 4) và bài test khóa ranh giới `ZaloGatewayShapeTest`, `zalo-bridge/test/no-send.test.mjs`. Các mục đó **mô tả mã hiện tại** và còn đúng với mã cho tới khi PR mã của D18 gộp; PR mã phải sửa chúng cùng lúc.
+
+**Không đổi:** chỉ tài khoản phụ; một tin chủ động mỗi khách; sổ từ chối, cổng chặn, giờ 07:00–22:00, hạn mức, cầu dao; không dùng tài khoản của bố mẹ. **Vẫn ngoài phạm vi** vì D18 chỉ nêu giãn cách và lô nhỏ: đổi dấu vân tay thiết bị/`imei`/`userAgent`, proxy xoay, nhiều tài khoản luân phiên, giả gõ phím.
+
+**Còn mở trước khi code:** giãn cách tối thiểu, kích thước lô và hạn mức ngày/giờ cho việc gửi tin; Tin 2 (link nhóm) có tự gửi không; giữ nấc `CONFIRM` trước khi tự gửi hay chạy thẳng khi tạo chiến dịch. Chưa có mã; luồng Zalo khác làm phần mã.

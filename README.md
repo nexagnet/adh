@@ -25,6 +25,8 @@ Tài liệu gốc: [`01_DAC_TA_NGHIEP_VU.md`](01_DAC_TA_NGHIEP_VU.md) (nghiệp 
 
 Ngoài ra đã gộp vào `main`: giấy giới thiệu với mã QR chung `/n` (và `/moi`) và `/print` (PR #3, #10), danh sách khách lọc/sắp xếp theo cột (PR #21), tính "mua gần nhất" theo đơn giao thành công (PR #23).
 
+**Quyết định mới (D18, 23/11/2026, mới ghi tài liệu, chưa có mã):** chủ shop đã bỏ nguyên tắc "không tự gửi tin"; hệ thống sẽ tự gửi Tin 1 qua tài khoản Zalo phụ như người thật, gửi từ từ, khi khởi tạo chiến dịch, và tự thêm khách đồng ý kết bạn vào nhóm (xem `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md` mục 1I.11). Đoạn sau mô tả **mã hiện tại**.
+
 Mặc định hệ thống **không gửi tin tự động, không đăng nhập Zalo, không gọi dịch vụ ngoài nào (trừ: thời tiết nếu bạn bật `APP_WEATHER_ENABLED`, chỉ gửi tọa độ tỉnh; và trình duyệt của bạn tải ô bản đồ từ OpenStreetMap khi mở trang Bản đồ khách, không kèm dữ liệu khách)**. Chỉ đọc file bạn tải lên; muốn mời khách thì xuất danh sách hoặc dùng Lô nhắn hôm nay cho mẹ nhắn tay. **Ngoại lệ có chủ ý, tắt mặc định (D16):** bộ nối Zalo không chính thức `zalo-bridge/` (cần `APP_ZALO_AUTO_ENABLED`, profile Docker `zalo-auto` và chọn nấc ở trang `/zalo`), chỉ dùng tài khoản phụ; xem `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md`.
 
 Hướng dẫn dùng và cài máy chủ: [`docs/RUNBOOK.md`](docs/RUNBOOK.md).

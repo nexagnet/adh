@@ -5,7 +5,7 @@
 - Chỉ gọi trong **mạng nội bộ Docker**; dịch vụ không công bố cổng ra ngoài.
 - Mọi yêu cầu có tiêu đề `X-Bridge-Key: <khóa chung>`; sai khóa trả `401`.
 - Mọi trả lời là JSON, mã `200` cho mọi kết quả đã xử lý (kể cả lỗi riêng một người); mã khác `200` là lỗi hạ tầng và Adh coi là "lạ".
-- **Không có** đường gửi tin, gửi lời mời kết bạn, tìm người theo số, liệt kê bạn bè. Chỉ có thêm một đường đọc `GET /groups` (nhóm của chính tài khoản phụ). Test `ZaloGatewayShapeTest` (Java) và `zalo-bridge/test/server.test.mjs` và `no-send.test.mjs` (Node) khóa việc này.
+- *(D18, 23/11/2026: chủ shop bỏ nguyên tắc không tự gửi tin; dòng dưới mô tả hợp đồng hiện tại, sẽ đổi cùng PR mã, xem ADR-0002 mục 12.)* **Không có** đường gửi tin, gửi lời mời kết bạn, tìm người theo số, liệt kê bạn bè. Chỉ có thêm một đường đọc `GET /groups` (nhóm của chính tài khoản phụ). Test `ZaloGatewayShapeTest` (Java) và `zalo-bridge/test/server.test.mjs` và `no-send.test.mjs` (Node) khóa việc này.
 
 ## Ba việc của Zalo
 
