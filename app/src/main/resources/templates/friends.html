@@ -4,11 +4,12 @@
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
+    <div th:replace="~{fragments :: testModeAlert}"></div>
     <header class="page-head">
         <div class="titles">
             <h1>Chờ vào nhóm</h1>
             <p class="hint">Khách đã đồng ý kết bạn mà chưa vào nhóm, từ mọi chiến dịch. Thêm họ vào nhóm cùng khu vực (hoặc gửi link nhóm cho khách tự bấm)
-                rồi bấm <em>Đã vào nhóm</em>. Hệ thống chỉ nhắc trên web, <strong>không nhắn thêm</strong> cho khách nào.</p>
+                rồi bấm <em>Đã vào nhóm</em>. Đây là cách dự phòng: khi nấc tự thêm ở <a th:href="@{/zalo}">Zalo tài khoản phụ</a> đang chạy, hệ thống tự thêm khách vào nhóm và màn này sẽ bỏ sau khi thử xong. Màn này không nhắn thêm cho khách nào.</p>
         </div>
     </header>
 
@@ -43,7 +44,7 @@
 
     <section>
         <h2 th:text="'Đã nhắn quá ' + ${noReplyDays} + ' ngày mà chưa kết bạn'">Không phản hồi</h2>
-        <p class="muted">Chỉ để mẹ biết. <strong>Không nhắn lại</strong> cho các khách này (mỗi người chỉ nhận một tin chủ động).</p>
+        <p class="muted">Chỉ để bạn biết. <strong>Không nhắn lại</strong> cho các khách này (Tin 1 chỉ gửi một lần; tin nhắc chỉ có khi chiến dịch đặt gửi nhiều lần).</p>
         <div class="table-wrap" th:if="${!noReply.isEmpty()}">
             <table data-filter data-sticky>
                 <tr><th>Khách</th><th>Khu vực</th><th>Đã nhắn lúc</th><th>Tình trạng</th><th>Bước tiếp theo</th></tr>

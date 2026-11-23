@@ -8,13 +8,26 @@
     <header class="page-head">
         <div class="titles">
             <h1>Zalo tài khoản phụ</h1>
-            <p class="hint">Khách đồng ý kết bạn tài khoản phụ thì hệ thống ghép với lời mời và (tùy nấc) thêm vào nhóm Zalo của khu vực.
-                Chỉ dùng tài khoản phụ, không dùng tài khoản chính của mẹ.
-                Khách vào nhóm bằng một trong hai đường, không bao giờ cả hai: tự bấm link nhóm mẹ đã gửi (đường mặc định), hoặc tài khoản phụ tự thêm khi khách kết bạn (đường này, tắt mặc định).</p>
+            <p class="hint">Đây là <strong>một tài khoản Zalo phụ dùng chung</strong> cho mọi việc: gửi Tin 1 và tin nhắc, thêm khách vào nhóm, tạo nhóm, đọc tin riêng và trợ lý AI trả lời.
+                Không dùng tài khoản chốt đơn của mẹ. Khách đồng ý kết bạn thì hệ thống ghép với lời mời và (tùy nấc) tự thêm vào nhóm Zalo của khu vực;
+                nếu việc tự thêm lỗi thì khách nhận Tin 2 kèm link để tự bấm vào. Nhóm tự thêm và nhóm của link mời là <strong>cùng một nhóm</strong>.
+                Tài khoản bị Zalo khóa thì mọi việc dừng cùng lúc, nên các giới hạn dưới đây là chốt an toàn, đừng nới.
+                Lịch, nhịp và số lần gửi riêng của từng đợt đặt ở trang chiến dịch (chỉ được chặt hơn giới hạn chung ở đây).</p>
         </div>
     </header>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
+
+    <nav class="chips" aria-label="Đi nhanh tới mục">
+        <a class="chip" href="#che-do-thu">Chế độ thử</a>
+        <a class="chip" href="#suc-khoe">Sức khỏe tài khoản</a>
+        <a class="chip" href="#tu-gui">Tự gửi tin</a>
+        <a class="chip" href="#tao-nhom">Tự tạo nhóm</a>
+        <a class="chip" href="#tin-rieng">AI đọc tin riêng, khách quay lại</a>
+        <a class="chip" href="#cho-vao-nhom">Khách chờ vào nhóm</a>
+        <a class="chip" href="#gui-tay">Tạm dừng và nhật ký</a>
+        <a class="chip" th:href="@{/zalo/reply}">Trợ lý AI trả lời khách</a>
+    </nav>
 
     <section class="panel stack" id="che-do-thu">
         <h2>Chế độ thử: chỉ nhắn các số thử đã khai báo</h2>
@@ -107,7 +120,7 @@
         <div class="card"><div class="big"><span th:text="${quota.usedToday}">0</span> / <span th:text="${quota.limits.daily}">50</span></div><div class="label">Đã thêm hôm nay</div></div>
         <div class="card"><div class="big"><span th:text="${quota.usedLastHour}">0</span> / <span th:text="${quota.limits.hourly}">5</span></div><div class="label">Đã thêm trong 1 giờ qua</div></div>
     </div>
-    <p class="muted" th:unless="${quota.inWindow}">Ngoài khung giờ thêm người (07:00 đến 22:00): bộ nối sẽ không thêm ai lúc này.</p>
+    <p class="muted" th:unless="${quota.inWindow}">Ngoài khung giờ thêm người (<span th:text="${props.windowStart}">07:00</span> đến <span th:text="${props.windowEnd}">22:00</span>): bộ nối sẽ không thêm ai lúc này.</p>
     <div class="notice bad" th:if="${bridge.accountOk != null and !bridge.accountOk}">
         <strong>Đăng nhập nhầm tài khoản</strong>
         Tài khoản vừa đăng nhập không phải tài khoản phụ đã khai báo. Bộ nối từ chối và đăng xuất tài khoản đó.
@@ -151,8 +164,8 @@
     </section>
 
     <section class="panel stack">
-        <h2>Hạn mức</h2>
-        <p class="hint">Mọi lần gọi Zalo đều tính, kể cả lần lỗi. Trần cứng: <span th:text="${props.maxDaily}">100</span> người mỗi ngày,
+        <h2>Hạn mức thêm người vào nhóm</h2>
+        <p class="hint">Mục này chỉ giới hạn việc <strong>thêm khách vào nhóm</strong> (gửi tin có hạn mức riêng ở mục "Tự gửi tin cho khách" bên dưới). Mọi lần gọi Zalo đều tính, kể cả lần lỗi. Trần cứng: <span th:text="${props.maxDaily}">100</span> người mỗi ngày,
             <span th:text="${props.maxHourly}">10</span> người mỗi giờ (đổi ở cấu hình triển khai). Không có cách nào làm cho giống người thật bấm.</p>
         <form class="formrow" th:action="@{/zalo/limits}" method="post">
             <label class="field">Số người mỗi ngày <input type="number" name="daily" th:value="${quota.limits.daily}" min="1" th:max="${props.maxDaily}"></label>
@@ -162,13 +175,14 @@
         </form>
     </section>
 
-    <section class="panel stack">
+    <section class="panel stack" id="tu-gui">
         <h2>Tự gửi tin cho khách</h2>
         <p class="hint">Hệ thống tự gửi <strong>Tin 1</strong> (mời kết bạn) cho khách của chiến dịch <strong>đã được bạn duyệt</strong>, mỗi khách <strong>đúng một lần</strong>,
             và <strong>Tin 2</strong> (link nhóm) cho khách đã kết bạn mà không thêm được vào nhóm. Từng tin một, nghỉ một khoảng <strong>cố định</strong> giữa hai tin,
             chỉ trong khung giờ <span th:text="${msg.windowStart}">08:00</span>–<span th:text="${msg.windowEnd}">20:00</span>, không bao giờ gửi cho người đã từ chối.
             Zalo cảnh báo hoặc có lỗi lạ thì <strong>tự dừng</strong> (cầu dao) và chờ bạn bấm Mở lại. Hệ thống không làm gì để giống người thật gõ hay để né Zalo.
-            Hạn mức ngày tính theo <strong>số khách được nhắn chủ động</strong> (Tin 1), trần cứng <span th:text="${msg.maxDaily}">50</span> khách mỗi ngày (đổi ở cấu hình triển khai). Tin 2 và tin trả lời khách đã nhắn mình không tính vào số này, nhưng vẫn theo giờ gửi, khoảng nghỉ và cầu dao.</p>
+            Hạn mức ngày tính theo <strong>số khách được nhắn chủ động</strong> (Tin 1 và các tin nhắc lần 2, 3), trần cứng <span th:text="${msg.maxDaily}">50</span> khách mỗi ngày (đổi ở cấu hình triển khai). Tin 2 và tin trả lời khách đã nhắn mình không tính vào số này, nhưng vẫn theo giờ gửi, khoảng nghỉ và cầu dao.
+            Mỗi chiến dịch có thể đặt giờ, hạn mức và khoảng nghỉ <strong>chặt hơn</strong> ở trang của nó, không bao giờ nới được các giới hạn này.</p>
         <p>Công tắc: <strong th:text="${msg.enabled ? 'ĐANG BẬT' : 'ĐANG TẮT'}">ĐANG TẮT</strong>
             · hôm nay đã nhắn <strong th:text="${msg.usedToday}">0</strong>/<strong th:text="${msg.limits.daily}">10</strong> khách
             · khoảng nghỉ <strong th:text="${msg.limits.gapSeconds}">120</strong> giây
@@ -186,8 +200,9 @@
             <label class="field">Nghỉ giữa hai tin (giây) <input type="number" name="gap" th:value="${msg.limits.gapSeconds}" th:min="${props.msgMinGapSeconds}" max="3600"></label>
             <button type="submit" class="btn">Lưu hạn mức tin</button>
         </form>
-        <p class="hint">Chiến dịch chỉ được tự gửi sau khi bạn bấm <em>Duyệt cho hệ thống tự gửi</em> ở trang chi tiết chiến dịch.
-            Muốn thử trước: dùng <a th:href="@{/test-runs}">Chiến dịch thử</a> (cùng hạn mức, chỉ gửi cho số bạn tự nhập).</p>
+        <p class="hint">Chiến dịch chỉ được tự gửi sau khi bạn bấm <em>Duyệt cho hệ thống tự gửi</em> ở trang chi tiết chiến dịch (tự tạo, hoặc từ <a th:href="@{/advisor}">Đề xuất của AI</a>).
+            Chiến dịch gửi nhiều lần chỉ nhắc khi trợ lý AI đang đọc tin riêng để nghe được khách xin ngừng (mục "Nhận diện khách từ chối bằng AI" bên dưới).
+            Muốn thử trước: dùng <a th:href="@{/test-runs}">Chiến dịch thử</a> (cùng hạn mức, chỉ gửi cho số thử đã khai báo). Kết quả từng đợt xem ở <a th:href="@{/performance}">Hiệu quả chiến dịch</a>.</p>
     </section>
 
     <section class="panel stack" id="tao-nhom">
@@ -301,7 +316,7 @@
         </form>
     </section>
 
-    <section>
+    <section id="cho-vao-nhom">
         <h2>Khách chờ vào nhóm</h2>
         <p class="muted" th:if="${waiting.isEmpty()}">Chưa có khách nào chờ.</p>
         <div class="table-wrap" th:if="${!waiting.isEmpty()}">
@@ -399,9 +414,10 @@
         <div class="table-wrap">
             <table>
                 <tr><th>Điều kiện</th><th>Hệ thống làm gì</th></tr>
-                <tr><td>Gửi lỗi liên tiếp, hoặc tỉ lệ gửi lỗi cao</td><td>Dừng chiến dịch</td></tr>
-                <tr><td>Có khách từ chối hoặc khiếu nại</td><td>Dừng chiến dịch, báo bố mẹ xem</td></tr>
-                <tr><td>Hết ngân sách tháng</td><td>Dừng đến đầu tháng sau</td></tr>
+                <tr><td>Zalo cảnh báo, lỗi lạ, hoặc gửi lỗi liên tiếp</td><td>Cầu dao ngắt: dừng gửi tin và tạo nhóm, chờ bạn bấm Mở lại</td></tr>
+                <tr><td>Tỉ lệ gửi lỗi cao, hoặc tỉ lệ khách từ chối cao</td><td>Dừng chiến dịch, báo người thật xem</td></tr>
+                <tr><td>Vượt phanh khẩn cấp của bộ nối (mọi loại tin trong một ngày)</td><td>Bộ nối tự dừng đến hôm sau</td></tr>
+                <tr><td>Hết ngân sách tháng (chỉ áp dụng cho kênh có tính phí; Zalo không tính phí)</td><td>Dừng đến đầu tháng sau</td></tr>
             </table>
         </div>
         <p class="muted small" style="margin-top:10px">Hệ thống luôn gửi từng tin một và nghỉ một khoảng cố định giữa các tin, chỉ để dàn trải việc gửi.</p>

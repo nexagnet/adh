@@ -34,10 +34,13 @@ public class NavMenu {
     private final vn.shop.crm.inbox.ReplyService replies;
     private final vn.shop.crm.inbox.WarrantyService warranty;
     private final vn.shop.crm.zalo.ZaloHealthService zaloHealth;
+    private final vn.shop.crm.advisor.ProposalService proposals;
 
     public NavMenu(HandoffService handoffs, PrivacyService privacy, StatusMappingService statuses, ZaloAutoService zalo,
                    InviteService invites, vn.shop.crm.inbox.RefusalReviewService refusals, vn.shop.crm.inbox.ReplyService replies,
-                   vn.shop.crm.inbox.WarrantyService warranty, vn.shop.crm.zalo.ZaloHealthService zaloHealth) {
+                   vn.shop.crm.inbox.WarrantyService warranty, vn.shop.crm.zalo.ZaloHealthService zaloHealth,
+                   vn.shop.crm.advisor.ProposalService proposals) {
+        this.proposals = proposals;
         this.warranty = warranty;
         this.zaloHealth = zaloHealth;
         this.refusals = refusals;
@@ -69,17 +72,19 @@ public class NavMenu {
         long privacyOpen = privacy.openCount();
         long unmapped = statuses.unmapped().size();
         long friendWaiting = invites.friendStats().readyToAdd();
+        // Thứ tự theo luồng làm việc hiện hành (D18 đến D21): lập danh sách, chiến dịch (tay hoặc AI đề xuất), đo hiệu quả, nhóm,
+        // điều khiển tài khoản phụ. Ba mục cuối là đường nhắn tay và chạy thử, sẽ bỏ sau khi tự gửi chạy ổn trên thật.
         List<Item> invite = new java.util.ArrayList<>(List.of(
                 item("Danh sách mời", "/contacts", "/contacts", 0, key),
                 item("Chiến dịch mời", "/campaigns", "/campaigns", 0, key),
-                item("Đề xuất của AI", "/advisor", "/advisor", 0, key),
+                item("Đề xuất của AI", "/advisor", "/advisor", proposals.open().size(), key),
                 item("Hiệu quả chiến dịch", "/performance", "/performance", 0, key),
-                item("Chờ vào nhóm", "/friends", "/friends", friendWaiting, key),
-                item("Lô nhắn hôm nay", "/today", "/today", 0, key),
-                item("Chạy thử trên Zalo", "/test-runs", "/test-runs", 0, key),
                 item("Nhóm Zalo", "/groups", "/groups", 0, key),
                 // Luôn hiện (D18): đây là trung tâm điều khiển tự gửi; khi bộ nối tắt, trang chỉ báo "đang tắt".
-                item("Zalo tài khoản phụ", "/zalo", "/zalo", zalo.attentionCount() + zaloHealth.openCriticalCount(), key)));
+                item("Zalo tài khoản phụ", "/zalo", "/zalo", zalo.attentionCount() + zaloHealth.openCriticalCount(), key),
+                item("Chờ vào nhóm", "/friends", "/friends", friendWaiting, key),
+                item("Lô nhắn hôm nay", "/today", "/today", 0, key),
+                item("Chạy thử trên Zalo", "/test-runs", "/test-runs", 0, key)));
         return List.of(
                 new Group("Khách hàng", List.of(
                         item("Tổng quan", "/", "/", 0, key),
@@ -89,6 +94,7 @@ public class NavMenu {
                 new Group("Mời vào nhóm", List.copyOf(invite)),
                 new Group("Trợ lý AI", List.of(
                         item("Việc cần người thật xử lý", "/handoffs", "/handoffs", handoffOpen, key),
+                        item("Trợ lý AI trả lời khách", "/zalo/reply", "/zalo/reply", 0, key),
                         item("Trợ lý trong nhóm", "/bot", "/bot", 0, key))),
                 new Group("Khác", List.of(
                         item("Yêu cầu của khách", "/privacy", "/privacy", privacyOpen, key),
@@ -97,7 +103,10 @@ public class NavMenu {
     }
 
     private static Item item(String label, String url, String itemKey, long badge, String current) {
-        boolean active = itemKey.equals(current) || (!"/".equals(itemKey) && current.startsWith(itemKey + "/"));
+        // /zalo/reply có mục riêng trên menu nên không tô sáng thêm mục /zalo.
+        boolean underItem = !"/".equals(itemKey) && current.startsWith(itemKey + "/")
+                && !("/zalo".equals(itemKey) && current.startsWith("/zalo/reply"));
+        boolean active = itemKey.equals(current) || underItem;
         return new Item(label, url, itemKey, badge, active);
     }
 }

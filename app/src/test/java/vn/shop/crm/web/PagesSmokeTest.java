@@ -131,7 +131,7 @@ class PagesSmokeTest extends AbstractPostgresTest {
                 .andExpect(content().string(not(containsString("Chưa chọn"))));
         mvc.perform(get("/campaigns/" + campaign).with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("CHƯA DUYỆT")))
-                .andExpect(content().string(containsString("Xuất danh sách để mẹ gửi tay")));
+                .andExpect(content().string(containsString("Xuất danh sách để gửi tay (dự phòng)")));
         mvc.perform(get("/groups").with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Chỗ trống trong các nhóm")));
     }

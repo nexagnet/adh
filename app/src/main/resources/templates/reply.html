@@ -4,6 +4,7 @@
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
+    <div th:replace="~{fragments :: testModeAlert}"></div>
     <header class="page-head">
         <div class="titles">
             <h1>Trợ lý AI trả lời khách</h1>
@@ -36,11 +37,11 @@
     <section class="panel stack" id="bao-hanh">
         <h2>Phân loại bảo hành và khiếu nại</h2>
         <p class="hint">Khách đã nhận tin của hệ thống tự nhắn riêng <strong>báo lỗi hoặc phàn nàn</strong>: AI phân loại (sản phẩm lỗi, giao hàng, hỏi cách dùng, hoàn tiền), đánh dấu mức gấp
-            (pin nóng, phồng, mùi khét là gấp), tóm tắt và soạn <strong>nháp</strong>. Hệ thống tạo một việc ở <a th:href="@{/handoffs}">Việc cần xử lý</a> kèm các đơn khách đã mua.
+            (nguy cơ an toàn như nóng, phồng, chảy nước, mùi khét, cháy, chập điện là gấp), tóm tắt và soạn <strong>nháp</strong>. Hệ thống tạo một việc ở <a th:href="@{/handoffs}">Việc cần xử lý</a> kèm các đơn khách đã mua.
             Phần này <strong>không bao giờ tự gửi gì cho khách</strong> và không hứa bảo hành hay hoàn tiền; người thật quyết định.</p>
         <ul class="hint">
             <li>Chỉ gửi AI văn bản đã che số điện thoại, tên hàng và số ngày kể từ khi giao. Không gửi tên, số điện thoại, địa chỉ, mã vận đơn hay mã Zalo.</li>
-            <li>Chỉ đọc chữ: ảnh và video khách gửi không được đọc (mô hình hiện dùng chỉ nhận chữ); AI chỉ gợi ý có nên xin ảnh không. Mẹ xem ảnh trên Zalo.</li>
+            <li>Chỉ đọc chữ: ảnh và video khách gửi không được đọc (mô hình hiện dùng chỉ nhận chữ); AI chỉ gợi ý có nên xin ảnh không. Người thật xem ảnh trên Zalo.</li>
             <li>Chữ khách, tóm tắt và nháp bị xóa khi bấm "Đã xử lý" hoặc sau 30 ngày. Nháp có lời hứa, con số, đường dẫn hay thông tin cá nhân bị bỏ, việc vẫn được tạo.</li>
             <li>Cần cùng điều kiện đọc tin riêng như bên trên (ba công tắc ở máy chủ); không cần bật nấc trả lời.</li>
         </ul>
@@ -95,7 +96,7 @@
             <div><button type="submit" class="btn">Lưu các trường được gửi</button></div>
         </form>
         <p class="sub-line" th:if="${!ctxSample.isEmpty()}">Ví dụ hồ sơ (dữ liệu GIẢ) AI sẽ nhận:</p>
-        <pre class="sub-line" th:if="${!ctxSample.isEmpty()}" th:text="${ctxSample.block()}">- Khu vực: ...</pre>
+        <pre class="sub-line wrap" th:if="${!ctxSample.isEmpty()}" th:text="${ctxSample.block()}">- Khu vực: ...</pre>
     </section>
 
     <section class="panel stack" id="thu">

@@ -8,8 +8,9 @@
     <header class="page-head">
         <div class="titles">
             <h1>Chiến dịch mời vào nhóm</h1>
-            <p class="hint">Mỗi chiến dịch gồm khách đã được duyệt (có thể chỉ một khu vực). Mỗi khách chỉ được mời một lần, và mỗi ngày chỉ nhắn một ít theo hạn mức.
-                Muốn thử trước trên tài khoản Zalo thật bằng số của mình: <a th:href="@{/test-runs}">Chạy thử trên Zalo</a>.</p>
+            <p class="hint">Mỗi chiến dịch gồm khách đã được duyệt (có thể chỉ một khu vực). Hệ thống tự gửi Tin 1 theo hạn mức ngày (tối đa 50 khách mỗi ngày, chỉ trong giờ gửi, nghỉ cố định giữa hai tin).
+                Mỗi khách chỉ được mời một lần trong đời; chiến dịch có thể cấu hình thêm tối đa hai tin nhắc. Chưa biết nên mời khu vực nào, lúc nào? Nhờ AI ở <a th:href="@{/advisor}">Đề xuất của AI</a>.
+                Muốn thử trước trên tài khoản Zalo thật bằng số của mình: <a th:href="@{/test-runs}">Chạy thử trên Zalo</a>. Xem kết quả từng đợt ở <a th:href="@{/performance}">Hiệu quả chiến dịch</a>.</p>
         </div>
         <div class="actions">
             <form th:action="@{/campaigns/pause-all}" method="post" th:unless="${paused}">
@@ -23,11 +24,12 @@
     <details class="notice">
         <summary>Cách làm (tài khoản Zalo phụ)</summary>
         <ol>
-            <li>Tạo chiến dịch (có thể chỉ chọn khách một miền, ví dụ trời rét thì chọn miền cần nhắn).</li>
-            <li>Chạy thử trước ở <a th:href="@{/test-runs}">Chạy thử trên Zalo</a> với vài số của chính bạn để xem tin có đến nơi không.</li>
-            <li>Khi ổn, vào trang chi tiết chiến dịch bấm <em>Duyệt cho hệ thống tự gửi</em>. Hệ thống gửi Tin 1 một lần cho mỗi khách, trong giờ và hạn mức ngày đã đặt ở <a th:href="@{/zalo}">Zalo tài khoản phụ</a>. Khách nào đồng ý kết bạn thì tự được thêm vào nhóm Zalo cùng khu vực.</li>
-            <li>Khách từ chối hoặc nhắn xin ngừng nhận tin thì bấm <em>Khách từ chối</em>: số này không bao giờ được nhắn lại.</li>
-            <li>Khi tự gửi chưa bật (mặc định) thì dùng cách dự phòng: mỗi ngày mở <a th:href="@{/today}">Lô nhắn hôm nay</a>, nhắn tay từng người bằng tài khoản Zalo phụ rồi bấm <em>Đã nhắn</em>, <em>Đã kết bạn</em>, <em>Đã vào nhóm</em>.</li>
+            <li>Tạo chiến dịch (có thể chỉ chọn khách một miền, ví dụ trời rét thì chọn miền cần nhắn), hoặc duyệt một đề xuất ở <a th:href="@{/advisor}">Đề xuất của AI</a> để có sẵn khu vực, ngày, khung giờ và hạn mức ngày.</li>
+            <li>Chạy thử trước ở <a th:href="@{/test-runs}">Chạy thử trên Zalo</a> với vài số của chính bạn để xem tin có đến nơi không. Hệ thống đang ở chế độ thử thì chỉ nhắn các số thử đã khai báo ở <a th:href="@{/zalo#che-do-thu}">Zalo tài khoản phụ</a>.</li>
+            <li>Vào trang chi tiết chiến dịch: đặt lịch và nhịp riêng (chỉ được chặt hơn giới hạn chung), chọn số lần gửi (1 đến 3), rồi bấm <em>Duyệt cho hệ thống tự gửi</em>. Hệ thống gửi Tin 1 một lần cho mỗi khách, trong giờ và hạn mức ngày đã đặt ở <a th:href="@{/zalo}">Zalo tài khoản phụ</a>. Khách nào đồng ý kết bạn thì tự được thêm vào nhóm Zalo cùng khu vực.</li>
+            <li>Muốn khách mới nhập về tự vào chiến dịch (khỏi duyệt từng người): bấm <em>Bật tự nhận khách mới</em> ở trang chi tiết.</li>
+            <li>Khách từ chối hoặc nhắn xin ngừng nhận tin thì trợ lý AI ghi sổ (xem lại ở <a th:href="@{/handoffs}">Việc cần người thật xử lý</a>, có nút Hoàn tác): số này không bao giờ được nhắn lại.</li>
+            <li>Chỉ khi tự gửi chưa chạy (cách dự phòng, sẽ bỏ sau khi thử xong): mở <a th:href="@{/today}">Lô nhắn hôm nay</a>, nhắn tay từng người bằng tài khoản Zalo phụ rồi bấm <em>Đã nhắn</em>, <em>Đã kết bạn</em>, <em>Đã vào nhóm</em>.</li>
         </ol>
         Gửi tin tư vấn cho khách chưa đồng ý nhận tin có thể bị Zalo hạn chế tài khoản và có rủi ro pháp lý; chủ cửa hàng đã nhận rủi ro này,
         nên giữ lô nhỏ, một lần duy nhất, và tôn trọng ngay mọi lời xin ngừng nhận tin.
@@ -40,7 +42,7 @@
     </div>
     <div class="notice info" th:unless="${paused}">
         <strong>Tạo chiến dịch chưa gửi gì</strong>
-        Hệ thống chỉ tự gửi khi công tắc ở <a th:href="@{/zalo}">Zalo tài khoản phụ</a> đã bật và bạn đã duyệt chiến dịch ở trang chi tiết.
+        Hệ thống chỉ tự gửi khi công tắc ở <a th:href="@{/zalo}">Zalo tài khoản phụ</a> đã bật và bạn đã duyệt chiến dịch ở trang chi tiết. Đang ở chế độ thử thì chỉ nhắn các số thử.
     </div>
 
     <div class="cards c4">
@@ -86,7 +88,7 @@
             <div class="actions">
                 <button type="submit" class="btn">Tạo chiến dịch (chưa gửi gì)</button>
             </div>
-            <p class="muted">Sau khi tạo chiến dịch, bạn vào trang chi tiết để chạy thử và duyệt cho hệ thống tự gửi (khi công tắc ở <a th:href="@{/zalo}">Zalo tài khoản phụ</a> đã bật). Chưa bật thì làm tay ở <a th:href="@{/today}">Lô nhắn hôm nay</a>. Mặc định hệ thống không tự gửi tin cho ai.</p>
+            <p class="muted">Sau khi tạo chiến dịch, bạn vào trang chi tiết để đặt lịch và số lần gửi, rồi duyệt cho hệ thống tự gửi (khi công tắc ở <a th:href="@{/zalo}">Zalo tài khoản phụ</a> đã bật). Mặc định mọi thứ tự động đều tắt nên chưa gửi gì cho ai.</p>
         </div>
     </form>
 
@@ -104,8 +106,8 @@
     <details class="more">
         <summary>Tin gửi link nhóm (sau khi khách đã kết bạn)</summary>
         <form th:action="@{/campaigns/group-link-template}" method="post" class="stack">
-            <p class="muted">Khi khách đã đồng ý kết bạn, trang chiến dịch đưa sẵn tin này kèm link nhóm Zalo cùng khu vực. Mẹ bấm sao chép,
-                dán vào cuộc trò chuyện với khách, rồi bấm <em>Đã gửi link nhóm</em>. Khách tự bấm link nếu muốn vào. Với chiến dịch đã duyệt tự gửi, hệ thống gửi tin này khi việc thêm nhóm không làm được.
+            <p class="muted">Với chiến dịch đã duyệt tự gửi, hệ thống gửi <strong>Tin 2</strong> này (kèm link nhóm Zalo cùng khu vực) khi việc tự thêm khách vào nhóm không làm được; khách tự bấm link nếu muốn vào.
+                Chỉ khi làm tay (cách dự phòng), trang chiến dịch đưa sẵn tin này để bạn sao chép, dán vào cuộc trò chuyện rồi bấm <em>Đã gửi link nhóm</em>.
                 Có thể dùng: <code>{ten}</code>, <code>{cua_hang}</code>, <code>{mien}</code> (miền của khách), <code>{nhom}</code> (tên nhóm), <code>{link_nhom}</code> (link nhóm Zalo),
                 <code>{link}</code> (link riêng của khách, có nút xin ngừng nhận tin; chỉ dùng khi địa chỉ web của cửa hàng đã chạy thật). Phải có <code>{link_nhom}</code> hoặc <code>{link}</code>.
                 Để trống rồi lưu thì dùng lại nội dung có sẵn.</p>

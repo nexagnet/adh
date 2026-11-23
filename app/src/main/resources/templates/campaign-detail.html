@@ -119,10 +119,6 @@
             </form>
         </div>
     </div>
-    <div class="notice">Tin có thể do hệ thống tự gửi (sau khi bạn duyệt ở trên) hoặc do mẹ gửi tay. Cách gửi tay: xuất danh sách, nhắn từng khách <strong>một lần duy nhất</strong> bằng
-        tài khoản Zalo phụ của cửa hàng. Khách đồng ý kết bạn thì bấm <em>Đã kết bạn</em>; thêm họ vào nhóm cùng khu vực (cột "Nhóm Zalo") rồi bấm
-        <em>Đã vào nhóm</em>, hoặc gửi link nhóm cho khách tự bấm (mục <em>Gửi link nhóm</em> ở cột Bước tiếp theo) rồi bấm <em>Đã gửi link nhóm</em>. Khách từ chối thì bấm <em>Khách từ chối</em>, số đó không bao giờ được nhắn lại. Bạn có thể chạy thử trước để xem sẽ gửi gì.</div>
-
     <div class="cards">
         <div class="card"><div class="big" th:text="${campaign.total}">0</div><div class="label">Lời mời</div></div>
         <div class="card"><div class="big" th:text="${campaign.ready}">0</div><div class="label">Chưa gửi</div></div>
@@ -136,21 +132,31 @@
     <p th:text="${campaign.template}" class="mono">mẫu</p>
 
     <div class="actions" th:if="${campaign.ready > 0}">
-        <a class="btn" th:href="@{/today(campaign=${campaign.id})}">Mở lô nhắn hôm nay</a>
         <form th:action="@{/campaigns/{id}/dry-run(id=${campaign.id})}" method="post">
             <button type="submit" class="btn secondary">Chạy thử (không gửi gì)</button>
-        </form>
-        <form th:action="@{/campaigns/{id}/export.csv(id=${campaign.id})}" method="post">
-            <button type="submit" class="btn secondary" th:disabled="${paused}">Xuất danh sách để mẹ gửi tay</button>
         </form>
         <form th:action="@{/campaigns/{id}/cancel-unsent(id=${campaign.id})}" method="post">
             <button type="submit" class="btn secondary">Hủy các lời mời chưa gửi</button>
         </form>
     </div>
-    <p class="hint" th:if="${campaign.ready > 0}">Gửi tay: xuất danh sách (có thêm cột khu vực và nhóm gợi ý), rồi đánh dấu từng bước ở trang này.
+
+    <details class="more" th:if="${campaign.ready > 0}">
+        <summary>Cách dự phòng: gửi tay (chỉ khi tự gửi chưa chạy; sẽ bỏ sau khi thử xong)</summary>
+    <div class="notice">Cách gửi tay: xuất danh sách, nhắn từng khách <strong>một lần duy nhất</strong> bằng
+        tài khoản Zalo phụ của cửa hàng. Khách đồng ý kết bạn thì bấm <em>Đã kết bạn</em>; thêm họ vào nhóm cùng khu vực (cột "Nhóm Zalo") rồi bấm
+        <em>Đã vào nhóm</em>, hoặc gửi link nhóm cho khách tự bấm (mục <em>Gửi link nhóm</em> ở cột Bước tiếp theo) rồi bấm <em>Đã gửi link nhóm</em>. Khách từ chối thì bấm <em>Khách từ chối</em>, số đó không bao giờ được nhắn lại. Bạn có thể chạy thử trước để xem sẽ gửi gì.</div>
+
+        <div class="actions">
+            <a class="btn secondary" th:href="@{/today(campaign=${campaign.id})}">Mở lô nhắn hôm nay</a>
+            <form th:action="@{/campaigns/{id}/export.csv(id=${campaign.id})}" method="post">
+                <button type="submit" class="btn secondary" th:disabled="${paused}">Xuất danh sách để gửi tay (dự phòng)</button>
+            </form>
+        </div>
+        <p class="hint" th:if="${campaign.ready > 0}">Gửi tay: xuất danh sách (có thêm cột khu vực và nhóm gợi ý), rồi đánh dấu từng bước ở trang này.
         Đừng vừa duyệt tự gửi vừa xuất danh sách cho cùng khách: lời mời nào đã "Đã gửi" thì không bị gửi lại.</p>
-    <p class="hint" th:if="${campaign.ready > 0}">Xuất danh sách sẽ đánh dấu các lời mời trong file là "đã gửi" (kênh gửi tay).
+        <p class="hint" th:if="${campaign.ready > 0}">Xuất danh sách sẽ đánh dấu các lời mời trong file là "đã gửi" (kênh gửi tay).
         Hệ thống không biết tin có tới khách hay chưa. Mỗi ngày chỉ xuất tối đa theo hạn mức ở mục Gửi tin.</p>
+    </details>
 
     <h2>Lời mời</h2>
     <div class="table-wrap">

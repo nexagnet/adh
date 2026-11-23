@@ -49,6 +49,10 @@
                 <span><span class="todo-num" th:text="${friend.noReply}">0</span><th:block th:text="'khách đã nhắn quá ' + ${noReplyDays} + ' ngày chưa kết bạn (không nhắn lại)'">khách đã nhắn lâu chưa kết bạn</th:block></span>
                 <a class="btn secondary" th:href="@{/friends}">Xem</a>
             </li>
+            <li th:if="${proposalsOpen > 0}">
+                <span><span class="todo-num blue" th:text="${proposalsOpen}">0</span>đề xuất chiến dịch của AI đang chờ bạn xem (AI chỉ đề xuất, bạn bấm duyệt mới tạo chiến dịch)</span>
+                <a class="btn secondary" th:href="@{/advisor}">Xem đề xuất</a>
+            </li>
             <li th:if="${privacyOpen > 0}">
                 <span><span class="todo-num" th:classappend="${privacyOverdue > 0} ? 'red'" th:text="${privacyOverdue > 0} ? ${privacyOverdue} : ${privacyOpen}">0</span><th:block
                     th:text="${privacyOverdue > 0} ? 'yêu cầu của khách đã quá hạn phản hồi' : 'yêu cầu của khách đang chờ xử lý'">yêu cầu của khách đã quá hạn phản hồi</th:block></span>
@@ -81,11 +85,34 @@
                 <a class="btn secondary" th:href="@{/imports/new}">Nhập file mới</a>
             </li>
             <li class="todo-empty"
-                th:if="${contact.candidates == 0 and friend.friended == 0 and friend.noReply == 0 and privacyOpen == 0 and handoffOpen == 0 and refusalHeld == 0 and unmapped == 0 and review == 0 and groupsNeedRecount == 0 and exportDue.isEmpty()}">
+                th:if="${contact.candidates == 0 and friend.friended == 0 and friend.noReply == 0 and privacyOpen == 0 and handoffOpen == 0 and proposalsOpen == 0 and refusalHeld == 0 and unmapped == 0 and review == 0 and groupsNeedRecount == 0 and exportDue.isEmpty()}">
                 Hôm nay chưa có việc nào cần làm.
             </li>
         </ul>
         </div>
+    </section>
+
+    <section>
+        <h2>Tự gửi tin hôm nay</h2>
+        <div class="cards c4">
+            <a class="card" th:classappend="${!msg.enabled} ? 'warn'" th:href="@{/zalo}">
+                <div class="big" th:text="${msg.enabled ? 'Bật' : 'Tắt'}">Tắt</div>
+                <div class="label" th:text="${@testMode.testOnly() ? 'Công tắc tự gửi (đang ở chế độ thử: chỉ nhắn số thử)' : 'Công tắc tự gửi (chạy thật)'}">Công tắc tự gửi</div>
+            </a>
+            <a class="card" th:href="@{/zalo}">
+                <div class="big"><span th:text="${msg.usedToday}">0</span> / <span th:text="${msg.limits.daily}">10</span></div>
+                <div class="label">Khách đã được nhắn chủ động hôm nay (Tin 1 và tin nhắc; trần cứng <span th:text="${msg.maxDaily}">50</span>)</div>
+            </a>
+            <a class="card" th:href="@{/campaigns}">
+                <div class="big" th:text="${autoCampaigns}">0</div>
+                <div class="label">Chiến dịch đã duyệt cho tự gửi</div>
+            </a>
+            <a class="card" th:href="@{/advisor}">
+                <div class="big" th:text="${proposalsOpen}">0</div>
+                <div class="label">Đề xuất chiến dịch của AI đang chờ</div>
+            </a>
+        </div>
+        <p class="muted small" style="margin-top:10px">Mặc định mọi thứ tự động đều tắt. Kết quả từng đợt xem ở <a th:href="@{/performance}">Hiệu quả chiến dịch</a>.</p>
     </section>
 
     <section>

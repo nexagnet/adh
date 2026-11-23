@@ -1,6 +1,6 @@
 # Hướng dẫn chạy thử toàn diện (giai đoạn 1) bằng số điện thoại giả làm khách
 
-Viết ngày 23/11/2026 cho chủ shop. Mục tiêu: chạy thử MỌI phần của giai đoạn 1 bằng vài số điện thoại của bạn (đóng vai khách) **trước khi** cho khách thật nhận tin. Mọi thứ đều đã được kiểm bằng test với bộ nối giả; **chưa lần nào chạy với Zalo thật và DeepSeek thật**, nên hãy đi từng bước nhỏ và dừng ngay khi thấy lạ.
+Viết ngày 23/11/2026, cập nhật cùng ngày cho khớp giao diện mới (menu, Tổng quan, D21 AI đề xuất chiến dịch, lịch và nhịp riêng, gửi mời 1 đến 3 lần, bảo hành và khiếu nại) cho chủ shop. Mục tiêu: chạy thử MỌI phần của giai đoạn 1 bằng vài số điện thoại của bạn (đóng vai khách) **trước khi** cho khách thật nhận tin. Mọi thứ đều đã được kiểm bằng test với bộ nối giả; **chưa lần nào chạy với Zalo thật và DeepSeek thật**, nên hãy đi từng bước nhỏ và dừng ngay khi thấy lạ.
 
 Tài liệu bổ sung (không thay thế): `docs/HUONG-DAN-THU-ZALO-TU-DONG.md` (cài đặt bộ nối, đăng nhập QR, gán mã nhóm), `docs/THIET-KE-AI-TRA-LOI.md`, `docs/THIET-KE-KHACH-QUAY-LAI.md`.
 
@@ -33,6 +33,7 @@ Vì vậy muốn "test toàn diện" phải làm cả hai. Làm Chiến dịch t
 
 ## 1. Trả lời nhanh các câu hỏi
 
+0. **Giao diện mới (23/11/2026):** menu "Mời vào nhóm" xếp theo luồng làm việc (Danh sách mời, Chiến dịch mời, **Đề xuất của AI** có số đề xuất đang chờ, Hiệu quả chiến dịch, Nhóm Zalo, Zalo tài khoản phụ); ba mục **Chờ vào nhóm, Lô nhắn hôm nay, Chạy thử trên Zalo** nằm cuối vì là đường dự phòng và sẽ bỏ sau khi thử xong. Nhóm "Trợ lý AI" có thêm mục **Trợ lý AI trả lời khách** (`/zalo/reply`, trước đây phải đi vòng từ `/zalo` mới thấy). Tổng quan có khối **"Tự gửi tin hôm nay"** (công tắc, số khách đã nhắn so với hạn mức, số chiến dịch đã duyệt tự gửi, số đề xuất AI đang chờ).
 1. **Giao diện chạy thử đã đúng nghiệp vụ chưa?** Phần mời (Tin 1, kết bạn, thêm nhóm, Tin 2, hạn mức, giờ 08:00 đến 20:00, nghỉ cố định, cầu dao) đúng. Đã sửa và bổ sung: ghi rõ màn này **không kiểm AI**, và nhắc "mỗi số một Tin 1". Đã sửa cấu hình máy chủ: trần 50 khách/ngày bị cài nhầm 25 trong file compose (và không có tác dụng vì tên biến không khớp); nay đúng 50.
 2. **Trang nào xóa sau khi thử xong?** Xem mục 7. Chưa xóa gì; chỉ xóa khi bạn báo thử xong.
 3. **Bật hết cờ trên máy chủ?** Được và an toàn: cờ ở máy chủ chỉ **mở khóa** tính năng, không tự gửi gì. Việc gửi thật chỉ xảy ra khi bạn bật công tắc trên web. Xem mục 2.
@@ -51,6 +52,9 @@ Cần thêm vào file `.env` trên máy chủ, rồi triển khai lại **một 
 | `APP_AI_MODEL` | tên mô hình bạn chọn | Hệ thống không đoán tên mô hình |
 | `APP_ZALO_INBOX_ENABLED` | `true` | Ứng dụng đọc tin riêng của khách đã nhận tin |
 | `BRIDGE_INBOX_ENABLED` | `true` | Cầu nối giữ tin riêng (chỉ trong bộ nhớ, tối đa 6 giờ) |
+| `APP_AI_ADVISOR_ENABLED` | `true` | Bật "AI đề xuất chiến dịch" (D21, trang `/advisor`); cần cả `APP_AI_ENABLED`. Trần mặc định 5 lần nhờ mỗi ngày (`APP_AI_ADVISOR_MAX_RUNS`) |
+| `APP_WEATHER_ENABLED` | `true` | Dự báo thời tiết 48 giờ cho bản đồ và cho AI đề xuất (nguồn MET Norway). Không bật thì AI đề xuất chỉ dựa vào mùa và quy mô khu vực, độ tin cậy thấp hơn |
+| `APP_ALERT_WEBHOOK_URL` | tùy chọn | Nơi nhận cảnh báo sức khỏe tài khoản phụ (văn bản thuần, không có dữ liệu khách). Không đặt thì cảnh báo chỉ hiện trên web |
 | `APP_SHOP_NAME` | tên shop thật | Có trong Tin 1 và chữ ký "Trợ lý AI của ...". Đừng để mặc định "Cửa hàng" |
 | `APP_ZALO_LIVE` | **để trống (hoặc `false`)** | Chế độ thử (mục 0A). **Không đặt `true` lúc thử.** Chỉ khi đã thử xong và quyết định nhắn khách thật mới đặt `true` rồi tạo lại container app. File compose đang chạy trên máy chủ phải có dòng `APP_ZALO_LIVE: ${APP_ZALO_LIVE:-false}` (thư mục `~/adh/infra` trên máy chủ có thể chậm so với `main`: kiểm trước) |
 
@@ -116,6 +120,35 @@ Nếu giai đoạn A không êm (lỗi lạ, Zalo cảnh báo), **dừng ở đ�
    - `/zalo` khách quay lại: tick xác nhận, chọn **Tự động**. B1 nhắn lại "mình muốn mua": AI chắc từ 0,85 thì tự gỡ cờ (chỉ đánh dấu "đã gỡ"), đưa vào hàng chờ vào nhóm và gửi **một** tin mẫu; có nút Hoàn tác.
    - B3, B4 vẫn phải về người thật. Câu trả lời tự động **không bao giờ** nói về giá, bảo hành ngoài bảng, đổi trả, link lạ hay số điện thoại.
 
+### Giai đoạn D: AI đề xuất chiến dịch (D21)
+
+Chỉ làm khi đã bật `APP_AI_ADVISOR_ENABLED` (mục 2). **AI chỉ đề xuất, bạn bấm duyệt; chiến dịch tạo ra vẫn chưa gửi gì.**
+
+1. Menu **Đề xuất của AI** (`/advisor`). Bấm **Nhờ AI đề xuất** (tối đa 5 lần mỗi ngày).
+2. **Trước khi đọc đề xuất**, mở "Xem số liệu đã gửi cho AI" và đọc đúng đoạn JSON đã gửi: chỉ được có con số, mã khu vực và nhãn cố định. Thấy tên, số điện thoại, địa chỉ hay mã nào của khách thì **dừng, tắt `APP_AI_ADVISOR_ENABLED` và báo người sửa**. (Số liệu là tổng hợp từ khách trong hệ thống, kể cả khách thật; đang ở chế độ thử thì AI vẫn thấy con số tổng hợp nhưng không ai bị nhắn.)
+3. Đọc từng đề xuất: khu vực, số khách, ngày, khung giờ, hạn mức ngày, **lý do, rủi ro, độ tin cậy**. Chưa có lịch sử gửi thật nên độ tin cậy đầu tiên thấp là **đúng**; AI nói "chưa đủ dữ liệu" cũng là kết quả hợp lệ.
+4. Bấm **Duyệt và tạo chiến dịch** cho một đề xuất: chiến dịch mới hiện ở `/campaigns` với ngày, khung giờ, hạn mức ngày AI gợi ý (tự hạ xuống nếu vượt giới hạn chung); mẫu Tin 1 vẫn là mẫu cửa hàng, **không** dùng chữ của AI. Chiến dịch **chưa duyệt tự gửi**. Với đề xuất khác, bấm **Bỏ qua** và ghi lý do (để sau này đo AI đoán trúng hay trượt).
+5. Kỳ vọng: không đề xuất nào vượt 14 ngày, ngoài 08:00 đến 20:00 hay quá hạn mức ngày hiện hành; đề xuất quá hạn tự thành "hết hạn". Có đề xuất như vậy thì **báo lỗi**.
+
+### Giai đoạn E: lịch và nhịp riêng, gửi mời 1 đến 3 lần
+
+Dùng một chiến dịch gửi cho số thử (khách giả hoặc nhóm B), chế độ thử vẫn bật, các cờ đọc tin riêng và AI đã bật (mục 2), công tắc tự gửi bật.
+
+1. Mở chiến dịch: ô **"Lịch và nhịp riêng của chiến dịch"**. Đặt khung giờ hẹp hơn, hạn mức ngày thấp hơn, nghỉ dài hơn: lưu được. Thử đặt **rộng hơn** giới hạn chung (ví dụ khung giờ 06:00 đến 22:00, hạn mức 60): hệ thống **phải từ chối** bằng thông báo tiếng Việt. Đặt "Bắt đầu từ ngày" là ngày mai: trang báo "ĐANG CHỜ" và chưa gửi gì.
+2. Ô **"Số lần gửi mời"**: chọn 2 lần, bấm "Dùng mẫu Tin 1 cho nhiều lần" (mẫu bỏ câu "sẽ không nhắn lại"), nhập tin nhắc lần 2, cách lần trước **3 ngày** (sàn cứng, nhỏ hơn bị từ chối). Tin nhắc có đường dẫn, số điện thoại, chữ ép ("cuối cùng", "chỉ còn") hoặc trùng tin trước phải bị từ chối.
+3. Duyệt tự gửi; khách giả nhận Tin 1. Thử bốn tình huống (cách thử đầy đủ ở `docs/BAN-GIAO.md` mục 0.8): (a) để yên đủ 3 ngày thật: nhận tin nhắc có câu xin ngừng do hệ thống tự thêm; (b) kết bạn trước hạn: không nhận; (c) nhắn riêng bất kỳ câu nào trước hạn: không nhận; (d) nhắn "dừng": AI ghi từ chối và không nhận. Trang chiến dịch hiện "Đã gửi: Tin 1, lần 2, lần 3". Tin nhắc **tính vào hạn mức ngày** cùng Tin 1.
+4. Chỉ khi đúng cả bốn tình huống mới đặt chiến dịch thật gửi nhiều lần. Tin nhắc chỉ chạy khi Adh chạy ổn định (tin riêng của khách chỉ được cầu nối giữ 6 giờ).
+
+### Giai đoạn F: bảo hành và khiếu nại
+
+1. `/zalo/reply`, mục **"Phân loại bảo hành và khiếu nại"**: chọn **Bật** (cần ba cờ đọc tin riêng như AI từ chối).
+2. Số B3 nhắn riêng, ví dụ "áo điều hòa mới dùng 2 ngày đã không chạy, có mùi khét" rồi một tin phàn nàn thường. **Kỳ vọng:** `/handoffs` mục **"Bảo hành và khiếu nại"** có **một việc** (không phải mỗi tin một việc): loại việc, mức gấp (mùi khét, nóng, phồng, cháy, chập phải là **Gấp**), tóm tắt, nháp, kèm đơn khách đã mua. **Không có tin nào tự gửi cho khách**, nháp không hứa bảo hành hay hoàn tiền. Khách gửi ảnh: hệ thống chỉ đọc chữ, nên người xử lý xem ảnh trên Zalo. Bấm "Đã xử lý": chữ khách, tóm tắt và nháp bị xóa.
+
+### Giai đoạn G: sức khỏe tài khoản phụ và hiệu quả chiến dịch
+
+- `/zalo` mục **"Sức khỏe tài khoản phụ"** (và nhãn trên menu): phải báo "chưa thấy dấu hiệu bất thường" trong lúc thử êm. Thử bấm "Dừng ngay" rồi "Mở lại": đó là hành động của bạn nên **không** thành cảnh báo. Có cảnh báo khẩn (mất phiên, Zalo hạn chế, lỗi lạ) thì dừng thử, xem mục 5.
+- `/performance` **Hiệu quả chiến dịch**: sau giai đoạn B phải thấy mỗi chiến dịch một dòng phễu (đã mời, kết bạn, vào nhóm). Doanh thu sẽ là 0 vì chưa nhập file đối soát J&T thật; nhập đơn giả không có doanh thu là bình thường. Chiến dịch dưới 5 người vào nhóm thì số mua và tiền hiện "-" ở báo cáo xuất (che ô nhỏ). Chưa chốt tiền tố mã đơn qua nhóm (`NHOM-`) nên số mua đang là ước tính.
+
 ### Giai đoạn C: những việc nhỏ cần thử riêng
 
 - **Cầu dao:** không cố làm cầu dao nhảy trên Zalo thật. Trước hết xem `/zalo` mục "Tự gửi tin cho khách" hiện đúng giờ gửi, hạn mức và khoảng nghỉ, và mục "Tạm dừng và nhật ký gửi" có nút tạm dừng.
@@ -165,3 +198,6 @@ Nếu giai đoạn A không êm (lỗi lạ, Zalo cảnh báo), **dừng ở đ�
 - [ ] Mẹ đã là bạn Zalo của tài khoản phụ và bật cho tìm bằng số điện thoại.
 - [ ] Một nhóm Zalo thử đã tạo (tài khoản phụ ở trong), đã gán mã ở `/groups`.
 - [ ] Không có ai đang nhập file J&T thật trong lúc thử.
+- [ ] Muốn thử giai đoạn D (AI đề xuất): `APP_AI_ADVISOR_ENABLED=true` đã đặt, và bạn sẵn sàng đọc JSON số liệu trước khi duyệt đề xuất đầu tiên. Nên bật `APP_WEATHER_ENABLED=true` trước.
+- [ ] Muốn thử giai đoạn E (tin nhắc): đã chuẩn bị ít nhất một số thử để chờ đủ 3 ngày thật (hoặc nhờ người quản máy chủ lùi ngày gửi của lời mời thử trên máy dev).
+- [ ] Biết cách dừng khẩn cấp (mục 6) trước khi bấm bất kỳ công tắc tự gửi nào.
