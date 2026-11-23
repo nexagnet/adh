@@ -52,4 +52,14 @@ public class ManualZaloGateway implements ZaloLink {
     public boolean resume() {
         return false;
     }
+
+    @Override
+    public Sent sendByPhone(Kind kind, String phoneDigits, String text) {
+        return Sent.of(Result.UNREACHABLE, "DISABLED", true);
+    }
+
+    @Override
+    public Sent sendByUid(Kind kind, String uid, String text) {
+        return Sent.of(Result.UNREACHABLE, "DISABLED", true);
+    }
 }

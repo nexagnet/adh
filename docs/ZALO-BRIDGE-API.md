@@ -5,9 +5,9 @@
 - Chỉ gọi trong **mạng nội bộ Docker**; dịch vụ không công bố cổng ra ngoài.
 - Mọi yêu cầu có tiêu đề `X-Bridge-Key: <khóa chung>`; sai khóa trả `401`.
 - Mọi trả lời là JSON, mã `200` cho mọi kết quả đã xử lý (kể cả lỗi riêng một người); mã khác `200` là lỗi hạ tầng và Adh coi là "lạ".
-- *(D18, 23/11/2026: chủ shop bỏ nguyên tắc không tự gửi tin; dòng dưới mô tả hợp đồng hiện tại, sẽ đổi cùng PR mã, xem ADR-0002 mục 12.)* **Không có** đường gửi tin, gửi lời mời kết bạn, tìm người theo số, liệt kê bạn bè. Chỉ có thêm một đường đọc `GET /groups` (nhóm của chính tài khoản phụ). Test `ZaloGatewayShapeTest` (Java) và `zalo-bridge/test/server.test.mjs` và `no-send.test.mjs` (Node) khóa việc này.
+- **D18 (23/11/2026):** thêm đường `POST /messages` (gửi MỘT tin văn bản cho MỘT khách, có hạn mức và khoảng nghỉ cố định). **Vẫn không có** đường gửi lời mời kết bạn, nhận lời mời, liệt kê bạn bè hay lệnh tùy ý. Chỉ có thêm đường đọc `GET /groups` (nhóm của chính tài khoản phụ). Test `ZaloGatewayShapeTest` (Java), `zalo-bridge/test/server.test.mjs` và `no-send.test.mjs` (Node) khóa việc này, kể cả số lần xuất hiện của `findUser`/`sendMessage` (đúng một lần mỗi hàm, chỉ trong `zca-adapter.mjs`).
 
-## Ba việc của Zalo
+## Việc của Zalo (ba việc gốc, cộng `POST /messages` từ D18)
 
 ### `GET /status`
 ```json
@@ -32,6 +32,19 @@ Cả hai mã chỉ gồm chữ số (≤ 32). Trả:
 `outcome`: `OK`; `PERSON_ERROR` (lỗi riêng người này: đã trong nhóm, bị chặn, nhóm đầy, không phải bạn…; không làm cầu dao nhảy); `SESSION_LOST`; `RESTRICTED` (Zalo yêu cầu xác minh/captcha/hạn chế, hoặc chạm trần của chính cầu nối); `SYSTEM_ERROR` (mọi lỗi lạ). Ba loại sau làm Adh **dừng ngay**; cầu nối cũng tự dừng. `code` chỉ gồm chữ, số, gạch, không chứa dữ liệu khách.
 
 Cầu nối có **trần cứng riêng** (gấp đôi `APP_ZALO_AUTO_MAX_DAILY` mỗi ngày, trong khung giờ 07:00–22:00 giờ Việt Nam): vượt thì trả `RESTRICTED` mã `LIMIT` và tự dừng.
+
+### `POST /messages` (D18)  body `{"kind":"INVITE"|"LINK", "phone":"84912345678" | "uid":"123456789", "text":"..."}`
+Đúng một trong `phone` hoặc `uid`; `text` không rỗng, tối đa 1000 ký tự. Cầu nối tra mã Zalo theo số (`findUser`) rồi gửi MỘT tin (`sendMessage`). Trả:
+```json
+{ "outcome": "OK", "uid": "123456789" }
+{ "outcome": "RATE_LIMITED", "retryAfterSec": 45 }
+{ "outcome": "PERSON_ERROR", "code": "NOT_FOUND" }
+```
+- `OK`: đã gửi (Zalo có xác nhận). `uid` kèm theo khi gửi theo số.
+- `RATE_LIMITED`: chưa đủ khoảng nghỉ cố định giữa hai tin (`BRIDGE_MSG_GAP_SEC`, mặc định 90 giây). **Chắc chắn chưa gửi**; Adh chờ `retryAfterSec`.
+- `PERSON_ERROR`: lỗi riêng người này, không làm cầu dao nhảy: `NOT_FOUND` (số không có Zalo hoặc không tìm thấy), `DUPLICATE` (đã gửi tin loại này cho người này rồi, sổ nhớ bằng mã băm HMAC, không bao giờ gửi lần hai), `BAD_INPUT`, `BAD_PHONE`, `BAD_ID`.
+- `RESTRICTED` (`WINDOW` ngoài 07:00–22:00; `MSG_LIMIT` quá `BRIDGE_MSG_DAILY` mỗi ngày, mặc định 60; `NOT_ACTIVE`), `SESSION_LOST` (`LOGIN_REQUIRED`), `SYSTEM_ERROR` (`BUSY`, `NOT_CONNECTED`, và `NO_ACK` khi Zalo không xác nhận: **không biết đã gửi hay chưa**, cầu nối tự dừng). Các mã `BUSY`, `NOT_CONNECTED`, `NOT_ACTIVE`, `WINDOW`, `MSG_LIMIT`, `LOGIN_REQUIRED`, `BAD_*` là bị từ chối TRƯỚC khi chạm Zalo (Adh coi là "chưa gửi"); mọi kết quả lạ khác Adh coi là "không biết", đánh dấu thất bại và dừng, không tự gửi lại.
+- Không có độ trễ ngẫu nhiên, không giả người: khoảng nghỉ là **cố định**, trần và khung giờ là cầu dao thật. Nhật ký bộ nối không chứa số, mã, tên hay nội dung tin.
 
 ## Đọc danh sách nhóm (chỉ đọc, chỉ trang quản trị gọi)
 ### `GET /groups`

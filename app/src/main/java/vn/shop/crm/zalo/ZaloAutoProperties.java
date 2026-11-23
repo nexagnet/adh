@@ -26,7 +26,16 @@ public record ZaloAutoProperties(
         @DefaultValue("100") int maxDaily,
         @DefaultValue("10") int maxHourly,
         /* Khoảng cách tối thiểu giữa hai lần thêm mà trang quản trị cho đặt (không cho đặt thấp hơn). */
-        @DefaultValue("2") int minGapFloorMinutes) {
+        @DefaultValue("2") int minGapFloorMinutes,
+        /* D18: tự gửi tin cho khách. Khung giờ hẹp hơn khung giờ thêm nhóm, hạn mức nhỏ, khoảng nghỉ cố định (không ngẫu nhiên). */
+        @DefaultValue("08:00") LocalTime msgWindowStart,
+        @DefaultValue("20:00") LocalTime msgWindowEnd,
+        @DefaultValue("10") int msgDefaultDaily,
+        @DefaultValue("120") int msgDefaultGapSeconds,
+        /* Trần cứng của số tin mỗi ngày (cả Tin 1 và Tin 2) và sàn của khoảng nghỉ; trang quản trị không chỉnh vượt các số này.
+           Cầu nối có trần riêng cao hơn (BRIDGE_MSG_DAILY) và khoảng nghỉ tối thiểu riêng (BRIDGE_MSG_GAP_SEC, phải ≤ sàn này). */
+        @DefaultValue("25") int msgMaxDaily,
+        @DefaultValue("100") int msgMinGapSeconds) {
 
     public ZaloAutoProperties {
         if (maxDaily < 1) {
@@ -37,6 +46,12 @@ public record ZaloAutoProperties(
         }
         if (minGapFloorMinutes < 1) {
             minGapFloorMinutes = 1;
+        }
+        if (msgMaxDaily < 1) {
+            msgMaxDaily = 1;
+        }
+        if (msgMinGapSeconds < 30) {
+            msgMinGapSeconds = 30;
         }
     }
 }

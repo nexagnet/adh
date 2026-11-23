@@ -117,6 +117,60 @@ public class ZcaBridgeGateway implements ZaloLink {
         }
     }
 
+    // ---------- ZaloMessenger: việc thứ tư (D18), gửi MỘT tin cho MỘT người ----------
+
+    /** Mã không gửi được vì chính cầu nối từ chối TRƯỚC khi chạm Zalo (xem bridge.mjs): chắc chắn chưa có tin nào đi. */
+    private static final java.util.Set<String> NOT_SENT_CODES = java.util.Set.of("BUSY", "NOT_CONNECTED", "NOT_ACTIVE", "WINDOW",
+            "MSG_LIMIT", "LOGIN_REQUIRED", "BAD_INPUT", "BAD_PHONE", "BAD_ID");
+
+    @Override
+    public Sent sendByPhone(Kind kind, String phoneDigits, String text) {
+        if (phoneDigits == null || !phoneDigits.matches("\\d{8,15}")) {
+            return Sent.of(Result.PERSON_ERROR, "BAD_PHONE", true);
+        }
+        return message(java.util.Map.of("kind", kind.name(), "phone", phoneDigits, "text", String.valueOf(text)));
+    }
+
+    @Override
+    public Sent sendByUid(Kind kind, String uid, String text) {
+        if (uid == null || !ZALO_ID.matcher(uid).matches()) {
+            return Sent.of(Result.PERSON_ERROR, "BAD_ID", true);
+        }
+        return message(java.util.Map.of("kind", kind.name(), "uid", uid, "text", String.valueOf(text)));
+    }
+
+    private Sent message(java.util.Map<String, String> body) {
+        try {
+            JsonNode n = call("POST", "/messages", JSON.writeValueAsString(body), 90);
+            Result result;
+            try {
+                result = Result.valueOf(n.path("outcome").asString(""));
+            } catch (IllegalArgumentException e) {
+                return Sent.of(Result.SYSTEM_ERROR, "BAD_REPLY", false);
+            }
+            if (result == Result.UNREACHABLE) {
+                return Sent.of(Result.SYSTEM_ERROR, "BAD_REPLY", false); // chỉ chính Adh quyết "không nối được"
+            }
+            String code = safeCode(text(n, "code"));
+            String uid = text(n, "uid");
+            if (uid != null && !ZALO_ID.matcher(uid).matches()) {
+                uid = null;
+            }
+            boolean notSent = result == Result.RATE_LIMITED
+                    || ((result == Result.RESTRICTED || result == Result.SESSION_LOST || result == Result.SYSTEM_ERROR
+                    || result == Result.PERSON_ERROR) && code != null && NOT_SENT_CODES.contains(code));
+            int retry = Math.max(0, Math.min(3600, n.path("retryAfterSec").asInt(0)));
+            return new Sent(result, code, uid, retry, notSent);
+        } catch (Unreachable e) {
+            return Sent.of(Result.UNREACHABLE, "BRIDGE_DOWN", true);
+        } catch (TimedOut e) {
+            return Sent.of(Result.SYSTEM_ERROR, "TIMEOUT", false); // không biết đã gửi hay chưa
+        } catch (Exception e) {
+            log.warn("Lỗi khi gửi tin qua cầu nối: {}", e.getClass().getSimpleName());
+            return Sent.of(Result.SYSTEM_ERROR, "BRIDGE_ERROR", false);
+        }
+    }
+
     // ---------- ZaloSession: phiên đăng nhập ----------
 
     @Override

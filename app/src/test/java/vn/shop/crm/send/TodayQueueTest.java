@@ -78,7 +78,7 @@ class TodayQueueTest extends AbstractPostgresTest {
 
     private SendService service(int daily, int hourly) {
         return new SendService(jdbc, settings, contacts, invites,
-                new SendProperties(false, LocalTime.of(7, 0), LocalTime.of(22, 0), daily, hourly, 30, 120, false, "",
+                new SendProperties(false, LocalTime.of(7, 0), LocalTime.of(22, 0), daily, hourly, 120, false, "",
                         1_000_000, 3, 0.3, 0.05, 3),
                 clock, List.of(mock, manual));
     }

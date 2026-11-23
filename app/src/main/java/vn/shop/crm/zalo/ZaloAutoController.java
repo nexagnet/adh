@@ -25,9 +25,11 @@ import java.util.Base64;
 public class ZaloAutoController {
 
     private final ZaloAutoService service;
+    private final ZaloMessageService messages;
 
-    public ZaloAutoController(ZaloAutoService service) {
+    public ZaloAutoController(ZaloAutoService service, ZaloMessageService messages) {
         this.service = service;
+        this.messages = messages;
     }
 
     private void requireEnabled() {
@@ -58,6 +60,7 @@ public class ZaloAutoController {
             ZaloGateway.Status st = service.bridgeStatus();
             model.addAttribute("bridge", st);
             model.addAttribute("quota", cfg.quota());
+            model.addAttribute("msg", messages.quota());
             model.addAttribute("waiting", service.waiting());
             model.addAttribute("manual", service.manualQueue());
             model.addAttribute("candidates", service.candidates());
@@ -81,6 +84,25 @@ public class ZaloAutoController {
         requireEnabled();
         service.settings().setLimits(daily, hourly, gap, by(user));
         redirect.addFlashAttribute("flash", "Đã lưu hạn mức.");
+        return "redirect:/zalo";
+    }
+
+    /** Công tắc tự gửi tin cho khách (D18). Mặc định TẮT; bật/tắt ghi vào nhật ký. */
+    @PostMapping("/messages/switch")
+    public String messageSwitch(@RequestParam boolean on, Principal user, RedirectAttributes redirect) {
+        requireEnabled();
+        messages.setEnabled(on, by(user));
+        redirect.addFlashAttribute("flash", on
+                ? "Đã BẬT tự gửi tin. Chỉ chiến dịch đã được duyệt mới được gửi, theo hạn mức và khoảng nghỉ dưới đây."
+                : "Đã TẮT tự gửi tin. Không có tin nào được gửi nữa.");
+        return "redirect:/zalo";
+    }
+
+    @PostMapping("/messages/limits")
+    public String messageLimits(@RequestParam int daily, @RequestParam int gap, Principal user, RedirectAttributes redirect) {
+        requireEnabled();
+        messages.setLimits(daily, gap, by(user));
+        redirect.addFlashAttribute("flash", "Đã lưu hạn mức tin.");
         return "redirect:/zalo";
     }
 

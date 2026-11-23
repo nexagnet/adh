@@ -56,12 +56,17 @@ public class ZaloAutoService {
     private final TransactionTemplate tx;
     private final Clock clock;
     private final ReentrantLock addLock = new ReentrantLock();
+    private final org.springframework.beans.factory.ObjectProvider<ZaloFriendTap> taps;
+    private final ZaloMessageService messages;
     /** Trạng thái cầu nối lần hỏi gần nhất (do bộ hẹn giờ cập nhật) để các trang không gọi cầu nối mỗi lần mở. */
     private volatile ZaloGateway.Status lastStatus;
 
     public ZaloAutoService(JdbcClient jdbc, ZaloGateway gateway, ZaloSession session, ZaloAutoSettings cfg,
                            InviteService invites, GroupService groups, ContactService contacts, TransactionTemplate tx,
-                           Clock clock) {
+                           Clock clock, org.springframework.beans.factory.ObjectProvider<ZaloFriendTap> taps,
+                           ZaloMessageService messages) {
+        this.taps = taps;
+        this.messages = messages;
         this.jdbc = jdbc;
         this.gateway = gateway;
         this.session = session;
@@ -131,14 +136,24 @@ public class ZaloAutoService {
             return;
         }
         cfg.log(ZaloAutoSettings.A_LISTEN, null, null, "DA_THANH_BAN", null, "system");
-        Optional<String> phone = normalizePhone(e.phone());
-        if (phone.isEmpty()) {
-            // đa số khách ẩn số (đo thật: khoảng 5/32): không ghép được thì để người xử lý tay, không dò thêm
-            record(e, "NO_PHONE", e.uid(), null);
-            cfg.log(ZaloAutoSettings.A_MATCH, null, null, "KHONG_CO_SO", null, "system");
+        // D18: Tin 1 do hệ thống tự gửi đã lưu mã Zalo của khách, nên khớp theo mã, không cần số điện thoại.
+        Optional<Match> m = findMatchByTargetUid(e.uid());
+        if (m.isEmpty() && taps.orderedStream().anyMatch(t -> t.accept(e))) {
+            // thuộc về một số của chiến dịch thử: không ghép với khách thật
+            record(e, "STRANGER", null, null);
+            cfg.log(ZaloAutoSettings.A_MATCH, null, null, "DOI_TUONG_THU", null, "system");
             return;
         }
-        Optional<Match> m = findMatch(phone.get());
+        if (m.isEmpty()) {
+            Optional<String> phone = normalizePhone(e.phone());
+            if (phone.isEmpty()) {
+                // đa số khách ẩn số (đo thật: khoảng 5/32): không ghép được thì để người xử lý tay, không dò thêm
+                record(e, "NO_PHONE", e.uid(), null);
+                cfg.log(ZaloAutoSettings.A_MATCH, null, null, "KHONG_CO_SO", null, "system");
+                return;
+            }
+            m = findMatch(phone.get());
+        }
         if (m.isEmpty()) {
             record(e, "STRANGER", null, null);
             cfg.log(ZaloAutoSettings.A_MATCH, null, null, "NGUOI_LA", null, "system");
@@ -181,6 +196,17 @@ public class ZaloAutoService {
                         SELECT i.id, i.customer_id, i.status, i.zalo_uid IS NOT NULL AS has_uid
                         FROM invitation i JOIN customer c ON c.id = i.customer_id WHERE c.phone = :p""")
                 .param("p", e164)
+                .query((rs, n) -> new Match(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("status"),
+                        rs.getBoolean("has_uid")))
+                .optional();
+    }
+
+    /** Khách đã được hệ thống tự gửi Tin 1: cầu nối đã tra và lưu mã Zalo của họ (D18). */
+    private Optional<Match> findMatchByTargetUid(String uid) {
+        return jdbc.sql("""
+                        SELECT i.id, i.customer_id, i.status, i.zalo_uid IS NOT NULL AS has_uid
+                        FROM invitation i WHERE i.zalo_target_uid = :u""")
+                .param("u", uid)
                 .query((rs, n) -> new Match(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("status"),
                         rs.getBoolean("has_uid")))
                 .optional();
@@ -311,7 +337,8 @@ public class ZaloAutoService {
     /** Người bấm thử lại một lần sau lỗi (không bao giờ tự thử lại). Quay về chờ duyệt. */
     public void retry(long invitationId, String by) {
         int n = jdbc.sql("""
-                        UPDATE invitation SET zalo_add_state = 'WAITING_APPROVAL', zalo_add_code = NULL
+                        UPDATE invitation SET zalo_add_state = 'WAITING_APPROVAL', zalo_add_code = NULL,
+                               zalo_link_state = CASE WHEN zalo_link_state = 'PENDING' THEN NULL ELSE zalo_link_state END
                         WHERE id = :id AND zalo_add_state = 'FAILED' AND status IN ('SENT', 'CLICKED', 'FRIENDED')""")
                 .param("id", invitationId).update();
         if (n == 0) {
@@ -323,7 +350,8 @@ public class ZaloAutoService {
     /** Thôi không để bộ nối thêm khách này nữa (người sẽ thêm tay). */
     public void release(long invitationId, String by) {
         jdbc.sql("""
-                        UPDATE invitation SET zalo_add_state = NULL, zalo_add_code = NULL
+                        UPDATE invitation SET zalo_add_state = NULL, zalo_add_code = NULL,
+                               zalo_link_state = CASE WHEN zalo_link_state = 'PENDING' THEN NULL ELSE zalo_link_state END
                         WHERE id = :id AND zalo_add_state IN ('WAITING_APPROVAL', 'QUEUED', 'FAILED')""")
                 .param("id", invitationId).update();
         cfg.log(ZaloAutoSettings.A_APPROVE, invitationId, null, "TU_XU_LY", null, by);
@@ -394,6 +422,85 @@ public class ZaloAutoService {
         }
     }
 
+    /** Kết quả thêm một mã Zalo không thuộc khách thật (chiến dịch thử). */
+    public record ExternalAdd(Step step, String code) {
+    }
+
+    /**
+     * CHỈ cho chiến dịch thử (D18): thêm một mã Zalo vào một nhóm có mã nhóm Zalo, với ĐÚNG cùng chốt chặn như khách thật (nấc có
+     * thêm, cầu dao, khung giờ, hạn mức ngày và giờ, khoảng cách, nhật ký THEM_NHOM tính vào hạn mức, cầu dao khi lỗi lạ).
+     * Không đụng tới bảng khách hay lời mời. Xóa cùng màn chạy thử khi xong.
+     */
+    public ExternalAdd addExternal(String uid, GroupService.Group group) {
+        ZaloMode mode = cfg.effectiveMode();
+        if (!mode.adds()) {
+            return new ExternalAdd(Step.NOT_ACTIVE, null);
+        }
+        if (!group.hasZaloId()) {
+            return new ExternalAdd(Step.NO_GROUP, "KHONG_CO_MA_NHOM");
+        }
+        if (!addLock.tryLock()) {
+            return new ExternalAdd(Step.NOTHING, null);
+        }
+        try {
+            if (inFlightLeftover()) {
+                tripAndStop("INTERRUPTED", true);
+                return new ExternalAdd(Step.TRIPPED, "INTERRUPTED");
+            }
+            if (!cfg.mayAddNow()) {
+                return new ExternalAdd(Step.LIMIT, null);
+            }
+            ZaloGateway.Status st = gateway.status();
+            if (st.state() == ZaloGateway.State.TRIPPED) {
+                tripAndStop("BRIDGE_" + (st.tripReason() == null ? "TRIPPED" : st.tripReason()), false);
+                return new ExternalAdd(Step.TRIPPED, null);
+            }
+            if (Boolean.FALSE.equals(st.accountOk())) {
+                tripAndStop("ACCOUNT_MISMATCH", true);
+                return new ExternalAdd(Step.TRIPPED, "ACCOUNT_MISMATCH");
+            }
+            if (!st.listening() || !Boolean.TRUE.equals(st.accountOk())) {
+                return new ExternalAdd(Step.UNREACHABLE, null);
+            }
+            long logId = jdbc.sql("""
+                            INSERT INTO zalo_auto_log (at, action, invitation_id, group_id, result, actor)
+                            VALUES (:at, :a, NULL, :g, 'DANG_GOI', 'system') RETURNING id""")
+                    .param("at", OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)).param("a", ZaloAutoSettings.A_ADD)
+                    .param("g", group.id()).query(Long.class).single();
+            ZaloGateway.AddResult r = gateway.addToGroup(uid, group.zaloGroupId());
+            if (r.outcome() == ZaloGateway.Outcome.UNREACHABLE) {
+                jdbc.sql("DELETE FROM zalo_auto_log WHERE id = :id").param("id", logId).update();
+                return new ExternalAdd(Step.UNREACHABLE, null);
+            }
+            try {
+                jdbc.sql("UPDATE zalo_auto_log SET result = :r, code = :c WHERE id = :id")
+                        .param("r", r.outcome().name()).param("c", r.code(), java.sql.Types.VARCHAR).param("id", logId).update();
+                switch (r.outcome()) {
+                    case OK -> {
+                        return new ExternalAdd(Step.ADDED, null);
+                    }
+                    case PERSON_ERROR -> {
+                        if (lastAddsAllPersonErrors(3)) {
+                            tripAndStop("NHIEU_LOI_NGUOI", true);
+                            return new ExternalAdd(Step.TRIPPED, r.code());
+                        }
+                        return new ExternalAdd(Step.PERSON_FAILED, r.code() == null ? "LOI_NGUOI" : r.code());
+                    }
+                    default -> {
+                        tripAndStop(r.outcome().name() + (r.code() == null ? "" : ":" + r.code()), true);
+                        return new ExternalAdd(Step.TRIPPED, r.code());
+                    }
+                }
+            } catch (RuntimeException e) {
+                log.warn("Lỗi sau khi gọi Zalo thêm người (thử): {}", e.getClass().getSimpleName());
+                tripAndStop("INTERRUPTED", true);
+                return new ExternalAdd(Step.TRIPPED, "INTERRUPTED");
+            }
+        } finally {
+            addLock.unlock();
+        }
+    }
+
     private List<Task> queued(ZaloMode mode) {
         // AUTO: cả người còn "chờ duyệt" cũng đủ điều kiện (đã chọn tự thêm). CONFIRM: chỉ người đã được duyệt.
         String states = mode == ZaloMode.AUTO ? "('QUEUED', 'WAITING_APPROVAL')" : "('QUEUED')";
@@ -445,6 +552,7 @@ public class ZaloAutoService {
                 }
                 case PERSON_ERROR -> {
                     fail(t.invitationId(), r.code() == null ? "LOI_NGUOI" : r.code());
+                    queueLink(t.invitationId(), group.id());
                     if (lastAddsAllPersonErrors(3)) {
                         // ba lần liền lỗi riêng người: nhiều khả năng cấu hình nhóm sai (ví dụ "chỉ quản trị viên được thêm"), đừng đốt hạn mức
                         tripAndStop("NHIEU_LOI_NGUOI", true);
@@ -465,6 +573,22 @@ public class ZaloAutoService {
             tripAndStop("INTERRUPTED", true);
             return Step.TRIPPED;
         }
+    }
+
+    /**
+     * D18: thêm vào nhóm lỗi riêng người, và chiến dịch đã được duyệt cho hệ thống tự gửi tin, thì xếp Tin 2 (link của CHÍNH nhóm
+     * vừa thử thêm, nên nhóm thêm và nhóm qua link là một) để bộ gửi gửi cho khách. Chưa bật tự gửi thì người xử lý tay như cũ.
+     */
+    private void queueLink(long invitationId, long groupId) {
+        if (!messages.enabled()) {
+            return;
+        }
+        jdbc.sql("""
+                        UPDATE invitation i SET zalo_link_state = 'PENDING', reserved_group_id = :g,
+                               reserved_until = now() + make_interval(hours => :h)
+                        WHERE i.id = :id AND i.zalo_link_state IS NULL AND i.group_link_sent_at IS NULL
+                          AND EXISTS (SELECT 1 FROM invitation_campaign k WHERE k.id = i.campaign_id AND k.auto_send_approved_at IS NOT NULL)""")
+                .param("g", groupId).param("h", invites.reserveHours()).param("id", invitationId).update();
     }
 
     private boolean lastAddsAllPersonErrors(int n) {

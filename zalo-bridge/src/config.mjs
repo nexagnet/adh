@@ -54,6 +54,10 @@ export function loadConfig(env = process.env) {
     addTimeoutMs: int(env, 'BRIDGE_ADD_TIMEOUT_MS', 30000, 1000, 120000),
     // Số lần hỏi thông tin (để lấy số điện thoại) tối đa mỗi giờ; quá thì sự kiện vẫn nhận nhưng không hỏi, rơi về hàng đợi tay.
     maxLookupsPerHour: int(env, 'BRIDGE_MAX_LOOKUPS_PER_HOUR', 60, 0, 1000),
+    // Tin nhắn gửi cho khách (D18): trần cứng mỗi ngày và khoảng nghỉ CỐ ĐỊNH tối thiểu giữa hai tin. Công khai, không ngẫu nhiên hóa.
+    // Vượt trần ngày thì cầu nối tự dừng; gửi quá sớm thì chỉ bị từ chối (RATE_LIMITED), Adh thử lại sau.
+    msgDaily: int(env, 'BRIDGE_MSG_DAILY', 60, 1, 400),
+    msgGapMs: int(env, 'BRIDGE_MSG_GAP_SEC', 90, 30, 3600) * 1000,
     // Nối lại khi kết nối nghe đứt bất thường (đo thật: mã 1006 sau khoảng 40 phút).
     reconnectDelaysMs: [5000, 15000, 45000, 120000, 300000],
     reconnectMaxAttempts: int(env, 'BRIDGE_RECONNECT_MAX', 8, 1, 100),

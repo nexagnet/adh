@@ -15,16 +15,32 @@ function code(file) {
     .join('\n');
 }
 
-test('không đoạn mã nào gọi hàm gửi tin, gửi lời mời, tìm người hay liệt kê bạn bè của zca-js', () => {
-  const banned = /(sendMessage|sendFriendRequest|sendVoice|sendLink|sendSticker|sendCard|sendVideo|sendImage|sendReport|findUser|findUserByUsername|getAllFriends|getFriendRequest|sendTypingEvent|forwardMessage|acceptFriendRequest|getFriendRecommendations)\b/;
+test('không đoạn mã nào gọi hàm gửi lời mời, gửi đính kèm, tìm theo tên, liệt kê bạn bè hay dò người của zca-js', () => {
+  const banned = /(sendFriendRequest|sendVoice|sendLink|sendSticker|sendCard|sendVideo|sendImage|sendReport|findUserByUsername|getAllFriends|getFriendRequest|sendTypingEvent|forwardMessage|acceptFriendRequest|getFriendRecommendations|sendBankCard|sendToDoc|sendDeliveredEvent|sendSeenEvent)\b/;
   for (const f of files) {
     assert.ok(!banned.test(code(f)), `${f} có hàm bị cấm`);
   }
 });
 
-test('bộ điều hợp zca-js chỉ dùng đúng bảy thành phần của api (thêm hai hàm chỉ đọc nhóm)', () => {
+test('findUser và sendMessage (D18) chỉ nằm trong bộ điều hợp thật, mỗi hàm đúng một chỗ gọi, không ở đâu khác', () => {
+  for (const f of files) {
+    const c = code(f);
+    const find = (c.match(/\bapi\??\.findUser\b/g) ?? []).length;
+    const send = (c.match(/\bapi\??\.sendMessage\b/g) ?? []).length;
+    if (f === 'zca-adapter.mjs') {
+      assert.equal(find, 1, 'findUser phải đúng một lần');
+      assert.equal(send, 1, 'sendMessage phải đúng một lần');
+    } else {
+      assert.equal(find + send, 0, `${f} không được gọi findUser/sendMessage`);
+    }
+  }
+  // chỉ gửi văn bản thuần cho một người, không đính kèm
+  assert.match(code('zca-adapter.mjs'), /sendMessage\(\{ msg: text \}, uid, ThreadType\.User\)/);
+});
+
+test('bộ điều hợp zca-js chỉ dùng đúng chín thành phần của api (thêm hai hàm chỉ đọc nhóm, findUser và sendMessage của D18)', () => {
   const used = new Set([...code('zca-adapter.mjs').matchAll(/this\.api\??\.([A-Za-z]+)/g)].map((m) => m[1]));
-  assert.deepEqual([...used].sort(), ['addUserToGroup', 'getAllGroups', 'getGroupInfo', 'getOwnId', 'getUserInfo', 'listener', 'logout'].sort());
+  assert.deepEqual([...used].sort(), ['addUserToGroup', 'findUser', 'getAllGroups', 'getGroupInfo', 'getOwnId', 'getUserInfo', 'listener', 'logout', 'sendMessage'].sort());
 });
 
 test('không đặt userAgent, không proxy, không đổi dấu vân tay (không che việc dùng thư viện)', () => {

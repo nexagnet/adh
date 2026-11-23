@@ -9,7 +9,23 @@
         <span th:text="${#temporals.format(campaign.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</span> · khu vực: <strong th:text="${campaign.scopeLabel}">Miền Nam</strong></p>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã tạo.</div>
-    <div class="notice">Hệ thống <strong>không tự gửi tin</strong>. Cách làm hiện nay: xuất danh sách, nhắn từng khách <strong>một lần duy nhất</strong> bằng
+    <div class="panel stack">
+        <h2>Tự gửi qua Zalo tài khoản phụ</h2>
+        <p th:if="${autoApproved}"><span class="badge ok">ĐÃ DUYỆT</span> Hệ thống tự gửi Tin 1 cho các khách "Chưa gửi" của chiến dịch này, từng khách <strong>một lần</strong>,
+            theo hạn mức và khoảng nghỉ cố định ở trang <a th:href="@{/zalo}">Zalo tài khoản phụ</a>. Công tắc tự gửi tin hiện
+            <strong th:text="${autoSwitch ? 'BẬT' : 'TẮT (chưa gửi gì)'}">TẮT</strong>.</p>
+        <p th:unless="${autoApproved}"><span class="badge">CHƯA DUYỆT</span> Chiến dịch này <strong>chưa được tự gửi</strong>. Hãy chạy <a th:href="@{/test-runs}">Chiến dịch thử</a> trước,
+            xem lại nội dung tin ở dưới rồi mới duyệt.</p>
+        <div class="actions">
+            <form th:action="@{/campaigns/{id}/auto-send/approve(id=${campaign.id})}" method="post" th:unless="${autoApproved}">
+                <button type="submit" class="btn" th:disabled="${campaign.ready == 0}">Duyệt cho hệ thống tự gửi</button>
+            </form>
+            <form th:action="@{/campaigns/{id}/auto-send/revoke(id=${campaign.id})}" method="post" th:if="${autoApproved}">
+                <button type="submit" class="btn danger">Bỏ duyệt, dừng tự gửi</button>
+            </form>
+        </div>
+    </div>
+    <div class="notice">Tin có thể do hệ thống tự gửi (sau khi bạn duyệt ở trên) hoặc do mẹ gửi tay. Cách gửi tay: xuất danh sách, nhắn từng khách <strong>một lần duy nhất</strong> bằng
         tài khoản Zalo phụ của cửa hàng. Khách đồng ý kết bạn thì bấm <em>Đã kết bạn</em>; thêm họ vào nhóm cùng khu vực (cột "Nhóm Zalo") rồi bấm
         <em>Đã vào nhóm</em>, hoặc gửi link nhóm cho khách tự bấm (mục <em>Gửi link nhóm</em> ở cột Bước tiếp theo) rồi bấm <em>Đã gửi link nhóm</em>. Khách từ chối thì bấm <em>Khách từ chối</em>, số đó không bao giờ được nhắn lại. Bạn có thể chạy thử trước để xem sẽ gửi gì.</div>
 
@@ -36,11 +52,9 @@
         <form th:action="@{/campaigns/{id}/cancel-unsent(id=${campaign.id})}" method="post">
             <button type="submit" class="btn secondary">Hủy các lời mời chưa gửi</button>
         </form>
-        <button type="button" class="btn secondary" disabled
-                title="Tạm chưa dùng SMS; tin gửi qua Zalo do mẹ gửi tay">Gửi tự động (đang khóa)</button>
     </div>
-    <p class="hint" th:if="${campaign.ready > 0}">Gửi tự động đang khóa vì tạm chưa dùng SMS. Tin đi qua Zalo do mẹ gửi tay:
-        xuất danh sách (có thêm cột khu vực và nhóm gợi ý), rồi đánh dấu từng bước ở trang này.</p>
+    <p class="hint" th:if="${campaign.ready > 0}">Gửi tay: xuất danh sách (có thêm cột khu vực và nhóm gợi ý), rồi đánh dấu từng bước ở trang này.
+        Đừng vừa duyệt tự gửi vừa xuất danh sách cho cùng khách: lời mời nào đã "Đã gửi" thì không bị gửi lại.</p>
     <p class="hint" th:if="${campaign.ready > 0}">Xuất danh sách sẽ đánh dấu các lời mời trong file là "đã gửi" (kênh gửi tay).
         Hệ thống không biết tin có tới khách hay chưa. Mỗi ngày chỉ xuất tối đa theo hạn mức ở mục Gửi tin.</p>
 

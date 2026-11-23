@@ -95,6 +95,34 @@
         </form>
     </section>
 
+    <section class="panel stack">
+        <h2>Tự gửi tin cho khách</h2>
+        <p class="hint">Hệ thống tự gửi <strong>Tin 1</strong> (mời kết bạn) cho khách của chiến dịch <strong>đã được bạn duyệt</strong>, mỗi khách <strong>đúng một lần</strong>,
+            và <strong>Tin 2</strong> (link nhóm) cho khách đã kết bạn mà không thêm được vào nhóm. Từng tin một, nghỉ một khoảng <strong>cố định</strong> giữa hai tin,
+            chỉ trong khung giờ <span th:text="${msg.windowStart}">08:00</span>–<span th:text="${msg.windowEnd}">20:00</span>, không bao giờ gửi cho người đã từ chối.
+            Zalo cảnh báo hoặc có lỗi lạ thì <strong>tự dừng</strong> (cầu dao) và chờ bạn bấm Mở lại. Hệ thống không làm gì để giống người thật gõ hay để né Zalo.
+            Trần cứng: <span th:text="${msg.maxDaily}">25</span> tin mỗi ngày (đổi ở cấu hình triển khai).</p>
+        <p>Công tắc: <strong th:text="${msg.enabled ? 'ĐANG BẬT' : 'ĐANG TẮT'}">ĐANG TẮT</strong>
+            · hôm nay đã gửi <strong th:text="${msg.usedToday}">0</strong>/<strong th:text="${msg.limits.daily}">10</strong> tin
+            · khoảng nghỉ <strong th:text="${msg.limits.gapSeconds}">120</strong> giây
+            · <span th:text="${msg.inWindow ? 'đang trong giờ gửi' : 'đang ngoài giờ gửi'}">trong giờ</span></p>
+        <div class="actions">
+            <form th:action="@{/zalo/messages/switch}" method="post" th:unless="${msg.enabled}">
+                <input type="hidden" name="on" value="true"><button type="submit" class="btn">Bật tự gửi tin</button>
+            </form>
+            <form th:action="@{/zalo/messages/switch}" method="post" th:if="${msg.enabled}">
+                <input type="hidden" name="on" value="false"><button type="submit" class="btn danger">Tắt tự gửi tin</button>
+            </form>
+        </div>
+        <form class="formrow" th:action="@{/zalo/messages/limits}" method="post">
+            <label class="field">Số tin mỗi ngày (Tin 1 và Tin 2) <input type="number" name="daily" th:value="${msg.limits.daily}" min="1" th:max="${msg.maxDaily}"></label>
+            <label class="field">Nghỉ giữa hai tin (giây) <input type="number" name="gap" th:value="${msg.limits.gapSeconds}" th:min="${props.msgMinGapSeconds}" max="3600"></label>
+            <button type="submit" class="btn">Lưu hạn mức tin</button>
+        </form>
+        <p class="hint">Chiến dịch chỉ được tự gửi sau khi bạn bấm <em>Duyệt cho hệ thống tự gửi</em> ở trang chi tiết chiến dịch.
+            Muốn thử trước: dùng <a th:href="@{/test-runs}">Chiến dịch thử</a> (cùng hạn mức, chỉ gửi cho số bạn tự nhập).</p>
+    </section>
+
     <section>
         <h2>Khách chờ vào nhóm</h2>
         <p class="muted" th:if="${waiting.isEmpty()}">Chưa có khách nào chờ.</p>

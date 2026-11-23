@@ -185,4 +185,68 @@ class ZcaBridgeGatewayTest {
         httpStatus = 500;
         assertThat(gateway.listGroups().code()).isEqualTo("LIST_FAILED");
     }
+
+    // ---------- POST /messages (D18) ----------
+
+    @Test
+    void guiTinGuiDungDuongDanBodyVaDocKetQua() {
+        reply.set("{\"outcome\":\"OK\",\"uid\":\"123456\"}");
+        var r = gateway.sendByPhone(ZaloMessenger.Kind.INVITE, "84912345678", "Xin chào");
+        assertThat(r.result()).isEqualTo(ZaloMessenger.Result.OK);
+        assertThat(r.uid()).isEqualTo("123456");
+        assertThat(r.notSent()).isFalse();
+        assertThat(requests).containsExactly("POST /messages");
+        assertThat(bodies.get(0)).contains("\"kind\":\"INVITE\"", "\"phone\":\"84912345678\"", "Xin chào");
+        assertThat(keys).containsExactly("khoa-chung");
+
+        reply.set("{\"outcome\":\"OK\"}");
+        gateway.sendByUid(ZaloMessenger.Kind.LINK, "654321", "link");
+        assertThat(bodies.get(1)).contains("\"kind\":\"LINK\"", "\"uid\":\"654321\"").doesNotContain("phone");
+    }
+
+    @Test
+    void guiTinDauVaoSaiKhongGoiBoNoi() {
+        assertThat(gateway.sendByPhone(ZaloMessenger.Kind.INVITE, "abc", "x").code()).isEqualTo("BAD_PHONE");
+        assertThat(gateway.sendByUid(ZaloMessenger.Kind.INVITE, "1; DROP", "x").code()).isEqualTo("BAD_ID");
+        assertThat(requests).isEmpty();
+    }
+
+    @Test
+    void biGioiHanTocDoLaChacChanChuaGuiVaCoThoiGianCho() {
+        reply.set("{\"outcome\":\"RATE_LIMITED\",\"retryAfterSec\":45}");
+        var r = gateway.sendByPhone(ZaloMessenger.Kind.INVITE, "84912345678", "x");
+        assertThat(r.result()).isEqualTo(ZaloMessenger.Result.RATE_LIMITED);
+        assertThat(r.notSent()).isTrue();
+        assertThat(r.retryAfterSeconds()).isEqualTo(45);
+    }
+
+    @Test
+    void maTuChoiTruocKhiChamZaloLaChuaGuiConLoiLaKhongBiet() {
+        reply.set("{\"outcome\":\"SYSTEM_ERROR\",\"code\":\"BUSY\"}");
+        assertThat(gateway.sendByPhone(ZaloMessenger.Kind.INVITE, "84912345678", "x").notSent()).isTrue();
+        reply.set("{\"outcome\":\"SYSTEM_ERROR\",\"code\":\"NO_ACK\"}");
+        assertThat(gateway.sendByPhone(ZaloMessenger.Kind.INVITE, "84912345678", "x").notSent()).isFalse();
+        reply.set("{\"outcome\":\"RESTRICTED\",\"code\":\"MSG_LIMIT\"}");
+        assertThat(gateway.sendByPhone(ZaloMessenger.Kind.INVITE, "84912345678", "x").notSent()).isTrue();
+        reply.set("{\"outcome\":\"MOT_GI_LA\"}");
+        var bad = gateway.sendByPhone(ZaloMessenger.Kind.INVITE, "84912345678", "x");
+        assertThat(bad.result()).isEqualTo(ZaloMessenger.Result.SYSTEM_ERROR);
+        assertThat(bad.notSent()).isFalse();
+    }
+
+    @Test
+    void coBoNoiBaoUnreachableThiAdhKhongTinMaChiTuQuyet() {
+        reply.set("{\"outcome\":\"UNREACHABLE\"}");
+        var r = gateway.sendByPhone(ZaloMessenger.Kind.INVITE, "84912345678", "x");
+        assertThat(r.result()).isEqualTo(ZaloMessenger.Result.SYSTEM_ERROR);
+        assertThat(r.notSent()).isFalse();
+    }
+
+    @Test
+    void boNoiSapLaChuaGuiNhungHong500LaKhongBiet() {
+        server.stop(0);
+        var down = gateway.sendByPhone(ZaloMessenger.Kind.INVITE, "84912345678", "x");
+        assertThat(down.result()).isEqualTo(ZaloMessenger.Result.UNREACHABLE);
+        assertThat(down.notSent()).isTrue();
+    }
 }

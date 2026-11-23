@@ -15,8 +15,8 @@ public record SendProperties(
         @DefaultValue("20") int dailyLimit,
         /* Tối đa bao nhiêu tin trong 60 phút gần nhất (nhắn tay theo nhịp chậm). 0 = không giới hạn theo giờ. */
         @DefaultValue("6") int hourlyLimit,
-        @DefaultValue("30") int minGapSeconds,
-        @DefaultValue("120") int maxGapSeconds,
+        /* Khoảng nghỉ CỐ ĐỊNH (giây) giữa hai tin khi gửi từng tin một. Công khai, không ngẫu nhiên hóa. */
+        @DefaultValue("120") int gapSeconds,
         /* Bật bộ hẹn giờ gửi từng tin một. Chỉ có tác dụng khi có kênh gửi tự động (chưa có). */
         @DefaultValue("false") boolean schedulerEnabled,
         @DefaultValue("") String autoChannel,

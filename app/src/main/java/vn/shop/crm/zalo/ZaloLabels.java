@@ -37,6 +37,12 @@ public class ZaloLabels {
             Map.entry("CRASH_LOOP", "Cầu nối khởi động lại liên tục"),
             Map.entry("STATE_CORRUPT", "Tệp trạng thái cầu nối bị hỏng"),
             Map.entry("NHIEU_LOI_NGUOI", "Ba lần thêm liền đều lỗi riêng người (nghi nhóm cài sai, ví dụ chỉ quản trị viên được thêm)"),
+            Map.entry("TIN_INTERRUPTED", "Sập đúng lúc đang gửi tin, không biết tin đã đi chưa"),
+            Map.entry("NHIEU_KHONG_TIM_THAY", "Năm lần gửi liền đều không tìm thấy người nhận trên Zalo (nghi Zalo đang chặn tra số)"),
+            Map.entry("NHIEU_LOI_NGUOI_TIN", "Ba lần gửi tin liền đều bị Zalo từ chối cho từng người"),
+            Map.entry("MSG_LIMIT", "Chạm trần số tin mỗi ngày của cầu nối"),
+            Map.entry("NOT_ACTIVE", "Cầu nối đang dừng hoặc chưa đăng nhập"),
+            Map.entry("LOGIN_REQUIRED", "Cầu nối cần quét lại mã QR"),
             Map.entry("TRIPPED", "Cầu nối tự dừng"));
 
     private static final Map<String, String> ACTION = Map.of(
@@ -67,6 +73,7 @@ public class ZaloLabels {
             Map.entry("BAT_DAU", "Bắt đầu"),
             Map.entry("XONG", "Xong"),
             Map.entry("SAI_TAI_KHOAN", "Sai tài khoản"),
+            Map.entry("DOI_TUONG_THU", "Số của chiến dịch thử (không ghép khách thật)"),
             Map.entry("YEU_CAU", "Yêu cầu"));
 
     private static final Map<String, String> ADD_STATE = Map.of(
@@ -106,7 +113,9 @@ public class ZaloLabels {
         if (code == null) {
             return "";
         }
-        String head = code.startsWith("NAC_") ? "Đổi nấc" : code.startsWith("HAN_MUC") ? "Đổi hạn mức" : null;
+        String head = code.startsWith("NAC_") ? "Đổi nấc" : code.startsWith("HAN_MUC") ? "Đổi hạn mức"
+                : code.equals("TIN_BAT") ? "Bật tự gửi tin" : code.equals("TIN_TAT") ? "Tắt tự gửi tin"
+                : code.startsWith("DUYET_CHIEN_DICH") ? "Duyệt chiến dịch cho tự gửi" : code.startsWith("BO_DUYET_CHIEN_DICH") ? "Bỏ duyệt chiến dịch" : null;
         return head != null ? head : RESULT.getOrDefault(code, "Khác");
     }
 

@@ -1,16 +1,18 @@
 // Lõi của cầu nối: máy trạng thái phiên, cầu dao phía cầu nối, nối lại có backoff, thêm MỘT người vào MỘT nhóm.
-// Không có hàm gửi tin hay gửi lời mời kết bạn ở bất kỳ đâu trong mã này (ADR-0002 mục 3.1, 4).
+// Việc được làm: nghe sự kiện kết bạn, thêm MỘT người vào MỘT nhóm, và (từ D18) gửi MỘT tin văn bản cho MỘT khách đã mua. Không có gửi lời
+// mời kết bạn, không có liệt kê bạn bè, không có gửi hàng loạt (ADR-0002 mục 3.1, 4).
 // Không bao giờ ghi uid, số điện thoại, tên vào log.
 
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { ZALO_ID, inWindow, vnDayStart } from './guard.mjs';
+import { MessageLedger, ZALO_ID, inWindow, vnDayStart } from './guard.mjs';
 import { classifyError, classifyResult, isSessionDead } from './classify.mjs';
 
 const CLOSE_DUPLICATE = 3000; // cùng tài khoản mở Zalo Web/PC nơi khác: kết nối nghe bị đá
 const CLOSE_KICK = 3003;
 const MAX_STARTS = 5; // quá 5 lần khởi động trong 10 phút là vòng sập-bật lại
 const START_WINDOW_MS = 10 * 60 * 1000;
+const MAX_TEXT = 1000; // ký tự; tin mời của shop chỉ vài trăm ký tự
 
 function withTimeout(promise, ms) {
   let timer;
@@ -46,11 +48,12 @@ class StateFile {
 }
 
 export class Bridge {
-  constructor({ config, adapter, store, ledger, events, now = () => Date.now(), log = () => {} }) {
+  constructor({ config, adapter, store, ledger, msgLedger = null, events, now = () => Date.now(), log = () => {} }) {
     this.config = config;
     this.adapter = adapter;
     this.store = store;
     this.ledger = ledger;
+    this.msgLedger = msgLedger ?? new MessageLedger(null, Buffer.alloc(32));
     this.events = events;
     this.now = now;
     this.log = log;
@@ -73,6 +76,10 @@ export class Bridge {
 
   async start() {
     if (this.ledger.corrupt) {
+      this.trip('LEDGER_CORRUPT');
+      return;
+    }
+    if (this.msgLedger.corrupt) {
       this.trip('LEDGER_CORRUPT');
       return;
     }
@@ -340,6 +347,89 @@ export class Bridge {
       }
       this.log(`thêm người: ${c.outcome}`);
       return c.code ? { outcome: c.outcome, code: c.code } : { outcome: c.outcome };
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  // ---------- việc thứ tư (D18): gửi MỘT tin văn bản cho MỘT khách đã mua ----------
+
+  /**
+   * Gửi đúng MỘT tin văn bản cho MỘT người, theo số điện thoại (tin mời đầu) hoặc theo mã Zalo (tin gửi link sau khi thành bạn).
+   * Chốt chặn, tất cả công khai và cố định, không ngẫu nhiên hóa: khung giờ, trần mỗi ngày (vượt thì dừng cầu dao), khoảng nghỉ tối
+   * thiểu CỐ ĐỊNH giữa hai tin (gửi sớm hơn thì chỉ bị từ chối RATE_LIMITED, không dừng), mỗi loại tin một lần cho một người, một lúc
+   * một việc, lỗi lạ thì dừng. Văn bản, số điện thoại, mã Zalo không vào log.
+   * @param {{kind: 'INVITE'|'LINK', phone?: string, uid?: string, text: string}} m
+   */
+  async sendMessage(m) {
+    const kind = m?.kind;
+    const text = typeof m?.text === 'string' ? m.text : '';
+    if ((kind !== 'INVITE' && kind !== 'LINK') || text.trim().length === 0 || text.length > MAX_TEXT) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' };
+    const phone = m.phone === undefined || m.phone === null ? null : String(m.phone).replace(/\D/g, '');
+    const uidIn = m.uid === undefined || m.uid === null ? null : String(m.uid);
+    if ((phone === null) === (uidIn === null)) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' }; // đúng một trong hai
+    if (phone !== null && !/^\d{8,15}$/.test(phone)) return { outcome: 'PERSON_ERROR', code: 'BAD_PHONE' };
+    if (uidIn !== null && !ZALO_ID.test(uidIn)) return { outcome: 'PERSON_ERROR', code: 'BAD_ID' };
+    if (this.state === 'LOGIN_REQUIRED') return { outcome: 'SESSION_LOST', code: 'LOGIN_REQUIRED' };
+    if (this.state === 'TRIPPED' || this.state === 'STOPPED') return { outcome: 'RESTRICTED', code: 'NOT_ACTIVE' };
+    if (this.state !== 'LISTENING') return { outcome: 'SYSTEM_ERROR', code: 'NOT_CONNECTED' };
+    if (this.busy) return { outcome: 'SYSTEM_ERROR', code: 'BUSY' };
+    const t = this.now();
+    if (!inWindow(t, this.config.windowStartMin, this.config.windowEndMin)) {
+      this.trip('WINDOW');
+      return { outcome: 'RESTRICTED', code: 'WINDOW' };
+    }
+    if (this.msgLedger.countSince(vnDayStart(t)) >= this.config.msgDaily) {
+      this.trip('MSG_LIMIT');
+      return { outcome: 'RESTRICTED', code: 'MSG_LIMIT' };
+    }
+    const last = this.msgLedger.last();
+    if (last !== null && t - last < this.config.msgGapMs) {
+      return { outcome: 'RATE_LIMITED', retryAfterSec: Math.ceil((this.config.msgGapMs - (t - last)) / 1000) };
+    }
+    if (uidIn !== null && this.msgLedger.has(kind, uidIn)) return { outcome: 'PERSON_ERROR', code: 'DUPLICATE' };
+    this.busy = true;
+    try {
+      this.msgLedger.record(t); // ghi trước khi gọi, tính cả lần lỗi và lần không tìm thấy
+      this.stateFile.write({ inflight: true });
+      let c;
+      let uid = uidIn;
+      try {
+        if (uid === null) {
+          uid = await withTimeout(this.adapter.findUid(phone), this.config.addTimeoutMs);
+          if (!uid || !ZALO_ID.test(String(uid))) {
+            this.stateFile.write({});
+            this.log('gửi tin: không tìm thấy người nhận');
+            return { outcome: 'PERSON_ERROR', code: 'NOT_FOUND' };
+          }
+          uid = String(uid);
+          if (this.msgLedger.has(kind, uid)) {
+            this.stateFile.write({});
+            this.log('gửi tin: đã gửi loại tin này');
+            return { outcome: 'PERSON_ERROR', code: 'DUPLICATE', uid };
+          }
+        }
+        const result = await withTimeout(this.adapter.sendText(uid, text), this.config.addTimeoutMs);
+        if (!result?.message) {
+          // Zalo không xác nhận có tin: không biết đã gửi hay chưa, dừng thay vì đoán
+          c = { outcome: 'SYSTEM_ERROR', code: 'NO_ACK' };
+        } else {
+          this.msgLedger.markSent(kind, uid);
+          c = { outcome: 'OK' };
+        }
+      } catch (e) {
+        c = classifyError(e, this.config.personErrorCodes);
+      }
+      if (c.outcome !== 'OK' && c.outcome !== 'PERSON_ERROR') {
+        this.trip(c.code ? `${c.outcome}:${c.code}` : c.outcome);
+      } else {
+        this.stateFile.write({});
+      }
+      this.log(`gửi tin: ${c.outcome}`);
+      const out = { outcome: c.outcome };
+      if (c.code) out.code = c.code;
+      if (uid) out.uid = uid;
+      return out;
     } finally {
       this.busy = false;
     }

@@ -105,7 +105,7 @@ class SendAcceptanceTest extends AbstractPostgresTest {
 
     private SendProperties props(boolean enabled, int dailyLimit, int hourlyLimit, long budget, int consecutive,
                                  double failRate) {
-        return new SendProperties(enabled, LocalTime.of(7, 0), LocalTime.of(22, 0), dailyLimit, hourlyLimit, 30, 120,
+        return new SendProperties(enabled, LocalTime.of(7, 0), LocalTime.of(22, 0), dailyLimit, hourlyLimit, 120,
                 false, "", budget, consecutive, failRate, 0.05, 3);
     }
 
@@ -334,10 +334,10 @@ class SendAcceptanceTest extends AbstractPostgresTest {
         assertThat(service(props(false, 20, 1000, 100, 0.99)).monthSpend()).isEqualTo(1000);
     }
 
-    // ---------- gửi từng tin một, nghỉ ngẫu nhiên ----------
+    // ---------- gửi từng tin một, nghỉ cố định ----------
 
     @Test
-    void sendNextGuiMotTinRoiNghiTrongKhoangMinMax() {
+    void sendNextGuiMotTinRoiNghiDungKhoangCoDinh() {
         campaignOf(3);
         SendService svc = service(props(true, 20, 1_000_000, 100, 0.99));
         FakeSender sender = FakeSender.ok(true);
@@ -349,13 +349,12 @@ class SendAcceptanceTest extends AbstractPostgresTest {
         assertThat(wait.waiting()).isTrue();
         assertThat(sender.calls).hasSize(1);
 
-        clock.advance(Duration.ofSeconds(29));
+        clock.advance(Duration.ofSeconds(119));
         assertThat(svc.sendNext(sender).waiting()).isTrue();
-        clock.advance(Duration.ofSeconds(92)); // quá 120 giây từ tin đầu
+        clock.advance(Duration.ofSeconds(2)); // quá đúng 120 giây từ tin đầu
         assertThat(svc.sendNext(sender).sent()).isEqualTo(1);
-        var nextAt = svc.status().nextAt();
-        assertThat(nextAt).isAfterOrEqualTo(LocalDateTime.of(2026, 11, 21, 10, 1, 51))
-                .isBeforeOrEqualTo(LocalDateTime.of(2026, 11, 21, 10, 4, 1));
+        // mốc tin sau cách tin vừa gửi ĐÚNG 120 giây, không dao động
+        assertThat(svc.status().nextAt()).isEqualTo(LocalDateTime.ofInstant(clock.instant().plusSeconds(120), clock.getZone()));
     }
 
     // ---------- nhật ký ----------

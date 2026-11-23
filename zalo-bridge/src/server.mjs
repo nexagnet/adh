@@ -1,6 +1,6 @@
 // Máy chủ HTTP nội bộ (node:http, không thêm thư viện). Hợp đồng: docs/ZALO-BRIDGE-API.md.
-// Có đúng các đường: /healthz, /status, /events, GET /groups (chỉ đọc), POST /groups/{id}/members, /session/*. KHÔNG có đường gửi tin, gửi lời mời
-// kết bạn, tìm người theo số hay liệt kê bạn bè. Test contract.test.mjs khóa danh sách này.
+// Có đúng các đường: /healthz, /status, /events, GET /groups (chỉ đọc), POST /groups/{id}/members, POST /messages (D18: một tin cho một người),
+// /session/*. KHÔNG có đường gửi hàng loạt, gửi lời mời kết bạn, tìm người theo số rời, hay liệt kê bạn bè. server.test.mjs khóa danh sách này.
 
 import http from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
@@ -46,6 +46,7 @@ export const ROUTES = [
   'GET /events',
   'GET /groups',
   'POST /groups/{id}/members',
+  'POST /messages',
   'POST /session/login',
   'GET /session/login',
   'POST /session/logout',
@@ -79,6 +80,10 @@ export function createServer({ bridge, config, fake = null }) {
         const uid = String(body.uid ?? '');
         if (!ZALO_ID.test(groupId) || !ZALO_ID.test(uid)) return send(200, { outcome: 'PERSON_ERROR', code: 'BAD_ID' });
         return send(200, await bridge.addMember(groupId, uid));
+      }
+      if (route === 'POST /messages') {
+        const body = await readJson(req);
+        return send(200, await bridge.sendMessage({ kind: body.kind, phone: body.phone, uid: body.uid, text: body.text }));
       }
       if (route === 'POST /session/login') {
         await readJson(req);

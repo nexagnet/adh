@@ -54,6 +54,40 @@ Mã nguồn trên nhánh `main` của `nexagnet/adh`, đã gộp các PR #1 đ�
 - **Không đụng vào** các bản nháp ở repo `nexagnet/.github` (#11, #42, #43, #45). Đó là của người dùng.
 - Người dùng đã cho phép Claude **tự gộp PR của `nexagnet/adh`** khi CI xanh và không xung đột (cho phép ngày 21/11/2026; không áp dụng cho `nexagnet/.github` hay PR của người khác). Việc mới thì mở PR mới từ `main`, gộp rồi báo lại. **Riêng phần Zalo (bộ nối D16, luồng kết bạn → vào nhóm), người dùng yêu cầu review kỹ từng PR** (đọc diff, chạy test, tìm lỗi) và ghi kết quả review vào mô tả PR trước khi gộp; các PR #30, #31 đã làm vậy, và #31 rà lại cả #29.
 
+
+---
+
+## 1A. D18: tự gửi tin cho khách + chiến dịch thử (23/11/2026, PR đang mở, ĐÃ CODE NHƯNG CHƯA CHẠY VỚI ZALO THẬT)
+
+**Quyết định của người dùng (đổi D9, 23/11/2026):** bỏ "không tự gửi tin"; hệ thống tự gửi Tin 1 theo chiến dịch, khách đồng ý kết bạn thì tự thêm vào nhóm Zalo theo khu vực; nhóm tự thêm và nhóm qua link là **một nhóm** (cùng `reserved_group_id`). Tin 2 (link nhóm) tự gửi khi việc thêm nhóm không làm được (lỗi theo từng người).
+
+**Cách làm, theo hướng minh bạch và có hạn mức (đã thống nhất, không đổi):**
+- Công tắc tự gửi tin **mặc định TẮT** (trang `/zalo`, panel "Tự gửi tin cho khách"); cần cả `APP_ZALO_AUTO_ENABLED=true`, profile `zalo-auto`, nấc `AUTO`.
+- Chỉ gửi khi chiến dịch đã được **duyệt tự gửi** (`/campaigns/{id}`, nút duyệt/thu hồi); chỉ trong giờ 08:00–20:00; hạn mức ngày chỉnh được nhưng có trần (`APP_ZALO_AUTO_MSG_MAX_DAILY`, mặc định 25; mặc định ban đầu 10/ngày); **khoảng cách cố định** giữa hai tin (mặc định 120 giây, tối thiểu 100 giây; bộ nối thêm lớp thứ hai: trần 60/ngày, khoảng cách 90 giây).
+- **Mỗi khách một tin mỗi loại** (3 lớp: Adh claim `READY→SENT`, sổ băm HMAC ở bộ nối, người dùng duyệt chiến dịch). Không bao giờ gửi cho người đã từ chối. Lỗi lạ hoặc không rõ đã gửi hay chưa => đánh dấu `FAILED` và **ngắt cầu dao**, không tự gửi lại.
+- **Không dùng thời gian ngẫu nhiên, không giả người, không đổi dấu vết thiết bị, không proxy.** `SendProperties` chỉ còn `gapSeconds` cố định; bộ nối vẫn không có `sendFriendRequest/acceptFriendRequest/getAllFriends`. Bộ nối chỉ thêm `findUser` và `sendMessage` (test `no-send.test.mjs` khóa số lần xuất hiện).
+- Tự dừng khi Zalo cảnh báo, hoặc 3 lỗi theo người liên tiếp (không phải "không tìm thấy"), hoặc 5 "không tìm thấy" liên tiếp.
+
+**Chiến dịch thử (`/test-runs`)** — chạy qua bộ nối THẬT, chỉ cho các số điện thoại nhập tay (dự kiến 3 người), tách khỏi khách thật, giới hạn/nhóm đích/nội dung cấu hình trên giao diện, hạn mức chỉ được THẤP hơn hạn mức chung. Mã cô lập ở gói `vn.shop.crm.testrun` (`TestRunAutomation` cắm vào qua `ZaloFriendTap`/`ZaloTickHook`) và cột V22: **xóa màn hình này sau khi thử xong** = xóa gói `testrun`, 2 mẫu `test-run*.html`, thêm migration V23 bỏ các cột của V22.
+
+**Đã làm:** bộ nối (`POST /messages`, sổ tin, 72 test Node đạt); Adh (`ZaloMessenger`, `ZaloMessageService`, `ZaloInviteSender`, chiến dịch thử, trang quản trị, migration V21–V22, 20 test mới `ZaloAutoSendTest`; lần chạy gần nhất 126/127 test mục tiêu đạt, test lỗi duy nhất là chữ trang chiến dịch thử, đã sửa chữ nhưng chưa chạy lại).
+
+**Còn thiếu (làm tiếp, theo thứ tự):**
+1. Chạy lại toàn bộ `mvn test` (JDK 25 trên CI; cục bộ dùng `-Djava.version=21 -Dmaven.compiler.release=21`).
+2. ~~Test cho `TestRunAutomation`~~ **xong** (`TestRunAutomationTest`, 7 test).
+3. ~~`ZaloGatewayShapeTest` + test `/messages` của `ZcaBridgeGateway`~~ **xong**.
+4. ~~Tài liệu~~ **xong**: `docs/ZALO-BRIDGE-API.md`, `zalo-bridge/README.md`, hướng dẫn mục 2A, ghi vào ADR-0002 mục 12 (không tạo ADR mới). Còn: file 01 (đổi D9) nếu người dùng muốn ghi nghiệp vụ.
+5. Thử thật (chưa ai làm): xem "Cách chạy thử" dưới đây.
+
+**Cách chạy thử chiến dịch thử (sau khi PR gộp và cron tự deploy xong):**
+1. `/zalo`: bộ nối đã đăng nhập tài khoản phụ; nấc `AUTO` (hoặc nấc cho phép tự thêm nhóm); gán mã nhóm Zalo cho nhóm thử ở `/zalo/groups`.
+2. `/zalo` panel "Tự gửi tin": bật công tắc, đặt hạn mức (vd 5) và khoảng cách (vd 120 giây).
+3. `/test-runs`: tạo chiến dịch thử, nhập 3 số, chọn nhóm đích, sửa nội dung nếu cần, bấm Bắt đầu. Chỉ trong 08:00–20:00.
+4. Trên điện thoại 3 người: nhận Tin 1, bấm kết bạn → hệ thống thêm vào nhóm; nếu việc thêm lỗi thì nhận Tin 2 (link nhóm).
+5. Xem nhật ký bộ nối (không có SĐT/nội dung trong log) để biết **mã lỗi thật** của Zalo, rồi điền `ZALO_PERSON_ERROR_CODES` (vd mã "không tìm thấy" của `findUser`). Mã lạ sẽ làm ngắt cầu dao: đó là chủ ý.
+
+**Rủi ro còn lại:** `findUid/sendText` của `zca-adapter.mjs` chưa chạy với Zalo thật; tài khoản phụ vẫn có thể bị Zalo khóa (người dùng đã chấp nhận); tin có link nhóm có thể bị coi là spam; V21/V22 là migration mới (Flyway chạy tự động khi deploy; chưa có migration hạ cấp). Tiền đề: đây là công cụ giúp người dùng bớt mệt, chạy chậm, nhỏ lô, có thể tắt bất kỳ lúc nào bằng công tắc ở `/zalo`.
+
 ---
 
 ## 2. Quyết định của chủ shop (tóm tắt, chi tiết ở file 03 mục 0)

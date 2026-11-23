@@ -4,7 +4,7 @@ import path from 'node:path';
 import { loadConfig, ConfigError } from './config.mjs';
 import { Bridge } from './bridge.mjs';
 import { EventBuffer } from './events.mjs';
-import { AddLedger } from './guard.mjs';
+import { AddLedger, MessageLedger } from './guard.mjs';
 import { SessionStore } from './session-store.mjs';
 import { createServer } from './server.mjs';
 import { FakeAdapter } from './fake-adapter.mjs';
@@ -38,6 +38,7 @@ const bridge = new Bridge({
   adapter,
   store: new SessionStore(path.join(config.dataDir, 'session.enc'), config.sessionKey),
   ledger: new AddLedger(path.join(config.dataDir, 'adds.json')),
+  msgLedger: new MessageLedger(path.join(config.dataDir, 'messages.json'), config.sessionKey),
   events: new EventBuffer(),
   log,
 });

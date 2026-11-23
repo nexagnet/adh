@@ -613,7 +613,8 @@ public class InviteService {
                                zalo_add_state = CASE WHEN zalo_add_state IN ('WAITING_APPROVAL', 'QUEUED', 'FAILED')
                                                      THEN NULL ELSE zalo_add_state END,
                                zalo_add_code = CASE WHEN zalo_add_state IN ('WAITING_APPROVAL', 'QUEUED', 'FAILED')
-                                                    THEN NULL ELSE zalo_add_code END
+                                                    THEN NULL ELSE zalo_add_code END,
+                               zalo_link_state = CASE WHEN zalo_link_state = 'PENDING' THEN 'SENT' ELSE zalo_link_state END
                         WHERE id = :id AND status = 'FRIENDED' AND group_link_sent_at IS NULL""")
                 .param("g", group.id()).param("h", reserveHours).param("id", invitationId).update();
         if (n == 0) {

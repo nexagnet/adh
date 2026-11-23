@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Bridge } from '../src/bridge.mjs';
 import { EventBuffer } from '../src/events.mjs';
-import { AddLedger } from '../src/guard.mjs';
+import { AddLedger, MessageLedger } from '../src/guard.mjs';
 import { SessionStore } from '../src/session-store.mjs';
 import { FakeAdapter } from '../src/fake-adapter.mjs';
 import { loadConfig } from '../src/config.mjs';
@@ -36,6 +36,7 @@ export function setup({ env = {}, adapterOpts = {}, start = true } = {}) {
       adapter,
       store: new SessionStore(path.join(dir, 'session.enc'), config.sessionKey),
       ledger: new AddLedger(path.join(dir, 'adds.json')),
+      msgLedger: new MessageLedger(path.join(dir, 'messages.json'), config.sessionKey),
       events: new EventBuffer({ now: () => clock.t }),
       now: () => clock.t,
       log: (m) => logs.push(m),

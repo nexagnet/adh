@@ -1,6 +1,7 @@
 // Chốt chặn cứng của cầu nối: kiểm mã, khung giờ, trần mỗi ngày. Tách riêng để test.
 
 import { readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
+import { createHmac } from 'node:crypto';
 
 export const ZALO_ID = /^\d{1,32}$/;
 export const VN_OFFSET_MS = 7 * 3600 * 1000; // Việt Nam là UTC+7, không có giờ mùa hè
@@ -50,5 +51,66 @@ export class AddLedger {
       writeFileSync(tmp, JSON.stringify(this.times), { mode: 0o600 });
       renameSync(tmp, this.file);
     }
+  }
+}
+
+/**
+ * Sổ tin nhắn gửi khách (D18), lưu ra đĩa: các thời điểm gửi (để đếm trần ngày và đo khoảng nghỉ cố định) và dấu vết "đã gửi loại
+ * tin này cho người này" để không bao giờ gửi một loại tin hai lần cho cùng một người. Dấu vết là HMAC bằng khóa riêng, không lưu
+ * mã Zalo hay số điện thoại dạng đọc được. Tính cả lần lỗi. Tệp hỏng thì cầu nối dừng (thất bại kín).
+ */
+export class MessageLedger {
+  constructor(file, secret) {
+    this.file = file;
+    this.secret = secret;
+    this.times = [];
+    this.sent = new Set();
+    this.corrupt = false;
+    if (file && existsSync(file)) {
+      try {
+        const parsed = JSON.parse(readFileSync(file, 'utf8'));
+        if (!parsed || !Array.isArray(parsed.times) || !Array.isArray(parsed.sent)) throw new Error('sai dạng');
+        this.times = parsed.times.filter((t) => Number.isFinite(t));
+        this.sent = new Set(parsed.sent.filter((h) => typeof h === 'string'));
+      } catch {
+        this.corrupt = true;
+      }
+    }
+  }
+
+  mark(kind, uid) {
+    return createHmac('sha256', this.secret).update(`${kind}:${uid}`).digest('hex').slice(0, 32);
+  }
+
+  has(kind, uid) {
+    return this.sent.has(this.mark(kind, uid));
+  }
+
+  countSince(sinceMs) {
+    return this.times.filter((t) => t >= sinceMs).length;
+  }
+
+  last() {
+    return this.times.length ? Math.max(...this.times) : null;
+  }
+
+  /** Ghi một lần gửi (trước khi gọi Zalo). */
+  record(ms) {
+    this.times.push(ms);
+    this.times = this.times.filter((t) => t >= ms - 48 * 3600 * 1000);
+    this.save();
+  }
+
+  /** Ghi đã gửi xong loại tin này cho người này. */
+  markSent(kind, uid) {
+    this.sent.add(this.mark(kind, uid));
+    this.save();
+  }
+
+  save() {
+    if (!this.file) return;
+    const tmp = `${this.file}.tmp`;
+    writeFileSync(tmp, JSON.stringify({ times: this.times, sent: [...this.sent] }), { mode: 0o600 });
+    renameSync(tmp, this.file);
   }
 }
