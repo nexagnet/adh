@@ -21,8 +21,47 @@
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã nhận.</div>
     <div class="notice">
         <strong>Việc chỉ hiện ở trang này và trên Tổng quan</strong>
-        Nếu mẹ không mở trang này, việc khách muốn mua có thể bị bỏ sót. Chưa có tin Zalo tự báo tới mẹ; phần đó để sau, chờ bạn duyệt.
+        Nếu mẹ không mở trang này, việc khách muốn mua có thể bị bỏ sót. Chưa có tin Zalo tự báo tới mẹ; phần đó để sau, chờ duyệt.
     </div>
+
+    <section class="stack" th:if="${!heldRefusals.isEmpty()}" aria-label="Tin khách nhắn riêng cần mẹ xem">
+        <h2>Khách nhắn riêng, cần mẹ xem</h2>
+        <p class="hint">Trợ lý AI đọc tin riêng của khách đã nhận lời mời và nghi khách không muốn nhận tin nữa (hoặc chưa đọc được). Hệ thống đã
+            <strong>tạm dừng mọi tin cho khách này</strong>. Mẹ xem tin trên Zalo rồi chọn. Trợ lý không tự trả lời khách.</p>
+        <div class="job" th:each="r : ${heldRefusals}">
+            <div class="meta">
+                <span class="badge bad" th:text="${r.reason.label()}">AI nghi khách từ chối</span>
+                <span><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.customerName}">Khách</a>
+                    · <span th:text="${#temporals.format(r.createdAt, 'dd/MM HH:mm')}">21/11 09:12</span></span>
+            </div>
+            <div class="what" th:if="${r.excerpt != null}" th:text="'“' + ${r.excerpt} + '”'">“Thôi đừng nhắn nữa nhé”</div>
+            <div class="actions">
+                <form th:action="@{/handoffs/refusals/{id}/confirm(id=${r.id})}" method="post">
+                    <button type="submit" class="btn sm danger">Khách từ chối thật, đừng nhắn lại</button>
+                </form>
+                <form th:action="@{/handoffs/refusals/{id}/release(id=${r.id})}" method="post">
+                    <button type="submit" class="btn sm secondary">Khách không từ chối, cho tiếp tục</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <section class="stack" th:if="${!autoRefusals.isEmpty()}" aria-label="Khách trợ lý AI đã ghi từ chối">
+        <h2>Trợ lý AI đã ghi khách từ chối (14 ngày gần đây)</h2>
+        <p class="hint">AI rất chắc khách từ chối nên đã ghi sổ và không nhắn lại. Nếu ghi nhầm, mẹ bấm Hoàn tác. Hệ thống không giữ nội dung tin của khách.</p>
+        <div class="job" th:each="r : ${autoRefusals}">
+            <div class="meta">
+                <span class="badge info">AI ghi từ chối</span>
+                <span><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.customerName}">Khách</a>
+                    · <span th:text="${#temporals.format(r.createdAt, 'dd/MM HH:mm')}">21/11 09:12</span></span>
+            </div>
+            <div class="actions">
+                <form th:action="@{/handoffs/refusals/{id}/undo(id=${r.id})}" method="post">
+                    <button type="submit" class="btn sm secondary">Hoàn tác</button>
+                </form>
+            </div>
+        </div>
+    </section>
 
     <div class="chips" aria-label="Lọc việc">
         <a class="chip" th:classappend="${!done and !all} ? 'on'" th:href="@{/handoffs}">Cần xử lý <span class="n" th:text="${openCount}">0</span></a>

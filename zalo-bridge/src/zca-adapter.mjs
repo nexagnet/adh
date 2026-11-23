@@ -31,6 +31,13 @@ export class ZcaAdapter {
       const uid = typeof ev.data === 'string' ? ev.data : ev.threadId;
       h.onFriendAdd(String(uid));
     });
+    if (h.onMessage) {
+      // Chỉ tin nhắn RIÊNG (1-1) dạng văn bản của người khác. Không đọc tin nhóm, không đọc tệp/ảnh, không đọc lịch sử cũ.
+      listener.on('message', (m) => {
+        if (m.type !== ThreadType.User || m.isSelf || typeof m.data?.content !== 'string') return;
+        h.onMessage(String(m.threadId), m.data.content);
+      });
+    }
     listener.on('disconnected', (code) => h.onDisconnected(code));
     listener.on('error', () => {}); // nội dung lỗi socket có thể chứa dữ liệu: bỏ qua; đứt thật sẽ có 'disconnected'
     listener.start({ retryOnClose: false }); // nối lại do lõi cầu nối làm, có backoff và giới hạn

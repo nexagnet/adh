@@ -64,6 +64,9 @@ export function loadConfig(env = process.env) {
     groupGapMs: int(env, 'BRIDGE_GROUP_GAP_SEC', 300, 300, 86400) * 1000,
     // Tra tên và ảnh của MỘT số điện thoại để xác nhận mẹ làm phó nhóm: tối đa mỗi giờ (công khai, cố định); quá thì bị từ chối, không dừng.
     profileLookupsPerHour: int(env, 'BRIDGE_PROFILE_LOOKUPS_PER_HOUR', 5, 0, 20),
+    // Đọc tin nhắn RIÊNG gửi tới tài khoản (chỉ từ người đã nhận Tin 1 hoặc Tin 2 của hệ thống) để Adh nhận ra khách từ chối. TẮT mặc định:
+    // tắt thì bộ nối không đăng ký nghe tin nhắn. Tin giữ trong bộ nhớ, không ghi đĩa, không ghi log.
+    inboxEnabled: ['1', 'true'].includes(String(env.BRIDGE_INBOX_ENABLED ?? '').toLowerCase()),
     // Nối lại khi kết nối nghe đứt bất thường (đo thật: mã 1006 sau khoảng 40 phút).
     reconnectDelaysMs: [5000, 15000, 45000, 120000, 300000],
     reconnectMaxAttempts: int(env, 'BRIDGE_RECONNECT_MAX', 8, 1, 100),

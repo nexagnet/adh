@@ -334,6 +334,59 @@ public class ContactService {
         eventAs(customerId, phone, "OPTED_OUT", blankToNull(source), by);
     }
 
+    /** Tên người ghi trong sổ khi trợ lý AI tự ghi từ chối (để hoàn tác chỉ gỡ đúng phần AI làm). */
+    public static final String AI_ACTOR = "tro-ly-ai";
+
+    /**
+     * Những gì cần để HOÀN TÁC một lần trợ lý AI tự ghi từ chối: có dòng cơ sở liên hệ từ trước không (và nội dung nó), số điện thoại đã nằm
+     * trong danh sách từ chối từ trước chưa (nếu rồi thì hoàn tác không được gỡ).
+     */
+    public record AiOptOutUndo(boolean suppressionCreated, boolean hadBasis, String basis, String status, String note,
+                               String recordedBy, String recordedAt) {
+    }
+
+    /** Như {@link #suppressAs} với người ghi là trợ lý AI, và trả thông tin để {@link #undoAiOptOut} đưa mọi thứ về như trước. */
+    @Transactional
+    public AiOptOutUndo suppressByAi(long customerId, String source) {
+        String phone = phoneOf(customerId);
+        boolean existed = isSuppressed(phone);
+        AiOptOutUndo undo = jdbc.sql("""
+                        SELECT basis, status, note, recorded_by, recorded_at FROM contact_basis
+                        WHERE customer_id = :id AND purpose = :p""")
+                .param("id", customerId).param("p", PURPOSE)
+                .query((rs, i) -> new AiOptOutUndo(!existed, true, rs.getString("basis"), rs.getString("status"), rs.getString("note"),
+                        rs.getString("recorded_by"), rs.getObject("recorded_at", OffsetDateTime.class).toInstant().toString()))
+                .optional().orElse(new AiOptOutUndo(!existed, false, null, null, null, null, null));
+        suppressAs(customerId, source, AI_ACTOR);
+        return undo;
+    }
+
+    /**
+     * Gỡ phần trợ lý AI đã ghi: xóa dòng từ chối do AI tạo (không đụng dòng có từ trước hoặc do người ghi), đưa cơ sở liên hệ về như cũ.
+     * Lời mời đã bị hủy theo thì do bên gọi khôi phục (chỉ nó biết trạng thái cũ).
+     */
+    @Transactional
+    public void undoAiOptOut(long customerId, AiOptOutUndo u) {
+        String phone = phoneOf(customerId);
+        if (u.suppressionCreated()) {
+            jdbc.sql("DELETE FROM suppression WHERE phone_hash = :h AND reason = 'OPT_OUT' AND recorded_by = :by")
+                    .param("h", PhoneHash.of(phone)).param("by", AI_ACTOR).update();
+        }
+        if (u.hadBasis()) {
+            jdbc.sql("""
+                            UPDATE contact_basis SET basis = :basis, status = :status, note = :note, recorded_by = :by,
+                                   recorded_at = :at
+                            WHERE customer_id = :id AND purpose = :p AND recorded_by = :ai""")
+                    .param("basis", u.basis()).param("status", u.status()).param("note", u.note()).param("by", u.recordedBy())
+                    .param("at", OffsetDateTime.ofInstant(java.time.Instant.parse(u.recordedAt()), java.time.ZoneOffset.UTC))
+                    .param("id", customerId).param("p", PURPOSE).param("ai", AI_ACTOR).update();
+        } else {
+            jdbc.sql("DELETE FROM contact_basis WHERE customer_id = :id AND purpose = :p AND recorded_by = :ai AND status = 'OPTED_OUT'")
+                    .param("id", customerId).param("p", PURPOSE).param("ai", AI_ACTOR).update();
+        }
+        event(customerId, phone, "OPT_OUT_UNDONE", "Hoàn tác: trợ lý AI nhận nhầm");
+    }
+
     /**
      * Hủy lời mời của khách: lời mời chưa gửi thì xóa hẳn, lời mời đã gửi thì giữ lại và đánh dấu CANCELLED để còn
      * dấu vết. Landing page cũng kiểm lại điều kiện khi khách bấm nên link đã gửi không còn dùng được.

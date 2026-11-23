@@ -5,6 +5,7 @@
 
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { InboxBuffer } from './events.mjs';
 import { AddLedger, MessageLedger, ZALO_ID, inWindow, vnDayStart } from './guard.mjs';
 import { classifyError, classifyResult, isSessionDead } from './classify.mjs';
 
@@ -50,7 +51,7 @@ class StateFile {
 }
 
 export class Bridge {
-  constructor({ config, adapter, store, ledger, msgLedger = null, groupLedger = null, events, now = () => Date.now(), log = () => {} }) {
+  constructor({ config, adapter, store, ledger, msgLedger = null, groupLedger = null, events, inbox = null, now = () => Date.now(), log = () => {} }) {
     this.config = config;
     this.adapter = adapter;
     this.store = store;
@@ -58,6 +59,7 @@ export class Bridge {
     this.msgLedger = msgLedger ?? new MessageLedger(null, Buffer.alloc(32));
     this.groupLedger = groupLedger ?? new AddLedger(null);
     this.events = events;
+    this.inbox = inbox ?? new InboxBuffer({ now: () => this.now() });
     this.now = now;
     this.log = log;
     this.stateFile = new StateFile(path.join(config.dataDir, 'bridge-state.json'));
@@ -169,11 +171,14 @@ export class Bridge {
     }
     this.accountOk = true;
     this.detail = null;
-    this.adapter.listen({
+    const handlers = {
       onConnected: () => this.onConnected(gen),
       onFriendAdd: (uid) => this.onFriendAdd(gen, uid),
       onDisconnected: (code) => this.onDisconnected(gen, code),
-    });
+    };
+    // Chỉ đăng ký nghe tin nhắn khi bật cờ riêng (tắt mặc định).
+    if (this.config.inboxEnabled) handlers.onMessage = (uid, text) => this.onMessage(gen, uid, text);
+    this.adapter.listen(handlers);
     return true;
   }
 
@@ -212,6 +217,18 @@ export class Bridge {
     }
     this.events.push({ uid: String(uid), phone });
     this.log('sự kiện kết bạn');
+  }
+
+  /**
+   * Tin nhắn riêng (1-1) tới tài khoản. Chỉ giữ tin của người mà CHÍNH bộ nối đã gửi Tin 1 hoặc Tin 2 (sổ gửi tin); của người lạ bỏ ngay,
+   * không lưu, không ghi log. Nội dung chỉ nằm trong bộ nhớ tới khi Adh lấy đi.
+   */
+  onMessage(gen, uid, text) {
+    if (gen !== this.generation || !this.config.inboxEnabled || !ZALO_ID.test(String(uid)) || typeof text !== 'string') return;
+    const body = text.trim();
+    if (body.length === 0) return;
+    if (!this.msgLedger.has('INVITE', String(uid)) && !this.msgLedger.has('LINK', String(uid))) return;
+    this.inbox.push({ uid: String(uid), text: body });
   }
 
   onDisconnected(gen, code) {
@@ -704,6 +721,11 @@ export class Bridge {
       sessionSince: this.sessionSince,
       detail: this.detail,
     };
+  }
+
+  inboxMessages(after) {
+    if (!this.config.inboxEnabled) return [];
+    return this.inbox.after(Number.isFinite(after) && after > 0 ? after : 0);
   }
 
   friendEvents(after) {

@@ -72,4 +72,9 @@ public class ManualZaloGateway implements ZaloLink {
     public Found findByPhone(String phoneDigits) {
         return Found.of(FindResult.UNREACHABLE, "DISABLED");
     }
+
+    @Override
+    public List<Inbound> inbound(long afterSeq) {
+        return List.of();
+    }
 }

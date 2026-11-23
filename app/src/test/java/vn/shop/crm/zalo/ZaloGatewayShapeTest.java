@@ -72,10 +72,32 @@ class ZaloGatewayShapeTest {
         }
     }
 
+    /** D19: đọc tin riêng chỉ có MỘT hàm chỉ đọc; phần nhận diện từ chối không có đường nào để trả lời khách. */
+    @Test
+    void docTinRiengChiCoMotHamChiDocVaKhongCoDuongTraLoiKhach() throws IOException {
+        assertThat(names(ZaloInboxReader.class)).containsExactly("inbound");
+        for (Class<?> c : List.of(ZaloInboxReader.class, ZaloInboxService.class)) {
+            for (Method m : c.getDeclaredMethods()) {
+                String n = m.getName().toLowerCase();
+                assertThat(n).as(c.getSimpleName() + "." + m.getName()).doesNotContain("send", "reply", "friend", "invite", "broadcast");
+            }
+        }
+        // phần nhận diện không được đụng tới giao diện gửi tin, thêm nhóm hay tạo nhóm
+        List<Path> files = new java.util.ArrayList<>();
+        try (Stream<Path> inbox = Files.walk(Path.of("src/main/java/vn/shop/crm/inbox"))) {
+            files.addAll(inbox.filter(x -> x.toString().endsWith(".java")).toList());
+        }
+        files.add(Path.of("src/main/java/vn/shop/crm/zalo/ZaloInboxService.java"));
+        for (Path f : files) {
+            assertThat(Files.readString(f)).as(f.toString()).doesNotContain("ZaloMessenger", "sendByPhone", "sendByUid", "addToGroup",
+                    "ZaloGroupMaker", "createGroup", "ZaloPersonFinder", "findByPhone");
+        }
+    }
+
     /** D18: khoảng cách giữa hai tin là CỐ ĐỊNH. Không dùng số ngẫu nhiên để rải thời gian gửi (không né phát hiện). */
     @Test
     void khongDungSoNgauNhienTrongMaGuiTin() throws IOException {
-        for (String dir : List.of("zalo", "testrun", "send")) {
+        for (String dir : List.of("zalo", "testrun", "send", "inbox")) {
             Path root = Path.of("src/main/java/vn/shop/crm", dir);
             try (Stream<Path> files = Files.walk(root)) {
                 for (Path f : files.filter(x -> x.toString().endsWith(".java")).toList()) {

@@ -33,9 +33,11 @@ public class BotController {
     private final FaqService faqs;
     private final BotEngine engine;
     private final HandoffService handoffs;
+    private final vn.shop.crm.inbox.RefusalReviewService refusals;
 
     public BotController(JdbcClient jdbc, AppSettings settings, FaqService faqs, BotEngine engine,
-                         HandoffService handoffs) {
+                         HandoffService handoffs, vn.shop.crm.inbox.RefusalReviewService refusals) {
+        this.refusals = refusals;
         this.jdbc = jdbc;
         this.settings = settings;
         this.faqs = faqs;
@@ -145,6 +147,8 @@ public class BotController {
         model.addAttribute("doneCount", doneCount);
         model.addAttribute("openCount", everything.size() - doneCount);
         model.addAttribute("botEnabled", settings.botEnabled());
+        model.addAttribute("heldRefusals", done ? List.of() : refusals.held());
+        model.addAttribute("autoRefusals", done ? List.of() : refusals.recentAuto(14));
         return "handoffs";
     }
 
@@ -159,6 +163,31 @@ public class BotController {
     public String resolve(@PathVariable long id, RedirectAttributes redirect) {
         handoffs.resolve(id);
         redirect.addFlashAttribute("flash", "Đã xử lý xong.");
+        return "redirect:/handoffs";
+    }
+
+    // ---------- tin riêng của khách: trợ lý AI nghi từ chối (D19) ----------
+
+    @PostMapping("/handoffs/refusals/{id}/confirm")
+    public String confirmRefusal(@PathVariable long id, RedirectAttributes redirect) {
+        refusals.confirm(id);
+        redirect.addFlashAttribute("flash", "Đã ghi sổ: khách từ chối, sẽ không nhắn lại.");
+        return "redirect:/handoffs";
+    }
+
+    @PostMapping("/handoffs/refusals/{id}/release")
+    public String releaseRefusal(@PathVariable long id, RedirectAttributes redirect) {
+        boolean restored = refusals.release(id);
+        redirect.addFlashAttribute("flash", restored ? "Đã cho tiếp tục: khách này lại nằm trong luồng mời như trước."
+                : "Đã đóng việc này, nhưng lời mời của khách đã bị đổi ở chỗ khác nên không khôi phục.");
+        return "redirect:/handoffs";
+    }
+
+    @PostMapping("/handoffs/refusals/{id}/undo")
+    public String undoRefusal(@PathVariable long id, RedirectAttributes redirect) {
+        boolean restored = refusals.undo(id);
+        redirect.addFlashAttribute("flash", restored ? "Đã hoàn tác: khách không còn bị ghi từ chối, lời mời trở lại như trước."
+                : "Đã gỡ ghi từ chối, nhưng lời mời của khách đã bị đổi ở chỗ khác nên không khôi phục.");
         return "redirect:/handoffs";
     }
 }

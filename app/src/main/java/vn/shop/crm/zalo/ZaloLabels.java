@@ -47,20 +47,25 @@ public class ZaloLabels {
             Map.entry("TAO_NHOM_INTERRUPTED", "Sập đúng lúc đang tạo nhóm, không biết nhóm đã tạo chưa"),
             Map.entry("GROUP_LIMIT", "Chạm trần số nhóm mới mỗi ngày của cầu nối"));
 
-    private static final Map<String, String> ACTION = Map.of(
-            ZaloAutoSettings.A_LISTEN, "Nhận sự kiện kết bạn",
-            ZaloAutoSettings.A_MATCH, "Ghép khách",
-            ZaloAutoSettings.A_APPROVE, "Duyệt, thử lại, tự xử lý",
-            ZaloAutoSettings.A_ADD, "Thêm vào nhóm",
-            ZaloAutoSettings.A_STOP, "Dừng",
-            ZaloAutoSettings.A_REOPEN, "Mở lại",
-            ZaloAutoSettings.A_CONFIG, "Đổi cấu hình",
-            ZaloAutoSettings.A_LOGIN, "Đăng nhập QR",
-            ZaloAutoSettings.A_LOGOUT, "Đăng xuất",
-            ZaloGroupSettings.A_GROUP, "Tạo nhóm");
+    private static final Map<String, String> ACTION = Map.ofEntries(
+            Map.entry(ZaloAutoSettings.A_LISTEN, "Nhận sự kiện kết bạn"),
+            Map.entry(ZaloAutoSettings.A_MATCH, "Ghép khách"),
+            Map.entry(ZaloAutoSettings.A_APPROVE, "Duyệt, thử lại, tự xử lý"),
+            Map.entry(ZaloAutoSettings.A_ADD, "Thêm vào nhóm"),
+            Map.entry(ZaloAutoSettings.A_STOP, "Dừng"),
+            Map.entry(ZaloAutoSettings.A_REOPEN, "Mở lại"),
+            Map.entry(ZaloAutoSettings.A_CONFIG, "Đổi cấu hình"),
+            Map.entry(ZaloAutoSettings.A_LOGIN, "Đăng nhập QR"),
+            Map.entry(ZaloAutoSettings.A_LOGOUT, "Đăng xuất"),
+            Map.entry(ZaloGroupSettings.A_GROUP, "Tạo nhóm"),
+            Map.entry(ZaloInboxService.A_INBOX, "Đọc tin riêng của khách (trợ lý AI)"));
 
     private static final Map<String, String> RESULT = Map.ofEntries(
             Map.entry("DA_THANH_BAN", "Đã thành bạn"),
+            Map.entry("AI_GHI_TU_CHOI", "Trợ lý AI ghi sổ khách từ chối"),
+            Map.entry("AI_TAM_DUNG", "Tạm dừng tin cho khách, chờ mẹ xem"),
+            Map.entry("AI_BO_QUA", "Không phải từ chối, bỏ qua"),
+            Map.entry("KHONG_PHAI_KHACH", "Không phải khách đang được mời, bỏ qua"),
             Map.entry("KHONG_CO_SO", "Không có số, chuyển hàng đợi tay"),
             Map.entry("NGUOI_LA", "Người lạ, không lưu"),
             Map.entry("KHONG_DU_DIEU_KIEN", "Khách không đủ điều kiện"),

@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { createServer, ROUTES } from '../src/server.mjs';
 import { setup, loginAndListen, flush } from './helpers.mjs';
 
-async function boot() {
-  const c = setup();
+async function boot(opts) {
+  const c = setup(opts);
   await c.bridge.start();
   await loginAndListen(c);
   const server = createServer({ bridge: c.bridge, config: c.config });
@@ -106,7 +106,7 @@ test('POST /people/lookup (D19) cần khóa, tra đúng một số, số sai kh�
 
 test('danh sách đường được phép là cố định', () => {
   assert.deepEqual(ROUTES, [
-    'GET /healthz', 'GET /status', 'GET /events', 'GET /groups', 'POST /groups', 'POST /groups/{id}/members', 'POST /messages', 'POST /people/lookup', 'POST /session/login', 'GET /session/login',
+    'GET /healthz', 'GET /status', 'GET /events', 'GET /inbox', 'GET /groups', 'POST /groups', 'POST /groups/{id}/members', 'POST /messages', 'POST /people/lookup', 'POST /session/login', 'GET /session/login',
     'POST /session/logout', 'POST /session/stop', 'POST /session/resume',
   ]);
 });
@@ -169,4 +169,22 @@ test('POST /messages cần khóa, gửi đúng một tin cho một người, kh�
   assert.deepEqual(both.json, { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' });
   assert.equal(s.c.adapter.sent.length, 1);
   await s.close();
+});
+
+test('GET /inbox: cần khóa; tắt mặc định thì báo enabled=false và rỗng; bật thì trả tin của người đã nhận tin hệ thống', async () => {
+  const off = await boot();
+  assert.equal((await off.call('GET', '/inbox', { key: '' })).status, 401);
+  const r = await off.call('GET', '/inbox');
+  assert.equal(r.json.enabled, false);
+  assert.deepEqual(r.json.messages, []);
+  await off.close();
+  const on = await boot({ env: { BRIDGE_INBOX_ENABLED: 'true' } });
+  await on.c.bridge.sendMessage({ kind: 'INVITE', uid: '777', text: 'Chào' });
+  on.c.adapter.emitMessage('777', 'không cần đâu');
+  const r2 = await on.call('GET', '/inbox?after=0');
+  assert.equal(r2.json.enabled, true);
+  assert.equal(r2.json.messages.length, 1);
+  assert.equal((await on.call('GET', '/inbox?after=' + r2.json.messages[0].seq)).json.messages.length, 0);
+  assert.equal((await on.call('POST', '/inbox', { body: {} })).status, 404);
+  await on.close();
 });

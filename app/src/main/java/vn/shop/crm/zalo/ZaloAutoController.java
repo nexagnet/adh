@@ -30,8 +30,11 @@ public class ZaloAutoController {
     private final ZaloGroupCreationService groupMaker;
     private final ZaloDeputyService deputy;
 
+    private final ZaloInboxService inbox;
+
     public ZaloAutoController(ZaloAutoService service, ZaloMessageService messages, vn.shop.crm.send.SendService send,
-                              ZaloGroupCreationService groupMaker, ZaloDeputyService deputy) {
+                              ZaloGroupCreationService groupMaker, ZaloDeputyService deputy, ZaloInboxService inbox) {
+        this.inbox = inbox;
         this.groupMaker = groupMaker;
         this.deputy = deputy;
         this.service = service;
@@ -82,6 +85,8 @@ public class ZaloAutoController {
             model.addAttribute("groupProps", gs.props());
             model.addAttribute("deputyCurrent", deputy.current());
             model.addAttribute("deputyCandidate", deputy.candidate().orElse(null));
+            model.addAttribute("inboxRunning", inbox.running());
+            model.addAttribute("inboxThreshold", inbox.threshold());
             model.addAttribute("groupMayNow", groupMaker.mayCreateNow());
             model.addAttribute("proposals", groupMaker.recent(10));
         }
