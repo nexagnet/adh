@@ -64,7 +64,8 @@ public class SettlementImportService {
                          int netMismatchLines, List<PeriodInfo> periods, int matchedShipments, int unknownShipments,
                          int orderRefToFill, int deliveredOnToFill, int signedNotDelivered,
                          Map<String, Long> signedNotDeliveredByStatus, List<ImportService.RowError> sampleErrors,
-                         int customersRecalculated) implements java.io.Serializable {
+                         int customersRecalculated, int upgradedToDelivered,
+                         Map<String, Long> upgradedByStatus) implements java.io.Serializable {
     }
 
     public record BatchView(long id, String filename, String status) {
@@ -91,7 +92,7 @@ public class SettlementImportService {
     }
 
     /** Thông tin gộp theo mã vận đơn (một đơn có thể xuất hiện ở nhiều kỳ). */
-    private record Merged(String orderRef, LocalDateTime signedAt) {
+    private record Merged(String orderRef, LocalDateTime signedAt, boolean proven) {
     }
 
     private record Staged(long id, String filename, String status, byte[] content) {
@@ -265,7 +266,22 @@ public class SettlementImportService {
                                 + "WHERE id = :id AND order_ref IS NULL")
                         .param("r", m.orderRef()).param("id", s.id()).update() > 0;
             }
-            if (m.signedAt() != null && s.deliveredOn() == null && isDelivered(s)) {
+            if (upgradable(s, m)) {
+                // đối chiếu chính xác: J&T đã thu COD sau khi ký nhận và không có phí hoàn => đây là một lần mua thành công
+                int n = jdbc.sql("""
+                                UPDATE shipment SET canonical_status = 'DELIVERED', settled_delivered = TRUE,
+                                    delivered_on = COALESCE(delivered_on, :t), updated_at = now()
+                                WHERE id = :id AND canonical_status IN ('UNKNOWN', 'CREATED', 'IN_TRANSIT')""")
+                        .param("t", ts(m.signedAt())).param("id", s.id()).update();
+                if (n > 0) {
+                    jdbc.sql("""
+                                    INSERT INTO shipment_status_history (shipment_id, batch_id, raw_status, canonical_status)
+                                    VALUES (:s, :batch, :raw, 'DELIVERED')""")
+                            .param("s", s.id()).param("batch", batchId)
+                            .param("raw", ImportService.clean(s.rawStatus() + " (đối soát J&T)", 200)).update();
+                    changed = true;
+                }
+            } else if (m.signedAt() != null && s.deliveredOn() == null && isDelivered(s)) {
                 changed |= jdbc.sql("UPDATE shipment SET delivered_on = :t, updated_at = now() "
                                 + "WHERE id = :id AND delivered_on IS NULL AND canonical_status = 'DELIVERED'")
                         .param("t", ts(m.signedAt())).param("id", s.id()).update() > 0;
@@ -529,6 +545,8 @@ public class SettlementImportService {
         int refFill = 0;
         int deliveredFill = 0;
         int signedNotDelivered = 0;
+        int upgraded = 0;
+        Map<String, Long> upgradedBy = new LinkedHashMap<>();
         Map<String, Long> byStatus = new LinkedHashMap<>();
         for (Map.Entry<String, Merged> e : merged.entrySet()) {
             ShipmentRow s = shipments.get(e.getKey());
@@ -541,7 +559,10 @@ public class SettlementImportService {
             if (m.orderRef() != null && s.orderRef() == null) {
                 refFill++;
             }
-            if (m.signedAt() != null) {
+            if (upgradable(s, m)) {
+                upgraded++;
+                upgradedBy.merge(s.rawStatus(), 1L, Long::sum);
+            } else if (m.signedAt() != null) {
                 if (isDelivered(s)) {
                     if (s.deliveredOn() == null) {
                         deliveredFill++;
@@ -569,7 +590,7 @@ public class SettlementImportService {
                 ? parsed.errors().subList(0, SAMPLE_ERRORS) : parsed.errors();
         return new Report(parsed.totalRows(), parsed.lines().size(), parsed.errors().size(), parsed.duplicates(),
                 parsed.erased(), parsed.netMismatch(), List.copyOf(periods), matched, unknown, refFill, deliveredFill,
-                signedNotDelivered, byStatus, List.copyOf(sample), recalculated);
+                signedNotDelivered, byStatus, List.copyOf(sample), recalculated, upgraded, upgradedBy);
     }
 
     private static boolean isDelivered(ShipmentRow s) {
@@ -582,13 +603,31 @@ public class SettlementImportService {
                 .sorted(Comparator.comparing((Line l) -> periodRange(l.periodCode())[1],
                         Comparator.nullsFirst(Comparator.naturalOrder())).thenComparing(Line::periodCode)).toList();
         Map<String, Merged> result = new LinkedHashMap<>();
+        Set<String> returned = new HashSet<>();
+        Set<String> collected = new HashSet<>();
         for (Line l : ordered) {
             Merged old = result.get(l.trackingNo());
             String ref = l.orderRef() != null ? l.orderRef() : old == null ? null : old.orderRef();
             LocalDateTime signed = l.signedAt() != null ? l.signedAt() : old == null ? null : old.signedAt();
-            result.put(l.trackingNo(), new Merged(ref, signed));
+            if (l.returnFee().signum() > 0) {
+                returned.add(l.trackingNo());
+            }
+            if (l.signedAt() != null && l.cod().signum() > 0 && l.returnFee().signum() == 0) {
+                collected.add(l.trackingNo());
+            }
+            result.put(l.trackingNo(), new Merged(ref, signed, false));
         }
+        // Bằng chứng giao thành công: có ký nhận, J&T đã thu COD và không có phí hoàn ở bất kỳ kỳ nào.
+        result.replaceAll((tracking, m) -> new Merged(m.orderRef(), m.signedAt(),
+                collected.contains(tracking) && !returned.contains(tracking)));
         return result;
+    }
+
+    /** Đơn có thể được nâng lên Giao thành công nhờ file đối soát: chưa rõ, chờ lấy hoặc đang chạy. Hủy/hoàn thì không. */
+    private static boolean upgradable(ShipmentRow s, Merged m) {
+        return m.proven() && (CanonicalStatus.UNKNOWN.name().equals(s.canonical())
+                || CanonicalStatus.CREATED.name().equals(s.canonical())
+                || CanonicalStatus.IN_TRANSIT.name().equals(s.canonical()));
     }
 
     private Map<String, ShipmentRow> loadShipments(Collection<Line> lines) {

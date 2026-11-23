@@ -347,7 +347,13 @@ public class ImportService {
                                     receiver_address = COALESCE(:address, receiver_address),
                                     created_on = COALESCE(:createdOn, created_on),
                                     delivered_on = COALESCE(:deliveredOn, delivered_on),
-                                    raw_status = :rawStatus, status_key = :statusKey, canonical_status = :canonical,
+                                    raw_status = :rawStatus, status_key = :statusKey,
+                                    -- đơn đã được file đối soát J&T chứng minh giao thành công thì giữ nguyên, trừ khi hãng báo hủy/hoàn
+                                    canonical_status = CASE WHEN settled_delivered
+                                        AND :canonical NOT IN ('CANCELLED', 'RETURNING', 'RETURNED')
+                                        THEN 'DELIVERED' ELSE :canonical END,
+                                    settled_delivered = settled_delivered
+                                        AND :canonical NOT IN ('CANCELLED', 'RETURNING', 'RETURNED'),
                                     raw_payload = CAST(:payload AS jsonb), last_batch_id = :batch, updated_at = now()
                                 WHERE id = :id""")
                         .paramSource(p).update();
