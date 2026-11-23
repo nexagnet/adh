@@ -182,7 +182,7 @@ Dùng một chiến dịch gửi cho số thử (khách giả hoặc nhóm B), c
 
 **Màn hình và mã sẽ xóa (tôi làm sau khi bạn báo thử xong; chưa xóa gì lúc này):**
 
-1. **Chiến dịch thử:** menu "Chạy thử trên Zalo" (`/test-runs`), gói `vn.shop.crm.testrun` (3 file), 2 mẫu `test-runs.html` và `test-run-detail.html`, `TestRunTest`, `TestRunAutomationTest`; thêm migration số kế tiếp (lúc viết là `V41`) bỏ bảng `test_run` và `test_target` (tạo ở V14, V22 chỉ thêm cột; sửa `safety/TestMode.java` trước vì còn dùng `test_target`; xem `docs/BAN-GIAO-CHIEN-DICH-THU.md` mục 6); gỡ chỗ cắm `ZaloFriendTap` / `addExternal` nếu không còn dùng.
+1. **Chiến dịch thử:** menu "Chạy thử trên Zalo" (`/test-runs`), gói `vn.shop.crm.testrun` (3 file), 2 mẫu `test-runs.html` và `test-run-detail.html`, `TestRunTest`, `TestRunAutomationTest`; thêm migration số kế tiếp (lúc viết là `V42`) bỏ bảng `test_run` và `test_target` (tạo ở V14, V22 chỉ thêm cột; sửa `safety/TestMode.java` trước vì còn dùng `test_target`; xem `docs/BAN-GIAO-CHIEN-DICH-THU.md` mục 6); gỡ chỗ cắm `ZaloFriendTap` / `addExternal` nếu không còn dùng.
 2. **Màn nhắn tay:** "Lô nhắn hôm nay" (`/today`, `TodayController`, `today.html`, `TodayQueueTest`), "Chờ vào nhóm" (`/friends`, `FriendsController`, `friends.html`, `FriendQueueTest`, `FriendFlowTest`), mục menu của hai màn này, khối "Việc cần làm hôm nay" ở Tổng quan có mục nhắn tay.
 3. **Nút nhắn tay** ở chi tiết chiến dịch: Đã nhắn, Đã kết bạn, Đã vào nhóm, Đã gửi link nhóm, Khách đã rời nhóm, Khách từ chối bấm tay (các `POST /campaigns/{id}/invitations/{id}/...`), nút "Xuất danh sách để mẹ gửi tay", và xem lại nút "Chạy thử (không gửi gì)" (`/campaigns/{id}/dry-run`) xem còn cần không sau khi bỏ hàng đợi nhắn tay.
 

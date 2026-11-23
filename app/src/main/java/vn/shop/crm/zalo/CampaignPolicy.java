@@ -39,6 +39,39 @@ public class CampaignPolicy {
         }
     }
 
+    /**
+     * Điều kiện gửi riêng thêm (D21 PR 4 phần còn lại): ngày trong tuần được gửi (bit 0 = thứ Hai ... bit 6 = Chủ nhật; null = mọi ngày),
+     * hoãn khi mưa lớn, ngưỡng tự dừng khi khách từ chối nhiều (null = theo ngưỡng chung). Tất cả chỉ làm CHẶT hơn.
+     */
+    public record Extra(Integer weekdays, boolean holdOnRain, Integer stopRefusalPct) {
+        public static final Extra NONE = new Extra(null, false, null);
+        public static final int ALL_DAYS = 127;
+
+        public boolean any() {
+            return (weekdays != null && weekdays != ALL_DAYS) || holdOnRain || stopRefusalPct != null;
+        }
+
+        /** Ngày (1 = thứ Hai ... 7 = Chủ nhật) có được gửi không. */
+        public boolean allows(int isoDay) {
+            return weekdays == null || (weekdays & (1 << (isoDay - 1))) != 0;
+        }
+
+        /** Gộp các ngày người dùng tick thành một số; chọn đủ cả tuần thì là "mọi ngày" (null). */
+        public static Integer maskOf(java.util.Collection<Integer> days) {
+            int mask = 0;
+            for (Integer d : days) {
+                if (d == null || d < 1 || d > 7) {
+                    throw new ImportException("Ngày trong tuần không đúng.");
+                }
+                mask |= 1 << (d - 1);
+            }
+            if (mask == 0) {
+                throw new ImportException("Hãy chọn ít nhất một ngày trong tuần được gửi.");
+            }
+            return mask == ALL_DAYS ? null : mask;
+        }
+    }
+
     /** Giá trị đang có hiệu lực sau khi so với trần hệ thống (để hiển thị). */
     public record Effective(LocalDate startOn, LocalDate endOn, LocalTime windowFrom, LocalTime windowTo, int dailyCap, int gapSeconds) {
     }
@@ -48,7 +81,8 @@ public class CampaignPolicy {
         ENDED("Đã qua ngày kết thúc của chiến dịch"),
         OUTSIDE_WINDOW("Ngoài khung giờ riêng của chiến dịch"),
         DAILY_CAP("Đã đủ hạn mức ngày riêng của chiến dịch"),
-        GAP("Chưa đủ khoảng nghỉ riêng của chiến dịch");
+        GAP("Chưa đủ khoảng nghỉ riêng của chiến dịch"),
+        WRONG_DAY("Hôm nay không phải ngày trong tuần được gửi của chiến dịch");
 
         private final String label;
 
@@ -78,6 +112,14 @@ public class CampaignPolicy {
     public Raw load(long campaignId) {
         return jdbc.sql("SELECT start_on, end_on, window_from, window_to, daily_cap, gap_seconds FROM invitation_campaign WHERE id = :id")
                 .param("id", campaignId).query(this::map).optional().orElse(Raw.NONE);
+    }
+
+    public Extra loadExtra(long campaignId) {
+        return jdbc.sql("SELECT weekdays, hold_on_rain, stop_refusal_pct FROM invitation_campaign WHERE id = :id")
+                .param("id", campaignId)
+                .query((rs, n) -> new Extra((Integer) rs.getObject("weekdays"), rs.getBoolean("hold_on_rain"),
+                        (Integer) rs.getObject("stop_refusal_pct")))
+                .optional().orElse(Extra.NONE);
     }
 
     private Raw map(ResultSet rs, int n) throws SQLException {
@@ -111,11 +153,15 @@ public class CampaignPolicy {
      */
     public Optional<Block> blocker(long campaignId) {
         Raw raw = load(campaignId);
-        if (!raw.any()) {
+        Extra extra = loadExtra(campaignId);
+        if (!raw.any() && !extra.any()) {
             return Optional.empty();
         }
         ZonedDateTime now = clock.instant().atZone(clock.getZone());
         LocalDate today = now.toLocalDate();
+        if (!extra.allows(today.getDayOfWeek().getValue())) {
+            return Optional.of(Block.WRONG_DAY);
+        }
         if (raw.startOn() != null && today.isBefore(raw.startOn())) {
             return Optional.of(Block.NOT_STARTED);
         }
@@ -212,6 +258,29 @@ public class CampaignPolicy {
         validate(clamped);
         write(campaignId, clamped);
         messages.audit("LICH_CHIEN_DICH", campaignId, by);
+    }
+
+    /**
+     * Người dùng đặt điều kiện gửi riêng thêm. Chỉ làm chặt hơn: ngưỡng tự dừng riêng không được cao hơn ngưỡng chung
+     * ({@link CampaignAutoStop#SYSTEM_PCT}); hoãn khi mưa chỉ HOÃN, không bao giờ làm gửi nhanh hơn.
+     */
+    public void saveExtra(long campaignId, Extra extra, String by) {
+        if (extra.weekdays() != null && (extra.weekdays() < 1 || extra.weekdays() > Extra.ALL_DAYS)) {
+            throw new ImportException("Ngày trong tuần không đúng.");
+        }
+        if (extra.stopRefusalPct() != null && (extra.stopRefusalPct() < 1 || extra.stopRefusalPct() > CampaignAutoStop.SYSTEM_PCT)) {
+            throw new ImportException("Ngưỡng tự dừng riêng phải từ 1 đến " + CampaignAutoStop.SYSTEM_PCT
+                    + " phần trăm (không được cao hơn ngưỡng chung của hệ thống).");
+        }
+        int n = jdbc.sql("""
+                        UPDATE invitation_campaign SET weekdays = :wd, hold_on_rain = :rain, stop_refusal_pct = :pct WHERE id = :id""")
+                .param("wd", extra.weekdays() != null && extra.weekdays() == Extra.ALL_DAYS ? null : extra.weekdays(), java.sql.Types.SMALLINT)
+                .param("rain", extra.holdOnRain()).param("pct", extra.stopRefusalPct(), java.sql.Types.INTEGER)
+                .param("id", campaignId).update();
+        if (n == 0) {
+            throw new ImportException("Không tìm thấy chiến dịch.");
+        }
+        messages.audit("DIEU_KIEN_CHIEN_DICH", campaignId, by);
     }
 
     private void write(long campaignId, Raw raw) {

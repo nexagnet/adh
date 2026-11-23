@@ -115,7 +115,8 @@ public class ZaloLabels {
             ZaloHealthService.K_ACCOUNT, "Tài khoản đăng nhập không đúng, hoặc Zalo đang mở ở nơi khác",
             ZaloHealthService.K_STOPPED, "Bộ nối Zalo đã tự dừng",
             ZaloHealthService.K_FAIL_RATE, "Nhiều tin gửi bị lỗi trong 24 giờ qua",
-            ZaloHealthService.K_BRIDGE_DOWN, "Không gọi được tới cầu nối Zalo hơn 15 phút");
+            ZaloHealthService.K_BRIDGE_DOWN, "Không gọi được tới cầu nối Zalo hơn 15 phút",
+            ZaloHealthService.K_REFUSAL, "Có chiến dịch bị tự dừng vì nhiều khách từ chối");
 
     private static final Map<String, String> HEALTH_ADVICE = Map.of(
             ZaloHealthService.K_LOGIN, "Bấm Quét mã QR ở dưới rồi quét bằng điện thoại của tài khoản phụ. Nếu Zalo báo tài khoản bị khóa thì dừng lại và báo cho Việt.",
@@ -124,7 +125,8 @@ public class ZaloLabels {
             ZaloHealthService.K_ACCOUNT, "Đăng xuất Zalo của tài khoản phụ ở máy khác, hoặc quét lại mã QR bằng đúng tài khoản phụ.",
             ZaloHealthService.K_STOPPED, "Đọc nhật ký bên dưới để biết vì sao, xử lý rồi bấm Mở lại.",
             ZaloHealthService.K_FAIL_RATE, "Chưa dừng, nhưng Zalo đang từ chối nhiều tin. Nên giảm hạn mức mỗi ngày hoặc bấm Dừng ngay, rồi xem nhật ký gửi.",
-            ZaloHealthService.K_BRIDGE_DOWN, "Nhờ Việt kiểm tra máy chủ: cầu nối có thể đang tắt hoặc máy hết bộ nhớ.");
+            ZaloHealthService.K_BRIDGE_DOWN, "Nhờ Việt kiểm tra máy chủ: cầu nối có thể đang tắt hoặc máy hết bộ nhớ.",
+            ZaloHealthService.K_REFUSAL, "Mở chiến dịch bị dừng để xem lý do. Đọc lại nội dung tin, xem có làm khách khó chịu không. Chỉ duyệt lại khi đã sửa; sau khi duyệt lại, hệ thống đếm tỷ lệ từ chối từ đầu.");
 
     public String healthTitle(String kind) {
         return HEALTH_TITLE.getOrDefault(kind, "Có dấu hiệu bất thường ở tài khoản Zalo phụ");

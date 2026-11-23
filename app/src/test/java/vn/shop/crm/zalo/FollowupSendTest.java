@@ -67,6 +67,7 @@ class FollowupSendTest extends AbstractPostgresTest {
     @Autowired JdbcClient jdbc;
     @Autowired SendService sends;
     @Autowired TestMode testMode;
+    @Autowired RainHold rain;
 
     long campaign;
 
@@ -312,7 +313,7 @@ class FollowupSendTest extends AbstractPostgresTest {
         days(5);
         ZaloInboxService off = Mockito.mock(ZaloInboxService.class);
         Mockito.when(off.running()).thenReturn(false);
-        ZaloFollowupSender blind = new ZaloFollowupSender(jdbc, appSettings, messages, contacts, invites, sends, clock, testMode, policy, off);
+        ZaloFollowupSender blind = new ZaloFollowupSender(jdbc, appSettings, messages, contacts, invites, sends, clock, testMode, policy, off, rain);
         assertThat(blind.step()).isEqualTo(Step.NOT_ACTIVE); // không nghe được khách xin ngừng thì không nhắc
         assertThat(followupsSent()).isEmpty();
         assertThat(touch(invitation, 2)).isNull();

@@ -50,6 +50,33 @@
         </form>
     </div>
     <div class="panel stack">
+        <h2>Điều kiện gửi riêng</h2>
+        <div class="notice bad" th:if="${stoppedReason != null}">
+            <strong>Hệ thống đã tự dừng chiến dịch này</strong>: <span th:text="${stoppedReason}">Khách từ chối 2/20</span>.
+            Hãy đọc lại nội dung tin, xem có làm khách khó chịu không. Chỉ duyệt lại khi đã sửa; sau khi duyệt lại, hệ thống đếm tỷ lệ từ chối từ đầu.
+        </div>
+        <p class="hint">Chỉ làm <strong>chặt hơn</strong> hệ thống, không nới. Chiến dịch tự dừng (bỏ duyệt) khi khách từ chối từ
+            <strong th:text="${sysStopPct}">5</strong>% số Tin 1 đã gửi, sau khi đã gửi ít nhất <span th:text="${minStopSent}">20</span> tin; bạn chỉ đặt được ngưỡng thấp hơn.
+            "Hoãn khi mưa lớn" chỉ làm khách ở tỉnh đang mưa lớn được gửi muộn hơn (cần bật thời tiết; chưa có dự báo thì không hoãn); lời mời hết hạn trong lúc hoãn sẽ bị đóng.</p>
+        <form th:action="@{/campaigns/{id}/rules(id=${campaign.id})}" method="post" class="stack">
+            <div class="stack">
+                <strong>Chỉ gửi vào các ngày</strong>
+                <label class="check" th:each="d : ${#numbers.sequence(1, 7)}">
+                    <input type="checkbox" name="days" th:value="${d}" th:checked="${extra.allows(d)}">
+                    <span th:text="${d == 7 ? 'Chủ nhật' : 'Thứ ' + (d + 1)}">Thứ 2</span>
+                </label>
+            </div>
+            <label class="check"><input type="checkbox" name="holdOnRain" value="true" th:checked="${extra.holdOnRain}"> Hoãn gửi cho khách ở tỉnh đang có mưa lớn</label>
+            <div class="formrow">
+                <label class="field">Tự dừng khi khách từ chối từ (%) <input type="number" name="stopPct" min="1" th:attr="max=${sysStopPct}" th:value="${extra.stopRefusalPct}" placeholder="theo hệ thống"></label>
+            </div>
+            <div class="actions">
+                <button type="submit" class="btn">Lưu điều kiện</button>
+                <button type="submit" class="btn secondary" name="reset" value="true" th:if="${extra.any()}">Theo hệ thống (xóa điều kiện riêng)</button>
+            </div>
+        </form>
+    </div>
+    <div class="panel stack">
         <h2>Số lần gửi mời</h2>
         <div class="notice">
             <strong>Tin nhắc chỉ tự gửi khi đủ điều kiện.</strong>
