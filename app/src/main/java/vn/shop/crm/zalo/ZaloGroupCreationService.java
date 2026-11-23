@@ -68,11 +68,12 @@ public class ZaloGroupCreationService implements ZaloTickHook {
     private final ContactService contacts;
     private final TransactionTemplate tx;
     private final Clock clock;
+    private final ZaloDeputyService deputies;
     private final ReentrantLock lock = new ReentrantLock();
 
     public ZaloGroupCreationService(JdbcClient jdbc, ZaloGroupMaker maker, ZaloGateway gateway, ZaloSession session,
                                     ZaloAutoSettings auto, ZaloGroupSettings cfg, GroupService groups, InviteService invites,
-                                    ContactService contacts, TransactionTemplate tx, Clock clock) {
+                                    ContactService contacts, TransactionTemplate tx, Clock clock, ZaloDeputyService deputies) {
         this.jdbc = jdbc;
         this.maker = maker;
         this.gateway = gateway;
@@ -84,6 +85,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
         this.contacts = contacts;
         this.tx = tx;
         this.clock = clock;
+        this.deputies = deputies;
     }
 
     public ZaloGroupSettings settings() {
@@ -374,7 +376,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
     }
 
     private String deputyUid(List<Member> members) {
-        String d = cfg.props().deputyId();
+        String d = deputies.effectiveUid();
         if (d.isEmpty() || !d.matches("\\d{1,32}") || members.stream().anyMatch(m -> m.uid().equals(d))) {
             return null;
         }

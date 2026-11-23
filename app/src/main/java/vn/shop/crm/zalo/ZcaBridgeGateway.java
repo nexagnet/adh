@@ -248,6 +248,55 @@ public class ZcaBridgeGateway implements ZaloLink {
         return out;
     }
 
+    // ---------- ZaloPersonFinder: việc thứ sáu (D19), tra MỘT số để xác nhận mẹ ----------
+
+    private static final java.util.regex.Pattern AVATAR = java.util.regex.Pattern.compile("^data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/=]{1,150000}$");
+
+    @Override
+    public Found findByPhone(String phoneDigits) {
+        if (phoneDigits == null || !phoneDigits.matches("\\d{8,15}")) {
+            return Found.of(FindResult.PERSON_ERROR, "BAD_PHONE");
+        }
+        try {
+            JsonNode n = call("POST", "/people/lookup", JSON.writeValueAsString(java.util.Map.of("phone", phoneDigits)), 40);
+            FindResult result;
+            try {
+                result = FindResult.valueOf(n.path("outcome").asString(""));
+            } catch (IllegalArgumentException e) {
+                return Found.of(FindResult.SYSTEM_ERROR, "BAD_REPLY");
+            }
+            if (result == FindResult.UNREACHABLE) {
+                return Found.of(FindResult.SYSTEM_ERROR, "BAD_REPLY"); // chỉ chính Adh quyết "không nối được"
+            }
+            String code = safeCode(text(n, "code"));
+            if (result != FindResult.OK) {
+                int retry = Math.max(0, Math.min(3600, n.path("retryAfterSec").asInt(0)));
+                return new Found(result, code, null, null, null, retry);
+            }
+            String uid = text(n, "uid");
+            if (uid == null || !ZALO_ID.matcher(uid).matches()) {
+                return Found.of(FindResult.SYSTEM_ERROR, "BAD_REPLY");
+            }
+            String name = text(n, "name");
+            name = name == null ? "" : name.replaceAll("\\p{Cntrl}", " ").strip();
+            if (name.length() > 120) {
+                name = name.substring(0, 120);
+            }
+            String avatar = text(n, "avatar");
+            if (avatar != null && !AVATAR.matcher(avatar).matches()) {
+                avatar = null; // chỉ nhận ảnh nhỏ đúng dạng, không nhận đường dẫn ngoài
+            }
+            return new Found(FindResult.OK, null, uid, name, avatar, 0);
+        } catch (Unreachable e) {
+            return Found.of(FindResult.UNREACHABLE, "BRIDGE_DOWN");
+        } catch (TimedOut e) {
+            return Found.of(FindResult.SYSTEM_ERROR, "TIMEOUT");
+        } catch (Exception e) {
+            log.warn("Lỗi khi tra người qua cầu nối: {}", e.getClass().getSimpleName());
+            return Found.of(FindResult.SYSTEM_ERROR, "BRIDGE_ERROR");
+        }
+    }
+
     // ---------- ZaloSession: phiên đăng nhập ----------
 
     @Override

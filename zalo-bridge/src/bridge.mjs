@@ -1,5 +1,5 @@
 // Lõi của cầu nối: máy trạng thái phiên, cầu dao phía cầu nối, nối lại có backoff, thêm MỘT người vào MỘT nhóm.
-// Việc được làm: nghe sự kiện kết bạn, thêm MỘT người vào MỘT nhóm, và (từ D18) gửi MỘT tin văn bản cho MỘT khách đã mua. Không có gửi lời
+// Việc được làm: nghe sự kiện kết bạn, tra tên và ảnh của MỘT số điện thoại để xác nhận mẹ (D19), thêm MỘT người vào MỘT nhóm, và (từ D18) gửi MỘT tin văn bản cho MỘT khách đã mua. Không có gửi lời
 // mời kết bạn, không có liệt kê bạn bè, không có gửi hàng loạt (ADR-0002 mục 3.1, 4).
 // Không bao giờ ghi uid, số điện thoại, tên vào log.
 
@@ -433,6 +433,66 @@ export class Bridge {
       if (c.code) out.code = c.code;
       if (uid) out.uid = uid;
       return out;
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  // ---------- tra MỘT người theo số (D19: để chủ shop xác nhận đúng mẹ trước khi làm phó nhóm) ----------
+
+  /**
+   * Tra tên và ảnh đại diện của MỘT số điện thoại (số của mẹ, chủ shop nhập tay) để chủ shop xác nhận đúng người. Chỉ đọc, không nhắn,
+   * không kết bạn. Chốt chặn công khai và cố định: tối đa profileLookupsPerHour lần mỗi giờ (mặc định 5; quá thì chỉ bị từ chối RATE_LIMITED),
+   * một lúc một việc, lỗi lạ thì dừng cầu dao. Số điện thoại, mã Zalo, tên không vào log.
+   * @param {{phone: string}} m
+   */
+  async lookupPerson(m) {
+    const phone = m?.phone === undefined || m?.phone === null ? '' : String(m.phone).replace(/\D/g, '');
+    if (!/^\d{8,15}$/.test(phone)) return { outcome: 'PERSON_ERROR', code: 'BAD_PHONE' };
+    if (this.state === 'LOGIN_REQUIRED') return { outcome: 'SESSION_LOST', code: 'LOGIN_REQUIRED' };
+    if (this.state === 'TRIPPED' || this.state === 'STOPPED') return { outcome: 'RESTRICTED', code: 'NOT_ACTIVE' };
+    if (this.state !== 'LISTENING') return { outcome: 'SYSTEM_ERROR', code: 'NOT_CONNECTED' };
+    if (this.busy) return { outcome: 'SYSTEM_ERROR', code: 'BUSY' };
+    const t = this.now();
+    if (!inWindow(t, this.config.windowStartMin, this.config.windowEndMin)) return { outcome: 'RESTRICTED', code: 'WINDOW' };
+    this.profileLookups = (this.profileLookups ?? []).filter((x) => x > t - 3600000);
+    if (this.profileLookups.length >= this.config.profileLookupsPerHour) {
+      return { outcome: 'RATE_LIMITED', retryAfterSec: Math.max(1, Math.ceil((this.profileLookups[0] + 3600000 - t) / 1000)) };
+    }
+    this.busy = true;
+    try {
+      this.profileLookups.push(t); // tính cả lần lỗi và lần không tìm thấy
+      let c;
+      let found = null;
+      try {
+        found = await withTimeout(this.adapter.findProfile(phone), this.config.addTimeoutMs);
+        if (!found || !ZALO_ID.test(String(found.uid ?? ''))) {
+          this.log('tra người: không tìm thấy');
+          return { outcome: 'PERSON_ERROR', code: 'NOT_FOUND' };
+        }
+        c = { outcome: 'OK' };
+      } catch (e) {
+        c = classifyError(e, this.config.personErrorCodes);
+      }
+      if (c.outcome !== 'OK' && c.outcome !== 'PERSON_ERROR') {
+        this.trip(c.code ? `${c.outcome}:${c.code}` : c.outcome);
+        this.log(`tra người: ${c.outcome}`);
+        const out = { outcome: c.outcome };
+        if (c.code) out.code = c.code;
+        return out;
+      }
+      if (c.outcome === 'PERSON_ERROR') {
+        this.log('tra người: PERSON_ERROR');
+        return { outcome: 'PERSON_ERROR', code: c.code ?? 'NOT_FOUND' };
+      }
+      let avatar = null;
+      try {
+        avatar = await withTimeout(this.adapter.fetchAvatar(found.avatarUrl), 8000); // lỗi ảnh không làm hỏng việc tra
+      } catch {
+        avatar = null;
+      }
+      this.log('tra người: OK');
+      return { outcome: 'OK', uid: String(found.uid), name: String(found.name ?? '').slice(0, 120), avatar };
     } finally {
       this.busy = false;
     }

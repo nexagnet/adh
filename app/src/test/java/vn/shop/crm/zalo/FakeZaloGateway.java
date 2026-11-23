@@ -52,6 +52,9 @@ public class FakeZaloGateway implements ZaloLink {
         creates.clear();
         createResults.clear();
         defaultCreate = null;
+        finds.clear();
+        findResults.clear();
+        defaultFind = null;
     }
 
     // ---------- tạo nhóm (D19) ----------
@@ -79,6 +82,26 @@ public class FakeZaloGateway implements ZaloLink {
         }
         return new Created(ZaloGroupMaker.GroupOutcome.OK, null, "5555", "https://zalo.me/g/fake5555", List.copyOf(memberUids), List.of(),
                 deputyUid == null ? "NONE" : "OK", 0, false);
+    }
+
+    // ---------- tra người để xác nhận mẹ (D19) ----------
+
+    public final List<String> finds = new ArrayList<>();
+    private final Deque<Found> findResults = new ArrayDeque<>();
+    /** Mặc định (null): không tìm thấy. */
+    public Found defaultFind;
+
+    public void willFind(Found... r) {
+        findResults.addAll(List.of(r));
+    }
+
+    @Override
+    public Found findByPhone(String phoneDigits) {
+        finds.add(phoneDigits);
+        if (!findResults.isEmpty()) {
+            return findResults.poll();
+        }
+        return defaultFind != null ? defaultFind : Found.of(FindResult.PERSON_ERROR, "NOT_FOUND");
     }
 
     // ---------- gửi tin (D18) ----------
@@ -133,7 +156,7 @@ public class FakeZaloGateway implements ZaloLink {
     }
 
     public int totalCalls() {
-        return statusCalls + eventCalls + adds.size() + stops + resumes + logouts + messages.size() + creates.size();
+        return statusCalls + eventCalls + adds.size() + stops + resumes + logouts + messages.size() + creates.size() + finds.size();
     }
 
     @Override

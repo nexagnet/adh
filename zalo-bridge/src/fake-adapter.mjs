@@ -58,6 +58,17 @@ export class FakeAdapter {
     return this.uids?.get(String(phone)) ?? null;
   }
 
+  async findProfile(phone) {
+    if (this.profileError) throw this.profileError;
+    (this.profileLookups ??= []).push(String(phone));
+    return this.profiles?.get(String(phone)) ?? null;
+  }
+
+  async fetchAvatar(url) {
+    if (this.avatarError) throw this.avatarError;
+    return url ? `data:image/png;base64,${PNG_1X1}` : null;
+  }
+
   async sendText(uid, text) {
     if (this.sendError) throw this.sendError;
     (this.sent ??= []).push({ uid, text });

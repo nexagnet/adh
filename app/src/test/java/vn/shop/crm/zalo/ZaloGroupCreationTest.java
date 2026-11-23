@@ -44,6 +44,7 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
     @Autowired InviteService invites;
     @Autowired ZaloGroupCreationService svc;
     @Autowired ZaloGroupSettings cfg;
+    @Autowired ZaloDeputyService deputies;
     @Autowired ZaloAutoSettings auto;
     @Autowired FakeZaloGateway fake;
     @Autowired ZaloTestClock clock;
@@ -139,6 +140,19 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
         later(15);
         assertThat(svc.step()).isEqualTo(Step.WAIT);
         assertThat(proposals()).isEqualTo(1);
+    }
+
+    @Test
+    void phoNhomLaNguoiDaXacNhanBangSoDienThoaiUuTienHonBienMoiTruong() {
+        fake.willFind(new ZaloPersonFinder.Found(ZaloPersonFinder.FindResult.OK, null, "4242", "Mẹ Lan", null, 0));
+        deputies.lookup("0912345678", "admin");
+        deputies.confirm("admin");
+        mode(ZaloGroupMode.CONFIRM);
+        friended(1, 2, 3);
+        svc.step();
+        svc.approve(svc.recent(1).getFirst().id(), "mẹ");
+        assertThat(svc.step()).isEqualTo(Step.CREATED);
+        assertThat(fake.creates).singleElement().satisfies(c -> assertThat(c.deputy()).isEqualTo("4242"));
     }
 
     @Test

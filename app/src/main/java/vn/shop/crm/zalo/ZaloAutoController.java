@@ -28,10 +28,12 @@ public class ZaloAutoController {
     private final ZaloMessageService messages;
     private final vn.shop.crm.send.SendService send;
     private final ZaloGroupCreationService groupMaker;
+    private final ZaloDeputyService deputy;
 
     public ZaloAutoController(ZaloAutoService service, ZaloMessageService messages, vn.shop.crm.send.SendService send,
-                              ZaloGroupCreationService groupMaker) {
+                              ZaloGroupCreationService groupMaker, ZaloDeputyService deputy) {
         this.groupMaker = groupMaker;
+        this.deputy = deputy;
         this.service = service;
         this.messages = messages;
         this.send = send;
@@ -78,7 +80,8 @@ public class ZaloAutoController {
             model.addAttribute("groupDaily", gs.daily());
             model.addAttribute("groupMin", gs.minCustomers());
             model.addAttribute("groupProps", gs.props());
-            model.addAttribute("groupDeputySet", !gs.props().deputyId().isEmpty());
+            model.addAttribute("deputyCurrent", deputy.current());
+            model.addAttribute("deputyCandidate", deputy.candidate().orElse(null));
             model.addAttribute("groupMayNow", groupMaker.mayCreateNow());
             model.addAttribute("proposals", groupMaker.recent(10));
         }
@@ -111,6 +114,42 @@ public class ZaloAutoController {
         groupMaker.settings().setLimits(daily, minCustomers, by(user));
         redirect.addFlashAttribute("flash", "Đã lưu giới hạn tạo nhóm.");
         return "redirect:/zalo#tao-nhom";
+    }
+
+    // ---------- mẹ làm phó nhóm: nhập số điện thoại, xem tên và ảnh, xác nhận ----------
+
+    @PostMapping("/deputy/lookup")
+    public String deputyLookup(@RequestParam String phone, Principal user, RedirectAttributes redirect) {
+        requireEnabled();
+        ZaloDeputyService.LookupOutcome r = deputy.lookup(phone, by(user));
+        redirect.addFlashAttribute("deputyMsg", r.message());
+        redirect.addFlashAttribute("deputyStatus", r.status().name());
+        return "redirect:/zalo#pho-nhom";
+    }
+
+    @PostMapping("/deputy/confirm")
+    public String deputyConfirm(Principal user, RedirectAttributes redirect) {
+        requireEnabled();
+        deputy.confirm(by(user));
+        redirect.addFlashAttribute("deputyMsg", "Đã lưu mẹ làm phó nhóm cho các nhóm tạo sau này. Nhớ kết bạn tài khoản phụ với mẹ trên Zalo nếu chưa.");
+        redirect.addFlashAttribute("deputyStatus", "FOUND");
+        return "redirect:/zalo#pho-nhom";
+    }
+
+    @PostMapping("/deputy/cancel")
+    public String deputyCancel(Principal user, RedirectAttributes redirect) {
+        requireEnabled();
+        deputy.cancelCandidate(by(user));
+        redirect.addFlashAttribute("deputyMsg", "Đã bỏ kết quả vừa tra. Nhập lại số điện thoại nếu cần.");
+        return "redirect:/zalo#pho-nhom";
+    }
+
+    @PostMapping("/deputy/clear")
+    public String deputyClear(Principal user, RedirectAttributes redirect) {
+        requireEnabled();
+        deputy.clear(by(user));
+        redirect.addFlashAttribute("deputyMsg", "Đã bỏ phó nhóm đã lưu. Nhóm tạo sau đó sẽ không có phó nhóm (trừ khi còn khai báo ZALO_DEPUTY_ID ở cấu hình triển khai).");
+        return "redirect:/zalo#pho-nhom";
     }
 
     @PostMapping("/group-proposals/{id}/approve")

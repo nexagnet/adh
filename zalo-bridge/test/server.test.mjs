@@ -88,9 +88,25 @@ test('KHÔNG có đường gửi hàng loạt, gửi lời mời kết bạn, t�
   await s.close();
 });
 
+test('POST /people/lookup (D19) cần khóa, tra đúng một số, số sai không gọi Zalo, không có đường tra khác', async () => {
+  const s = await boot();
+  assert.equal((await s.call('POST', '/people/lookup', { key: '', body: {} })).status, 401);
+  s.c.adapter.profiles = new Map([['84900000009', { uid: '900', name: 'Mẹ', avatarUrl: 'https://s120.zadn.vn/a.jpg' }]]);
+  assert.deepEqual((await s.call('POST', '/people/lookup', { body: { phone: ['1', '2'] } })).json, { outcome: 'PERSON_ERROR', code: 'BAD_PHONE' });
+  const ok = await s.call('POST', '/people/lookup', { body: { phone: '84900000009' } });
+  assert.equal(ok.json.outcome, 'OK');
+  assert.equal(ok.json.uid, '900');
+  assert.equal(s.c.adapter.profileLookups.length, 1);
+  for (const [m, p] of [['GET', '/people/lookup'], ['POST', '/people'], ['POST', '/people/lookup/1'], ['GET', '/people']]) {
+    assert.equal((await s.call(m, p, { body: m === 'GET' ? undefined : { phone: '84900000009' } })).status, 404, `${m} ${p}`);
+  }
+  assert.equal(s.c.adapter.profileLookups.length, 1);
+  await s.close();
+});
+
 test('danh sách đường được phép là cố định', () => {
   assert.deepEqual(ROUTES, [
-    'GET /healthz', 'GET /status', 'GET /events', 'GET /groups', 'POST /groups', 'POST /groups/{id}/members', 'POST /messages', 'POST /session/login', 'GET /session/login',
+    'GET /healthz', 'GET /status', 'GET /events', 'GET /groups', 'POST /groups', 'POST /groups/{id}/members', 'POST /messages', 'POST /people/lookup', 'POST /session/login', 'GET /session/login',
     'POST /session/logout', 'POST /session/stop', 'POST /session/resume',
   ]);
 });

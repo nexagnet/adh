@@ -67,4 +67,9 @@ public class ManualZaloGateway implements ZaloLink {
     public Created createGroup(String name, java.util.List<String> memberUids, String deputyUid) {
         return Created.of(ZaloGroupMaker.GroupOutcome.UNREACHABLE, "DISABLED", true);
     }
+
+    @Override
+    public Found findByPhone(String phoneDigits) {
+        return Found.of(FindResult.UNREACHABLE, "DISABLED");
+    }
 }

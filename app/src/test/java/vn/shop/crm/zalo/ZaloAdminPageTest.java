@@ -265,4 +265,33 @@ class ZaloAdminPageTest extends AbstractPostgresTest {
                 .andExpect(status().isBadRequest());
         mvc.perform(post("/zalo/group-proposals/999/approve").with(owner()).with(csrf())).andExpect(status().isBadRequest());
     }
+
+    @Test
+    void chonMeBangSoDienThoaiHienTenVaAnhRoiXacNhanChiAdminBamDuoc() throws Exception {
+        String avatar = "data:image/png;base64,iVBORw0KGgo=";
+        fake.willFind(new vn.shop.crm.zalo.ZaloPersonFinder.Found(vn.shop.crm.zalo.ZaloPersonFinder.FindResult.OK, null, "4242",
+                "Mẹ Lan", avatar, 0));
+        var staff = user("nhanvien").roles("STAFF");
+        mvc.perform(post("/zalo/deputy/lookup").param("phone", "0912345678").with(staff).with(csrf())).andExpect(status().isForbidden());
+        mvc.perform(post("/zalo/deputy/lookup").param("phone", "0912345678")).andExpect(status().isForbidden()); // thiếu CSRF
+        mvc.perform(post("/zalo/deputy/confirm").with(staff).with(csrf())).andExpect(status().isForbidden());
+        assertThat(fake.finds).isEmpty();
+        mvc.perform(post("/zalo/deputy/lookup").param("phone", "abc").with(owner()).with(csrf())).andExpect(status().isBadRequest());
+        var flash = mvc.perform(post("/zalo/deputy/lookup").param("phone", "0912345678").with(owner()).with(csrf()))
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/zalo#pho-nhom")).andReturn().getFlashMap();
+        String html = mvc.perform(get("/zalo").flashAttrs(flash).with(owner())).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Mẹ làm phó nhóm")))
+                .andExpect(content().string(containsString("Mẹ Lan")))
+                .andExpect(content().string(containsString("src=\"" + avatar + "\"")))
+                .andExpect(content().string(containsString("Có đúng là mẹ không?")))
+                .andExpect(content().string(containsString("kết bạn tài khoản phụ với mẹ")))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertThat(html).doesNotContain("4242").doesNotContain("912345678"); // không lộ mã Zalo hay số điện thoại
+        mvc.perform(post("/zalo/deputy/confirm").with(owner()).with(csrf())).andExpect(status().is3xxRedirection());
+        mvc.perform(get("/zalo").with(owner())).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Đã xác nhận. Là phó nhóm của các nhóm tạo từ nay.")))
+                .andExpect(content().string(not(containsString("Có đúng là mẹ không?"))));
+        mvc.perform(post("/zalo/deputy/clear").with(owner()).with(csrf())).andExpect(status().is3xxRedirection());
+        mvc.perform(post("/zalo/deputy/confirm").with(owner()).with(csrf())).andExpect(status().isBadRequest()); // không còn ai chờ
+    }
 }
