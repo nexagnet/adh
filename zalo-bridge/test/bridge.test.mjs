@@ -1049,8 +1049,17 @@ test('REPLY không đánh dấu sổ đã gửi nên không chặn nhầm Tin 1 
 
 // ---------- tin nhắc của chiến dịch nhiều lần gửi (FOLLOWUP2, FOLLOWUP3; D21) ----------
 
-test('FOLLOWUP: chỉ theo mã Zalo, chỉ cho người đã nhận Tin 1 qua cầu nối này; người lạ hay người chỉ nhận Tin 2 bị từ chối trước khi chạm Zalo', async () => {
+test('FOLLOWUP: cần bật đọc tin riêng; không bật thì từ chối trước khi chạm Zalo', async () => {
   const c = await ready();
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'Mời' })).outcome, 'OK');
+  c.clock.t += GAP;
+  assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP2', uid: '501', text: 'Nhắc' })).code, 'BAD_INPUT');
+  assert.equal(c.adapter.sent.length, 1);
+  c.cleanup();
+});
+
+test('FOLLOWUP: chỉ theo mã Zalo, chỉ cho người đã nhận Tin 1 qua cầu nối này; người lạ hay người chỉ nhận Tin 2 bị từ chối trước khi chạm Zalo', async () => {
+  const c = await ready({ BRIDGE_INBOX_ENABLED: 'true' });
   assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP2', phone: '84900000001', text: 'Nhắc' })).code, 'BAD_INPUT'); // không theo số điện thoại
   assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP4', uid: '501', text: 'Nhắc' })).code, 'BAD_INPUT'); // không có lần thứ tư
   assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP2', uid: '888', text: 'Nhắc' })).code, 'NO_INVITE'); // người lạ
@@ -1063,7 +1072,7 @@ test('FOLLOWUP: chỉ theo mã Zalo, chỉ cho người đã nhận Tin 1 qua c�
 });
 
 test('FOLLOWUP: mỗi lần nhắc một lần cho một người, lần ba cần lần hai đã gửi, vẫn chịu khoảng nghỉ chung, và không chặn nhầm Tin 1 hay Tin 2', async () => {
-  const c = await ready();
+  const c = await ready({ BRIDGE_INBOX_ENABLED: 'true' });
   assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'Mời' })).outcome, 'OK');
   c.clock.t += GAP;
   assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP3', uid: '501', text: 'Nhắc 3' })).code, 'NO_PREVIOUS'); // chưa có lần hai

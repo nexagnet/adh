@@ -392,7 +392,7 @@ export class Bridge {
    * MỘT lần, và cần bật cờ đọc tin riêng. Không có đường nào để nhắn người chưa nhắn trước. Vẫn chịu trần ngày, khoảng nghỉ và cầu dao chung.
    * Loại FOLLOWUP2 và FOLLOWUP3 (D21, tin nhắc của chiến dịch nhiều lần gửi): chỉ theo mã Zalo, chỉ cho người ĐÃ nhận Tin 1 qua chính cầu nối này
    * (sổ có INVITE), FOLLOWUP3 còn cần FOLLOWUP2 đã gửi; mỗi loại một lần cho một người; người đang nhắn tới (trong 24 giờ, chưa được trả lời) thì không nhắc.
-   * Vẫn chịu khung giờ, trần ngày, khoảng nghỉ và cầu dao chung; không có đường nào nhắn người chưa từng nhận Tin 1.
+   * Cần bật cờ đọc tin riêng (không nghe được khách xin ngừng thì không nhắc). Vẫn chịu khung giờ, trần ngày, khoảng nghỉ và cầu dao chung; không có đường nào nhắn người chưa từng nhận Tin 1.
    * @param {{kind: 'INVITE'|'LINK'|'WELCOME'|'REPLY'|'FOLLOWUP2'|'FOLLOWUP3', phone?: string, uid?: string, text: string}} m
    */
   async sendMessage(m) {
@@ -407,7 +407,7 @@ export class Bridge {
     if (phone !== null && !/^\d{8,15}$/.test(phone)) return { outcome: 'PERSON_ERROR', code: 'BAD_PHONE' };
     if (uidIn !== null && !ZALO_ID.test(uidIn)) return { outcome: 'PERSON_ERROR', code: 'BAD_ID' };
     if (isReply && (uidIn === null || !this.config.inboxEnabled)) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' };
-    if (isFollow && uidIn === null) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' };
+    if (isFollow && (uidIn === null || !this.config.inboxEnabled)) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' }; // chỉ nhắc khi đang nghe tin riêng, để nghe được khách xin ngừng
     if (this.state === 'LOGIN_REQUIRED') return { outcome: 'SESSION_LOST', code: 'LOGIN_REQUIRED' };
     if (this.state === 'TRIPPED' || this.state === 'STOPPED') return { outcome: 'RESTRICTED', code: 'NOT_ACTIVE' };
     if (this.state !== 'LISTENING') return { outcome: 'SYSTEM_ERROR', code: 'NOT_CONNECTED' };
