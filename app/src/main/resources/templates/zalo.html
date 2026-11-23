@@ -22,6 +22,31 @@
     </div>
 
     <th:block th:if="${enabled}">
+    <section class="panel stack" id="suc-khoe">
+        <h2>Sức khỏe tài khoản phụ</h2>
+        <p class="muted" th:if="${healthOpen.isEmpty()}">Chưa thấy dấu hiệu bất thường: không bị đăng xuất, không có lỗi lạ, tỷ lệ tin lỗi thấp.</p>
+        <div class="notice" th:each="h : ${healthOpen}" th:classappend="${h.critical} ? 'bad' : 'warn'">
+            <strong th:text="${@zaloLabels.healthTitle(h.kind)}">Zalo có dấu hiệu hạn chế tài khoản phụ</strong>
+            <span th:if="${h.detail != null}">(mã: <code th:text="${h.detail}">SYSTEM_ERROR</code>)</span>
+            từ <span th:text="${#temporals.format(h.openedAt, 'dd/MM/yyyy HH:mm')}">22/11/2026 10:00</span>.
+            <span th:text="${@zaloLabels.healthAdvice(h.kind)}">Việc cần làm.</span>
+        </div>
+        <details th:if="${!healthRecent.isEmpty()}">
+            <summary>Lịch sử cảnh báo gần đây</summary>
+            <table>
+                <thead><tr><th>Dấu hiệu</th><th>Mức</th><th>Bắt đầu</th><th>Kết thúc</th></tr></thead>
+                <tbody>
+                <tr th:each="h : ${healthRecent}">
+                    <td th:text="${@zaloLabels.healthTitle(h.kind)}">Zalo có dấu hiệu hạn chế</td>
+                    <td th:text="${h.critical} ? 'Khẩn' : 'Lưu ý'">Khẩn</td>
+                    <td th:text="${#temporals.format(h.openedAt, 'dd/MM HH:mm')}">22/11 10:00</td>
+                    <td th:text="${h.resolvedAt == null} ? 'Đang xảy ra' : ${#temporals.format(h.resolvedAt, 'dd/MM HH:mm')}">22/11 12:00</td>
+                </tr>
+                </tbody>
+            </table>
+        </details>
+    </section>
+
     <div class="notice bad" th:if="${tripped}">
         <strong>Bộ nối Zalo đang dừng</strong>
         <span th:text="${@zaloLabels.reason(trippedReason)}">Có người bấm dừng</span>

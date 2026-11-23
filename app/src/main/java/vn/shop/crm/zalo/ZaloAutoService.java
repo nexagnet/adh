@@ -82,6 +82,11 @@ public class ZaloAutoService {
         return cfg;
     }
 
+    /** Trạng thái cầu nối lần hỏi gần nhất (null nếu chưa hỏi lần nào). Không gọi cầu nối. */
+    public ZaloGateway.Status lastBridgeStatus() {
+        return lastStatus;
+    }
+
     /** Một nhịp của bộ hẹn giờ: nghe sự kiện rồi thêm tối đa một người. */
     public void tick() {
         try {

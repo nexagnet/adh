@@ -16,8 +16,13 @@
         <span th:text="${n < current ? '' : n + '. '} + (${n == 1} ? 'Chọn file' : (${n == 2} ? 'Chọn cột' : (${n == 3} ? 'Xem trước' : 'Xác nhận')))">Chọn file</span>
     </li>
 </ol>
-<div th:fragment="zaloAlert" th:with="za=${@zaloAutoService.alert().orElse(null)}">
-    <div class="notice" th:if="${za != null}" th:classappend="${za.level}">
+<div th:fragment="zaloAlert" th:with="za=${@zaloAutoService.alert().orElse(null)}, zh=${@zaloHealthService.open()}">
+    <div class="notice" th:each="h : ${zh}" th:classappend="${h.critical} ? 'bad' : 'warn'">
+        <strong th:text="${@zaloLabels.healthTitle(h.kind)}">Zalo có dấu hiệu hạn chế tài khoản phụ</strong>
+        <span th:text="${@zaloLabels.healthAdvice(h.kind)}">Việc cần làm.</span>
+        <a th:href="@{/zalo}">Mở trang Zalo tài khoản phụ</a>
+    </div>
+    <div class="notice" th:if="${za != null and (za.level == 'info' or zh.isEmpty())}" th:classappend="${za.level}">
         <strong th:text="${za.text}">Bộ nối Zalo đã dừng</strong>
         <a th:href="@{/zalo}">Mở trang Zalo tài khoản phụ</a>
     </div>

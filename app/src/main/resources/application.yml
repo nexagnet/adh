@@ -129,6 +129,10 @@ app:
       # D19: tự tạo nhóm Zalo theo khu vực. Mã Zalo (chữ số) của mẹ để thêm làm phó nhóm: CHỈ đặt bằng biến môi trường trên máy chủ,
       # không ghi vào repo. Để trống = không thêm phó nhóm. Mặc định tắt: cần cả APP_ZALO_AUTO_ENABLED và nấc chọn ở trang Zalo.
       deputy-id: ${APP_ZALO_GROUP_DEPUTY_ID:}
+  alert:
+    # Kênh báo ngoài (tùy chọn) khi tài khoản Zalo phụ có dấu hiệu bị hạn chế: địa chỉ https nhận văn bản thuần (POST). Để trống = không báo ra ngoài,
+    # cảnh báo vẫn hiện trên trang quản trị. Chỉ đặt bằng biến môi trường (địa chỉ có thể chứa khóa), không ghi vào repo.
+    webhook-url: ${APP_ALERT_WEBHOOK_URL:}
   bot:
     # Mẹ vừa trả lời trong nhóm thì bot im lặng bao nhiêu phút (tránh trả lời trùng).
     human-quiet-minutes: 30
