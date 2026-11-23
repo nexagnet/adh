@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Đề xuất của AI')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <div th:replace="~{fragments :: testModeAlert}"></div>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Đề xuất của AI</h1>
+            <p class="hint">AI xem số liệu tổng hợp (không có tên, số điện thoại hay địa chỉ khách) về khu vực, thời tiết, dịp bán hàng và kết quả các lần mời trước, rồi đề xuất chiến dịch kèm lý do.
+                AI chỉ đề xuất. Bạn bấm duyệt thì hệ thống mới tạo chiến dịch, và chiến dịch đó vẫn chưa gửi gì cho đến khi bạn duyệt cho tự gửi.</p>
+        </div>
+        <div class="actions">
+            <form th:action="@{/advisor/run}" method="post" th:if="${enabled}">
+                <button type="submit" class="btn" th:disabled="${runsToday >= maxRuns}">Nhờ AI đề xuất</button>
+            </form>
+        </div>
+    </header>
+
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã xong.</div>
+    <div class="notice bad" th:if="${flashBad}" th:text="${flashBad}">Lỗi.</div>
+    <div class="notice" th:unless="${enabled}">
+        <strong>Tính năng đang tắt</strong>
+        Cần bật cả <code>APP_AI_ENABLED</code> và <code>APP_AI_ADVISOR_ENABLED</code> trên máy chủ. Các đề xuất đã có vẫn xem được.
+    </div>
+    <p class="muted small" th:if="${enabled}" th:text="'Hôm nay đã nhờ AI ' + ${runsToday} + ' / ' + ${maxRuns} + ' lần.'">Hôm nay đã nhờ AI 0 / 5 lần.</p>
+
+    <section>
+        <h2>Đang chờ bạn quyết định</h2>
+        <p class="muted" th:if="${open.isEmpty()}">Chưa có đề xuất nào đang chờ.</p>
+        <article class="panel stack" th:each="p : ${open}">
+            <h3 th:text="${p.title}">Rét đợt 1, miền Bắc</h3>
+            <p>
+                <span class="badge info" th:text="${p.areaLabel}">Miền Bắc</span>
+                <span th:text="'Tối đa ' + ${p.batchSize} + ' khách, nhắn tối đa ' + ${p.dailyCap} + ' khách mỗi ngày'">Tối đa 40 khách</span>
+            </p>
+            <p th:text="'Từ ' + ${#temporals.format(p.startOn, 'dd/MM/yyyy')} + ' đến ' + ${#temporals.format(p.endOn, 'dd/MM/yyyy')} + ', khung giờ ' + ${#temporals.format(p.windowFrom, 'HH:mm')} + ' đến ' + ${#temporals.format(p.windowTo, 'HH:mm')}">Từ 25/11 đến 02/12</p>
+            <p>
+                Độ tin cậy: <strong th:text="${p.confidencePercent()} + '%'">50%</strong>
+                <span class="muted small" th:if="${p.confidenceCapped}">(AI tự nhận cao hơn, hệ thống đã hạ xuống vì chưa đủ số liệu)</span>
+            </p>
+            <div>
+                <strong>Vì sao đề xuất</strong>
+                <ul><li th:each="r : ${p.reasons}" th:text="${r}">Lý do</li></ul>
+            </div>
+            <div th:if="${!p.risks.isEmpty()}">
+                <strong>Rủi ro và điều chưa chắc</strong>
+                <ul><li th:each="r : ${p.risks}" th:text="${r}">Rủi ro</li></ul>
+            </div>
+            <p th:if="${!p.messageAngle.isEmpty()}"><strong>Gợi ý hướng nhấn khi soạn tin:</strong> <span th:text="${p.messageAngle}">Nhấn vào thời tiết</span>
+                <span class="muted small">(chỉ để bạn tham khảo; tin gửi khách vẫn là mẫu tin mặc định của cửa hàng)</span></p>
+            <p class="muted small">Ngày giờ và hạn mức ngày ở trên là gợi ý để bạn tham khảo. Khi duyệt, hệ thống tạo chiến dịch cho khách khu vực này và vẫn dùng giờ gửi, hạn mức và khoảng nghỉ chung ở Zalo tài khoản phụ.
+                <a th:href="@{/advisor/runs/{id}(id=${p.runId})}">Xem số liệu đã gửi cho AI</a></p>
+            <div class="formrow">
+                <form th:action="@{/advisor/proposals/{id}/approve(id=${p.id})}" method="post">
+                    <button type="submit" class="btn">Duyệt và tạo chiến dịch</button>
+                </form>
+                <form th:action="@{/advisor/proposals/{id}/reject(id=${p.id})}" method="post" class="formrow">
+                    <label class="field grow2">Lý do bỏ qua (không bắt buộc)
+                        <input type="text" name="note" maxlength="300" placeholder="Ví dụ: đợt này đang bận đơn"></label>
+                    <button type="submit" class="btn secondary">Bỏ qua</button>
+                </form>
+            </div>
+        </article>
+    </section>
+
+    <section th:if="${!decided.isEmpty()}">
+        <h2>Đã xử lý</h2>
+        <div class="table-wrap">
+            <table>
+                <tr><th>Đề xuất</th><th>Khu vực</th><th>Khách</th><th>Kết quả</th><th>Ghi chú</th></tr>
+                <tr th:each="p : ${decided}">
+                    <td th:text="${p.title}">Rét đợt 1</td>
+                    <td th:text="${p.areaLabel}">Miền Bắc</td>
+                    <td th:text="${p.batchSize}">40</td>
+                    <td>
+                        <span th:text="${p.stateLabel()}">Đã bỏ qua</span>
+                        <a th:if="${p.campaignId != null}" th:href="@{/campaigns/{id}(id=${p.campaignId})}">Xem chiến dịch</a>
+                        <span class="muted small" th:if="${p.decidedBy != null}" th:text="'· ' + ${p.decidedBy}"></span>
+                    </td>
+                    <td th:text="${p.decisionNote}"></td>
+                </tr>
+            </table>
+        </div>
+    </section>
+
+    <section th:if="${!runs.isEmpty()}">
+        <h2>Các lần nhờ AI gần đây</h2>
+        <div class="table-wrap">
+            <table>
+                <tr><th>Lúc</th><th>Người bấm</th><th>Kết quả</th><th>Số đề xuất</th><th></th></tr>
+                <tr th:each="r : ${runs}">
+                    <td th:text="${#temporals.format(r.createdAt, 'dd/MM HH:mm')}">23/11 10:00</td>
+                    <td th:text="${r.createdBy}">admin</td>
+                    <td>
+                        <span th:text="${r.statusLabel()}">Có đề xuất</span>
+                        <span class="muted small" th:if="${r.skipReason != null}" th:text="'· ' + ${r.skipReason}"></span>
+                        <span class="muted small" th:if="${r.detail != null}" th:text="'· ' + ${r.detail}"></span>
+                    </td>
+                    <td th:text="${r.proposals}">2</td>
+                    <td><a th:href="@{/advisor/runs/{id}(id=${r.id})}">Xem chi tiết</a></td>
+                </tr>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>

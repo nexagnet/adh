@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Lượt nhờ AI đề xuất')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <header class="page-head">
+        <div class="titles">
+            <h1 th:text="'Lượt nhờ AI lúc ' + ${#temporals.format(detail.run.createdAt, 'dd/MM/yyyy HH:mm')}">Lượt nhờ AI</h1>
+            <p class="hint">Đúng số liệu đã gửi cho AI và đúng chữ AI trả về. Số liệu chỉ có số, mã khu vực và nhãn do hệ thống đặt, không có tên, số điện thoại, địa chỉ hay mã Zalo của khách.</p>
+        </div>
+        <div class="actions"><a class="btn secondary" th:href="@{/advisor}">Về trang đề xuất</a></div>
+    </header>
+    <p><strong th:text="${detail.run.statusLabel()}">Có đề xuất</strong>
+        <span class="muted" th:text="'· người bấm: ' + ${detail.run.createdBy}">admin</span>
+        <span class="muted" th:if="${detail.run.skipReason != null}" th:text="'· ' + ${detail.run.skipReason}"></span>
+        <span class="muted" th:if="${detail.run.detail != null}" th:text="'· ' + ${detail.run.detail}"></span></p>
+    <section th:if="${!detail.run.rejected.isEmpty()}">
+        <h2>Đề xuất bị hệ thống bỏ vì không đạt kiểm tra</h2>
+        <ul><li th:each="r : ${detail.run.rejected}" th:text="${r}">Lý do</li></ul>
+    </section>
+    <section>
+        <h2>Số liệu đã gửi cho AI</h2>
+        <pre class="code" th:text="${detail.snapshotJson}">{}</pre>
+    </section>
+    <section th:if="${detail.aiOutput != null}">
+        <h2>Chữ AI trả về</h2>
+        <pre class="code" th:text="${detail.aiOutput}"></pre>
+    </section>
+</main>
+</body>
+</html>
