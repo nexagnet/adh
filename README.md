@@ -4,7 +4,7 @@ Tài liệu gốc: [`01_DAC_TA_NGHIEP_VU.md`](01_DAC_TA_NGHIEP_VU.md) (nghiệp 
 [`02_NGHIEN_CUU_KY_THUAT.md`](02_NGHIEN_CUU_KY_THUAT.md) (nghiên cứu cũ, có chỗ sai),
 [`03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md`](03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md) (đính chính + kế hoạch hai giai đoạn).
 
-> **Đọc [`docs/BAN-GIAO.md`](docs/BAN-GIAO.md) trước** (cập nhật 22/11/2026, `main` đã gộp PR #1 đến #38, trừ #25 đã đóng). Có mục "Bắt đầu nhanh cho phiên mới", trạng thái từng mốc và từng PR, các quyết định D1 đến D17, cách phân phối khách vào nhóm theo khu vực, kết quả chạy thử `zca-js`, giả định, công tắc cấu hình, cách chạy/test/CI/build ảnh, phần chưa kiểm chứng, kết quả xác nhận J&T và danh sách việc tiếp theo theo thứ tự ưu tiên. Thiết kế giao diện đã duyệt nằm ở [`docs/thiet-ke-penpot/`](docs/thiet-ke-penpot/).
+> **AI hoặc người mới vào làm tiếp: đọc [`CLAUDE.md`](CLAUDE.md) trước** (quy tắc làm việc, nghiệp vụ, D18, máy chủ, việc còn mở, và chỗ nào của bàn giao đã cũ). Sau đó đọc [`docs/BAN-GIAO.md`](docs/BAN-GIAO.md) (cập nhật 22/11/2026, `main` đã gộp PR #1 đến #38, trừ #25 đã đóng). Có mục "Bắt đầu nhanh cho phiên mới", trạng thái từng mốc và từng PR, các quyết định D1 đến D17, cách phân phối khách vào nhóm theo khu vực, kết quả chạy thử `zca-js`, giả định, công tắc cấu hình, cách chạy/test/CI/build ảnh, phần chưa kiểm chứng, kết quả xác nhận J&T và danh sách việc tiếp theo theo thứ tự ưu tiên. Thiết kế giao diện đã duyệt nằm ở [`docs/thiet-ke-penpot/`](docs/thiet-ke-penpot/).
 
 ## Trạng thái
 

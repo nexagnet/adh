@@ -1,5 +1,7 @@
 # Bàn giao dự án Adh (lập 21/11/2026, cập nhật lần cuối 22/11/2026 sau PR #38; riêng quyết định D18 ngày 23/11/2026 chỉ ghi tài liệu, xem mục 2)
 
+> **Đọc [`../CLAUDE.md`](../CLAUDE.md) trước.** Nó gom quy tắc làm việc, nghiệp vụ, quyết định D18, thông tin máy chủ và việc còn mở của ngày 23/11/2026, và nêu rõ những chỗ tài liệu này đã cũ (mục 9 của CLAUDE.md). Khi hai bên mâu thuẫn, theo CLAUDE.md.
+
 Tài liệu này gom mọi thứ phiên làm việc trước biết, để phiên sau (người hoặc Claude) làm tiếp mà không phải hỏi lại. Đọc kèm:
 `01_DAC_TA_NGHIEP_VU.md` (nghiệp vụ, nguồn sự thật), `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md` (quyết định D1–D18, kế hoạch),
 `docs/RUNBOOK.md` (vận hành), `docs/thiet-ke-penpot/` (thiết kế giao diện đã duyệt).
