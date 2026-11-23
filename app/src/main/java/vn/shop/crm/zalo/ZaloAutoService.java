@@ -366,8 +366,7 @@ public class ZaloAutoService {
                 return Step.UNREACHABLE; // thất bại kín: chưa chắc đúng tài khoản phụ thì không thêm ai
             }
             // MỘT nhóm cho cả hai đường (tự thêm và tin gửi link): nhóm phải có cả mã nhóm Zalo lẫn link mời, và đang nhận khách.
-            List<GroupService.Group> all = groups.list();
-            List<GroupService.Group> usable = all.stream()
+            List<GroupService.Group> usable = groups.list().stream()
                     .filter(g -> g.hasZaloId() && g.hasLink() && g.status() == vn.shop.crm.invite.GroupStatus.OPEN).toList();
             Step best = Step.NOTHING;
             for (Task t : queued(mode)) {
