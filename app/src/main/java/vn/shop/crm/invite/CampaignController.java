@@ -24,11 +24,14 @@ public class CampaignController {
     private final vn.shop.crm.zalo.CampaignPolicy policy;
     private final CampaignSteps steps;
     private final vn.shop.crm.zalo.CampaignAutoStop autoStop;
+    private final vn.shop.crm.zalo.CampaignGroupTarget groupTarget;
 
     public CampaignController(InviteService invites, ContactService contacts, AppSettings settings,
                               vn.shop.crm.zalo.ZaloInviteSender autoSender, vn.shop.crm.zalo.ZaloMessageService messages,
                               vn.shop.crm.zalo.ZaloCampaignIntake intake, vn.shop.crm.zalo.CampaignPolicy policy,
-                              CampaignSteps steps, vn.shop.crm.zalo.CampaignAutoStop autoStop) {
+                              CampaignSteps steps, vn.shop.crm.zalo.CampaignAutoStop autoStop,
+                              vn.shop.crm.zalo.CampaignGroupTarget groupTarget) {
+        this.groupTarget = groupTarget;
         this.autoStop = autoStop;
         this.steps = steps;
         this.intake = intake;
@@ -109,6 +112,8 @@ public class CampaignController {
         model.addAttribute("stopFooter", CampaignSteps.STOP_FOOTER);
         model.addAttribute("multiTemplate", InviteService.MULTI_TEMPLATE);
         model.addAttribute("extra", policy.loadExtra(id));
+        model.addAttribute("groupTarget", groupTarget.load(id));
+        model.addAttribute("defaultGroupLinkTemplate", invites.groupLinkTemplate());
         model.addAttribute("sysStopPct", vn.shop.crm.zalo.CampaignAutoStop.SYSTEM_PCT);
         model.addAttribute("minStopSent", vn.shop.crm.zalo.CampaignAutoStop.MIN_SENT);
         model.addAttribute("stoppedReason", autoStop.stoppedReason(id).orElse(null));
@@ -154,6 +159,25 @@ public class CampaignController {
         redirect.addFlashAttribute("flash", reset
                 ? "Đã bỏ điều kiện gửi riêng: chiến dịch theo cài đặt chung của hệ thống."
                 : "Đã lưu điều kiện gửi riêng. Các giới hạn chung của hệ thống vẫn áp dụng thêm.");
+        return "redirect:/campaigns/" + id;
+    }
+
+    /**
+     * Nhóm Zalo đích riêng của chiến dịch (D21 PR 6): chỉ làm chặt hơn hệ thống ("chỉ gửi link nhóm", không cho vào nhóm tự tạo),
+     * và nội dung Tin 2 riêng. Nút "Theo hệ thống" (reset) xóa hết.
+     */
+    @PostMapping("/campaigns/{id}/group-target")
+    public String saveGroupTarget(@PathVariable long id, @RequestParam(defaultValue = "false") boolean linkOnly,
+                                  @RequestParam(defaultValue = "false") boolean allowCreation,
+                                  @RequestParam(required = false) String linkTemplate,
+                                  @RequestParam(defaultValue = "false") boolean reset, RedirectAttributes redirect) {
+        invites.campaign(id).orElseThrow(() -> new ImportException("Không tìm thấy chiến dịch."));
+        var target = reset ? vn.shop.crm.zalo.CampaignGroupTarget.Target.SYSTEM
+                : new vn.shop.crm.zalo.CampaignGroupTarget.Target(linkOnly, allowCreation, linkTemplate);
+        groupTarget.save(id, target, ContactService.actor());
+        redirect.addFlashAttribute("flash", reset
+                ? "Đã bỏ cài đặt nhóm riêng: chiến dịch theo cài đặt chung của hệ thống."
+                : "Đã lưu cài đặt nhóm Zalo của chiến dịch.");
         return "redirect:/campaigns/" + id;
     }
 
