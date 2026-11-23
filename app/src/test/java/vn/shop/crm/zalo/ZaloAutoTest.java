@@ -104,6 +104,39 @@ class ZaloAutoTest extends AbstractPostgresTest {
         cfg.setMode(m, m == ZaloMode.AUTO, "mẹ");
     }
 
+    // ---------- một nhóm cho cả hai đường ----------
+
+    private void hold(int n, long groupId) {
+        jdbc.sql("UPDATE invitation SET reserved_group_id = :g, reserved_until = now() + interval '1 hour' WHERE id = :id")
+                .param("g", groupId).param("id", inv(n)).update();
+    }
+
+    @Test
+    void khachDaDuocGiuChoMotNhomThiTuThemVaoDungNhomDoKhongDoiNhom() {
+        mode(ZaloMode.AUTO);
+        sent(1);
+        friend(1, 1);
+        zalo.poll();
+        hold(1, south); // nhóm gợi ý ở tin link là nhóm miền Nam, dù khách ở miền Bắc
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.ADDED);
+        assertThat(fake.adds).singleElement().satisfies(a -> assertThat(a[1]).isEqualTo("2002"));
+        assertThat(jdbc.sql("SELECT group_id FROM invitation WHERE id = :id").param("id", inv(1)).query(Long.class).single())
+                .isEqualTo(south);
+    }
+
+    @Test
+    void nhomDuocGiuChoMaKhongCoMaZaloHoacKhongCoLinkThiKhongTuThemSangNhomKhac() {
+        mode(ZaloMode.AUTO);
+        sent(1);
+        friend(1, 1);
+        zalo.poll();
+        long noId = groups.create("Nhóm chưa có mã", "https://zalo.me/g/chua", 50, "R:BAC");
+        groups.setStatus(noId, GroupStatus.OPEN);
+        hold(1, noId);
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.NO_GROUP);
+        assertThat(fake.adds).isEmpty();
+    }
+
     // ---------- mặc định tắt ----------
 
     @Test

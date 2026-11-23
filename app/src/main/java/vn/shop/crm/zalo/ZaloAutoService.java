@@ -329,7 +329,7 @@ public class ZaloAutoService {
         cfg.log(ZaloAutoSettings.A_APPROVE, invitationId, null, "TU_XU_LY", null, by);
     }
 
-    private record Task(long invitationId, long customerId, String uid, String provinceCode, String prevState) {
+    private record Task(long invitationId, long customerId, String uid, String provinceCode, String prevState, Long heldGroupId) {
     }
 
     /**
@@ -365,7 +365,10 @@ public class ZaloAutoService {
             if (!st.listening() || !Boolean.TRUE.equals(st.accountOk())) {
                 return Step.UNREACHABLE; // thất bại kín: chưa chắc đúng tài khoản phụ thì không thêm ai
             }
-            List<GroupService.Group> usable = groups.list().stream().filter(GroupService.Group::hasZaloId).toList();
+            // MỘT nhóm cho cả hai đường (tự thêm và tin gửi link): nhóm phải có cả mã nhóm Zalo lẫn link mời, và đang nhận khách.
+            List<GroupService.Group> all = groups.list();
+            List<GroupService.Group> usable = all.stream()
+                    .filter(g -> g.hasZaloId() && g.hasLink() && g.status() == vn.shop.crm.invite.GroupStatus.OPEN).toList();
             Step best = Step.NOTHING;
             for (Task t : queued(mode)) {
                 if (!contacts.stillEligible(t.customerId())) {
@@ -373,7 +376,13 @@ public class ZaloAutoService {
                     cfg.log(ZaloAutoSettings.A_MATCH, t.invitationId(), null, "BO_QUA", "KHONG_DU_DIEU_KIEN", "system"); // không phải lần gọi Zalo: không tính hạn mức
                     continue;
                 }
-                Optional<GroupService.Group> group = groups.pickGroup(usable, VnGeo.byCode(t.provinceCode()).orElse(null));
+                Optional<GroupService.Group> group;
+                if (t.heldGroupId() != null) {
+                    // khách đã được giữ chỗ/gán một nhóm (nhóm gợi ý ở tin link): dùng đúng nhóm đó, không đổi sang nhóm khác
+                    group = usable.stream().filter(g -> g.id() == t.heldGroupId()).findFirst();
+                } else {
+                    group = groups.pickGroup(usable, VnGeo.byCode(t.provinceCode()).orElse(null));
+                }
                 if (group.isEmpty()) {
                     best = Step.NO_GROUP; // chưa có nhóm hợp khu vực (R7): giữ hàng đợi, không đẩy sang miền khác
                     continue;
@@ -390,12 +399,13 @@ public class ZaloAutoService {
         // AUTO: cả người còn "chờ duyệt" cũng đủ điều kiện (đã chọn tự thêm). CONFIRM: chỉ người đã được duyệt.
         String states = mode == ZaloMode.AUTO ? "('QUEUED', 'WAITING_APPROVAL')" : "('QUEUED')";
         return jdbc.sql("""
-                        SELECT i.id, i.customer_id, i.zalo_uid, c.province, i.zalo_add_state
+                        SELECT i.id, i.customer_id, i.zalo_uid, c.province, i.zalo_add_state,
+                               coalesce(i.group_id, CASE WHEN i.reserved_until > now() THEN i.reserved_group_id END) AS held_group
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
                         WHERE i.zalo_add_state IN %s AND i.zalo_uid IS NOT NULL AND i.status IN ('SENT', 'CLICKED', 'FRIENDED')
                         ORDER BY i.friended_at NULLS LAST, i.id LIMIT 500""".formatted(states))
                 .query((rs, n) -> new Task(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("zalo_uid"),
-                        rs.getString("province"), rs.getString("zalo_add_state"))).list();
+                        rs.getString("province"), rs.getString("zalo_add_state"), (Long) rs.getObject("held_group"))).list();
     }
 
     /** Có lần gọi Zalo nào còn ghi "đang gọi" không? Đang giữ khóa thêm người nên mọi dòng như vậy là của lần đã chết giữa chừng. */
