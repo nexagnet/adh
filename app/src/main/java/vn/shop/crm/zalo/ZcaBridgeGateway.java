@@ -89,6 +89,32 @@ public class ZcaBridgeGateway implements ZaloLink {
     }
 
     @Override
+    public List<Inbound> inbound(long afterSeq) {
+        try {
+            JsonNode n = call("GET", "/inbox?after=" + Math.max(0, afterSeq), null, 10);
+            if (!n.path("enabled").asBoolean(false)) {
+                return List.of();
+            }
+            List<Inbound> out = new ArrayList<>();
+            for (JsonNode e : n.path("messages")) {
+                String uid = e.path("uid").asString("");
+                String text = e.path("text").asString("");
+                long seq = e.path("seq").asLong(-1);
+                if (seq < 0 || !ZALO_ID.matcher(uid).matches() || text.isBlank()) {
+                    continue; // tin hỏng: bỏ qua, không đoán
+                }
+                Instant at = instant(e, "at");
+                out.add(new Inbound(seq, uid, text.length() > 500 ? text.substring(0, 500) : text, at == null ? Instant.now() : at));
+            }
+            out.sort(java.util.Comparator.comparingLong(Inbound::seq));
+            return out;
+        } catch (Exception e) {
+            log.warn("Không đọc được tin riêng từ cầu nối: {}", e.getClass().getSimpleName());
+            return List.of();
+        }
+    }
+
+    @Override
     public AddResult addToGroup(String uid, String zaloGroupId) {
         if (uid == null || zaloGroupId == null || !ZALO_ID.matcher(uid).matches() || !ZALO_ID.matcher(zaloGroupId).matches()) {
             return AddResult.of(Outcome.PERSON_ERROR, "BAD_ID");

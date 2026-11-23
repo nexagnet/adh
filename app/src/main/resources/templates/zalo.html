@@ -204,6 +204,16 @@
         </div>
     </section>
 
+    <section class="panel stack" id="tin-rieng">
+        <h2>Nhận diện khách từ chối bằng AI</h2>
+        <p class="hint">Trợ lý AI đọc tin RIÊNG của người đã nhận Tin 1 hoặc Tin 2 để nhận ra khách bảo đừng nhắn nữa. AI rất chắc (từ
+            <strong th:text="${#numbers.formatDecimal(inboxThreshold, 1, 2)}">0,80</strong>) thì tự ghi sổ từ chối, có nút Hoàn tác ở trang
+            <a th:href="@{/handoffs}">Việc cần mẹ xử lý</a>. AI không chắc hoặc lỗi thì tạm dừng mọi tin cho khách đó và báo mẹ. Hệ thống không trả lời khách,
+            không đọc tin nhóm, không đọc tin người lạ; chỉ gửi cho AI văn bản đã che số điện thoại, không kèm tên hay mã Zalo.</p>
+        <p><span class="badge" th:classappend="${inboxRunning} ? 'ok' : 'warn'" th:text="${inboxRunning} ? 'Đang bật' : 'Đang tắt'">Đang tắt</span>
+            <span class="sub-line" th:unless="${inboxRunning}">Bật cần cả ba công tắc ở máy chủ: APP_ZALO_INBOX_ENABLED, BRIDGE_INBOX_ENABLED ở cầu nối và APP_AI_ENABLED (kèm khóa và tên mô hình).</span></p>
+    </section>
+
     <section>
         <h2>Khách chờ vào nhóm</h2>
         <p class="muted" th:if="${waiting.isEmpty()}">Chưa có khách nào chờ.</p>

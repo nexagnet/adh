@@ -26,3 +26,31 @@ export class EventBuffer {
     return this.items.slice();
   }
 }
+
+// Bộ đệm tin nhắn riêng đến (D19, nhận diện từ chối) trong BỘ NHỚ: không ghi đĩa, không ghi log. Ngắn hạn hơn bộ đệm kết bạn vì có nội dung.
+export const INBOX_TEXT_MAX = 500;
+
+export class InboxBuffer {
+  constructor({ max = 300, ttlMs = 6 * 3600 * 1000, now = () => Date.now() } = {}) {
+    this.items = [];
+    this.last = 0;
+    this.max = max;
+    this.ttlMs = ttlMs;
+    this.now = now;
+  }
+
+  push({ uid, text }) {
+    const t = this.now();
+    this.last = Math.max(this.last + 1, t);
+    this.items.push({ seq: this.last, uid, text: String(text).slice(0, INBOX_TEXT_MAX), at: new Date(t).toISOString() });
+    if (this.items.length > this.max) this.items.splice(0, this.items.length - this.max);
+    return this.last;
+  }
+
+  /** Tin có seq > after. Tin đã được xác nhận (seq <= after) và quá hạn bị bỏ ngay. */
+  after(after) {
+    const cutoff = this.now() - this.ttlMs;
+    this.items = this.items.filter((e) => e.seq > after && Date.parse(e.at) >= cutoff);
+    return this.items.slice();
+  }
+}

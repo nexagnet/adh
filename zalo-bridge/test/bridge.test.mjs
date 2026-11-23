@@ -889,3 +889,53 @@ test('tra người: lỗi lạ thì dừng cầu dao; chưa đăng nhập, đã 
   assert.equal((await e.bridge.lookupPerson({ phone: '84900000009' })).outcome, 'SESSION_LOST');
   e.cleanup();
 });
+
+// ---------- đọc tin riêng để nhận diện từ chối (D19) ----------
+
+test('tin riêng: tắt mặc định thì bộ nối không đăng ký nghe tin và /inbox rỗng', async () => {
+  const c = setup();
+  await c.bridge.start();
+  await loginAndListen(c);
+  assert.equal(c.adapter.handlers.onMessage, undefined);
+  c.adapter.emitMessage('777', 'đừng nhắn nữa');
+  assert.deepEqual(c.bridge.inboxMessages(0), []);
+  c.cleanup();
+});
+
+test('tin riêng: bật thì chỉ giữ tin của người đã nhận Tin 1 hoặc Tin 2 từ chính bộ nối; người lạ bị bỏ, không vào log', async () => {
+  const c = setup({ env: { BRIDGE_INBOX_ENABLED: 'true' } });
+  await c.bridge.start();
+  await loginAndListen(c);
+  assert.equal(typeof c.adapter.handlers.onMessage, 'function');
+  c.adapter.emitMessage('555', 'tôi là người lạ');
+  assert.deepEqual(c.bridge.inboxMessages(0), []);
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', uid: '777', text: 'Chào anh' })).outcome, 'OK');
+  c.adapter.emitMessage('777', '  Đừng nhắn nữa nhé  ');
+  c.adapter.emitMessage('777', '   ');
+  c.adapter.emitMessage('abc', 'sai mã');
+  const got = c.bridge.inboxMessages(0);
+  assert.equal(got.length, 1);
+  assert.equal(got[0].uid, '777');
+  assert.equal(got[0].text, 'Đừng nhắn nữa nhé');
+  assert.ok(Number.isInteger(got[0].seq));
+  assert.ok(!c.logs.join('\n').includes('777') && !c.logs.join('\n').includes('Đừng'));
+  c.cleanup();
+});
+
+test('tin riêng: cắt 500 ký tự, xác nhận (after) thì bỏ tin cũ, quá hạn thì tự bỏ', async () => {
+  const c = setup({ env: { BRIDGE_INBOX_ENABLED: '1' } });
+  await c.bridge.start();
+  await loginAndListen(c);
+  await c.bridge.sendMessage({ kind: 'INVITE', uid: '777', text: 'Chào' });
+  c.adapter.emitMessage('777', 'a'.repeat(900));
+  const first = c.bridge.inboxMessages(0);
+  assert.equal(first[0].text.length, 500);
+  c.clock.t += 1000;
+  c.adapter.emitMessage('777', 'tin hai');
+  const after = c.bridge.inboxMessages(first[0].seq);
+  assert.deepEqual(after.map((m) => m.text), ['tin hai']);
+  assert.deepEqual(c.bridge.inboxMessages(0).map((m) => m.text), ['tin hai']);
+  c.clock.t += 7 * 3600 * 1000;
+  assert.deepEqual(c.bridge.inboxMessages(0), []);
+  c.cleanup();
+});

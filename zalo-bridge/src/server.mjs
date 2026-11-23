@@ -1,5 +1,5 @@
 // Máy chủ HTTP nội bộ (node:http, không thêm thư viện). Hợp đồng: docs/ZALO-BRIDGE-API.md.
-// Có đúng các đường: /healthz, /status, /events, GET /groups (chỉ đọc), POST /groups (D19: tạo MỘT nhóm), POST /groups/{id}/members, POST /messages (D18: một tin cho một người), POST /people/lookup (D19: tra tên và ảnh của MỘT số để xác nhận mẹ),
+// Có đúng các đường: /healthz, /status, /events, GET /inbox (D19: tin riêng của người đã nhận tin của hệ thống; tắt mặc định), GET /groups (chỉ đọc), POST /groups (D19: tạo MỘT nhóm), POST /groups/{id}/members, POST /messages (D18: một tin cho một người), POST /people/lookup (D19: tra tên và ảnh của MỘT số để xác nhận mẹ),
 // /session/*. KHÔNG có đường gửi hàng loạt, gửi lời mời kết bạn, tìm người theo số rời, hay liệt kê bạn bè. server.test.mjs khóa danh sách này.
 
 import http from 'node:http';
@@ -44,6 +44,7 @@ export const ROUTES = [
   'GET /healthz',
   'GET /status',
   'GET /events',
+  'GET /inbox',
   'GET /groups',
   'POST /groups',
   'POST /groups/{id}/members',
@@ -73,6 +74,10 @@ export function createServer({ bridge, config, fake = null }) {
       if (route === 'GET /events') {
         const after = Number(url.searchParams.get('after') ?? '0');
         return send(200, { events: bridge.friendEvents(after) });
+      }
+      if (route === 'GET /inbox') {
+        const after = Number(url.searchParams.get('after') ?? '0');
+        return send(200, { enabled: config.inboxEnabled, messages: bridge.inboxMessages(after) });
       }
       if (route === 'GET /groups') return send(200, await bridge.listGroups());
       if (route === 'POST /groups') {
@@ -112,6 +117,11 @@ export function createServer({ bridge, config, fake = null }) {
       if (fake && route === 'POST /fake/friend') {
         const body = await readJson(req);
         fake.emitFriendAdd(String(body.uid ?? ''), body.phone ?? null);
+        return send(200, { ok: true });
+      }
+      if (fake && route === 'POST /fake/message') {
+        const body = await readJson(req);
+        fake.emitMessage(String(body.uid ?? ''), String(body.text ?? ''));
         return send(200, { ok: true });
       }
       return send(404, { error: 'not_found' });

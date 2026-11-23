@@ -263,7 +263,11 @@ class ImportAcceptanceTest extends AbstractPostgresTest {
         importCsv(Carrier.VIETTEL_POST, vtp(
                 "VTP1,DH1,05/01/2026 09:00:00,A,0987654321,Dia chi,Giao thành công"));
 
-        assertThat(all()).extracting(CustomerRow::phone).containsExactly("+84987654321");
+        // Quy tắc 5a: không tự xóa số điện thoại. Khách cũ còn nguyên bản ghi nhưng không còn tính là đã mua.
+        assertThat(all()).extracting(CustomerRow::phone).containsExactlyInAnyOrder("+84912345678", "+84987654321");
+        assertThat(all().stream().filter(c -> c.phone().equals("+84912345678")).findFirst().orElseThrow().segment())
+                .isEqualTo(Segment.NO_SUCCESSFUL_PURCHASE);
+        assertThat(all().stream().filter(c -> c.phone().equals("+84987654321")).findFirst().orElseThrow().successfulPurchases()).isEqualTo(1);
     }
 
     @Test

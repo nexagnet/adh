@@ -57,6 +57,10 @@
                 <span><span class="todo-num" th:text="${handoffOpen}">0</span>việc trợ lý AI chuyển cho mẹ</span>
                 <a class="btn secondary" th:href="@{/handoffs}">Xem việc</a>
             </li>
+            <li th:if="${refusalHeld > 0}">
+                <span><span class="todo-num" th:text="${refusalHeld}">0</span>khách nhắn riêng có thể là từ chối, đã tạm dừng tin, chờ mẹ xem</span>
+                <a class="btn secondary" th:href="@{/handoffs}">Xem tin</a>
+            </li>
             <li th:if="${unmapped > 0}">
                 <span><span class="todo-num" th:text="${unmapped}">0</span>trạng thái đơn chưa rõ nghĩa, chưa được tính là mua thành công</span>
                 <a class="btn secondary" th:href="@{/status-mappings}">Chọn nghĩa</a>
@@ -76,7 +80,7 @@
                 <a class="btn secondary" th:href="@{/imports/new}">Nhập file mới</a>
             </li>
             <li class="todo-empty"
-                th:if="${contact.candidates == 0 and friend.friended == 0 and friend.noReply == 0 and privacyOpen == 0 and handoffOpen == 0 and unmapped == 0 and review == 0 and groupsNeedRecount == 0 and exportDue.isEmpty()}">
+                th:if="${contact.candidates == 0 and friend.friended == 0 and friend.noReply == 0 and privacyOpen == 0 and handoffOpen == 0 and refusalHeld == 0 and unmapped == 0 and review == 0 and groupsNeedRecount == 0 and exportDue.isEmpty()}">
                 Hôm nay chưa có việc nào cần làm.
             </li>
         </ul>

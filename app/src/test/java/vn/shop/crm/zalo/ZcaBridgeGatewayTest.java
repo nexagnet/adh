@@ -351,4 +351,38 @@ class ZcaBridgeGatewayTest {
         server.stop(0);
         assertThat(gateway.findByPhone("84900000009").result()).isEqualTo(ZaloPersonFinder.FindResult.UNREACHABLE);
     }
+
+    @Test
+    void tinRiengDocTheoSoThuTuVaBoTinHong() {
+        reply.set("""
+                {"enabled":true,"messages":[
+                 {"seq":12,"uid":"7001","text":"hai","at":"2026-11-22T03:00:02Z"},
+                 {"seq":11,"uid":"7001","text":"một","at":"2026-11-22T03:00:01Z"},
+                 {"seq":13,"uid":"abc","text":"mã sai","at":"2026-11-22T03:00:03Z"},
+                 {"seq":14,"uid":"7002","text":"   ","at":"2026-11-22T03:00:04Z"},
+                 {"uid":"7003","text":"thiếu seq"}]}""");
+        var got = gateway.inbound(10);
+        assertThat(requests).containsExactly("GET /inbox?after=10");
+        assertThat(keys).containsExactly("khoa-chung");
+        assertThat(got).extracting(ZaloInboxReader.Inbound::seq).containsExactly(11L, 12L);
+        assertThat(got).extracting(ZaloInboxReader.Inbound::text).containsExactly("một", "hai");
+    }
+
+    @Test
+    void tinRiengTatHoacLoiThiRong() {
+        reply.set("{\"enabled\":false,\"messages\":[{\"seq\":1,\"uid\":\"7001\",\"text\":\"x\"}]}");
+        assertThat(gateway.inbound(0)).isEmpty();
+        httpStatus = 500;
+        reply.set("{\"error\":\"internal\"}");
+        assertThat(gateway.inbound(0)).isEmpty();
+        reply.set("không phải json");
+        httpStatus = 200;
+        assertThat(gateway.inbound(0)).isEmpty();
+    }
+
+    @Test
+    void tinRiengQuaDaiBiCatCon500() {
+        reply.set("{\"enabled\":true,\"messages\":[{\"seq\":1,\"uid\":\"7001\",\"text\":\"" + "a".repeat(800) + "\"}]}");
+        assertThat(gateway.inbound(0).get(0).text()).hasSize(500);
+    }
 }

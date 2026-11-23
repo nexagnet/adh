@@ -23,6 +23,13 @@ Các lần "thành bạn" (loại `ADD` của zca-js, `isSelf=false`) có `seq` 
 ```
 `phone` là `null` khi người đó không cho thấy số (đa số). Cầu nối chỉ hỏi số của **đúng uid trong sự kiện**, không dò ai khác. Sự kiện `REQUEST` (người khác tự gửi lời mời) **không** được trả về. Cầu nối giữ sự kiện trong bộ nhớ, bỏ những sự kiện có `seq` ≤ `after` của lần hỏi sau; `seq` tăng đơn điệu kể cả sau khi khởi động lại (dựa trên thời gian).
 
+### `GET /inbox?after=<seq>` (D19, nhận diện từ chối; TẮT mặc định)
+Tin nhắn RIÊNG (1-1, dạng văn bản, không phải của chính tài khoản) mà người **đã nhận Tin 1 hoặc Tin 2 từ chính cầu nối** gửi lại, có `seq` > `after`, tăng dần:
+```json
+{ "enabled": true, "messages": [ { "seq": 1763780000002, "uid": "123456789", "text": "Thôi đừng nhắn nữa nhé", "at": "2026-11-22T03:05:00Z" } ] }
+```
+Chỉ có khi đặt `BRIDGE_INBOX_ENABLED=true` ở cầu nối; tắt thì cầu nối **không đăng ký nghe tin nhắn** và trả `{ "enabled": false, "messages": [] }`. Cầu nối lọc bằng sổ gửi tin của chính nó (băm HMAC): tin của người chưa từng nhận tin của hệ thống bị bỏ ngay, không lưu, không ghi log. Không đọc tin nhóm, tệp, ảnh hay lịch sử cũ. Tin giữ **trong bộ nhớ** tối đa 6 giờ và 300 tin, cắt còn 500 ký tự, bỏ khi Adh xác nhận (`seq` ≤ `after`); nội dung, mã Zalo không bao giờ vào log. Adh che dữ liệu (`PiiMasker`) rồi mới nhờ AI gắn nhãn.
+
 ### `POST /groups/{zaloGroupId}/members`  body `{"uid": "123456789"}`
 Cả hai mã chỉ gồm chữ số (≤ 32). Trả:
 ```json

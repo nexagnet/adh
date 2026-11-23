@@ -30,9 +30,11 @@ public class NavMenu {
     private final StatusMappingService statuses;
     private final ZaloAutoService zalo;
     private final InviteService invites;
+    private final vn.shop.crm.inbox.RefusalReviewService refusals;
 
     public NavMenu(HandoffService handoffs, PrivacyService privacy, StatusMappingService statuses, ZaloAutoService zalo,
-                   InviteService invites) {
+                   InviteService invites, vn.shop.crm.inbox.RefusalReviewService refusals) {
+        this.refusals = refusals;
         this.invites = invites;
         this.handoffs = handoffs;
         this.privacy = privacy;
@@ -53,7 +55,7 @@ public class NavMenu {
 
     public List<Group> groups(String currentKey) {
         String key = currentKey == null ? "/" : currentKey;
-        long handoffOpen = handoffs.openCount();
+        long handoffOpen = handoffs.openCount() + refusals.heldCount();
         long privacyOpen = privacy.openCount();
         long unmapped = statuses.unmapped().size();
         long friendWaiting = invites.friendStats().readyToAdd();

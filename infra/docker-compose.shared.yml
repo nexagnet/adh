@@ -53,6 +53,14 @@ services:
       APP_ZALO_GROUP_DEPUTY_ID: ${ZALO_DEPUTY_ID:-}
       # Tự gửi tin (D18): trần cứng số tin/ngày mà trang quản trị được phép đặt. Công tắc mặc định TẮT.
       APP_ZALO_AUTO_MSG_MAX_DAILY: ${APP_ZALO_AUTO_MSG_MAX_DAILY:-25}
+      # AI (DeepSeek) nhận diện khách từ chối (D19). MẶC ĐỊNH TẮT; cần cả ba cờ: APP_AI_ENABLED, APP_ZALO_INBOX_ENABLED và BRIDGE_INBOX_ENABLED ở bộ nối.
+      # Khóa API chỉ đặt trong file .env trên máy chủ (không vào repo, log hay PR); tên mô hình do chủ shop đặt.
+      APP_AI_ENABLED: ${APP_AI_ENABLED:-false}
+      APP_AI_API_KEY: ${APP_AI_API_KEY:-}
+      APP_AI_MODEL: ${APP_AI_MODEL:-}
+      APP_AI_DAILY_LIMIT: ${APP_AI_DAILY_LIMIT:-200}
+      APP_ZALO_INBOX_ENABLED: ${APP_ZALO_INBOX_ENABLED:-false}
+      APP_ZALO_INBOX_THRESHOLD: ${APP_ZALO_INBOX_THRESHOLD:-0.8}
       # Trần Java thấp hơn bản mặc định (512m) vì máy dùng chung; ghi đè được bằng ADH_JAVA_OPTS.
       JAVA_TOOL_OPTIONS: ${ADH_JAVA_OPTS:--Xms96m -Xmx320m -XX:+ExitOnOutOfMemoryError}
     ports:
@@ -78,6 +86,8 @@ services:
       # Tự gửi tin (D18): trần cứng và khoảng cách tối thiểu ở bộ nối (cao hơn trần của ứng dụng, là lớp bảo hiểm thứ hai).
       BRIDGE_MSG_DAILY: ${BRIDGE_MSG_DAILY:-60}
       BRIDGE_MSG_GAP_SEC: ${BRIDGE_MSG_GAP_SEC:-90}
+      # Đọc tin riêng của người đã nhận tin hệ thống, chỉ để nhận diện từ chối (D19). MẶC ĐỊNH TẮT; tin chỉ nằm trong bộ nhớ.
+      BRIDGE_INBOX_ENABLED: ${BRIDGE_INBOX_ENABLED:-false}
       # Máy dùng chung chỉ có 2 GB: giới hạn vùng nhớ của Node để bộ nối không phình ra.
       NODE_OPTIONS: --max-old-space-size=80
     volumes:

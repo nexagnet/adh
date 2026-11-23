@@ -140,6 +140,10 @@ export class FakeAdapter {
     this.handlers?.onFriendAdd(String(uid));
   }
 
+  emitMessage(uid, text) {
+    this.handlers?.onMessage?.(String(uid), text);
+  }
+
   emitDisconnect(code) {
     this.handlers?.onDisconnected(code);
   }

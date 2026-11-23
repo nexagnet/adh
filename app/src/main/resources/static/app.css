@@ -752,3 +752,6 @@ th.num .th-in { justify-content: flex-end; }
 .avatar { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; background: #dbe7f5; flex: none; }
 .avatar.ph { display: inline-flex; align-items: center; justify-content: center; font-weight: 700; color: var(--primary); font-size: 20px; }
 @media screen and (max-width: 700px) { .person form, .person .btn { width: 100%; } }
+
+/* Các khối việc xếp dọc trong trang một cột (ví dụ Việc cần mẹ xử lý): cách nhau cho dễ nhìn. */
+main > section.stack { margin-bottom: 24px; }

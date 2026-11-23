@@ -54,6 +54,22 @@ test('D19: createGroup, enableGroupLink, addGroupDeputy mỗi hàm đúng một 
   }
 });
 
+test('D19: tin nhắn đến chỉ được nghe ở bộ điều hợp thật, chỉ tin riêng văn bản của người khác, và chỉ khi có bộ xử lý (cờ bật)', () => {
+  const adapter = code('zca-adapter.mjs');
+  assert.equal((adapter.match(/listener\.on\('message'/g) ?? []).length, 1);
+  assert.match(adapter, /if \(h\.onMessage\)/);
+  assert.match(adapter, /m\.type !== ThreadType\.User \|\| m\.isSelf \|\| typeof m\.data\?\.content !== 'string'/);
+  for (const f of files.filter((x) => x !== 'zca-adapter.mjs')) {
+    assert.ok(!/listener\.on\('message'/.test(code(f)), `${f} không được nghe tin nhắn`);
+  }
+  // Bộ nối không có đường nào để trả lời khách ngoài POST /messages (Tin 1 và Tin 2).
+  assert.ok(!/getMessageHistory|getArchivedChatList|deleteMessage|undoMessage|sendTypingEvent/.test(files.map(code).join('\n')));
+  // nội dung tin không được vào log
+  const bridge = code('bridge.mjs');
+  const onMessage = bridge.slice(bridge.indexOf('onMessage(gen, uid, text)'), bridge.indexOf('onDisconnected(gen, code)'));
+  assert.ok(!/this\.log\(/.test(onMessage));
+});
+
 test('không đặt userAgent, không proxy, không đổi dấu vân tay (không che việc dùng thư viện)', () => {
   const adapter = code('zca-adapter.mjs');
   assert.ok(!/userAgent\s*:\s*['"`]/.test(adapter));

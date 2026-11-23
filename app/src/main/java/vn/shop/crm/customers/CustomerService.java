@@ -119,7 +119,7 @@ public class CustomerService {
         List<String> phones = jdbc.sql("SELECT DISTINCT receiver_phone FROM shipment")
                 .query(String.class).list();
         recalculate(phones);
-        jdbc.sql("DELETE FROM customer WHERE phone NOT IN (SELECT receiver_phone FROM shipment)").update();
+        // Không tự xóa khách (và số điện thoại) nào ở đây: chủ shop quyết định, chỉ xóa bằng thao tác "Xóa dữ liệu khách" trên giao diện.
         return phones.size();
     }
 
@@ -132,7 +132,14 @@ public class CustomerService {
                 .param("phone", phone)
                 .query(CustomerService::mapShipmentWithContact).list();
         if (rows.isEmpty()) {
-            jdbc.sql("DELETE FROM customer WHERE phone = :phone").param("phone", phone).update();
+            // Không còn vận đơn nào (ví dụ hãng sửa số điện thoại của đơn): KHÔNG tự xóa khách hay số điện thoại (quy tắc 5a của CLAUDE.md).
+            // Giữ bản ghi, chỉ đưa về "chưa mua thành công" để không còn bị coi là khách đã mua; chủ shop tự xóa trên giao diện nếu muốn.
+            jdbc.sql("""
+                            UPDATE customer SET segment = :segment, successful_purchases = 0, last_order_on = NULL, needs_review = FALSE,
+                                   review_reasons = '', calculated_at = now(), calc_version = :calcVersion
+                            WHERE phone = :phone""")
+                    .param("segment", CustomerClassifier.classify(List.of(), now()).segment().name())
+                    .param("calcVersion", CALC_VERSION).param("phone", phone).update();
             return;
         }
         List<CustomerClassifier.ShipmentFact> facts = rows.stream().map(r -> toFact(r.shipment())).toList();

@@ -55,6 +55,25 @@ public class FakeZaloGateway implements ZaloLink {
         finds.clear();
         findResults.clear();
         defaultFind = null;
+        inboxItems.clear();
+        inboxSeq = 0;
+        inboxCalls = 0;
+    }
+
+    // ---------- tin riêng của khách (D19) ----------
+
+    private final List<Inbound> inboxItems = new ArrayList<>();
+    public int inboxCalls;
+    private long inboxSeq;
+
+    public void pushInbound(String uid, String text) {
+        inboxItems.add(new Inbound(++inboxSeq, uid, text, Instant.parse("2026-11-22T03:00:00Z")));
+    }
+
+    @Override
+    public List<Inbound> inbound(long afterSeq) {
+        inboxCalls++;
+        return inboxItems.stream().filter(m -> m.seq() > afterSeq).toList();
     }
 
     // ---------- tạo nhóm (D19) ----------
@@ -156,7 +175,7 @@ public class FakeZaloGateway implements ZaloLink {
     }
 
     public int totalCalls() {
-        return statusCalls + eventCalls + adds.size() + stops + resumes + logouts + messages.size() + creates.size() + finds.size();
+        return statusCalls + eventCalls + adds.size() + stops + resumes + logouts + messages.size() + creates.size() + finds.size() + inboxCalls;
     }
 
     @Override
