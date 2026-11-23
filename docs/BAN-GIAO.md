@@ -308,6 +308,12 @@ Chỉ khi người dùng **hiểu rủi ro và đồng ý rõ ràng bằng lời
 
 ---
 
+### Làm lại giao diện quản trị (23/11/2026)
+
+Chi tiết, danh sách màn giữ/gộp/bỏ và việc còn dở: [`GIAO-DIEN-LAM-LAI.md`](GIAO-DIEN-LAM-LAI.md). Tóm tắt: PR #45 (điện thoại: menu thu gọn, bảng thành thẻ, hướng dẫn gập) và #46 (gộp mục Khách hàng) đã gộp. **Giữ `/test-runs` tới khi chủ shop chạy chiến dịch thật rồi mới xóa.** Màn nhắn tay (Lô nhắn hôm nay, Chờ vào nhóm, các nút Đã nhắn/Đã kết bạn/Đã vào nhóm) bỏ hẳn **sau khi** phần tự gửi (D18) gộp; chữ "không tự gửi tin" còn ở nhiều mẫu trang và lỗi thời.
+
+---
+
 ## 10. Quy tắc làm việc với dự án (giữ nguyên)
 
 - Trả lời người dùng bằng **tiếng Việt**; giao diện 100% tiếng Việt.
