@@ -38,4 +38,15 @@ class FieldKeyTest {
         assertThat(FieldKey.guess(List.of("Mã Vận Đơn", "Địa chỉ gửi", "Tỉnh/Thành phố gửi", "ĐT Nhận", "Trạng Thái"))
                 .get(FieldKey.ADMIN_AREA)).isNull();
     }
+
+    @Test
+    void nhanCotNoiDungHangHoaCuaJtVaTenHangCuaViettelPost() {
+        List<String> jt = List.of("Mã vận đơn", "Trạng thái vận đơn", "SĐT người nhận", "Địa chỉ người nhận",
+                "Tên người nhận", "Địa chỉ hành chính", "Nội dung hàng hóa", "Thời gian tạo đơn", "Cước phí");
+        assertThat(FieldKey.guess(jt).get(FieldKey.GOODS)).isEqualTo("Nội dung hàng hóa");
+        assertThat(FieldKey.guess(VTP_REAL_HEADERS).get(FieldKey.GOODS)).isEqualTo("Tên Hàng");
+        // cột "Tên người nhận khi phát hàng" không bị nhầm là tên hàng
+        assertThat(FieldKey.guess(List.of("Mã Vận Đơn", "ĐT Nhận", "Trạng Thái", "Tên người nhận khi phát hàng"))
+                .get(FieldKey.GOODS)).isNull();
+    }
 }

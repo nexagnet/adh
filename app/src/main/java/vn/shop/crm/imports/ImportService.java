@@ -76,7 +76,7 @@ public class ImportService {
 
     private record ParsedRow(int rowNumber, String trackingNo, String orderRef, String phoneRaw, String phone,
                              String name, String address, LocalDateTime createdOn, LocalDateTime deliveredOn,
-                             String rawStatus, Map<String, String> payload) {
+                             String rawStatus, String goods, Map<String, String> payload) {
     }
 
     private record ParseResult(List<ParsedRow> rows, List<RowError> errors, int totalRows, int duplicatesInFile) {
@@ -330,9 +330,9 @@ public class ImportService {
                 shipmentId = jdbc.sql("""
                                 INSERT INTO shipment (carrier, tracking_no, order_ref, receiver_phone_raw, receiver_phone,
                                     receiver_name, receiver_address, created_on, delivered_on, raw_status, status_key,
-                                    canonical_status, raw_payload, first_batch_id, last_batch_id)
+                                    canonical_status, goods, raw_payload, first_batch_id, last_batch_id)
                                 VALUES (:carrier, :tracking, :orderRef, :phoneRaw, :phone, :name, :address, :createdOn,
-                                    :deliveredOn, :rawStatus, :statusKey, :canonical, CAST(:payload AS jsonb),
+                                    :deliveredOn, :rawStatus, :statusKey, :canonical, :goods, CAST(:payload AS jsonb),
                                     :batch, :batch)
                                 RETURNING id""")
                         .paramSource(p).query(Long.class).single();
@@ -347,6 +347,7 @@ public class ImportService {
                                     receiver_address = COALESCE(:address, receiver_address),
                                     created_on = COALESCE(:createdOn, created_on),
                                     delivered_on = COALESCE(:deliveredOn, delivered_on),
+                                    goods = COALESCE(:goods, goods),
                                     raw_status = :rawStatus, status_key = :statusKey,
                                     -- đơn đã được file đối soát J&T chứng minh giao thành công thì giữ nguyên, trừ khi hãng báo hủy/hoàn
                                     canonical_status = CASE WHEN settled_delivered
@@ -562,7 +563,8 @@ public class ImportService {
                     blankToNull(joinAddress(cell(row, index, FieldKey.RECEIVER_ADDRESS),
                             cell(row, index, FieldKey.ADMIN_AREA))),
                     parseDate(cell(row, index, FieldKey.CREATED_ON)),
-                    parseDate(cell(row, index, FieldKey.DELIVERED_ON)), clean(rawStatus, 200), payload);
+                    parseDate(cell(row, index, FieldKey.DELIVERED_ON)), clean(rawStatus, 200),
+                    blankToNull(clean(cell(row, index, FieldKey.GOODS), 500)), payload);
             if (byTracking.put(tracking, parsed) != null) {
                 duplicates++;
             }
@@ -631,6 +633,7 @@ public class ImportService {
         p.put("createdOn", row.createdOn() == null ? null : Timestamp.valueOf(row.createdOn()));
         p.put("deliveredOn", row.deliveredOn() == null ? null : Timestamp.valueOf(row.deliveredOn()));
         p.put("rawStatus", row.rawStatus());
+        p.put("goods", row.goods());
         p.put("statusKey", statusKey);
         p.put("canonical", canonical.name());
         p.put("payload", toJson(row.payload()));
