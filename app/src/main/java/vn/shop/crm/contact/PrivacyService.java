@@ -220,6 +220,11 @@ public class PrivacyService {
         jdbc.sql("DELETE FROM import_error WHERE raw_row LIKE :pattern").param("pattern", "%" + last9 + "%").update();
         // lô nhập chưa xác nhận còn giữ file gốc có SĐT khách: bỏ hẳn (người dùng tải lại nếu cần)
         jdbc.sql("DELETE FROM import_batch WHERE status <> 'COMMITTED'").update();
+        // dòng đối soát tiền của các vận đơn này (chỉ có mã vận đơn và số tiền, nhưng vẫn là vận đơn của khách)
+        jdbc.sql("""
+                        DELETE FROM settlement_line WHERE tracking_no IN
+                            (SELECT tracking_no FROM shipment WHERE receiver_phone = :phone AND carrier = 'JT_EXPRESS')""")
+                .param("phone", phone).update();
         jdbc.sql("DELETE FROM shipment WHERE receiver_phone = :phone").param("phone", phone).update();
         jdbc.sql("DELETE FROM customer WHERE id = :id").param("id", customerId).update();
 

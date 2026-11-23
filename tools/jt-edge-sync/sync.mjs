@@ -1,4 +1,5 @@
 // Xuất Excel đơn J&T theo ngày bằng Edge rồi nhập vào adh.
+// Chế độ --doi-soat: lấy các file "Lịch sử đối soát" (Dòng tiền) về và nhập vào adh (xem README).
 //
 // Nguyên tắc an toàn:
 //  - Tool KHÔNG đăng nhập J&T hay adh thay bạn, không nhập mật khẩu/OTP, không đọc hay lưu cookie.
@@ -11,7 +12,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline/promises';
-import { ensureAdhLoggedIn, readJtAdvice, uploadAndPreview, commitImport, parseVnDate, fmtVnDate } from './adh.mjs';
+import {
+  ensureAdhLoggedIn, readJtAdvice, uploadAndPreview, commitImport, parseVnDate, fmtVnDate,
+  SETTLEMENT_FILE, readSettlementAdvice, uploadSettlementAndPreview, commitSettlement,
+} from './adh.mjs';
 
 const args = new Map();
 for (let i = 2; i < process.argv.length; i++) {
@@ -97,7 +101,96 @@ async function exportRange(page, from, to) {
   return file;
 }
 
+/** Mở J&T; nếu bị đưa về trang đăng nhập thì chờ bạn đăng nhập. Không bấm gì khác trên J&T. */
+async function openJtHome(page) {
+  await page.goto(JT_URL, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2500);
+  if (page.url().includes('/login')) {
+    log('Cần đăng nhập J&T: hãy đăng nhập (và nhập OTP) trong cửa sổ Edge vừa mở. Tool đang chờ.');
+    await page.bringToFront();
+    await page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: LOGIN_WAIT_MS });
+  }
+}
+
+/**
+ * Chế độ --doi-soat: nhập file "Lịch sử đối soát" của J&T vào adh.
+ *  - Mặc định: mở J&T trong Edge riêng, bạn tự vào Dòng tiền > Lịch sử đối soát và bấm "Tải về" cho các kỳ cần nhập.
+ *    Tool KHÔNG bấm gì trên J&T, chỉ nhận các file đối soát (tên dạng <mã khách>-<ngày>-<ngày>.xlsx) mà Edge tải về.
+ *  - --folder <thư mục>: không mở J&T, nhập các file đối soát bạn đã tải sẵn trong thư mục đó.
+ */
+async function mainSettlement() {
+  fs.mkdirSync(PROFILE, { recursive: true });
+  const folder = typeof args.get('folder') === 'string' ? args.get('folder') : null;
+  log('Mở Edge (hồ sơ riêng của tool)...');
+  const ctx = await chromium.launchPersistentContext(PROFILE, { channel: 'msedge', headless: false, viewport: null, acceptDownloads: true });
+  const files = [];
+  const downloaded = []; // file do tool tải về (xóa sau khi chạy); file trong --folder là của bạn, không xóa tự động
+  try {
+    const adhPage = ctx.pages()[0] ?? (await ctx.newPage());
+    await ensureAdhLoggedIn(adhPage, ADH_URL, log);
+    const advice = await readSettlementAdvice(adhPage, ADH_URL);
+    log(advice.latestEnd
+      ? `adh đã có đối soát tới hết ngày ${advice.latestEnd}; hãy lấy các kỳ sau ngày đó.`
+      : 'adh chưa có kỳ đối soát nào; hãy lấy các kỳ từ ngày cửa hàng bắt đầu gửi hàng.');
+
+    if (folder) {
+      for (const name of fs.readdirSync(folder).filter((n) => SETTLEMENT_FILE.test(n)).sort()) files.push(path.join(folder, name));
+      if (!files.length) throw new Error(`Không thấy file đối soát nào (tên dạng <mã khách>-yyyyMMdd-MMdd.xlsx) trong ${folder}.`);
+      log(`Tìm thấy ${files.length} file đối soát trong ${folder}.`);
+    } else {
+      fs.mkdirSync(DOWNLOADS, { recursive: true });
+      const onDownload = async (download) => {
+        const name = download.suggestedFilename();
+        if (!SETTLEMENT_FILE.test(name)) { log(`Bỏ qua file tải về "${name}" (không phải file đối soát).`); return; }
+        const file = path.join(DOWNLOADS, name);
+        await download.saveAs(file);
+        if (!files.includes(file)) { files.push(file); downloaded.push(file); }
+        log(`Đã nhận ${name} (${fs.statSync(file).size} byte).`);
+      };
+      const attach = (p) => p.on('download', onDownload);
+      ctx.pages().forEach(attach);
+      ctx.on('page', attach);
+      const jtPage = await ctx.newPage();
+      await openJtHome(jtPage);
+      log('Trong cửa sổ J&T: vào Dòng tiền > Lịch sử đối soát, bấm "Tải về" ở từng kỳ cần nhập. Tool chỉ nhận file tải về, không bấm thay bạn.');
+      await ask('Tải xong các kỳ cần nhập thì gõ c rồi Enter để tiếp tục: ');
+      await new Promise((r) => setTimeout(r, 1500)); // chờ file cuối ghi xong
+      if (!files.length) throw new Error('Chưa nhận được file đối soát nào.');
+    }
+    if (args.get('dry')) {
+      log(`Chế độ --dry: có ${files.length} file, KHÔNG tải lên adh. File nằm ở ${folder ?? DOWNLOADS}.`);
+      args.set('keep', true);
+      return;
+    }
+
+    log('Tải file lên adh (chưa lưu gì, chỉ xem trước)...');
+    const preview = await uploadSettlementAndPreview(adhPage, ADH_URL, files);
+    for (const c of preview.cards) console.log(`   ${c.label}: ${c.value}`);
+    for (const n of preview.notices) console.log(`   Lưu ý: ${n.replace(/\s+/g, ' ')}`);
+    const valid = preview.cards.find((c) => /hợp lệ/.test(c.label))?.value ?? 0;
+    if (valid === 0) throw new Error('Không có dòng hợp lệ nào; không nhập.');
+    if (!args.get('yes')) {
+      const ok = await ask('Xác nhận nhập vào adh? (gõ c rồi Enter để nhập, phím khác để hủy): ');
+      if (ok !== 'c') { log('Đã hủy, chưa lưu gì vào adh.'); return; }
+    }
+    log(`Đã nhập xong. ${await commitSettlement(adhPage)}`);
+    if (folder && args.get('delete')) {
+      for (const f of files) fs.rmSync(f, { force: true });
+      log('Đã xóa các file đối soát trong thư mục (chứa tên, SĐT, địa chỉ khách).');
+    } else if (folder) {
+      log('Nhớ xóa các file đối soát trong thư mục sau khi nhập (chứa tên, SĐT, địa chỉ khách), hoặc chạy lại với --delete.');
+    }
+  } finally {
+    await ctx.close().catch(() => {});
+    if (!args.get('keep')) {
+      for (const f of downloaded) fs.rmSync(f, { force: true });
+      if (downloaded.length) log('Đã xóa file Excel tạm (chứa dữ liệu khách).');
+    }
+  }
+}
+
 async function main() {
+  if (args.get('doi-soat')) return mainSettlement();
   fs.mkdirSync(PROFILE, { recursive: true });
   log('Mở Edge (hồ sơ riêng của tool)...');
   const ctx = await chromium.launchPersistentContext(PROFILE, { channel: 'msedge', headless: false, viewport: null, acceptDownloads: true });

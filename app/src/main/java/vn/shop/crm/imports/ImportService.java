@@ -61,7 +61,8 @@ public class ImportService {
                            boolean sameFileAlreadyImported) {
     }
 
-    public record RowError(int rowNumber, String code, String message, String rawRow) {
+    public record RowError(int rowNumber, String code, String message, String rawRow)
+            implements java.io.Serializable {
     }
 
     public record Report(int totalRows, int validRows, int errorRows, int duplicatesInFile, int newShipments,
@@ -211,7 +212,7 @@ public class ImportService {
     }
 
     /** CSV nội bộ để gộp nhiều file; KHÔNG thêm dấu nháy chống công thức (khác {@code CsvOut}) vì đây không phải file xuất ra cho người dùng. */
-    private static byte[] toCsv(List<List<String>> rows) {
+    static byte[] toCsv(List<List<String>> rows) {
         try {
             java.io.StringWriter out = new java.io.StringWriter();
             try (var printer = new org.apache.commons.csv.CSVPrinter(out, org.apache.commons.csv.CSVFormat.DEFAULT)) {
@@ -233,7 +234,7 @@ public class ImportService {
         if (content == null || content.length == 0) {
             throw new ImportException("Chưa chọn file hoặc file rỗng.");
         }
-        TabularReader.read(content, maxUncompressedBytes); // báo lỗi sớm nếu không đọc được
+        rejectSettlementFile(TabularReader.read(content, maxUncompressedBytes)); // báo lỗi sớm nếu không đọc được
         String safeName = filename == null || filename.isBlank() ? "file" : filename.strip();
         if (safeName.length() > 200) {
             safeName = safeName.substring(safeName.length() - 200);
@@ -246,6 +247,14 @@ public class ImportService {
                 .param("sha", sha256(content))
                 .param("content", content)
                 .query(Long.class).single();
+    }
+
+    /** File "Lịch sử đối soát" (có dòng "Mã kỳ đối soát") không phải danh sách đơn: chỉ cho nhập ở mục riêng. */
+    private static void rejectSettlementFile(List<List<String>> rows) {
+        if (SettlementImportService.looksLikeSettlement(rows)) {
+            throw new ImportException("Đây là file Lịch sử đối soát của J&T (có dòng \"Mã kỳ đối soát\"), không phải "
+                    + "danh sách đơn hàng. Hãy nhập ở mục \"Nhập file đối soát\" (đường dẫn /imports/settlement).");
+        }
     }
 
     public FileView open(long batchId, Integer headerRowOverride) {
@@ -416,7 +425,7 @@ public class ImportService {
     public List<StaleImport> staleCarriers(int days) {
         return jdbc.sql("""
                         SELECT carrier, floor(extract(epoch FROM (now() - max(committed_at))) / 86400)::bigint AS days
-                        FROM import_batch WHERE status = 'COMMITTED'
+                        FROM import_batch WHERE status = 'COMMITTED' AND kind = 'SHIPMENTS'
                         GROUP BY carrier HAVING max(committed_at) < now() - make_interval(days => :days)
                         ORDER BY carrier""")
                 .param("days", Math.max(1, days))
@@ -427,12 +436,12 @@ public class ImportService {
     // ================= truy vấn lô nhập =================
 
     public List<BatchSummary> list() {
-        return jdbc.sql(SUMMARY_SQL + " ORDER BY id DESC LIMIT 200")
+        return jdbc.sql(SUMMARY_SQL + " WHERE kind = 'SHIPMENTS' ORDER BY id DESC LIMIT 200")
                 .query(ImportService::mapSummary).list();
     }
 
     public BatchSummary summary(long id) {
-        return jdbc.sql(SUMMARY_SQL + " WHERE id = :id").param("id", id)
+        return jdbc.sql(SUMMARY_SQL + " WHERE id = :id AND kind = 'SHIPMENTS'").param("id", id)
                 .query(ImportService::mapSummary).optional()
                 .orElseThrow(() -> new ImportException("Không tìm thấy lô nhập."));
     }
@@ -659,7 +668,7 @@ public class ImportService {
     }
 
     private BatchData loadBatch(long id) {
-        return jdbc.sql("SELECT id, carrier, filename, status, file_content FROM import_batch WHERE id = :id")
+        return jdbc.sql("SELECT id, carrier, filename, status, file_content FROM import_batch WHERE id = :id AND kind = 'SHIPMENTS'")
                 .param("id", id)
                 .query((rs, i) -> new BatchData(rs.getLong("id"), Carrier.valueOf(rs.getString("carrier")),
                         rs.getString("filename"), rs.getString("status"), rs.getBytes("file_content")))
@@ -676,7 +685,7 @@ public class ImportService {
         return row.get(i).strip();
     }
 
-    private static String normalizeCode(String value) {
+    static String normalizeCode(String value) {
         String v = value == null ? "" : value.strip();
         var m = TRAILING_ZERO_DECIMAL.matcher(v);
         if (m.matches()) {
@@ -685,7 +694,7 @@ public class ImportService {
         return clean(v, 200).toUpperCase(java.util.Locale.ROOT);
     }
 
-    private static String clean(String value, int maxLength) {
+    static String clean(String value, int maxLength) {
         if (value == null) {
             return "";
         }
@@ -718,7 +727,7 @@ public class ImportService {
         return value == null || value.isBlank() ? null : value;
     }
 
-    private static boolean isBlankRow(List<String> row) {
+    static boolean isBlankRow(List<String> row) {
         return row.stream().allMatch(c -> c == null || c.isBlank());
     }
 
@@ -747,7 +756,7 @@ public class ImportService {
         return 1;
     }
 
-    private static LocalDateTime parseDate(String text) {
+    static LocalDateTime parseDate(String text) {
         if (text == null || text.isBlank()) {
             return null;
         }
