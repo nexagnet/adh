@@ -203,7 +203,7 @@ public class GroupService {
      * Chọn nhóm cho một lượt bấm: nhóm đang mở, có link, chưa đầy. Ưu tiên nhóm CÙNG KHU VỰC với khách, theo thứ
      * tự: cùng tỉnh, cùng vùng, cùng miền, rồi nhóm chung (không gắn khu vực). Nhóm của miền khác bị loại (trừ khi
      * bật {@code app.grouping.allow-other-region}). Trong cùng thứ tự ưu tiên chọn nhóm có điểm {@code khách thật +
-     * lượt bấm chờ × tỷ lệ giả định + chỗ đang giữ} thấp nhất. Khách chưa rõ khu vực: nhóm chung trước, rồi mọi nhóm. Không có nhóm
+     * lượt bấm chờ × tỷ lệ giả định + chỗ đang giữ} thấp nhất (nhóm đã có mã nhóm Zalo đứng trước khi cùng thứ tự ưu tiên). Khách chưa rõ khu vực: nhóm chung trước, rồi mọi nhóm. Không có nhóm
      * phù hợp thì trả rỗng (landing page báo "chưa có chỗ", không chuyển hướng sai).
      */
     public Optional<Group> pickGroup(Province province) {
@@ -215,7 +215,10 @@ public class GroupService {
         return all.stream()
                 .filter(g -> g.status() == GroupStatus.OPEN && g.hasLink() && !g.full())
                 .filter(g -> rank(g, province) >= 0)
-                .min(java.util.Comparator.comparingInt((Group g) -> rank(g, province)).thenComparingDouble(Group::score)
+                // cùng thứ tự ưu tiên thì nhóm đã có mã nhóm Zalo đứng trước: nhóm gợi ý ở tin link thường cũng là nhóm bộ nối tự thêm được
+                .min(java.util.Comparator.comparingInt((Group g) -> rank(g, province))
+                        .thenComparing((Group g) -> g.hasZaloId() ? 0 : 1)
+                        .thenComparingDouble(Group::score)
                         .thenComparingLong(Group::id));
     }
 
