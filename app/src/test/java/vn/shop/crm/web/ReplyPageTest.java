@@ -109,4 +109,19 @@ class ReplyPageTest extends AbstractPostgresTest {
                 .andExpect(content().string(containsString("Nháp trợ lý soạn")))
                 .andExpect(content().string(containsString("Dạ không mất phí ạ.")));
     }
+
+    @Test
+    void trangCoKhoiHoSoKhachVaLuuDanhSachTruongDuocGui() throws Exception {
+        mvc.perform(get("/zalo/reply").with(user("admin").roles("OWNER")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Hồ sơ khách gửi cho AI")))
+                .andExpect(content().string(containsString("Khu vực của khách")))
+                .andExpect(content().string(containsString("mẫu giả")));
+        mvc.perform(post("/zalo/reply/context").with(user("admin").roles("OWNER")).with(csrf()).param("field", "khu_vuc").param("field", "nhom"))
+                .andExpect(redirectedUrl("/zalo/reply"));
+        assertThat(replies.context().enabled()).extracting(vn.shop.crm.inbox.ReplyContext.Field::key).containsExactly("khu_vuc", "nhom");
+        mvc.perform(post("/zalo/reply/context").with(user("admin").roles("OWNER")).with(csrf())).andExpect(redirectedUrl("/zalo/reply"));
+        assertThat(replies.context().enabled()).isEmpty();
+        mvc.perform(post("/zalo/reply/context").with(csrf())).andExpect(status().is3xxRedirection()); // chưa đăng nhập
+    }
 }
