@@ -56,7 +56,7 @@ public class ZaloWelcomeSender implements ZaloTickHook {
         if (comebacks.mode() != ComebackService.Mode.AUTO || !messages.enabled() || settings.paused()) {
             return false;
         }
-        if (messages.blocker(ZaloMessageService.SCOPE_REAL, null, null).isPresent()) {
+        if (messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.WELCOME, null, null).isPresent()) {
             return false;
         }
         Optional<ComebackService.Welcome> next = comebacks.nextWelcome();

@@ -56,7 +56,7 @@ export function loadConfig(env = process.env) {
     maxLookupsPerHour: int(env, 'BRIDGE_MAX_LOOKUPS_PER_HOUR', 60, 0, 1000),
     // Tin nhắn gửi cho khách (D18): trần cứng mỗi ngày và khoảng nghỉ CỐ ĐỊNH tối thiểu giữa hai tin. Công khai, không ngẫu nhiên hóa.
     // Vượt trần ngày thì cầu nối tự dừng; gửi quá sớm thì chỉ bị từ chối (RATE_LIMITED), Adh thử lại sau.
-    msgDaily: int(env, 'BRIDGE_MSG_DAILY', 60, 1, 400),
+    msgDaily: int(env, 'BRIDGE_MSG_DAILY', 150, 1, 400),
     msgGapMs: int(env, 'BRIDGE_MSG_GAP_SEC', 90, 30, 3600) * 1000,
     // Tạo nhóm Zalo (D19): trần cứng của CHÍNH cầu nối là 3 nhóm mỗi ngày (Adh mặc định 1), khoảng nghỉ CỐ ĐỊNH tối thiểu giữa hai lần tạo.
     // Vượt trần ngày thì cầu nối tự dừng; tạo sớm hơn khoảng nghỉ thì chỉ bị từ chối (RATE_LIMITED). Không ngẫu nhiên hóa.

@@ -223,11 +223,33 @@ class ZaloAutoSendTest extends AbstractPostgresTest {
 
     @Test
     void caiDatHanMucKhongVuotTranCungVaSanKhoangNghi() {
-        assertThatThrownBy(() -> messages.setLimits(26, 120, "mẹ")).isInstanceOf(ImportException.class);
+        assertThatThrownBy(() -> messages.setLimits(51, 120, "mẹ")).isInstanceOf(ImportException.class);
         assertThatThrownBy(() -> messages.setLimits(0, 120, "mẹ")).isInstanceOf(ImportException.class);
         assertThatThrownBy(() -> messages.setLimits(10, 99, "mẹ")).isInstanceOf(ImportException.class);
-        messages.setLimits(25, 100, "mẹ");
-        assertThat(messages.limits()).isEqualTo(new ZaloMessageService.Limits(25, 100));
+        messages.setLimits(50, 100, "mẹ"); // trần cứng 50 khách mỗi ngày (23/11/2026)
+        assertThat(messages.limits()).isEqualTo(new ZaloMessageService.Limits(50, 100));
+    }
+
+    /** 23/11/2026: hạn mức ngày là số KHÁCH được nhắn chủ động; Tin 2 không tính và không bị chặn bởi hạn mức đó, vẫn theo khoảng nghỉ. */
+    @Test
+    void hanMucNgayChiTinhTin1ConTin2KhongBiChan() {
+        ready(ZaloMode.AUTO);
+        messages.setLimits(1, 100, "mẹ");
+        int a = first();
+        assertThat(sender.step()).isEqualTo(Step.INVITE_SENT);
+        String uid = col("zalo_target_uid", a);
+        fake.pushAdd(uid, null, 1);
+        zalo.poll();
+        fake.willReturn(AddResult.of(Outcome.PERSON_ERROR, "Z240"));
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.PERSON_FAILED);
+        after(100);
+        assertThat(messages.usedToday(null)).isEqualTo(1);
+        assertThat(sender.step()).isEqualTo(Step.LINK_SENT); // đã đủ 1 khách nhưng Tin 2 vẫn đi
+        assertThat(messages.usedToday(null)).isEqualTo(1); // Tin 2 không tính vào số khách
+        after(100);
+        assertThat(sender.step()).isEqualTo(Step.BLOCKED); // khách thứ hai (Tin 1) bị chặn bởi hạn mức ngày
+        assertThat(fake.messages.stream().filter(m -> m.kind() == Kind.INVITE)).hasSize(1);
+        assertThat(messages.quota().maxDaily()).isEqualTo(50);
     }
 
     // ---------- người không đủ điều kiện, lỗi ----------
