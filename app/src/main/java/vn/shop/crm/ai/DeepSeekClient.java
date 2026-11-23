@@ -55,6 +55,17 @@ public class DeepSeekClient implements AiClient {
 
     @Override
     public String complete(String system, String user, boolean json) {
+        return call(system, user, json, maxTokens, timeout);
+    }
+
+    @Override
+    public String complete(String system, String user, boolean json, Options options) {
+        int tokens = Math.max(50, Math.min(options.maxOutputTokens(), Options.HARD_MAX_TOKENS));
+        Duration t = Duration.ofSeconds(Math.max(2, Math.min(options.timeoutSeconds(), Options.HARD_MAX_TIMEOUT)));
+        return call(system, user, json, tokens, t);
+    }
+
+    private String call(String system, String user, boolean json, int maxTokens, Duration timeout) {
         Map<String, Object> body = new java.util.LinkedHashMap<>();
         body.put("model", model);
         body.put("messages", List.of(Map.of("role", "system", "content", system), Map.of("role", "user", "content", user)));

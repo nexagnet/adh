@@ -112,4 +112,29 @@ class AiGateTest extends AbstractPostgresTest {
     private static Clock fixed(String iso) {
         return Clock.fixed(Instant.parse(iso), ZoneOffset.UTC);
     }
+
+    @Test
+    void luotDaiTruyenTuyChonVaVanTinhMotLuot() {
+        java.util.concurrent.atomic.AtomicReference<AiClient.Options> seen = new java.util.concurrent.atomic.AtomicReference<>();
+        AiClient client = new AiClient() {
+            @Override
+            public String complete(String system, String user, boolean json) {
+                return "thường";
+            }
+
+            @Override
+            public String complete(String system, String user, boolean json, Options options) {
+                seen.set(options);
+                return "dài";
+            }
+        };
+        AiGate gate = new AiGate(client, props(true, 10), usage, Clock.systemUTC());
+        assertThat(gate.ask("s", "u", true)).contains("thường");
+        assertThat(gate.ask("s", "u", true, new AiClient.Options(1500, 30))).contains("dài");
+        assertThat(seen.get()).isEqualTo(new AiClient.Options(1500, 30));
+        assertThat(usage.callsToday()).isEqualTo(2);
+        // bản cài đặt không biết tùy chọn (lambda) vẫn chạy bằng đường thường
+        AiGate plain = new AiGate((s, u, j) -> "x", props(true, 10), usage, Clock.systemUTC());
+        assertThat(plain.ask("s", "u", true, new AiClient.Options(1500, 30))).contains("x");
+    }
 }

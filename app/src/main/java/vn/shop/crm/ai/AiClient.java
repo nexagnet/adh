@@ -16,4 +16,15 @@ public interface AiClient {
      * @throws AiUnavailableException khi không có câu trả lời dùng được
      */
     String complete(String system, String user, boolean json);
+
+    /** Giới hạn riêng cho một lượt dài hơn bình thường (ví dụ đề xuất chiến dịch). Giá trị được kẹp lại ở nơi gọi. */
+    record Options(int maxOutputTokens, int timeoutSeconds) {
+        public static final int HARD_MAX_TOKENS = 2000;
+        public static final int HARD_MAX_TIMEOUT = 60;
+    }
+
+    /** Mặc định bỏ qua tùy chọn (các bản cài đặt giả trong test vẫn là một hàm). */
+    default String complete(String system, String user, boolean json, Options options) {
+        return complete(system, user, json);
+    }
 }

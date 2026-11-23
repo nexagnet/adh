@@ -45,6 +45,11 @@ public class AiGate {
 
     /** Hỏi AI. Rỗng nếu AI tắt, hết trần ngày, đang nghỉ do lỗi, hoặc gọi lỗi. {@code user} phải là văn bản đã che. */
     public Optional<String> ask(String system, String user, boolean json) {
+        return ask(system, user, json, null);
+    }
+
+    /** Như trên nhưng cho một lượt dài hơn bình thường; vẫn tính MỘT lượt vào trần ngày và qua cầu dao như mọi lượt khác. */
+    public Optional<String> ask(String system, String user, boolean json, AiClient.Options options) {
         if (!props.enabled() || isPaused()) {
             return Optional.empty();
         }
@@ -53,7 +58,7 @@ public class AiGate {
             return Optional.empty();
         }
         try {
-            String out = client.complete(system, user, json);
+            String out = options == null ? client.complete(system, user, json) : client.complete(system, user, json, options);
             synchronized (this) {
                 consecutiveFailures = 0;
             }
