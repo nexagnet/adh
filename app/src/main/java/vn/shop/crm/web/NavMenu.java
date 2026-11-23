@@ -57,6 +57,9 @@ public class NavMenu {
         if (path.matches("/customers/\\d+")) {
             return "/customers";
         }
+        if (path.startsWith("/advisor/")) {
+            return "/advisor";
+        }
         return path;
     }
 
@@ -69,6 +72,7 @@ public class NavMenu {
         List<Item> invite = new java.util.ArrayList<>(List.of(
                 item("Danh sách mời", "/contacts", "/contacts", 0, key),
                 item("Chiến dịch mời", "/campaigns", "/campaigns", 0, key),
+                item("Đề xuất của AI", "/advisor", "/advisor", 0, key),
                 item("Hiệu quả chiến dịch", "/performance", "/performance", 0, key),
                 item("Chờ vào nhóm", "/friends", "/friends", friendWaiting, key),
                 item("Lô nhắn hôm nay", "/today", "/today", 0, key),

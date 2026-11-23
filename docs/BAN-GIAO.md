@@ -56,6 +56,28 @@ Người dùng làm theo hướng dẫn đó: bước 0 chuẩn bị (kiểm Tin
 3. Nút nhắn tay ở chi tiết chiến dịch: Đã nhắn, Đã kết bạn, Đã vào nhóm, Đã gửi link nhóm, Khách đã rời nhóm, Khách từ chối bấm tay (các `POST /campaigns/{id}/invitations/{id}/...` trong `CampaignController`), "Xuất danh sách để mẹ gửi tay", và xem lại nút "Chạy thử (không gửi gì)" (`/campaigns/{id}/dry-run`).
 - **Giữ:** `/zalo` và `/zalo/reply` (điều khiển), `/handoffs`, `/campaigns` (tạo, duyệt, tự nhận khách mới, tạm dừng), `/contacts`, `/groups` và gán mã nhóm `/zalo/groups` (cố ý hai trang liên kết qua lại để khỏi gọi bộ nối mỗi lần mở), `/customers`, `/privacy`, `/print`, `/map`, `/bot` (trợ lý trong nhóm, cho giai đoạn 2).
 
+### 0.8 Luồng D21: AI đề xuất chiến dịch (bàn giao ngày 23/11/2026; kiểm lại `git log` trước khi tin)
+**Đọc trước:** `docs/THIET-KE-AI-DE-XUAT-CHIEN-DICH.md` (thiết kế đầy đủ, mục 5 là mô hình chiến dịch hợp nhất, mục 6 là thứ tự PR). Chủ dự án đã chốt làm theo toàn bộ thiết kế (số lần gửi 1 đến 3, gom nghiệp vụ nhắn tin vào chiến dịch, các núm cấu hình ở 5.3a, dữ liệu cho AI ở 5.3b).
+
+**Đã xong (đã gộp vào `main`, tất cả tắt mặc định, CHƯA chạy với DeepSeek hay Zalo thật):**
+- PR 1 (#76): `vn.shop.crm.advisor.AdvisorSnapshotService` dựng số liệu tổng hợp ẩn danh (vùng dưới 10 khách bị ẩn, không có chữ tự do từ cơ sở dữ liệu), có test không lộ dữ liệu cá nhân.
+- PR 2 (#79, V36): `CampaignAdvisor` (một lượt gọi qua `AiGate`, khuôn JSON), `ProposalValidator` (kiểm cứng, không dùng AI kiểm AI; độ tin cậy bị mã chặn trần), `AdvisorService.run` (công tắc `APP_AI_ADVISOR_ENABLED`, trần `APP_AI_ADVISOR_MAX_RUNS` mặc định 5 lần/ngày), bảng `advisor_run` và `campaign_proposal`. `AiClient.Options` cho phép lượt này dài hơn (1500 chữ, 30 giây, trần cứng 2000 và 60 giây).
+- PR 3 (trang `/advisor`, không migration): nhờ AI, xem lý do, rủi ro, độ tin cậy, xem đúng JSON đã gửi (`/advisor/runs/{id}`), Duyệt (tạo chiến dịch CHƯA duyệt tự gửi bằng `InviteService.createCampaign`, mẫu tin mặc định, KHÔNG dùng chữ AI) hoặc Bỏ qua kèm lý do; đề xuất quá hạn tự EXPIRED. Test: `AdvisorWebTest`, `AdvisorServiceTest`, `ProposalValidatorTest`, `AdvisorSnapshotTest`, `AdvisorCalendarTest`.
+
+**Việc còn dở, theo thứ tự (mỗi việc một PR nhỏ, review backend kỹ rồi ghi vào PR):**
+1. **PR 4:** `CampaignPolicy` (giá trị hiệu lực = giá trị CHẶT hơn của hệ thống và của chiến dịch; chiến dịch không bao giờ nới) cộng cột lịch, nhịp, phạm vi khách mở rộng trên `invitation_campaign` (NULL = theo hệ thống, hành vi cũ giữ nguyên, phải có test so sánh trước/sau); `ZaloInviteSender` đọc qua nó. Khi xong thì Duyệt ở `/advisor` phải áp ngày, khung giờ và hạn mức ngày AI đề xuất vào chiến dịch (hiện chỉ để tham khảo, trang đã nói rõ).
+2. **PR 5:** chuỗi tin nhiều lần (`campaign_step`, `invitation_touch`, loại tin `FOLLOWUP`, bộ nối, tự ngừng, mã tự thêm câu xin ngừng, tin nhắc tính vào hạn mức ngày). Trần cứng 3 lần mỗi khách, cách nhau tối thiểu 3 ngày; đụng bộ nối nên phải sửa cả `ZaloGatewayShapeTest` và `zalo-bridge/test/no-send.test.mjs` (khóa số chỗ gọi hàm gửi) và giữ chế độ thử (`SafeZaloLink`, không thêm đường gọi Zalo ngoài `ZaloLink`). Tin 1 hiện ghi "em sẽ không nhắn lại": khi chiến dịch nhiều lần phải dùng mẫu Tin 1 khác cho khớp.
+3. **PR 6, 7:** nhóm đích và tự tạo nhóm theo chiến dịch; khách quay lại và tự nhận khách mới thành thiết lập của chiến dịch.
+4. **PR 8:** gom giao diện chiến dịch thành một trang nhiều tab, gỡ chỗ cấu hình trùng ở `/zalo`, `/test-runs`, `/today`. Chỉ làm sau khi tự gửi chạy ổn trên thật (theo mục 0.6).
+5. Số liệu theo chiến dịch cho AI đã có sẵn từ luồng khác: `vn.shop.crm.performance.PerformanceService.anonymized()` (chiến dịch dưới 5 người vào nhóm bị ẩn số mua và tiền, không có tên chiến dịch). Chưa đưa vào `AdvisorSnapshot`: nên làm kèm PR 4 hoặc riêng, dùng `scopeLabel` và số, không bao giờ tên.
+6. Ba câu hỏi mở chờ chủ dự án (thiết kế mục 7): nhóm hàng dùng AI phân loại tên hàng hay bảng từ khóa; A/B từ đầu hay chờ có lịch sử; ngưỡng tự dừng khi tỷ lệ từ chối cao (đề xuất 5% sau 20 tin đầu).
+
+**Cách thử (người dùng tự làm, chưa ai chạy):** bật `APP_AI_ENABLED`, `APP_AI_API_KEY`, `APP_AI_MODEL`, rồi `APP_AI_ADVISOR_ENABLED=true` trên máy chủ (nên có `APP_WEATHER_ENABLED` để có dự báo). Mở `/advisor`, bấm Nhờ AI đề xuất, **trước hết đọc JSON đã gửi ở "Xem số liệu đã gửi cho AI"** để chắc không có gì định danh, đọc lý do, rồi Duyệt một đề xuất: chiến dịch mới hiện ở `/campaigns` và vẫn chưa gửi gì. Hệ thống vẫn ở chế độ thử nên khách thật không bị chạm. Chưa có lịch sử phản hồi thật nên đề xuất đầu tiên có độ tin cậy thấp (đúng thiết kế).
+
+**Rủi ro cần biết:** (1) chưa thử DeepSeek thật: khuôn JSON hoặc độ dài có thể lệch, lúc đó lượt chạy ghi `INVALID` kèm lý do và không hỏng gì khác; (2) ngày giờ AI đề xuất chưa được áp (chờ PR 4), người dùng có thể tưởng đã áp: trang đã ghi rõ; (3) số liệu vẫn là dữ liệu gửi ra dịch vụ ngoài (chỉ số tổng hợp, không định danh); (4) `advisor_run.snapshot_json` và `ai_output` giữ lâu (không có dữ liệu cá nhân) nên bảng lớn dần, chưa có job dọn; (5) hai PR song song hay lấy trùng số migration và xung đột danh sách TRUNCATE ở `AbstractPostgresTest` (đã xảy ra bốn lần).
+
+**Migration:** số cuối hiện `V36` (xem `ls app/src/main/resources/db/migration`; nguồn đúng là `CLAUDE.md` mục 4a), số mới là `V37`. Luồng này đã dùng V36 cho `advisor_run` và `campaign_proposal`.
+
 ### 0.7 Việc còn mở (không cần code ngay)
 1. Người dùng chạy thử toàn diện (0.6) rồi báo kết quả; sửa theo lỗi họ gặp.
 2. Đặt `APP_SHOP_NAME`; cron cập nhật cả thư mục `~/adh` (0.4).
