@@ -44,7 +44,7 @@ public abstract class AbstractPostgresTest {
         jdbc.sql("""
                 TRUNCATE shipment_status_history, shipment, customer, import_error, import_batch,
                          column_mapping, import_setting, contact_basis, customer_note, suppression, contact_event,
-                         data_request, invitation, invitation_campaign, open_entry, zalo_group, app_setting, send_log, faq_entry, bot_event, handoff, weather_forecast, test_run, test_target, zalo_friend_event, zalo_auto_log, zalo_msg_log, ai_usage, zalo_group_proposal, zalo_group_proposal_member, refusal_review, comeback, reply_draft, zalo_test_number
+                         data_request, invitation, invitation_campaign, open_entry, zalo_group, app_setting, send_log, faq_entry, bot_event, handoff, weather_forecast, test_run, test_target, zalo_friend_event, zalo_auto_log, zalo_msg_log, zalo_health_alert, ai_usage, zalo_group_proposal, zalo_group_proposal_member, refusal_review, comeback, reply_draft, zalo_test_number
                          RESTART IDENTITY CASCADE""").update();
         jdbc.sql("DELETE FROM status_mapping WHERE carrier <> 'VIETTEL_POST'").update();
         jdbc.sql("DELETE FROM status_mapping WHERE status_key = 'cho xu ly'").update();

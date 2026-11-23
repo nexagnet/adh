@@ -170,6 +170,10 @@ Script nạp bản sao lưu mới nhất vào một cơ sở dữ liệu tạm `
 Đã có: bắt buộc đăng nhập, mật khẩu không có mặc định, khóa đăng nhập sai 5 lần/15 phút theo cặp (IP, tên), cookie phiên chỉ gửi qua HTTPS khi chạy hồ sơ `prod`, phiên hết hạn sau 8 giờ, giới hạn kích thước file tải lên, trang mời công khai chỉ dùng token ngẫu nhiên và không lộ tên hay số điện thoại, log không ghi số điện thoại đầy đủ (chỉ 3 số cuối), Caddy không bật nhật ký truy cập (đường dẫn mời có token).
 **Chưa có:** mã hóa đĩa của máy chủ, mã hóa dữ liệu trong PostgreSQL, tài khoản riêng cho bố và mẹ (đang chờ bạn xác nhận), cảnh báo tự động khi máy chủ hỏng hay hết đĩa. Nên bật mã hóa đĩa của nhà cung cấp VPS nếu có, và kiểm tra dung lượng đĩa định kỳ.
 
+### 5c. Cảnh báo tài khoản Zalo phụ bị hạn chế
+Khi bật bộ nối Zalo, hệ thống tự theo dõi (mỗi phút) và hiện cảnh báo bằng chữ dễ hiểu ở **Tổng quan**, trang **Zalo tài khoản phụ** (khối "Sức khỏe tài khoản phụ", có lịch sử) và nhãn đỏ ở menu. Khẩn: bị đăng xuất/hết phiên, Zalo hạn chế hoặc từ chối hàng loạt, lỗi lạ (hiện kèm mã để điền `ZALO_PERSON_ERROR_CODES`), đăng nhập nhầm tài khoản hoặc mở nơi khác, tỷ lệ tin lỗi 24 giờ từ 60%. Lưu ý: tỷ lệ lỗi từ 30%, cầu nối không gọi được quá 15 phút. Cảnh báo chỉ để người biết; việc dừng gửi vẫn do cầu dao. Người tự bấm Dừng hoặc Đăng xuất thì không báo.
+- **Báo ra ngoài (tùy chọn):** đặt `APP_ALERT_WEBHOOK_URL=https://...` trong `infra/.env` (hệ thống POST một dòng văn bản thuần mỗi khi có cảnh báo mới hoặc nặng lên; ví dụ một chủ đề ntfy.sh bí mật, mở app ntfy trên điện thoại). Địa chỉ có thể chứa khóa nên chỉ đặt ở `.env`, không ghi vào repo. Tin báo không chứa số điện thoại, tên khách hay mã Zalo. Đổi `.env` rồi tạo lại container app.
+
 ### 6. Việc cần làm khi có sự cố
 | Tình huống | Làm gì |
 |---|---|
