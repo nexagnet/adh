@@ -4,7 +4,8 @@
 
 Tài liệu này gom mọi thứ phiên làm việc trước biết, để phiên sau (người hoặc Claude) làm tiếp mà không phải hỏi lại. Đọc kèm:
 `01_DAC_TA_NGHIEP_VU.md` (nghiệp vụ, nguồn sự thật), `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md` (quyết định D1–D18, kế hoạch),
-`docs/RUNBOOK.md` (vận hành), `docs/thiet-ke-penpot/` (thiết kế giao diện đã duyệt).
+`docs/RUNBOOK.md` (vận hành), `docs/thiet-ke-penpot/` (thiết kế giao diện đã duyệt),
+`docs/NGHIEN-CUU-CHATBOT-AI.md` (nghiên cứu 23/11/2026: có dùng lại repo chatbot có sẵn cho trợ lý AI trả lời khách và nhóm Zalo không; kết luận giai đoạn 1 tự viết trong Adh).
 
 **Người dùng (chủ dự án): Phùng Việt. Luôn trả lời bằng tiếng Việt, ngắn gọn, dễ hiểu cho người không rành kỹ thuật.**
 Hệ thống phục vụ cửa hàng của bố mẹ người dùng: chăm sóc khách cũ qua nhóm Zalo.
