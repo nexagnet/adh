@@ -40,18 +40,13 @@ public class NavMenu {
         this.zalo = zalo;
     }
 
-    /** Khóa mục đang mở: đường dẫn, riêng danh sách khách thêm loại khách (để tô sáng đúng mục). */
-    public static String keyOf(String path, String segment) {
+    /** Khóa mục đang mở: đường dẫn; trang một khách (/customers/{id}) tô sáng mục Khách hàng. */
+    public static String keyOf(String path) {
         if (path == null || path.isEmpty()) {
             return "/";
         }
-        if ("/customers".equals(path) || path.matches("/customers/\\d+")) {
-            if ("REPEAT".equals(segment)) {
-                return "/customers/repeat";
-            }
-            if ("ONE_TIME".equals(segment) || path.length() > "/customers".length()) {
-                return "/customers/one-time";
-            }
+        if (path.matches("/customers/\\d+")) {
+            return "/customers";
         }
         return path;
     }
@@ -79,8 +74,7 @@ public class NavMenu {
                 new Group("Khách hàng", List.of(
                         item("Tổng quan", "/", "/", 0, key),
                         item("Nhập đơn", "/imports", "/imports", 0, key),
-                        item("Khách mua 1 lần", "/customers?segment=ONE_TIME", "/customers/one-time", 0, key),
-                        item("Khách mua từ 2 lần", "/customers?segment=REPEAT", "/customers/repeat", 0, key),
+                        item("Khách hàng", "/customers", "/customers", 0, key),
                         item("Trạng thái đơn", "/status-mappings", "/status-mappings", unmapped, key))),
                 new Group("Mời vào nhóm", List.copyOf(invite)),
                 new Group("Trợ lý AI", List.of(
