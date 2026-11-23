@@ -57,8 +57,6 @@ public class NavMenu {
         long privacyOpen = privacy.openCount();
         long unmapped = statuses.unmapped().size();
         long friendWaiting = invites.friendStats().readyToAdd();
-        // Mục Zalo tài khoản phụ chỉ hiện khi bộ nối được bật ở cấu hình triển khai (mặc định tắt: không ai thấy).
-        boolean zaloOn = zalo.settings().props().enabled();
         List<Item> invite = new java.util.ArrayList<>(List.of(
                 item("Danh sách mời", "/contacts", "/contacts", 0, key),
                 item("Chiến dịch mời", "/campaigns", "/campaigns", 0, key),
@@ -66,10 +64,9 @@ public class NavMenu {
                 item("Lô nhắn hôm nay", "/today", "/today", 0, key),
                 item("Chạy thử trên Zalo", "/test-runs", "/test-runs", 0, key),
                 item("Nhóm Zalo", "/groups", "/groups", 0, key),
-                item("Cài đặt gửi tin", "/sending", "/sending", 0, key)));
-        if (zaloOn) {
-            invite.add(item("Zalo tài khoản phụ", "/zalo", "/zalo", zalo.attentionCount(), key));
-        }
+                item("Cài đặt gửi tin", "/sending", "/sending", 0, key),
+                // Luôn hiện (D18): đây là trung tâm điều khiển tự gửi; khi bộ nối tắt, trang chỉ báo "đang tắt".
+                item("Zalo tài khoản phụ", "/zalo", "/zalo", zalo.attentionCount(), key)));
         return List.of(
                 new Group("Khách hàng", List.of(
                         item("Tổng quan", "/", "/", 0, key),
