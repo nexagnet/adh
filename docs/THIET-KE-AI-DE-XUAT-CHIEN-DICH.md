@@ -1,6 +1,6 @@
 # Thiết kế: AI đề xuất chiến dịch và thời điểm gửi (D21, chủ dự án chốt hướng 23/11/2026)
 
-**Trạng thái:** chủ dự án đã chốt làm theo toàn bộ thiết kế này, gồm mục 5 (gom nghiệp vụ nhắn tin vào chiến dịch, nhiều lần gửi, các núm cấu hình ở 5.3a, dữ liệu cho AI ở 5.3b). Mục 7 còn ba câu hỏi mở chưa chặn việc làm. Thứ tự PR ở mục 6. Chỉ PR 1 (số liệu ẩn danh) đã có mã.
+**Trạng thái:** chủ dự án đã chốt làm theo toàn bộ thiết kế này, gồm mục 5 (gom nghiệp vụ nhắn tin vào chiến dịch, nhiều lần gửi, các núm cấu hình ở 5.3a, dữ liệu cho AI ở 5.3b). Mục 7 còn ba câu hỏi mở chưa chặn việc làm. Thứ tự PR ở mục 6. PR 1 (số liệu ẩn danh, #76) và PR 2 (AI đề xuất, kiểm cứng, nhật ký) đã có mã; PR 2 chưa có giao diện nên chưa dùng được từ web.
 
 **Yêu cầu của chủ dự án (23/11/2026):** lấy thời tiết, khách, khu vực... đưa cho AI (DeepSeek) **đề xuất chiến dịch và thời gian áp dụng, kèm lý do**. Chiến dịch hiện nay (tên, một khu vực, số khách, số ngày link, nội dung tin) quá đơn giản; cấu hình chưa đủ để phát huy hệ thống và AI.
 
@@ -73,7 +73,7 @@ Kiểm cứng bằng mã (không dùng AI kiểm AI), đề xuất sai thì **b�
 
 Trang "Đề xuất của AI" (menu cạnh Chiến dịch): nút **Nhờ AI đề xuất** (chỉ người bấm mới gọi; trần 5 lần/ngày, thêm vào trần chung của AI), danh sách đề xuất: tiêu đề, khu vực, số khách, ngày giờ, **lý do, rủi ro, độ tin cậy**, số liệu đã dùng (xem được đúng JSON đã gửi cho AI, để người dùng thấy không có dữ liệu cá nhân). Nút **Duyệt và tạo chiến dịch** / **Bỏ qua** (ghi lý do bỏ qua để sau này đo AI đoán trúng hay trượt). Đề xuất quá hạn (ngày bắt đầu đã qua) tự thành EXPIRED. Công tắc `APP_AI_ADVISOR_ENABLED`, **tắt mặc định**, cần cả `APP_AI_ENABLED`.
 
-Nhật ký (bảng `advisor_run`, `campaign_proposal`, V32): ai bấm, lúc nào, snapshot tổng hợp đã gửi, JSON AI trả về, đề xuất nào bị mã bỏ và vì sao, ai duyệt hoặc bỏ qua, chiến dịch được tạo. Không có dữ liệu cá nhân nên giữ lâu được; không bao giờ tự xóa khách hay số điện thoại (CLAUDE.md mục 5a).
+Nhật ký (bảng `advisor_run`, `campaign_proposal`, V36): ai bấm, lúc nào, snapshot tổng hợp đã gửi, JSON AI trả về, đề xuất nào bị mã bỏ và vì sao, ai duyệt hoặc bỏ qua, chiến dịch được tạo. Không có dữ liệu cá nhân nên giữ lâu được; không bao giờ tự xóa khách hay số điện thoại (CLAUDE.md mục 5a).
 
 ## 5. Chiến dịch là nơi duy nhất cấu hình nghiệp vụ nhắn tin (chủ dự án chốt 23/11/2026)
 
@@ -145,7 +145,7 @@ Chốt an toàn (mã chặn, không dựa vào lời hứa của AI hay người
 ## 6. Chia PR (nhỏ, một việc, tắt mặc định, không nới giới hạn)
 
 1. **PR 1 (PR này):** thiết kế + `AdvisorSnapshotService` (số liệu tổng hợp ẩn danh) + test không lộ dữ liệu cá nhân. Chưa gọi AI, chưa giao diện, chưa migration.
-2. **PR 2:** `CampaignAdvisor` (prompt, `AiGate`, kiểm cứng), `advisor_run` và `campaign_proposal` (V32), chỉ xem, chưa tạo chiến dịch.
+2. **PR 2 (đã có mã):** `CampaignAdvisor` (prompt, `AiGate`, kiểm cứng bằng `ProposalValidator`), `AdvisorService.run` (công tắc `APP_AI_ADVISOR_ENABLED` tắt mặc định, cần cả `APP_AI_ENABLED`; trần `APP_AI_ADVISOR_MAX_RUNS`, mặc định 5 lần mỗi ngày), bảng `advisor_run` và `campaign_proposal` (V36). Lượt gọi này được nới đến 1500 chữ đầu ra và 30 giây chờ (có trần cứng 2000 và 60 giây ở `AiClient.Options`) vì dài hơn lượt phân loại. Chưa tạo chiến dịch.
 3. **PR 3:** trang "Đề xuất của AI", Duyệt/Bỏ qua tạo chiến dịch qua `InviteService`, công tắc, nhật ký.
 4. **PR 4:** `CampaignPolicy` (giá trị hiệu lực = hẹp hơn của hệ thống và chiến dịch) + cột lịch, nhịp, phạm vi khách mở rộng; `ZaloInviteSender` đọc qua nó. Mặc định NULL = y như cũ, có test tương đương.
 5. **PR 5:** chuỗi tin nhiều lần (mục 5.3): `campaign_step`, `invitation_touch`, loại tin `FOLLOWUP`, bộ nối, tự ngừng, footer xin ngừng. Làm sau khi luồng cách ly khách thật gộp, để dùng chung `scope`.
