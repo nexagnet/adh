@@ -1,8 +1,8 @@
 # CLAUDE.md: đọc file này TRƯỚC khi làm việc trong repo `adh`
 
-File này dành cho AI (hoặc người) vào làm tiếp mà **không đọc được lịch sử trò chuyện**. Nó gom các quy tắc và quyết định của chủ dự án vốn chỉ nằm trong trí nhớ của các phiên trước. Cập nhật ngày 23/11/2026.
+File này dành cho AI (hoặc người) vào làm tiếp mà **không đọc được lịch sử trò chuyện**. Nó gom các quy tắc và quyết định của chủ dự án vốn chỉ nằm trong trí nhớ của các phiên trước. Cập nhật ngày 23/11/2026 (sau PR #74).
 
-Nếu file này và tài liệu khác trong repo mâu thuẫn, **ưu tiên file này**, rồi tới `docs/BAN-GIAO.md` (một số chỗ đã cũ, xem mục 9). Nghiệp vụ gốc: `01_DAC_TA_NGHIEP_VU.md`. Quyết định D1 đến D18 và kế hoạch: `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md`. Vận hành: `docs/RUNBOOK.md`.
+**Phiên mới: đọc file này, rồi `docs/BAN-GIAO.md` mục 0 ("Bắt đầu nhanh": trạng thái PR, quyết định ngày 23/11, máy chủ, phạm vi giai đoạn 1 và 2, danh sách màn sẽ xóa), rồi `docs/HUONG-DAN-CHAY-THU-TOAN-DIEN.md`.** Nếu file này và tài liệu khác trong repo mâu thuẫn, **ưu tiên file này**, rồi tới `docs/BAN-GIAO.md` mục 0 (các mục 1 đến 10 của nó đã cũ, xem mục 9 ở đây). Nghiệp vụ gốc: `01_DAC_TA_NGHIEP_VU.md`. Quyết định D1 đến D18 và kế hoạch: `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md`. Vận hành: `docs/RUNBOOK.md`.
 
 ## 1. Quy tắc làm việc (chủ dự án đã dặn)
 
@@ -84,6 +84,7 @@ Người dùng **bỏ nguyên tắc cũ "không tự gửi tin"** (D9). Hệ th�
 - **Cron tự deploy mỗi 10 phút** (`infra/auto-deploy.sh`, PR #40): chỉ triển khai khi CI của đúng commit `main` xanh, ảnh ghcr có, RAM trống đủ, bản đang chạy khỏe. **Mọi PR gộp vào `main` (CI xanh) sẽ lên máy chủ trong khoảng 10 phút**, cả migration. Muốn giữ lại: `./auto-deploy.sh pause` (rồi `resume`); xem `status`, log `infra/auto-deploy.log`. Bản hỏng bị chặn, thử lại bằng `./auto-deploy.sh unblock`.
 - **Sao lưu:** `deploy.sh deploy` sao lưu DB trước mỗi lần cập nhật; cron sao lưu hằng ngày 03:17; file nằm ở `/var/backups/adh/` (chứa dữ liệu khách thật, không đưa lên git). Lùi ảnh (`./deploy.sh rollback`) **không lùi migration**: muốn quay hẳn phải khôi phục từ file sao lưu bằng tay (`infra/restore-test.sh`, `docs/RUNBOOK.md`).
 - Mật khẩu quản trị (tài khoản `admin`) đọc từ `APP_ADMIN_PASSWORD` trong `infra/.env` trên máy chủ mỗi lần khởi động; đổi `.env` rồi tạo lại container app là đủ. Đã đổi ngày 22/11, **không ghi lại ở đâu cả**: hỏi người dùng nếu cần.
+- **Báo cáo của luồng làm việc trên máy chủ (23/11/2026, kiểm lại trước khi tin):** đã tối ưu RAM (tắt dịch vụ thừa, chỉnh Java và Postgres, zram, gỡ YunJing; chưa đưa vào repo); đã bật bộ nối, cờ đọc tin riêng và cờ AI với mô hình `deepseek-flash`; **`APP_SHOP_NAME` chưa đặt** (phải đặt tên shop thật trước khi khách nhận tin); **thư mục `~/adh` trên máy chủ chậm commit so với `main` và cron chỉ kéo ảnh Docker**, nên thay đổi ở `infra/` (ví dụ compose) không tự lên máy chủ; đề xuất cho cron cập nhật cả thư mục bằng `git merge --ff-only` (chưa làm, hỏi người dùng trước). Giai đoạn 1 phải miễn phí; giữ Postgres cục bộ.
 - Bộ nối Zalo chạy từ 22/11 (profile `zalo-auto` trong `.env`, giới hạn bộ nhớ nhỏ). Ngày 23/11 người dùng đã **quét QR đăng nhập tài khoản phụ thành công** và đã đặt `ZALO_ACCOUNT_ID` trong `.env` trên máy chủ. **Không tạo lại container bộ nối trước khi đọc log** (log cũ mất theo container).
 
 ## 7. Việc còn mở (theo thứ tự nên làm)

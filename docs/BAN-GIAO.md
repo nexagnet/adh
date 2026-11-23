@@ -1,24 +1,68 @@
-# Bàn giao dự án Adh (lập 21/11/2026, cập nhật lần cuối 22/11/2026 sau PR #38; riêng quyết định D18 ngày 23/11/2026 chỉ ghi tài liệu, xem mục 2)
+# Bàn giao dự án Adh (cập nhật 23/11/2026 sau PR #74; các mục 1 đến 10 bên dưới lập 21 đến 22/11/2026 và chỉ còn giá trị lịch sử ở chỗ mục 0 hoặc `CLAUDE.md` không nói khác)
 
-> **Đọc [`../CLAUDE.md`](../CLAUDE.md) trước.** Nó gom quy tắc làm việc, nghiệp vụ, quyết định D18, thông tin máy chủ và việc còn mở của ngày 23/11/2026, và nêu rõ những chỗ tài liệu này đã cũ (mục 9 của CLAUDE.md). Khi hai bên mâu thuẫn, theo CLAUDE.md.
+> **Đọc theo thứ tự: mục 0 của tài liệu này, rồi [`../CLAUDE.md`](../CLAUDE.md), rồi `docs/HUONG-DAN-CHAY-THU-TOAN-DIEN.md`.** Khi tài liệu này mâu thuẫn với `CLAUDE.md` hoặc mục 0 thì theo hai chỗ đó. Mục 1 đến 10 phía dưới **chưa được viết lại**: nhiều dòng trong đó nói "chưa có", "không tự gửi", "bộ nối chỉ làm ba việc", "không deploy" nay đã sai (danh sách chỗ cũ ở `CLAUDE.md` mục 9).
 
-Tài liệu này gom mọi thứ phiên làm việc trước biết, để phiên sau (người hoặc Claude) làm tiếp mà không phải hỏi lại. Đọc kèm:
-`01_DAC_TA_NGHIEP_VU.md` (nghiệp vụ, nguồn sự thật), `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md` (quyết định D1–D18, kế hoạch),
-`docs/RUNBOOK.md` (vận hành), `docs/thiet-ke-penpot/` (thiết kế giao diện đã duyệt),
-`docs/NGHIEN-CUU-CHATBOT-AI.md` (nghiên cứu 23/11/2026: có dùng lại repo chatbot có sẵn cho trợ lý AI trả lời khách và nhóm Zalo không; kết luận giai đoạn 1 tự viết trong Adh).
+**Người dùng (chủ dự án): Phùng Việt. Luôn trả lời bằng tiếng Việt, ngắn gọn, dễ hiểu cho người không rành kỹ thuật** ("trợ lý AI", không dùng chữ "bot" ở giao diện). Hệ thống phục vụ cửa hàng của bố mẹ họ, bán **chủ yếu áo điều hòa và phụ kiện áo điều hòa (trong đó có pin)**: chăm sóc khách đã mua qua nhóm Zalo theo khu vực. Mẹ dùng điện thoại.
 
-**Người dùng (chủ dự án): Phùng Việt. Luôn trả lời bằng tiếng Việt, ngắn gọn, dễ hiểu cho người không rành kỹ thuật.**
-Hệ thống phục vụ cửa hàng của bố mẹ người dùng: chăm sóc khách cũ qua nhóm Zalo.
+**Không có dữ liệu khách thật, số điện thoại, mã Zalo, IP nhạy cảm, phiên Zalo, khóa hay mật khẩu nào trong repo** (CI chặn file Excel, `data_product/` và `.env`); đừng đưa vào.
 
-Tài liệu này chỉ ghi điều đã xác minh trong repo hoặc do người dùng nói ra; chỗ nào chưa thử thật đều ghi rõ "chưa kiểm chứng" (mục 5). **Không có dữ liệu khách thật, số điện thoại, mã Zalo, phiên đăng nhập Zalo, khóa hay mật khẩu nào trong repo** (CI chặn file Excel, `data_product/` và `.env`); đừng đưa vào.
+## 0. Bắt đầu nhanh cho phiên mới (cập nhật 23/11/2026)
 
-## 0. Bắt đầu nhanh cho phiên mới
+### 0.1 Làm ngay (5 phút)
+1. Đọc `CLAUDE.md` (quy tắc, nghiệp vụ, D18 đến D20, máy chủ) rồi tới đây. Hướng dẫn người dùng chạy thử: `docs/HUONG-DAN-CHAY-THU-TOAN-DIEN.md`.
+2. Lấy mã: nhánh `main` của `nexagnet/adh`. Mỗi việc một nhánh `claude/project-thread-*` từ `main`, PR nhỏ, mở bản nháp; **review kỹ backend và ghi vào mô tả PR** (đúng đắn, an toàn, xử lý lỗi, migration, test); CI xanh thì được tự gộp (squash); gộp xong khởi lại nhánh từ `main` (đẩy nhánh sau squash cần `--force-with-lease` với sha cũ của nhánh từ xa, sau khi kiểm `git diff --stat` không có gì lạ). **Không đụng repo `nexagnet/.github`** (bản nháp của người dùng).
+3. Test: Java `cd app && ./mvnw verify` (CI dùng JDK 25; cục bộ chỉ có JDK 21 thì thêm `-Djava.version=21 -Dmaven.compiler.release=21`; test dùng PostgreSQL nhúng nên **không chạy bằng root**, chạy bằng user thường). Node: `cd zalo-bridge && npm ci --ignore-scripts && npm test`. Bảng mới phải thêm vào danh sách TRUNCATE của `AbstractPostgresTest`. Sau mọi thay đổi mẫu trang chạy lại test (nhiều test kiểm chữ tiếng Việt cụ thể).
+4. **Migration:** số cuối là `V31` (`V31__tro_ly_ai_tra_loi.sql`), số mới là **`V32`**. Trước khi mở PR có migration, gộp `main` vào nhánh và `ls app/src/main/resources/db/migration`. Không đổi tên migration đã gộp.
+5. **Việc kế tiếp của bạn, nếu người dùng chưa nói gì:** chờ họ chạy thử theo hướng dẫn, trả lời lỗi họ báo, và khi họ báo "thử xong" thì **xóa các màn ở 0.6** (một PR, migration `V32`). Đừng code phần giai đoạn 2 khi chưa có lời duyệt mới (0.5).
 
-1. Đọc theo thứ tự: mục 1 (trạng thái) và 2 (quyết định) của tài liệu này, mục 7 (việc tiếp theo), rồi `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md` mục 9 đến 11 nếu đụng đến Zalo.
-2. Lấy mã nguồn: nhánh `main` của `nexagnet/adh` (đã gộp hết, **không còn PR nào đang mở ở thời điểm bàn giao**). Việc mới: mở nhánh từ `main`, mở PR, gộp khi CI xanh (người dùng đã cho phép, xem mục 1 phần "PR và nhánh").
-3. Chạy thử và kiểm thử: mục 4. Cần JDK 25 cho phần Java; phần Node (`zalo-bridge/`) chạy `npm ci --ignore-scripts && npm test` (Node 20 trở lên).
-4. Trước khi làm tiếp phần Zalo, đọc kỹ mục 10 (quy tắc): **không né phát hiện của Zalo, không gửi tin hàng loạt, không dùng tài khoản của mẹ**, và người dùng muốn **review kỹ từng PR phần Zalo** trước khi gộp.
-5. **Không deploy và không động vào máy chủ** cho đến khi người dùng nói (mục 6, câu về máy chủ).
+### 0.2 Trạng thái mã (23/11/2026)
+- `main` đã gộp tới **PR #74** (trừ #25 đóng không gộp). Khoảng 680 test Java và 100 test Node, đều xanh trên CI. Không còn PR nào đang mở của luồng này.
+- **Giai đoạn 1 đã code xong** (đến hết "AI mời vào nhóm"). **Mọi thứ tự động đều tắt mặc định và CHƯA lần nào chạy với Zalo thật hay DeepSeek thật.** Test chỉ dùng bộ nối giả và AI giả.
+- PR đáng biết (xem `git log` cho phần còn lại): #40 cron tự deploy; #45 đến #48 giao diện và đối soát J&T; **#49 D18 tự gửi Tin 1** (V21, chiến dịch thử V22); #60 nội dung hàng hóa của đơn (V26); #61/#62 tự tạo nhóm Zalo (V27); #63 giao diện lọc và ghim cột; #64 mẹ làm phó nhóm chọn bằng số điện thoại; #65 AI nhận diện từ chối (V28, `app/.../inbox`); #66 khách từng từ chối quay lại muốn mua (V29); #67 trần 50 khách chủ động mỗi ngày; #68 chiến dịch tự nhận khách mới (V30); #69 chữ "áo điều hòa" và tên nhóm; #70 nghiên cứu repo chatbot (chỉ tài liệu); **#71 AI tự soạn trả lời tin riêng (D20, V31)**; #72 chữ "người thật" và test trang; #73 và #74 tài liệu và sửa trần tin trong compose (25 sang 50).
+- Bản đồ mã: gói `vn.shop.crm.zalo` (cổng gửi `ZaloMessageService`, các bộ gửi `ZaloInviteSender`/`ZaloWelcomeSender`/`ZaloReplySender`, `ZaloInboxService`, `ZaloCampaignIntake`, `ZaloGroupCreationService`, `ZaloDeputyService`), `vn.shop.crm.inbox` (`RefusalClassifier`, `RefusalReviewService`, `ComebackService`, `ReplyService`, `ReplyAssistant`, `ReplyValidator`, `ReplyInfo`), `vn.shop.crm.ai` (`AiGate`, `DeepSeekClient`, `PiiMasker`), `vn.shop.crm.testrun` (sẽ xóa), `zalo-bridge/` (Node, `src/bridge.mjs`). Chi tiết thêm: mục 4 bên dưới và `docs/ZALO-BRIDGE-API.md`.
+
+### 0.3 Quyết định của chủ dự án ngày 23/11/2026 (đừng hỏi lại)
+- **MỘT tài khoản Zalo phụ** cho cả mời, thêm nhóm, tạo nhóm và trợ lý AI (không còn "tài khoản trợ lý riêng"); không bao giờ dùng tài khoản chốt đơn của mẹ. Tài khoản bị khóa thì mất tất cả, nên hạn mức và cầu dao phải chặt.
+- **Mẹ làm phó nhóm**, chọn bằng **số điện thoại** ở `/zalo` mục "Mẹ làm phó nhóm" (bộ nối tra tên và ảnh, chủ shop xem rồi xác nhận; Adh chỉ lưu mã Zalo, tên, ảnh; mẹ phải là bạn của tài khoản phụ và bật cho tìm bằng số). Hệ thống **không** đăng nhập, không cấu hình gì tài khoản của mẹ.
+- **Tự gửi Tin 1 (D18)**, tắt mặc định; **trần cứng 50 khách chủ động mỗi ngày** (chỉ Tin 1 tính vào hạn mức; Tin 2 và các tin trả lời không tính nhưng vẫn theo giờ 08:00 đến 20:00, khoảng nghỉ cố định tối thiểu 100 giây, cầu dao); phanh khẩn cấp ở bộ nối 150 tin/ngày. **Cấm tuyệt đối thủ thuật né phát hiện của Zalo** (không giả thiết bị, không ngẫu nhiên hóa thời gian, không proxy xoay, không xoay tài khoản); có test khóa.
+- **Bỏ duyệt từng người:** thay bằng **tiêu chí duyệt sẵn của chiến dịch** ("Bật tự nhận khách mới": khách mới đồng bộ từ lúc bật, mua một lần, chưa từ chối, đúng khu vực). Khách có sẵn không bao giờ bị tự duyệt.
+- **KHÔNG BAO GIỜ tự xóa số điện thoại của khách.** Khách từ chối chỉ bị gắn cờ "không nhắn nữa" (giữ bản ghi và số; sổ từ chối lưu mã băm chạy song song). Gỡ cờ chỉ **đánh dấu "đã gỡ" kèm giờ**, không xóa dòng. Chỉ chủ shop xóa bằng nút "Xóa dữ liệu khách" (gõ XOA). Test khóa: `RefusalDetectionTest.khongBaoGioTuXoaKhachHayDienThoai`.
+- **AI = DeepSeek (mô hình flash), mọi việc ngôn ngữ tự nhiên dùng AI, không dùng luật từ khóa:**
+  - Nhận diện khách từ chối: tự ghi sổ khi chắc từ **0,8**; AI lỗi hoặc không chắc thì tạm dừng tin cho khách đó và báo "người thật". Luôn có nút Hoàn tác.
+  - Khách từng từ chối tự nhắn lại muốn mua: tự gỡ cờ, thêm vào nhóm và gửi một tin mẫu khi chắc từ **0,85**; ba nấc Tắt / Chỉ tạo việc / Tự động (Tự động chỉ mở sau khi đã chạy Chỉ tạo việc).
+  - **Khách tự nhắn riêng thì không giới hạn số câu trả lời**; AI tự soạn câu **chỉ từ "bảng thông tin cửa hàng"** (sửa ở `/zalo/reply`: ưu đãi mua qua nhóm giảm 10% so với TikTok, miễn ship, liên hệ bảo hành thuận tiện hơn), qua bộ kiểm đầu ra `ReplyValidator` (chặn số không có trong bảng, link, số điện thoại, hứa hẹn, đổi trả, nền tảng khác, xin thông tin cá nhân, giả làm người). Phạm vi hẹp: chỉ mời vào nhóm và ưu đãi khi vào nhóm; mọi thứ khác (giá, còn hàng, bảo hành, phàn nàn, muốn gặp người thật, tin mơ hồ) chuyển người thật. **Cấm nhắc chính sách đổi trả của TikTok, cấm chê TikTok**; luôn tự nhận là "Trợ lý AI của <shop>". Ba nấc Tắt / Chỉ soạn nháp / Tự động (Tự động chỉ mở sau khi đã chạy nháp và tick xác nhận).
+  - Quy tắc chung mọi chỗ gọi AI: tắt mặc định, khóa chỉ qua `APP_AI_API_KEY`, chỉ gửi văn bản đã che (`PiiMasker`; không số điện thoại, địa chỉ, mã Zalo, tên khách), đi qua `AiGate` (trần lượt/ngày, cầu dao).
+- **Cửa hàng bán chủ yếu áo điều hòa và phụ kiện** (trong đó có pin): mọi tin mẫu, tên nhóm, bảng thông tin nói chung là "sản phẩm". Tên nhóm mẫu **`Áo điều hòa ADH - Khu vực - 01`** (không tiền tố "Pin"). Nếu mẹ từng lưu Tin 1 cũ có chữ "pin" ở `/campaigns` thì sửa lại.
+- Việc chuyển "người thật" là **hàng đợi chung** (cột `assigned_to` để dành cho đội bán hàng ở giai đoạn 2), không gắn cứng mẹ. Hiện chỉ có một tài khoản đăng nhập (quản trị).
+
+### 0.4 Máy chủ Tencent (theo báo cáo của luồng làm việc trên máy chủ ngày 23/11/2026; **kiểm lại trước khi tin**)
+- Máy 2 GB RAM, người dùng `dev` (root bị cấm SSH). Đã tối ưu RAM (tắt dịch vụ thừa, chỉnh Java và Postgres, zram, gỡ YunJing). Giai đoạn 1 phải **miễn phí**, giữ Postgres cục bộ, đã bỏ Neon. Việc tối ưu máy này **chưa nằm trong repo** (chỉ trên máy).
+- Đã bật: bộ nối Zalo (đã quét QR đăng nhập tài khoản phụ), cờ đọc tin riêng, cờ AI với mô hình `deepseek-flash` (khóa chỉ nằm trong `.env` trên máy chủ). Các công tắc trên web (tự gửi, nấc, AI trả lời, khách quay lại, tự nhận khách mới, tự tạo nhóm) **do người dùng bật khi thử**, tắt mặc định.
+- **`APP_SHOP_NAME` chưa đặt** (đang là "Cửa hàng", sẽ vào Tin 1 và chữ ký "Trợ lý AI của ..."): phải đặt tên shop thật trong `.env` trước khi cho khách giả hay khách thật nhận tin.
+- **Cron tự deploy (`infra/auto-deploy.sh`, mỗi 10 phút) chỉ kéo ảnh Docker; thư mục `~/adh` trên máy chủ (chứa `infra/` và compose) chậm commit so với `main`.** Hệ quả: thay đổi trong `infra/docker-compose.shared.yml` (ví dụ trần tin 25 sang 50 ở #74) hoặc script **không tự lên máy chủ** dù ảnh ứng dụng đã mới. **Đề xuất (chưa làm):** cho cron cập nhật cả thư mục (`git fetch` và `git merge --ff-only origin/main`) trước khi kéo ảnh, có kiểm RAM và dừng khi `git` không fast-forward. Hỏi người dùng trước khi sửa cron hay làm gì trên máy chủ.
+- Quy tắc: không ghi khóa, mật khẩu, địa chỉ SSH vào repo; không tạo lại container bộ nối trước khi đọc log; lùi ảnh không lùi migration (xem `CLAUDE.md` mục 6 và `docs/RUNBOOK.md`).
+
+### 0.5 Phạm vi giai đoạn 1 và việc để giai đoạn 2
+- **Giai đoạn 1 (đã code):** nhập đơn J&T/Viettel Post, khách, sổ cơ sở liên hệ và từ chối, chiến dịch mời, tự gửi Tin 1 (D18), tự thêm vào nhóm, Tin 2, tự tạo nhóm theo khu vực, tự nhận khách mới, AI nhận diện từ chối, khách quay lại, AI trả lời tin riêng (D20), hàng đợi người thật, bản đồ, thời tiết, giấy in A5. Chạy trên máy 2 GB RAM: **không thêm Redis, Chatwoot, LangChain4j hay dịch vụ nặng nào.**
+- **Giai đoạn 2 (chưa làm, máy lớn, chưa có lời duyệt):** AI trả lời **trong nhóm** Zalo (lõi `BotEngine` đã có, chưa có kênh; xem `docs/ADR-0001-chon-kenh-bot.md`), **đội bán hàng nhiều người xử lý ngoại lệ** (Chatwoot; cột `assigned_to`), tra cứu nhiều sản phẩm, tóm tắt việc, bộ nối Zalo tách riêng (zca-bridge), có thể LangChain4j. Đã nghiên cứu: `docs/NGHIEN-CUU-CHATBOT-AI.md` (kết luận: giai đoạn 1 tự viết trong Adh, không dùng lại repo chatbot có sẵn). Còn chờ quyết: SMS/ZBS (đang hoãn), hạn trả lời yêu cầu dữ liệu của khách theo loại (chưa xác nhận pháp lý), kênh báo "cần người thật" cho mẹ ngoài trang Adh.
+
+### 0.6 Việc người dùng tự kiểm (theo `docs/HUONG-DAN-CHAY-THU-TOAN-DIEN.md`) và trang sẽ xóa sau thử
+Người dùng làm theo hướng dẫn đó: bước 0 chuẩn bị (kiểm Tin 1, điền bảng thông tin cửa hàng, thử 30 câu ở `/zalo/reply` "Thử một câu"), giai đoạn A Chiến dịch thử (2 đến 3 số), giai đoạn B khách giả (từ 5 số, mỗi số một vai: từ chối rồi quay lại, vào nhóm rồi hỏi ưu đãi, hỏi giá và bảo hành, xin gặp người thật, im lặng; thêm một số cho tự nhận khách mới; tự tạo nhóm với tối thiểu 2 khách cùng tỉnh, chủ shop duyệt đề xuất), rồi chuyển nấc AI sang Tự động. **Mỗi số điện thoại chỉ nhận Tin 1 một lần** (cầu nối nhớ). **Chiến dịch thử không kiểm phần AI.** Các ý khác còn mở: thử tay tạo 1 nhóm thật; điền `ZALO_PERSON_ERROR_CODES` bằng mã lỗi thật từ log bộ nối; chạy `--doi-soat` với J&T thật; tên miền thật rồi mới in giấy A5; xóa dữ liệu khách giả bằng nút "Xóa dữ liệu khách" (vì không bao giờ tự xóa số).
+
+**Chỉ xóa khi người dùng báo thử xong** (một PR, migration `V32` bỏ bảng `test_run` và `test_target` của V22):
+1. Chiến dịch thử: mục menu "Chạy thử trên Zalo" (`/test-runs`), gói `vn.shop.crm.testrun` (3 file), mẫu `test-runs.html` và `test-run-detail.html`, `TestRunTest`, `TestRunAutomationTest`; gỡ chỗ cắm `ZaloFriendTap` và `ZaloAutoService.addExternal` nếu không còn ai dùng.
+2. Màn nhắn tay: "Lô nhắn hôm nay" (`/today`, `TodayController`, `today.html`, `TodayQueueTest`), "Chờ vào nhóm" (`/friends`, `FriendsController`, `friends.html`, `FriendQueueTest`, `FriendFlowTest`), mục menu của hai màn này, mục nhắn tay ở khối "Việc cần làm hôm nay" của Tổng quan.
+3. Nút nhắn tay ở chi tiết chiến dịch: Đã nhắn, Đã kết bạn, Đã vào nhóm, Đã gửi link nhóm, Khách đã rời nhóm, Khách từ chối bấm tay (các `POST /campaigns/{id}/invitations/{id}/...` trong `CampaignController`), "Xuất danh sách để mẹ gửi tay", và xem lại nút "Chạy thử (không gửi gì)" (`/campaigns/{id}/dry-run`).
+- **Giữ:** `/zalo` và `/zalo/reply` (điều khiển), `/handoffs`, `/campaigns` (tạo, duyệt, tự nhận khách mới, tạm dừng), `/contacts`, `/groups` và gán mã nhóm `/zalo/groups` (cố ý hai trang liên kết qua lại để khỏi gọi bộ nối mỗi lần mở), `/customers`, `/privacy`, `/print`, `/map`, `/bot` (trợ lý trong nhóm, cho giai đoạn 2).
+
+### 0.7 Việc còn mở (không cần code ngay)
+1. Người dùng chạy thử toàn diện (0.6) rồi báo kết quả; sửa theo lỗi họ gặp.
+2. Đặt `APP_SHOP_NAME`; cron cập nhật cả thư mục `~/adh` (0.4).
+3. Kênh báo "cần người thật" cho mẹ ngoài trang Adh (hiện mẹ phải mở trang `/handoffs`); mẹ trả lời khách từ đâu (Zalo của chính mẹ khác cuộc trò chuyện của khách với tài khoản phụ).
+4. Tên miền thật rồi mới in giấy A5 (đang dùng tên miền tạm nên **chưa in**).
+5. `--doi-soat` với J&T thật (người dùng đăng nhập J&T trong hồ sơ Edge riêng của tool).
+6. Dọn chữ cũ còn sót ("mẹ gửi tay, hệ thống không tự gửi", chú thích Tin 2 trong `InviteService`) khi xóa màn nhắn tay.
+7. Viết lại mục 1 đến 10 bên dưới cho khớp (hoặc bỏ phần đã lỗi thời).
 
 ---
 
@@ -60,7 +104,7 @@ Mã nguồn trên nhánh `main` của `nexagnet/adh`, đã gộp các PR #1 đ�
 
 ---
 
-## 1A. D18: tự gửi tin cho khách + chiến dịch thử (23/11/2026, PR đang mở, ĐÃ CODE NHƯNG CHƯA CHẠY VỚI ZALO THẬT)
+## 1A. D18: tự gửi tin cho khách + chiến dịch thử (23/11/2026, PR #49 đã gộp, ĐÃ CODE NHƯNG CHƯA CHẠY VỚI ZALO THẬT)
 
 **Quyết định của người dùng (đổi D9, 23/11/2026):** bỏ "không tự gửi tin"; hệ thống tự gửi Tin 1 theo chiến dịch, khách đồng ý kết bạn thì tự thêm vào nhóm Zalo theo khu vực; nhóm tự thêm và nhóm qua link là **một nhóm** (cùng `reserved_group_id`). Tin 2 (link nhóm) tự gửi khi việc thêm nhóm không làm được (lỗi theo từng người).
 
@@ -192,6 +236,10 @@ Biến môi trường (xem `app/src/main/resources/application.yml`; mặc đị
 | `APP_WEATHER_ENABLED` | Bật thời tiết (MET Norway) và lớp thời tiết chạy trên bản đồ. Chỉ gửi tọa độ tỉnh lỵ; mặc định hỏi cả 63 tỉnh (`app.weather.all-provinces`) | `false` |
 | `APP_MAP_TILE_URL` | Địa chỉ ô bản đồ nền (mặc định OpenStreetMap công cộng; chỉ dùng cho lượng truy cập nhỏ). Đổi thì sửa luôn `app.map.tile-attribution` | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` |
 | `APP_ZALO_AUTO_ENABLED`, `APP_ZALO_BRIDGE_KEY`, `APP_ZALO_AUTO_MAX_DAILY`; (dịch vụ cầu nối) `ZALO_SESSION_KEY`, `ZALO_ACCOUNT_ID`, `ZALO_PERSON_ERROR_CODES`; `COMPOSE_PROFILES=zalo-auto` | Bộ nối Zalo không chính thức (D16). Cần **cả** cờ, profile Docker và chọn nấc ở trang `/zalo`. Hạn mức mặc định 50/ngày, 5/giờ, cách nhau 2 phút, trần cứng 100/ngày | tắt |
+| `APP_AI_ENABLED`, `APP_AI_API_KEY`, `APP_AI_MODEL`, `APP_AI_BASE_URL`, `APP_AI_DAILY_LIMIT` | AI (DeepSeek, giao thức giống OpenAI). Chỉ đặt khóa trong `.env` trên máy chủ. Tên mô hình do chủ shop đặt (hiện `deepseek-flash`) | tắt, trần 1000 lượt/ngày |
+| `APP_ZALO_INBOX_ENABLED`, `APP_ZALO_INBOX_THRESHOLD`; (cầu nối) `BRIDGE_INBOX_ENABLED` | Đọc tin riêng của khách đã nhận tin, để nhận diện từ chối, khách quay lại và trả lời (D19, D20). Cần cả ba cờ cùng `APP_AI_ENABLED` | tắt, ngưỡng 0,8 (khách quay lại 0,85) |
+| `APP_ZALO_AUTO_MSG_MAX_DAILY`; (cầu nối) `BRIDGE_MSG_DAILY`, `BRIDGE_MSG_GAP_SEC` | Trần cứng số khách được nhắn chủ động mỗi ngày (Tin 1); phanh khẩn cấp đếm mọi tin ở cầu nối; khoảng nghỉ tối thiểu ở cầu nối | 50, 150, 90 giây |
+| `ZALO_DEPUTY_ID` (vào `app.zalo.group.deputy-id`) | Mã Zalo của mẹ, chỉ làm dự phòng khi chưa xác nhận người ở trang `/zalo` mục "Mẹ làm phó nhóm" | trống |
 | `APP_WEATHER_USER_AGENT` | Tên ứng dụng gửi cho MET Norway (họ yêu cầu có định danh; có thể thêm tên miền cửa hàng) | `adh-shop-crm/1.0` |
 | `app.grouping.allow-other-region` | Cho xếp khách vào nhóm miền khác khi hết nhóm hợp | `false` |
 | `app.entry.max-new-per-ip-per-hour` | Giới hạn lượt mới của mã QR chung | 20 |
@@ -213,7 +261,7 @@ Công tắc trên giao diện: **Tạm dừng tất cả chiến dịch** (`/cam
 - **Build ảnh Docker:** `image.yml` chạy khi gộp vào `main` (hoặc chạy tay), dựng và đẩy lên `ghcr.io/nexagnet/adh-app:<mã commit đầy đủ>` và `ghcr.io/nexagnet/adh-zalo-bridge:<mã commit đầy đủ>` (kèm thẻ `latest`). `infra/deploy.sh` dùng đúng thẻ mã commit. Ảnh cầu nối chỉ được dựng sẵn, **không tự chạy**; compose hiện vẫn `build:` cục bộ cho cầu nối. Cả hai ảnh đã dựng xanh trên `main` ở commit gộp #38; **chưa ai chạy thử ảnh cầu nối**.
 - **Môi trường cloud/sandbox:** cần **JDK 25** (đã có ở `/opt/jdk25`; Adoptium bị chặn proxy, tải từ download.oracle.com nếu thiếu). PostgreSQL nhúng **không chạy bằng root**: chạy Maven bằng `runuser -u ubuntu -- env JAVA_HOME=/opt/jdk25 PATH=/opt/jdk25/bin:$PATH ./mvnw ...` và `chown -R ubuntu` thư mục repo; thêm `git config --global --add safe.directory <repo>` nếu git báo quyền sở hữu. Không có daemon Docker trong sandbox.
 - **Triển khai máy chủ:** `infra/docker-compose.prod.yml` (ứng dụng + PostgreSQL + Caddy HTTPS, giới hạn bộ nhớ cho VPS 2 GB), `infra/backup.sh`, `infra/restore-test.sh`. Hướng dẫn từng bước: `docs/RUNBOOK.md` mục B.
-- **Cơ sở dữ liệu:** Flyway, migration `V1`…`V27` (V27 đề xuất tạo nhóm Zalo, V26 nội dung hàng hóa của đơn, V25 đếm lượt gọi AI, V21 tự gửi tin D18, V22 chiến dịch thử, V23 đối soát J&T, V24 gán nghĩa J&T + nâng đơn theo đối soát) ở `app/src/main/resources/db/migration` (V9 phân vùng, V10 thời tiết, V12 luồng kết bạn, V14 chiến dịch theo khu vực và chạy thử, V17 bộ nối Zalo, V18 gửi link nhóm, V19 giữ chỗ nhóm, V20 đếm khách đổi nhóm khi nhập). Việc mới dùng `V28`. Khi thêm bảng mới, **nhớ thêm vào danh sách `TRUNCATE` trong `AbstractPostgresTest`** (test dùng chung một cơ sở dữ liệu).
+- **Cơ sở dữ liệu:** Flyway, migration `V1`…`V31` (V28 AI nhận diện từ chối, V29 khách từ chối quay lại, V30 chiến dịch tự nhận khách mới, V31 trợ lý AI trả lời; số mới là V32), trong đó `V1`…`V27` (V27 đề xuất tạo nhóm Zalo, V26 nội dung hàng hóa của đơn, V25 đếm lượt gọi AI, V21 tự gửi tin D18, V22 chiến dịch thử, V23 đối soát J&T, V24 gán nghĩa J&T + nâng đơn theo đối soát) ở `app/src/main/resources/db/migration` (V9 phân vùng, V10 thời tiết, V12 luồng kết bạn, V14 chiến dịch theo khu vực và chạy thử, V17 bộ nối Zalo, V18 gửi link nhóm, V19 giữ chỗ nhóm, V20 đếm khách đổi nhóm khi nhập). Việc mới dùng `V28`. Khi thêm bảng mới, **nhớ thêm vào danh sách `TRUNCATE` trong `AbstractPostgresTest`** (test dùng chung một cơ sở dữ liệu).
 - **Công nghệ:** Java 25, Spring Boot 4.2, Spring Security, JdbcClient (SQL thuần), Thymeleaf, Flyway, PostgreSQL; zxing sinh mã QR trên máy chủ; Jackson 3 (`tools.jackson`). Chính sách bảo mật nội dung (CSP): **không script hay style nội tuyến** (`default-src 'self'; style-src 'self'`), nên tương tác phải làm bằng liên kết/biểu mẫu hoặc file `.js` riêng.
 
 ### Bản đồ mã nguồn (`app/src/main/java/vn/shop/crm`)
