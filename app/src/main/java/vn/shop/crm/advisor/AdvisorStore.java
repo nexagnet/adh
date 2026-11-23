@@ -9,7 +9,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 
-/** Ghi nhật ký mỗi lần nhờ AI đề xuất và các đề xuất đạt kiểm cứng (V33). Không có dữ liệu cá nhân. */
+/** Ghi nhật ký mỗi lần nhờ AI đề xuất và các đề xuất đạt kiểm cứng (V34). Không có dữ liệu cá nhân. */
 @Component
 class AdvisorStore {
 

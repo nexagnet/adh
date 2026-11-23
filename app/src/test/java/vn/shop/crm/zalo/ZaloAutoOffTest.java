@@ -19,7 +19,8 @@ class ZaloAutoOffTest extends AbstractPostgresTest {
 
     @Test
     void macDinhLaBoNoiTayKhongCoBoHenGio() {
-        assertThat(gateway).isInstanceOf(ManualZaloGateway.class);
+        // đường nối luôn được bọc bởi lưới an toàn của chế độ thử; bên trong là bộ nối tay (trạng thái DISABLED, không làm gì)
+        assertThat(gateway).isInstanceOf(SafeZaloLink.class);
         assertThat(context.getBeansOfType(ZaloAutoScheduler.class)).isEmpty();
         assertThat(context.getBeansOfType(ZcaBridgeGateway.class)).isEmpty();
         assertThat(gateway.status().state()).isEqualTo(ZaloGateway.State.DISABLED);
