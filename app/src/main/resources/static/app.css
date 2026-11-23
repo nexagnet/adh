@@ -550,7 +550,6 @@ details.notice > summary::marker { color: var(--warn); }
     .slot .slot-label { display: block; color: var(--muted); font-size: 16px; font-weight: 700; margin-bottom: 4px; }
 }
 
-/* Bảng thành thẻ trên điện thoại: responsive-tables.js gắn data-label cho từng ô theo tiêu đề cột */
 .pager .btn { flex-shrink: 0; }
 
 /* ---------- Điện thoại (mẹ dùng) ---------- */
@@ -595,7 +594,7 @@ details.notice > summary::marker { color: var(--warn); }
     .login { margin: 40px auto; }
     .login .card { padding: 24px; }
 
-    /* Bảng nhiều cột: mỗi dòng thành một thẻ, tên cột hiện bên trái giá trị */
+    /* Bảng từ 4 cột: mỗi dòng thành một thẻ, tên cột hiện trên giá trị (responsive-tables.js gắn data-label cho từng ô theo tiêu đề cột) */
     .table-wrap { overflow: visible; }
     .table-wrap > table.stack-m, table.stack-m { min-width: 0; display: block; border: 0; background: transparent; border-radius: 0; }
     table.stack-m tbody, table.stack-m thead { display: block; }
