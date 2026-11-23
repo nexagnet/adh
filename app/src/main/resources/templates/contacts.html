@@ -39,7 +39,7 @@
     <section>
         <h2>Đã duyệt, đủ điều kiện mời (<span th:text="${page.total}">0</span> khách)</h2>
         <div class="table-wrap">
-            <table>
+            <table data-filter data-sticky>
                 <tr><th>Số điện thoại</th><th>Khách</th><th>Bằng chứng</th><th>Duyệt lúc</th></tr>
                 <tr th:each="c : ${page.items}">
                     <td><a th:href="@{/customers/{id}(id=${c.id})}" th:text="${@labels.phoneDisplay(c.phone)}">0912 345 678</a></td>

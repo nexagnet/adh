@@ -6,6 +6,8 @@
     <title th:text="${title} + ' - Chăm sóc khách'">Chăm sóc khách</title>
     <link rel="stylesheet" th:href="@{/app.css}">
     <script defer th:src="@{/responsive-tables.js}"></script>
+    <script defer th:src="@{/popover.js}"></script>
+    <script defer th:src="@{/list-filter.js}"></script>
 </head>
 <body>
 <ol th:fragment="steps(current)" class="steps" aria-label="Các bước nhập file">

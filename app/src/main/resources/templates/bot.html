@@ -98,7 +98,7 @@
         <button type="submit" class="btn">Thêm</button>
     </form>
     <div class="table-wrap" th:if="${!faqs.isEmpty()}">
-        <table>
+        <table data-filter>
             <tr><th>Tiêu đề</th><th>Từ khóa</th><th>Trả lời</th><th>Thao tác</th></tr>
             <tr th:each="f : ${faqs}">
                 <td th:text="${f.title}">Giặt</td>
@@ -127,7 +127,7 @@
 
     <h2>Trợ lý AI xử lý gần đây</h2>
     <div class="table-wrap">
-        <table>
+        <table data-filter>
             <tr><th>Lúc</th><th>Nhóm</th><th>Người nhắn</th><th>Kết quả</th><th>Trợ lý AI muốn trả lời</th></tr>
             <tr th:each="e : ${events}">
                 <td th:text="${#temporals.format(e.at, 'dd/MM HH:mm')}">01/01 10:00</td>

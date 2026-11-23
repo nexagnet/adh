@@ -60,7 +60,7 @@
 
     <h2>Lời mời</h2>
     <div class="table-wrap">
-        <table>
+        <table data-filter data-sticky>
             <tr><th>Khách</th><th>Tình trạng</th><th>Nhóm Zalo</th><th>Bước tiếp theo</th><th class="num">Lượt bấm</th><th>Hết hạn</th></tr>
             <tr th:each="r : ${rows}">
                 <td class="who"><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.name != null ? r.name : 'Khách #' + r.customerId}">Nguyen Van A</a></td>

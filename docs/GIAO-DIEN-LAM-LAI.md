@@ -42,3 +42,10 @@ Người dùng (chủ shop) chê giao diện "quá rác" và dặn bỏ các mà
 - `CustomerListFilterTest` **khóa thứ tự** khung "Lọc theo khu vực và công cụ khác" nằm trên các nút lọc và trên bảng. Đừng dời khung này mà không sửa test.
 - CSP cấm script và style nội tuyến; `responsive-tables.js` là file tĩnh cùng nguồn nên hợp lệ.
 - Bản đồ và `/print` có CSS riêng; `@media screen and (max-width: 700px)` (không phải `@media (max-width...)`) để giấy in A5 không bị ảnh hưởng.
+
+## Bộ lọc cột, ghim cột và co giãn màn hình (23/11/2026)
+
+- **Bảng khách** (`/customers`): bấm biểu tượng phễu ở tên cột thì mở cửa sổ nhỏ (`popover.js`, `table-filter.js`); bấm ra ngoài hoặc Esc thì đóng; điện thoại hiện thành khung trượt từ đáy. Khối lọc làm lại thành các nhóm có nhãn (Loại khách, Tình trạng, Khu vực), thẻ "Đang lọc" có dấu × để bỏ từng điều kiện và nút "Xóa tất cả bộ lọc" (giữ cách sắp xếp).
+- **Các danh sách khác**: bảng có `data-filter` được lọc ngay trên máy (`list-filter.js`, cột ít giá trị thì chọn từ danh sách, còn lại gõ chữ không phân biệt dấu); bảng mới muốn có lọc chỉ cần thêm thuộc tính này. Điện thoại có nút "Lọc" mở khung gồm mọi cột. Lọc chỉ áp cho các dòng đang hiển thị trên trang.
+- **Ghim cột đầu** (số điện thoại, tên, mã) khi cuộn ngang: bảng khách và các bảng có `data-sticky`; bóng mờ hiện khi đã cuộn. Bảng ghim bỏ `overflow: hidden` của `table` (nếu không thì `position: sticky` không hoạt động), viền và bo góc do khung `.table-wrap` lo. Điện thoại (≤ 700px) bảng thành thẻ nên không ghim.
+- **Co giãn**: thanh bên chuyển thành thanh trên cùng từ 1100px (trước là 900px); độ rộng thanh bên và lề trang co theo màn hình; thẻ số liệu tự chia cột theo chỗ trống; bốn thẻ xếp 2 x 2 ở màn vừa.

@@ -82,7 +82,7 @@
     <section>
         <h2>Các chiến dịch thử</h2>
         <div class="table-wrap" th:if="${!runs.isEmpty()}">
-            <table>
+            <table data-filter>
                 <tr><th>Chiến dịch thử</th><th>Tạo lúc</th><th>Số thử</th><th>Đã nhắn</th><th>Đã kết bạn</th><th>Đã vào nhóm</th><th>Từ chối</th></tr>
                 <tr th:each="r : ${runs}">
                     <td><a th:href="@{/test-runs/{id}(id=${r.id})}" th:text="${r.name}">Thử lần 1</a></td>

@@ -25,7 +25,7 @@
     </div>
 
     <div class="table-wrap">
-        <table>
+        <table data-filter data-sticky>
             <tr><th>Số (3 số cuối)</th><th>Loại yêu cầu</th><th>Khách gửi</th><th>Hạn</th><th>Tình trạng</th></tr>
             <tr th:each="r : ${requests}">
                 <td th:text="${r.phoneTail}">***678</td>

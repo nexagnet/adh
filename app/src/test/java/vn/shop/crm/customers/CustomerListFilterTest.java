@@ -195,13 +195,13 @@ class CustomerListFilterTest extends AbstractPostgresTest {
         String html = mvc.perform(get("/customers").param("segment", "ONE_TIME").param("sort", "name").param("dir", "asc")
                         .param("name", "nguyen").with(owner))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Lọc theo khu vực và công cụ khác")))
+                .andExpect(content().string(containsString("aria-label=\"Lọc khách\"")))
                 .andExpect(content().string(containsString("aria-sort=\"ascending\"")))
                 .andExpect(content().string(containsString("/customers?segment=ONE_TIME&amp;name=nguyen&amp;sort=name&amp;dir=desc")))
                 .andExpect(content().string(containsString("Nguyễn Văn An")))
                 .andExpect(content().string(not(containsString("Trần Thị Bé"))))
                 .andExpect(content().string(containsString("Duyệt mời")))
-                .andExpect(content().string(containsString("Xóa bộ lọc cột (1)")))
+                .andExpect(content().string(containsString("Xóa tất cả bộ lọc")))
                 // biểu tượng phễu ở từng tiêu đề cột (bật/tắt ô lọc của cột), biểu tượng sắp xếp là hình, không còn ký tự mũi tên
                 .andExpect(content().string(containsString("class=\"fbtn\"")))
                 .andExpect(content().string(containsString("data-col=\"name\"")))
@@ -209,8 +209,9 @@ class CustomerListFilterTest extends AbstractPostgresTest {
                 .andExpect(content().string(not(containsString("&#8597;"))))
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         // thanh lọc khu vực nằm trên bảng và trên các nút "Tất cả / Cần kiểm tra"
-        assertThat(html.indexOf("Lọc theo khu vực và công cụ khác")).isLessThan(html.indexOf("aria-label=\"Lọc khách\""));
-        assertThat(html.indexOf("Lọc theo khu vực và công cụ khác")).isLessThan(html.indexOf("<table"));
+        assertThat(html.indexOf("aria-label=\"Lọc khách\"")).isLessThan(html.indexOf("<table"));
+        assertThat(html.indexOf("Đang lọc:")).isLessThan(html.indexOf("<table"));
+        assertThat(html).contains("Khách: nguyen");
 
         mvc.perform(get("/customers").with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Phân loại")))
@@ -232,5 +233,23 @@ class CustomerListFilterTest extends AbstractPostgresTest {
         // ngày cuối của khoảng tính trọn ngày (08:00 ngày 20/3 vẫn nằm trong "đến 20/3")
         assertThat(names(Map.of("lastTo", LocalDate.of(2026, 3, 20).toString())).size()).isEqualTo(4);
         assertThat(names(Map.of("lastFrom", "2026-03-20", "lastTo", "2026-03-20"))).containsExactly("Hoàng Em");
+    }
+
+    @Test
+    void theDangLocNoiRoTungDieuKienVaXoaTatCaGiuSapXep() {
+        var q = CustomerQuery.parse(Map.of("segment", "ONE_TIME", "review", "true", "q", "an", "area", "R:BAC", "name", "nguyen",
+                "buyFrom", "2", "lastFrom", "2026-03-01", "sort", "name", "dir", "asc", "page", "3"));
+        var links = new CustomerListLinks(q, CustomerColumn.keys(CustomerColumn.forSegment(null)));
+        var chips = CustomerFilterChips.of(q, links);
+        assertThat(chips).extracting("label").contains("Loại: Mua 1 lần", "Chỉ khách cần kiểm tra", "Tìm: an",
+                "Khách: nguyen", "Lần mua: từ 2", "Mua gần nhất: từ 01/03/2026");
+        assertThat(chips).extracting("label").anyMatch(l -> ((String) l).startsWith("Khu vực: "));
+        // bỏ một thẻ: chỉ mất điều kiện đó, giữ sắp xếp, về trang 1
+        var removeName = chips.stream().filter(c -> c.label().startsWith("Khách:")).findFirst().orElseThrow();
+        assertThat(removeName.removeUrl()).doesNotContain("name=").contains("segment=ONE_TIME").contains("sort=name").doesNotContain("page=");
+        // xóa tất cả: không còn điều kiện nào, vẫn giữ cách sắp xếp
+        String all = links.clearAll();
+        assertThat(all).isEqualTo("/customers?sort=name&dir=asc");
+        assertThat(CustomerFilterChips.of(CustomerQuery.parse(Map.of("sort", "name")), links)).isEmpty();
     }
 }

@@ -250,6 +250,21 @@ public record CustomerQuery(Segment segment, boolean review, String q, String ar
         return parse(p);
     }
 
+    /** Bản sao đã bỏ các tham số nêu tên (đổi bộ lọc thì về trang 1). */
+    public CustomerQuery without(String... keys) {
+        Map<String, String> p = params();
+        for (String k : keys) {
+            p.remove(k);
+        }
+        p.remove("page");
+        return parse(p);
+    }
+
+    /** Bản sao đã bỏ MỌI bộ lọc (phân loại, cần kiểm tra, ô tìm, khu vực, lọc theo cột); chỉ giữ sắp xếp. */
+    public CustomerQuery withoutAnyFilter() {
+        return withoutColumnFilters().without("segment", "review", "q", "area");
+    }
+
     private static void put(Map<String, String> p, String key, String value) {
         if (value != null && !value.isBlank()) {
             p.put(key, value);

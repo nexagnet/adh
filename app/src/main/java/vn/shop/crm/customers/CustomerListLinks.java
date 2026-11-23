@@ -57,6 +57,16 @@ public final class CustomerListLinks {
         return url(LIST, query.withoutColumnFilters().params());
     }
 
+    /** Bỏ MỌI bộ lọc (giữ cách sắp xếp). */
+    public String clearAll() {
+        return url(LIST, query.withoutAnyFilter().params());
+    }
+
+    /** Bỏ riêng các tham số nêu tên (một chip lọc). */
+    public String without(String... keys) {
+        return url(LIST, query.without(keys).params());
+    }
+
     /** Xuất file đúng bộ lọc và thứ tự đang xem, không giới hạn theo trang. */
     public String export() {
         Map<String, String> p = query.params();

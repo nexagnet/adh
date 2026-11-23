@@ -25,7 +25,7 @@
         <h2>Đã kết bạn, chờ vào nhóm</h2>
         <p class="muted" th:text="'Nhóm được giữ chỗ ' + ${reserveHours} + ' giờ kể từ lúc bấm Đã kết bạn; hết hạn thì hệ thống gợi ý lại từ đầu. Khách chưa có nhóm hợp khu vực thì chờ, không bị xếp sang nhóm miền khác.'">Giữ chỗ</p>
         <div class="table-wrap" th:if="${!friended.isEmpty()}">
-            <table>
+            <table data-filter data-sticky>
                 <tr><th>Khách</th><th>Khu vực</th><th>Kết bạn lúc</th><th>Tình trạng</th><th>Nhóm Zalo</th><th>Bước tiếp theo</th></tr>
                 <tr th:each="r : ${friended}">
                     <td class="who"><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.name != null ? r.name : 'Khách #' + r.customerId}">Nguyen Van A</a>
@@ -45,7 +45,7 @@
         <h2 th:text="'Đã nhắn quá ' + ${noReplyDays} + ' ngày mà chưa kết bạn'">Không phản hồi</h2>
         <p class="muted">Chỉ để mẹ biết. <strong>Không nhắn lại</strong> cho các khách này (mỗi người chỉ nhận một tin chủ động).</p>
         <div class="table-wrap" th:if="${!noReply.isEmpty()}">
-            <table>
+            <table data-filter data-sticky>
                 <tr><th>Khách</th><th>Khu vực</th><th>Đã nhắn lúc</th><th>Tình trạng</th><th>Bước tiếp theo</th></tr>
                 <tr th:each="r : ${noReply}">
                     <td class="who"><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.name != null ? r.name : 'Khách #' + r.customerId}">Nguyen Van A</a></td>

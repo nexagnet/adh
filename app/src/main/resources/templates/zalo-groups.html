@@ -27,7 +27,7 @@
     <section th:if="${ok}">
         <p class="muted" th:if="${zaloGroups.isEmpty()}">Tài khoản phụ chưa ở trong nhóm Zalo nào. Hãy thêm tài khoản phụ vào các nhóm khách hàng rồi tải lại trang.</p>
         <div class="table-wrap" th:if="${!zaloGroups.isEmpty()}">
-            <table>
+            <table data-filter data-sticky>
                 <tr><th>Nhóm trên Zalo</th><th>Mã nhóm</th><th>Thành viên</th><th>Lưu ý</th><th>Gán cho nhóm của Adh</th></tr>
                 <tr th:each="z : ${zaloGroups}">
                     <td th:text="${z.name}">Khách hàng Miền Nam</td>
