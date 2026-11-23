@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Hiệu quả chiến dịch')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Hiệu quả chiến dịch</h1>
+            <p class="hint">Mỗi chiến dịch đi được bao xa: mời, kết bạn, vào nhóm, mua trực tiếp, doanh thu. Rồi so với bán trên TikTok để biết ưu đãi và miễn ship có lời không.
+                Chỉ có số tổng hợp, không có tên hay số điện thoại khách.</p>
+        </div>
+        <div class="actions"><a class="btn secondary" th:href="@{/performance.csv}">Tải báo cáo (CSV, ẩn các số quá nhỏ)</a></div>
+    </header>
+
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
+    <div class="notice info" th:if="${overview.estimated()}">
+        <strong>Số mua là ước tính.</strong>
+        Chưa đặt tiền tố mã đơn của đơn bán qua nhóm, nên hệ thống tính mọi lần mua giao thành công của khách <em>sau khi họ vào nhóm</em>
+        (có thể gồm đơn khách tự đặt ngoài nhóm). Đặt tiền tố ở phần "Giá trị để tính" bên dưới để có số chính xác.
+    </div>
+
+    <div class="cards c5">
+        <div class="card"><div class="big" th:text="${total.invited}">0</div><div class="label">Đã mời (đã nhắn Tin 1)</div></div>
+        <div class="card"><div class="big" th:text="${total.friended}">0</div>
+            <div class="label">Đã kết bạn<span th:if="${total.friendedPercent() != null}" th:text="' (' + ${#numbers.formatDecimal(total.friendedPercent(), 1, 'POINT', 0, 'COMMA')} + '% số mời)'"></span></div></div>
+        <div class="card"><div class="big" th:text="${total.joined}">0</div>
+            <div class="label">Đã vào nhóm<span th:if="${total.joinedPercent() != null}" th:text="' (' + ${#numbers.formatDecimal(total.joinedPercent(), 1, 'POINT', 0, 'COMMA')} + '% số mời)'"></span></div></div>
+        <div class="card"><div class="big" th:text="${total.masked} ? '-' : ${total.buyers}">0</div>
+            <div class="label">Người đã mua sau khi vào nhóm<span th:if="${!total.masked and total.buyersPercent() != null}" th:text="' (' + ${#numbers.formatDecimal(total.buyersPercent(), 1, 'POINT', 0, 'COMMA')} + '% số vào nhóm)'"></span></div></div>
+        <div class="card"><div class="big" th:text="${#numbers.formatDecimal(total.revenue, 1, 'POINT', 0, 'COMMA')}">0</div>
+            <div class="label">Doanh thu đã đối soát (đồng)</div></div>
+    </div>
+
+    <section>
+        <h2>Từng chiến dịch</h2>
+        <div class="table-wrap" th:if="${!overview.campaigns.isEmpty()}">
+            <table data-sticky>
+                <tr><th>Chiến dịch</th><th>Khu vực</th><th>Đã mời</th><th>Đã kết bạn</th><th>Đã vào nhóm</th><th>Người mua</th><th>Lần mua</th><th>Doanh thu đã đối soát (đồng)</th></tr>
+                <tr th:each="c : ${overview.campaigns}">
+                    <td><a th:href="@{/campaigns/{id}(id=${c.id})}" th:text="${c.name}">Đợt 1</a></td>
+                    <td th:text="${c.scopeLabel}">Miền Nam</td>
+                    <td th:text="${c.invited}">0</td>
+                    <td><span th:text="${c.friended}">0</span><span class="muted small" th:if="${c.friendedPercent() != null}" th:text="' · ' + ${#numbers.formatDecimal(c.friendedPercent(), 1, 'POINT', 0, 'COMMA')} + '%'"></span></td>
+                    <td><span th:text="${c.joined}">0</span><span class="muted small" th:if="${c.joinedPercent() != null}" th:text="' · ' + ${#numbers.formatDecimal(c.joinedPercent(), 1, 'POINT', 0, 'COMMA')} + '%'"></span></td>
+                    <td th:text="${c.masked} ? '-' : ${c.buyers}">0</td>
+                    <td><span th:text="${c.masked} ? '-' : ${c.orders}">0</span><span class="muted small" th:if="${!c.masked and c.ordersWithoutMoney() > 0}" th:text="' (' + ${c.ordersWithoutMoney()} + ' chưa đối soát)'"></span></td>
+                    <td th:text="${c.masked} ? '-' : ${#numbers.formatDecimal(c.revenue, 1, 'POINT', 0, 'COMMA')}">0</td>
+                </tr>
+            </table>
+        </div>
+        <p class="muted" th:if="${overview.campaigns.isEmpty()}">Chưa có chiến dịch nào.</p>
+        <p class="muted small" style="margin-top:10px">Phần trăm là so với số đã mời. Doanh thu lấy từ tiền thu hộ trong file đối soát J&amp;T: lần mua chưa có dòng đối soát thì chưa có tiền.
+            Chiến dịch có ít hơn <span th:text="${minCell}">5</span> người vào nhóm thì số mua và tiền hiện "-" ở báo cáo xuất.</p>
+    </section>
+
+    <section class="panel stack" id="tiktok">
+        <h2>Ưu đãi nhóm có lời hơn bán trên TikTok không?</h2>
+        <p class="hint">Hệ thống không có dữ liệu đơn TikTok, nên không đo được doanh thu TikTok thật. Thay vào đó, với đúng những đơn đã bán qua nhóm, hệ thống tính xem
+            nếu bán trên TikTok (giá cao hơn <span th:text="${settings.discountPercent}">10</span>%) thì TikTok thu bao nhiêu, rồi so với tiền ưu đãi và tiền ship mình bỏ ra.</p>
+        <div th:if="${total.masked or total.economics == null or total.economics.breakEvenFeePercent == null}" class="notice">
+            <strong>Chưa đủ số liệu.</strong> Cần có người vào nhóm đã mua và đơn đã được đối soát (nhập file "Lịch sử đối soát" J&amp;T) mới tính được.
+        </div>
+        <div th:unless="${total.masked or total.economics == null or total.economics.breakEvenFeePercent == null}" class="stack">
+            <table>
+                <tr><td>Doanh thu bán qua nhóm (đã đối soát)</td><td th:text="${#numbers.formatDecimal(total.economics.revenue, 1, 'POINT', 0, 'COMMA')} + ' đ'">0</td></tr>
+                <tr><td>Cùng các đơn đó nếu bán trên TikTok (giá cao hơn <span th:text="${settings.discountPercent}">10</span>%)</td><td th:text="${#numbers.formatDecimal(total.economics.tiktokPrice, 1, 'POINT', 0, 'COMMA')} + ' đ'">0</td></tr>
+                <tr><td>Tiền ưu đãi đã nhường cho khách</td><td th:text="${#numbers.formatDecimal(total.economics.discountCost, 1, 'POINT', 0, 'COMMA')} + ' đ'">0</td></tr>
+                <tr><td>Tiền ship miễn (cước J&amp;T và phí thu hộ)<span class="muted small" th:unless="${settings.freeShip}"> - đang tính là khách trả nên bằng 0</span></td><td th:text="${#numbers.formatDecimal(total.economics.shipCost, 1, 'POINT', 0, 'COMMA')} + ' đ'">0</td></tr>
+                <tr><td><strong>Hòa vốn khi TikTok thu</strong></td><td><strong th:text="${#numbers.formatDecimal(total.economics.breakEvenFeePercent, 1, 'POINT', 1, 'COMMA')} + '% giá bán'">0</strong></td></tr>
+                <tr th:if="${total.economics.netGain != null}"><td>TikTok thu <span th:text="${settings.tiktokFeePercent}">0</span>% nên mình tránh được</td><td th:text="${#numbers.formatDecimal(total.economics.tiktokFeeAvoided, 1, 'POINT', 0, 'COMMA')} + ' đ'">0</td></tr>
+                <tr th:if="${total.economics.netGain != null}"><td><strong>Bán qua nhóm lời hơn (+) hoặc lỗ hơn (-) so với TikTok</strong></td>
+                    <td><strong th:text="${#numbers.formatDecimal(total.economics.netGain, 1, 'POINT', 0, 'COMMA')} + ' đ'">0</strong></td></tr>
+            </table>
+            <p class="muted small" th:if="${total.economics.netGain == null}">
+                Cách đọc: nếu TikTok thu (hoa hồng, phí giao dịch, voucher...) nhiều hơn <span th:text="${#numbers.formatDecimal(total.economics.breakEvenFeePercent, 1, 'POINT', 1, 'COMMA')}">0</span>% giá bán
+                thì bán qua nhóm có lời hơn. Nhập mức TikTok thật thu ở dưới để hệ thống ra số tiền cụ thể.</p>
+            <p class="muted small">Đây là so sánh trên cùng một đơn, chưa tính khách có mua nếu không có nhóm hay không (xem phần so sánh mua lại bên dưới).
+                Chưa tính khoản TikTok hỗ trợ ship hay voucher của TikTok.</p>
+        </div>
+    </section>
+
+    <section class="panel stack">
+        <h2>Khách vào nhóm có mua lại nhiều hơn không?</h2>
+        <p class="hint">So khách đã vào nhóm với khách được mời nhưng không vào nhóm: trong <span th:text="${cohortDays}">30</span> ngày sau khi nhận Tin 1, bao nhiêu người có thêm một lần mua giao thành công.
+            Chỉ tính người đã nhận Tin 1 từ <span th:text="${cohortDays}">30</span> ngày trở lên. Đây là số tham khảo: người chịu vào nhóm vốn đã thích shop hơn, nên chưa chắc nhóm là nguyên nhân.</p>
+        <table>
+            <tr><th>Nhóm khách</th><th>Số người</th><th>Có mua lại</th><th>Tỉ lệ</th></tr>
+            <tr><td>Đã vào nhóm</td><td th:text="${total.joinedCohort.customers}">0</td><td th:text="${total.joinedCohort.bought}">0</td>
+                <td th:text="${total.joinedCohort.rate() != null} ? ${#numbers.formatDecimal(total.joinedCohort.rate() * 100, 1, 'POINT', 1, 'COMMA')} + '%' : '-'">-</td></tr>
+            <tr><td>Được mời, chưa vào nhóm</td><td th:text="${total.notJoinedCohort.customers}">0</td><td th:text="${total.notJoinedCohort.bought}">0</td>
+                <td th:text="${total.notJoinedCohort.rate() != null} ? ${#numbers.formatDecimal(total.notJoinedCohort.rate() * 100, 1, 'POINT', 1, 'COMMA')} + '%' : '-'">-</td></tr>
+        </table>
+    </section>
+
+    <section class="panel stack">
+        <h2>Giá trị để tính</h2>
+        <form th:action="@{/performance/settings}" method="post" class="stack">
+            <div class="formrow">
+                <label class="field">Ưu đãi khi mua qua nhóm so với TikTok (%)
+                    <input type="text" inputmode="decimal" name="discount" required maxlength="5" th:value="${settings.discountPercent}"></label>
+                <label class="field">TikTok thu bao nhiêu % giá bán (hoa hồng và các phí; để trống nếu chưa biết)
+                    <input type="text" inputmode="decimal" name="fee" maxlength="5" th:value="${settings.tiktokFeePercent}"></label>
+                <label class="field">Tiền tố mã đơn của đơn bán qua nhóm (ví dụ NHOM; để trống nếu chưa đặt)
+                    <input type="text" name="prefix" maxlength="20" th:value="${settings.groupOrderPrefix}"></label>
+            </div>
+            <label class="check"><input type="checkbox" name="freeShip" value="true" th:checked="${settings.freeShip}"> Đơn qua nhóm miễn ship (shop trả cước vận chuyển)</label>
+            <p class="muted small">Muốn tách đơn qua nhóm khỏi đơn khác thì khi tạo đơn gửi J&amp;T hoặc Viettel Post, ghi mã đơn hàng bắt đầu bằng tiền tố này (ví dụ NHOM-0123). Sau khi nhập file, các đơn đó được tính là bán qua nhóm.</p>
+            <div class="actions"><button type="submit" class="btn">Lưu</button></div>
+        </form>
+    </section>
+</main>
+</body>
+</html>
