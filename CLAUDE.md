@@ -102,6 +102,8 @@ Người dùng **bỏ nguyên tắc cũ "không tự gửi tin"** (D9). Hệ th�
 
 `app/` ứng dụng Java (gói `vn.shop.crm`), `zalo-bridge/` bộ nối Node, `infra/` Docker và script deploy, `tools/` tool J&T (Edge) và dựng bản đồ, `fixtures/` dữ liệu giả, `docs/` tài liệu, `.github/workflows/` CI (`ci`, `image`). Bản đồ mã nguồn chi tiết: `docs/BAN-GIAO.md` mục 4.
 
+**Bảng theo dõi hiệu quả chiến dịch (23/11/2026, `/performance`, gói `vn.shop.crm.performance`, không migration):** phễu mời, kết bạn, vào nhóm, mua trực tiếp, doanh thu (từ đối soát J&T) cho mỗi chiến dịch, hòa vốn so với TikTok và so sánh mua lại. Hệ thống không có đơn TikTok nên không đo doanh thu TikTok thật. Chi tiết và câu hỏi còn mở (cách phân biệt đơn qua nhóm): `docs/THIET-KE-THEO-DOI-HIEU-QUA.md`.
+
 ## 9. Những chỗ `docs/BAN-GIAO.md` đã cũ (đừng làm theo)
 
 `BAN-GIAO.md` lập 21/11 và 22/11, cập nhật dở dang ngày 23/11. Đã lỗi thời so với file này:
