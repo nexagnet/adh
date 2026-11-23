@@ -47,6 +47,16 @@ app:
   entry:
     # Giấy in bỏ vào gói hàng dùng MỘT mã QR chung (/moi). Mỗi địa chỉ mạng chỉ được tạo tối đa chừng này lượt MỚI mỗi giờ.
     max-new-per-ip-per-hour: 20
+  ai:
+    # AI (DeepSeek, giao thức giống OpenAI). MẶC ĐỊNH TẮT. Chỉ nhận văn bản đã che số điện thoại/email; không bao giờ gửi
+    # số điện thoại, địa chỉ, mã Zalo hay tên khách. Khóa API chỉ qua biến môi trường, không vào repo hay log.
+    enabled: ${APP_AI_ENABLED:false}
+    api-key: ${APP_AI_API_KEY:}
+    # Tên mô hình do chủ shop đặt (không đoán mặc định).
+    model: ${APP_AI_MODEL:}
+    base-url: ${APP_AI_BASE_URL:https://api.deepseek.com}
+    # Trần lượt gọi mỗi ngày; hết thì AI im lặng và việc chuyển mẹ.
+    daily-limit: ${APP_AI_DAILY_LIMIT:200}
   grouping:
     # Cho phép xếp khách vào nhóm của miền khác khi không còn nhóm nào hợp (mặc định không).
     allow-other-region: false
