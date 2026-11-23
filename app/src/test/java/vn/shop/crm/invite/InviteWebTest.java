@@ -104,6 +104,29 @@ class InviteWebTest extends AbstractPostgresTest {
     }
 
     @Test
+    void nutTuNhanKhachMoiChiHienKhiDaDuyetVaBatTatDuoc() throws Exception {
+        seedAndGetToken();
+        long campaign = jdbc.sql("SELECT id FROM invitation_campaign").query(Long.class).single();
+        mvc.perform(get("/campaigns/" + campaign).with(user("admin").roles("OWNER")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Tự nhận khách mới"))));
+        mvc.perform(post("/campaigns/" + campaign + "/auto-intake/enable").with(user("admin").roles("OWNER")).with(csrf()))
+                .andExpect(status().is4xxClientError()).andExpect(content().string(containsString("duyệt chiến dịch")));
+        mvc.perform(post("/campaigns/" + campaign + "/auto-send/approve").with(user("admin").roles("OWNER")).with(csrf()))
+                .andExpect(status().is3xxRedirection());
+        mvc.perform(get("/campaigns/" + campaign).with(user("admin").roles("OWNER")))
+                .andExpect(content().string(containsString("Tự nhận khách mới")))
+                .andExpect(content().string(containsString("Bật tự nhận khách mới")));
+        mvc.perform(post("/campaigns/" + campaign + "/auto-intake/enable").with(user("admin").roles("OWNER")).with(csrf()))
+                .andExpect(status().is3xxRedirection());
+        mvc.perform(get("/campaigns/" + campaign).with(user("admin").roles("OWNER")))
+                .andExpect(content().string(containsString("ĐANG TỰ NHẬN")))
+                .andExpect(content().string(containsString("Tắt tự nhận khách mới")));
+        mvc.perform(post("/campaigns/" + campaign + "/auto-intake/disable").with(user("admin").roles("OWNER")).with(csrf()))
+                .andExpect(status().is3xxRedirection());
+        mvc.perform(post("/campaigns/" + campaign + "/auto-intake/disable")).andExpect(status().isForbidden());
+    }
+
+    @Test
     void trangMoiCongKhaiKhongCanDangNhapKhongLoThongTinKhach() throws Exception {
         String token = seedAndGetToken();
 

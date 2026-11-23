@@ -20,9 +20,12 @@ public class CampaignController {
     private final AppSettings settings;
     private final vn.shop.crm.zalo.ZaloInviteSender autoSender;
     private final vn.shop.crm.zalo.ZaloMessageService messages;
+    private final vn.shop.crm.zalo.ZaloCampaignIntake intake;
 
     public CampaignController(InviteService invites, ContactService contacts, AppSettings settings,
-                              vn.shop.crm.zalo.ZaloInviteSender autoSender, vn.shop.crm.zalo.ZaloMessageService messages) {
+                              vn.shop.crm.zalo.ZaloInviteSender autoSender, vn.shop.crm.zalo.ZaloMessageService messages,
+                              vn.shop.crm.zalo.ZaloCampaignIntake intake) {
+        this.intake = intake;
         this.invites = invites;
         this.contacts = contacts;
         this.settings = settings;
@@ -88,6 +91,7 @@ public class CampaignController {
         model.addAttribute("joinGroups", invites.joinableGroups());
         model.addAttribute("autoApproved", autoSender.approved(id));
         model.addAttribute("autoSwitch", messages.enabled());
+        model.addAttribute("intake", intake.status(id));
         return "campaign-detail";
     }
 
@@ -170,6 +174,21 @@ public class CampaignController {
     public String revokeAutoSend(@PathVariable long id, RedirectAttributes redirect) {
         autoSender.revokeCampaign(id, ContactService.actor());
         redirect.addFlashAttribute("flash", "Đã bỏ duyệt: hệ thống không tự gửi cho chiến dịch này nữa. Tin đã gửi giữ nguyên.");
+        return "redirect:/campaigns/" + id;
+    }
+
+    /** Bật "tự nhận khách mới": khách mới đủ tiêu chí tự vào chiến dịch, không duyệt từng người. Tắt mặc định. */
+    @PostMapping("/campaigns/{id}/auto-intake/enable")
+    public String enableIntake(@PathVariable long id, RedirectAttributes redirect) {
+        intake.enable(id, ContactService.actor());
+        redirect.addFlashAttribute("flash", "Đã bật tự nhận khách mới: từ giờ khách mới nhập về, đủ tiêu chí, sẽ tự vào chiến dịch này và được gửi Tin 1 theo hạn mức.");
+        return "redirect:/campaigns/" + id;
+    }
+
+    @PostMapping("/campaigns/{id}/auto-intake/disable")
+    public String disableIntake(@PathVariable long id, RedirectAttributes redirect) {
+        intake.disable(id, ContactService.actor());
+        redirect.addFlashAttribute("flash", "Đã tắt tự nhận khách mới. Khách đã vào chiến dịch vẫn giữ nguyên.");
         return "redirect:/campaigns/" + id;
     }
 

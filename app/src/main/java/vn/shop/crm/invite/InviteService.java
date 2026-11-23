@@ -235,15 +235,20 @@ public class InviteService {
                 .param("name", name.strip()).param("tpl", tpl).param("days", expiresDays)
                 .param("by", ContactService.actor()).param("scope", scope, java.sql.Types.VARCHAR)
                 .query(Long.class).single();
+        addInvitations(campaignId, expiresDays, name.strip(), picked);
+        return campaignId;
+    }
+
+    /** Tạo lời mời READY cho các khách này trong chiến dịch (dùng cả khi tạo chiến dịch lẫn khi chiến dịch tự nhận khách mới). */
+    public void addInvitations(long campaignId, int expiresDays, String campaignName, List<ContactService.Invitee> picked) {
         for (ContactService.Invitee c : picked) {
             jdbc.sql("""
                             INSERT INTO invitation (campaign_id, customer_id, token, expires_at)
                             VALUES (:cid, :cust, :token, now() + make_interval(days => :days))""")
                     .param("cid", campaignId).param("cust", c.id()).param("token", newToken())
                     .param("days", expiresDays).update();
-            contacts.event(c.id(), c.phone(), "INVITATION_CREATED", "Chiến dịch: " + name.strip());
+            contacts.event(c.id(), c.phone(), "INVITATION_CREATED", "Chiến dịch: " + campaignName);
         }
-        return campaignId;
     }
 
     /** Mã khu vực hợp lệ ("U" = chưa rõ) hoặc null nếu để trống; mã lạ báo lỗi. */

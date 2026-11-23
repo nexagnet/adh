@@ -211,6 +211,31 @@ public class ContactService {
                 .list();
     }
 
+    /**
+     * Khách MỚI (xuất hiện từ {@code since}) đủ tiêu chí để chiến dịch tự nhận: một lần mua, không cần kiểm tra, chưa từ chối, chưa có dòng cơ sở
+     * liên hệ nào (chưa duyệt, chưa chặn), chưa từng được mời, đúng khu vực. Đây là tiêu chí duyệt sẵn thay cho duyệt từng người.
+     */
+    public List<Invitee> newCandidates(java.time.Instant since, String area, int limit) {
+        StringBuilder sql = new StringBuilder("SELECT c.id, c.phone, c.name FROM customer c WHERE " + CANDIDATE_WHERE
+                + " AND c.first_seen_at >= :since AND NOT EXISTS (SELECT 1 FROM invitation i WHERE i.customer_id = c.id)");
+        var areaCodes = appendArea(sql, area);
+        sql.append(" ORDER BY c.first_seen_at, c.id LIMIT :limit");
+        var spec = jdbc.sql(sql.toString()).param("since", OffsetDateTime.ofInstant(since, java.time.ZoneOffset.UTC)).param("limit", limit);
+        if (areaCodes != null) {
+            spec = spec.param("areaCodes", areaCodes);
+        }
+        return spec.query((rs, i) -> new Invitee(rs.getLong("id"), rs.getString("phone"), rs.getString("name"))).list();
+    }
+
+    /** Duyệt cơ sở liên hệ cho đúng những khách này (kiểm lại mọi điều kiện ứng viên). Trả số khách được duyệt. */
+    @Transactional
+    public int approveByIds(List<Long> ids, String statement, String by) {
+        if (ids.isEmpty()) {
+            return 0;
+        }
+        return jdbc.sql(approveSql(" AND c.id IN (:ids)")).param("ids", ids).param("statement", statement).param("by", by).update();
+    }
+
     /** Thêm điều kiện khu vực vào câu truy vấn; trả danh sách mã tỉnh cần gán vào {@code :areaCodes} (hoặc null). */
     private static List<String> appendArea(StringBuilder sql, String area) {
         if (area == null || area.isBlank()) {
