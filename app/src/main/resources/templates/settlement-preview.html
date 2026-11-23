@@ -48,12 +48,22 @@
             <div class="card"><div class="big" th:text="${report.orderRefToFill}">0</div><div class="label">Đơn được điền "Mã đơn KH" (đơn chưa có mã đơn)</div></div>
             <div class="card"><div class="big" th:text="${report.deliveredOnToFill}">0</div><div class="label">Đơn Giao thành công được điền ngày ký nhận</div></div>
         </div>
-        <p class="hint">Trạng thái đơn không bị đổi. File đối soát không tạo đơn hay khách mới.</p>
+        <p class="hint">File đối soát không tạo đơn hay khách mới. Đơn nào J&amp;T đã thu COD sau khi ký nhận (và không có phí hoàn) thì được đổi thành Giao thành công, xem khung bên dưới.</p>
     </section>
+
+    <div class="notice ok" th:if="${report.upgradedToDelivered > 0}">
+        <strong><span th:text="${report.upgradedToDelivered}">0</span> đơn sẽ được đổi thành Giao thành công theo file đối soát</strong>
+        J&amp;T đã ghi ký nhận và thu tiền COD, không có phí hoàn. Các đơn này đang ở trạng thái khác trong Adh:
+        <ul class="choices">
+            <li th:each="s : ${report.upgradedByStatus}"><strong th:text="'«' + ${s.key} + '»'">«Kết thúc»</strong>
+                (<span th:text="${s.value}">3</span> đơn)</li>
+        </ul>
+        Khách có các đơn này sẽ được tính lại (có thể từ một lần mua thành từ hai lần mua).
+    </div>
 
     <div class="notice" th:if="${report.signedNotDelivered > 0}">
         <strong><span th:text="${report.signedNotDelivered}">0</span> đơn đã ký nhận theo J&amp;T nhưng Adh chưa tính là Giao thành công</strong>
-        Hệ thống không tự đổi trạng thái; đơn này vẫn chưa được tính là một lần mua. Nếu các trạng thái dưới đây thực ra là đã giao,
+        Đơn này chưa có bằng chứng J&amp;T đã thu COD (hoặc có phí hoàn), nên hệ thống không tự đổi trạng thái và chưa tính là một lần mua. Nếu các trạng thái dưới đây thực ra là đã giao,
         hãy chọn nghĩa ở mục <a th:href="@{/status-mappings}">Trạng thái đơn</a>:
         <ul class="choices">
             <li th:each="s : ${report.signedNotDeliveredByStatus}"><strong th:text="'«' + ${s.key} + '»'">«Kí nhận CPN»</strong>

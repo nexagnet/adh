@@ -106,7 +106,12 @@ public class StatusMappingService {
         List<String> phones = jdbc.sql("SELECT DISTINCT receiver_phone FROM shipment "
                         + "WHERE carrier = :c AND status_key = :k")
                 .param("c", carrier.name()).param("k", key).query(String.class).list();
-        jdbc.sql("UPDATE shipment SET canonical_status = :s, updated_at = now() WHERE carrier = :c AND status_key = :k")
+        // đơn đã được file đối soát chứng minh giao thành công thì giữ nguyên, trừ khi nghĩa mới là hủy/hoàn
+        jdbc.sql("""
+                        UPDATE shipment SET canonical_status = :s, updated_at = now(),
+                            settled_delivered = settled_delivered AND :s NOT IN ('CANCELLED', 'RETURNING', 'RETURNED')
+                        WHERE carrier = :c AND status_key = :k
+                          AND (NOT settled_delivered OR :s IN ('CANCELLED', 'RETURNING', 'RETURNED'))""")
                 .param("s", status.name()).param("c", carrier.name()).param("k", key).update();
         customers.recalculate(phones);
     }

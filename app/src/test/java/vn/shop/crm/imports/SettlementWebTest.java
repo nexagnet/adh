@@ -108,12 +108,31 @@ class SettlementWebTest extends AbstractPostgresTest {
         imports.commit(batch, new ImportService.Mapping(view.headerRow(), view.suggested()));
 
         var owner = user("admin").roles("OWNER");
-        String preview = mvc.perform(multipart("/imports/settlement").file(upload(FILE)).with(owner).with(csrf()))
+        // J&T chưa thu COD (0 đồng) nên chưa có bằng chứng giao thành công: chỉ báo, không đổi
+        String noCod = FILE.replace("2026-10-22 10:00:00,300000,", "2026-10-22 10:00:00,0,");
+        String preview = mvc.perform(multipart("/imports/settlement").file(upload(noCod)).with(owner).with(csrf()))
                 .andReturn().getResponse().getRedirectedUrl();
         mvc.perform(get(preview).with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("chưa tính là Giao thành công")))
                 .andExpect(content().string(containsString("«Kí nhận CPN»")))
                 .andExpect(content().string(containsString("Trạng thái đơn")));
+    }
+
+    @Test
+    void xemTruocBaoDonSeDuocNangLenGiaoThanhCongKhiJtDaThuCod() throws Exception {
+        String orders = "Mã vận đơn,Trạng thái vận đơn,SĐT người nhận,Địa chỉ người nhận,Tên người nhận,Địa chỉ hành chính\n"
+                + "861000000001,Kết thúc,0912345601,\"12 Duong A\",Khach A,\"Phường 1, Quận 5, Hồ Chí Minh\"\n";
+        long batch = imports.createBatch(vn.shop.crm.shipping.Carrier.JT_EXPRESS, "orders.csv",
+                orders.getBytes(StandardCharsets.UTF_8));
+        var view = imports.open(batch, null);
+        imports.commit(batch, new ImportService.Mapping(view.headerRow(), view.suggested()));
+
+        var owner = user("admin").roles("OWNER");
+        String preview = mvc.perform(multipart("/imports/settlement").file(upload(FILE)).with(owner).with(csrf()))
+                .andReturn().getResponse().getRedirectedUrl();
+        mvc.perform(get(preview).with(owner)).andExpect(status().isOk())
+                .andExpect(content().string(containsString("sẽ được đổi thành Giao thành công theo file đối soát")))
+                .andExpect(content().string(containsString("«Kết thúc»")));
     }
 
     @Test

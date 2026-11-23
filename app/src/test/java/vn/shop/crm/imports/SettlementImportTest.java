@@ -38,6 +38,8 @@ class SettlementImportTest extends AbstractPostgresTest {
     CustomerService customers;
     @Autowired
     PrivacyService privacy;
+    @Autowired
+    vn.shop.crm.shipping.StatusMappingService statuses;
 
     @BeforeEach
     void statuses() throws Exception {
@@ -78,7 +80,7 @@ class SettlementImportTest extends AbstractPostgresTest {
     @Test
     void docDungKyDoiSoatVaChiBoSungMaDonVaNgayKyNhanChoDonGiaoThanhCong() {
         order("861000000001", "Giao thành công", "0912345601");
-        order("861000000002", "Kí nhận CPN", "0912345602"); // trạng thái chưa rõ nghĩa
+        order("861000000002", "Kết thúc", "0912345602"); // trạng thái chưa rõ nghĩa
         String content = period("KH0001-20261021-1022", "600000", "560000",
                 row("861000000001", "DH-100", "0912345601", "2026-10-22 10:00:00", "300000", "20000", "0", "280000"),
                 row("861000000002", "", "0912345602", "2026-10-22 11:00:00", "300000", "20000", "0", "280000"),
@@ -91,8 +93,10 @@ class SettlementImportTest extends AbstractPostgresTest {
         assertThat(preview.unknownShipments()).isEqualTo(1);
         assertThat(preview.orderRefToFill()).isEqualTo(1);
         assertThat(preview.deliveredOnToFill()).isEqualTo(1);
-        assertThat(preview.signedNotDelivered()).isEqualTo(1);
-        assertThat(preview.signedNotDeliveredByStatus()).containsEntry("Kí nhận CPN", 1L);
+        // J&T đã thu COD sau khi ký nhận và không có phí hoàn: đơn "Kết thúc" sẽ được nâng lên Giao thành công
+        assertThat(preview.upgradedToDelivered()).isEqualTo(1);
+        assertThat(preview.upgradedByStatus()).containsEntry("Kết thúc", 1L);
+        assertThat(preview.signedNotDelivered()).isZero();
         assertThat(preview.periods()).hasSize(1);
         var p = preview.periods().getFirst();
         assertThat(p.from()).isEqualTo(LocalDate.of(2026, 10, 21));
@@ -103,20 +107,107 @@ class SettlementImportTest extends AbstractPostgresTest {
 
         var report = importFiles(file("KH0001-20261021-1022.csv", content));
 
-        assertThat(report.customersRecalculated()).isEqualTo(1);
+        assertThat(report.customersRecalculated()).isEqualTo(2); // đơn 1 điền mã đơn + ngày, đơn 2 được nâng
         assertThat(jdbc.sql("SELECT order_ref FROM shipment WHERE tracking_no = '861000000001'")
                 .query(String.class).single()).isEqualTo("DH-100");
         assertThat(jdbc.sql("SELECT to_char(delivered_on, 'YYYY-MM-DD HH24:MI:SS') FROM shipment WHERE tracking_no = '861000000001'")
                 .query(String.class).single()).isEqualTo("2026-10-22 10:00:00");
-        // đơn trạng thái chưa rõ nghĩa: không đổi trạng thái, không điền ngày giao
+        // đơn trạng thái chưa rõ nghĩa nhưng đối soát chứng minh đã giao: nâng lên DELIVERED, có ngày ký nhận và dấu đối soát
         assertThat(jdbc.sql("SELECT canonical_status FROM shipment WHERE tracking_no = '861000000002'")
-                .query(String.class).single()).isEqualTo("UNKNOWN");
-        assertThat(jdbc.sql("SELECT count(*) FROM shipment WHERE tracking_no = '861000000002' AND delivered_on IS NULL")
-                .query(Long.class).single()).isEqualTo(1);
+                .query(String.class).single()).isEqualTo("DELIVERED");
+        assertThat(jdbc.sql("SELECT settled_delivered FROM shipment WHERE tracking_no = '861000000002'")
+                .query(Boolean.class).single()).isTrue();
+        assertThat(jdbc.sql("SELECT to_char(delivered_on, 'YYYY-MM-DD HH24:MI') FROM shipment WHERE tracking_no = '861000000002'")
+                .query(String.class).single()).isEqualTo("2026-10-22 11:00");
         // không tạo đơn hay khách mới từ file đối soát
         assertThat(jdbc.sql("SELECT count(*) FROM shipment").query(Long.class).single()).isEqualTo(2);
         assertThat(jdbc.sql("SELECT sum(net_payable) FROM settlement_line").query(BigDecimal.class).single())
                 .isEqualByComparingTo("539000");
+    }
+
+    private String canonical(String tracking) {
+        return jdbc.sql("SELECT canonical_status FROM shipment WHERE tracking_no = :t").param("t", tracking)
+                .query(String.class).single();
+    }
+
+    @Test
+    void chiNangDonKhiCoBangChungThuCodVaKhongCoPhiHoan() {
+        order("861000000011", "Đã lấy hàng", "0912345611");   // treo ở "đang vận chuyển" nhưng J&T đã thu COD: được nâng
+        order("861000000012", "Kết thúc", "0912345612");      // J&T tính phí hoàn: không nâng
+        order("861000000013", "Hủy", "0912345613");           // đã hủy: không bao giờ nâng
+        order("861000000014", "Kết thúc", "0912345614");      // ký nhận nhưng COD = 0: chưa đủ bằng chứng
+        order("861000000015", "Ký nhận chuyển hoàn", "0912345615"); // đã hoàn: không nâng
+        String header = "Mã khách hàng,KH0001\nMã kỳ đối soát,KH0001-20261021-1022\n" + SETTLEMENT_HEADER;
+        String rows = "861000000011,,A,0912345611,\"x\",2026-10-21 08:00:00,2026-10-22 10:00:00,300000,20000,0,0,0,0,280000,,\n"
+                + "861000000012,,A,0912345612,\"x\",2026-10-21 08:00:00,2026-10-22 10:00:00,300000,20000,0,30000,0,0,250000,,\n"
+                + "861000000013,,A,0912345613,\"x\",2026-10-21 08:00:00,2026-10-22 10:00:00,300000,20000,0,0,0,0,280000,,\n"
+                + "861000000014,,A,0912345614,\"x\",2026-10-21 08:00:00,2026-10-22 10:00:00,0,20000,0,0,0,0,-20000,,\n"
+                + "861000000015,,A,0912345615,\"x\",2026-10-21 08:00:00,2026-10-22 10:00:00,300000,20000,0,0,0,0,280000,,\n";
+        importFiles(file("a.csv", header + rows + "Tổng,,,,,,,1200000,,,,,,1000000,,\n"));
+
+        assertThat(canonical("861000000011")).isEqualTo("DELIVERED");
+        assertThat(canonical("861000000012")).isEqualTo("UNKNOWN");
+        assertThat(canonical("861000000013")).isEqualTo("CANCELLED");
+        assertThat(canonical("861000000014")).isEqualTo("UNKNOWN");
+        assertThat(canonical("861000000015")).isEqualTo("RETURNED");
+        assertThat(jdbc.sql("SELECT count(*) FROM shipment WHERE settled_delivered").query(Long.class).single()).isEqualTo(1);
+        assertThat(jdbc.sql("SELECT count(*) FROM shipment_status_history WHERE raw_status LIKE '%đối soát J&T%'")
+                .query(Long.class).single()).isEqualTo(1);
+    }
+
+    @Test
+    void migrationV24NangDonDaCoDongDoiSoatTrongDuLieuCu() throws Exception {
+        order("861000000031", "Kết thúc", "0912345631");
+        order("861000000032", "Kết thúc", "0912345632");
+        long batch = jdbc.sql("SELECT max(id) FROM import_batch").query(Long.class).single();
+        long period = jdbc.sql("""
+                INSERT INTO settlement_period (carrier, period_code, last_batch_id)
+                VALUES ('JT_EXPRESS', 'KH0001-20261021-1022', :b) RETURNING id""").param("b", batch).query(Long.class).single();
+        for (String[] l : new String[][]{{"861000000031", "300000", "0"}, {"861000000032", "300000", "30000"}}) {
+            jdbc.sql("""
+                    INSERT INTO settlement_line (period_id, tracking_no, signed_at, cod_collected, freight_fee, cod_fee,
+                        return_fee, partial_fee, adjustment, net_payable)
+                    VALUES (:p, :t, TIMESTAMP '2026-10-22 10:00:00', :cod, 0, 0, :ret, 0, 0, 0)""")
+                    .param("p", period).param("t", l[0]).param("cod", new BigDecimal(l[1]))
+                    .param("ret", new BigDecimal(l[2])).update();
+        }
+        String sql = new String(getClass().getResourceAsStream("/db/migration/V24__jt_gan_nghia_va_doi_soat.sql")
+                .readAllBytes(), StandardCharsets.UTF_8);
+        jdbc.sql(sql.substring(sql.indexOf("UPDATE shipment s\nSET"))).update(); // phần 3 của migration
+
+        assertThat(canonical("861000000031")).isEqualTo("DELIVERED");
+        assertThat(canonical("861000000032")).isEqualTo("UNKNOWN"); // có phí hoàn
+    }
+
+    private String segment(String phone) {
+        return jdbc.sql("SELECT segment FROM customer").query(String.class).single(); // mỗi test chỉ có một khách
+    }
+
+    @Test
+    void nangTheoDoiSoatLamKhachTuMotLanThanhHaiLanVaKhongBiNhapFileDonKeoLai() {
+        order("861000000021", "Giao thành công", "0912345621");
+        order("861000000022", "Kết thúc", "0912345621");      // cùng khách, đơn thứ hai chưa rõ nghĩa
+        assertThat(segment("0912345621")).isEqualTo("ONE_TIME");
+        importFiles(file("a.csv", period("KH0001-20261021-1022", "300000", "280000",
+                row("861000000022", "", "0912345621", "2026-10-22 10:00:00", "300000", "20000", "0", "280000"))));
+        assertThat(canonical("861000000022")).isEqualTo("DELIVERED");
+        assertThat(segment("0912345621")).isEqualTo("REPEAT");
+
+        // nhập lại file đơn vẫn ghi "Kết thúc" (chưa gán nghĩa): không kéo đơn về chưa rõ
+        order("861000000022", "Kết thúc", "0912345621");
+        assertThat(canonical("861000000022")).isEqualTo("DELIVERED");
+        assertThat(segment("0912345621")).isEqualTo("REPEAT");
+        // chủ shop gán nghĩa "đang vận chuyển" cho "Kết thúc": bằng chứng đối soát vẫn giữ đơn là giao thành công
+        statuses.assign(Carrier.JT_EXPRESS, "Kết thúc", vn.shop.crm.shipping.CanonicalStatus.IN_TRANSIT);
+        assertThat(canonical("861000000022")).isEqualTo("DELIVERED");
+        // nhưng nếu nghĩa mới là hủy thì hủy thắng, và cờ đối soát được bỏ để lần gán sau có tác dụng
+        statuses.assign(Carrier.JT_EXPRESS, "Kết thúc", vn.shop.crm.shipping.CanonicalStatus.CANCELLED);
+        assertThat(canonical("861000000022")).isEqualTo("CANCELLED");
+        assertThat(jdbc.sql("SELECT settled_delivered FROM shipment WHERE tracking_no = '861000000022'")
+                .query(Boolean.class).single()).isFalse();
+        statuses.assign(Carrier.JT_EXPRESS, "Kết thúc", vn.shop.crm.shipping.CanonicalStatus.IN_TRANSIT);
+        assertThat(canonical("861000000022")).isEqualTo("IN_TRANSIT");
+        assertThat(segment("0912345621")).isEqualTo("ONE_TIME");
     }
 
     @Test
