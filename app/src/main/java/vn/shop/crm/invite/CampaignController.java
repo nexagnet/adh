@@ -22,10 +22,13 @@ public class CampaignController {
     private final vn.shop.crm.zalo.ZaloMessageService messages;
     private final vn.shop.crm.zalo.ZaloCampaignIntake intake;
     private final vn.shop.crm.zalo.CampaignPolicy policy;
+    private final CampaignSteps steps;
 
     public CampaignController(InviteService invites, ContactService contacts, AppSettings settings,
                               vn.shop.crm.zalo.ZaloInviteSender autoSender, vn.shop.crm.zalo.ZaloMessageService messages,
-                              vn.shop.crm.zalo.ZaloCampaignIntake intake, vn.shop.crm.zalo.CampaignPolicy policy) {
+                              vn.shop.crm.zalo.ZaloCampaignIntake intake, vn.shop.crm.zalo.CampaignPolicy policy,
+                              CampaignSteps steps) {
+        this.steps = steps;
         this.intake = intake;
         this.policy = policy;
         this.invites = invites;
@@ -97,6 +100,11 @@ public class CampaignController {
         var raw = policy.load(id);
         model.addAttribute("sched", raw);
         model.addAttribute("schedEffective", policy.effective(raw));
+        model.addAttribute("plan", steps.plan(id));
+        model.addAttribute("maxTouches", CampaignSteps.MAX_TOUCHES);
+        model.addAttribute("minGapDays", CampaignSteps.MIN_GAP_DAYS);
+        model.addAttribute("stopFooter", CampaignSteps.STOP_FOOTER);
+        model.addAttribute("multiTemplate", InviteService.MULTI_TEMPLATE);
         model.addAttribute("schedBlock", policy.blocker(id).map(vn.shop.crm.zalo.CampaignPolicy.Block::label).orElse(null));
         return "campaign-detail";
     }
@@ -120,6 +128,37 @@ public class CampaignController {
         redirect.addFlashAttribute("flash", reset
                 ? "Đã bỏ lịch và nhịp riêng: chiến dịch theo cài đặt chung của hệ thống."
                 : "Đã lưu lịch và nhịp riêng. Các giới hạn chung của hệ thống vẫn áp dụng thêm.");
+        return "redirect:/campaigns/" + id;
+    }
+
+    /** Số lần gửi mời (1 đến 3) và nội dung, khoảng cách các tin nhắc. PR 5a: chỉ lưu và kiểm, chưa có gì gửi tin nhắc. */
+    @PostMapping("/campaigns/{id}/touches")
+    public String saveTouches(@PathVariable long id, @RequestParam(defaultValue = "1") int touches,
+                              @RequestParam(required = false) String text2, @RequestParam(required = false) String gap2,
+                              @RequestParam(required = false) String text3, @RequestParam(required = false) String gap3,
+                              RedirectAttributes redirect) {
+        if (touches < 1 || touches > CampaignSteps.MAX_TOUCHES) {
+            throw new ImportException("Số lần gửi phải từ 1 đến " + CampaignSteps.MAX_TOUCHES + ".");
+        }
+        var list = new java.util.ArrayList<CampaignSteps.Step>();
+        if (touches >= 2) {
+            list.add(new CampaignSteps.Step(2, text2, java.util.Objects.requireNonNullElse(number(gap2, "Khoảng cách lần 2"), 0)));
+        }
+        if (touches >= 3) {
+            list.add(new CampaignSteps.Step(3, text3, java.util.Objects.requireNonNullElse(number(gap3, "Khoảng cách lần 3"), 0)));
+        }
+        steps.saveFollowups(id, list, ContactService.actor());
+        redirect.addFlashAttribute("flash", touches == 1
+                ? "Chiến dịch gửi mời 1 lần."
+                : "Đã lưu: chiến dịch gửi mời " + touches + " lần. Lưu ý: hệ thống CHƯA tự gửi tin nhắc (phần gửi làm ở bước sau); hiện chỉ lưu cấu hình.");
+        return "redirect:/campaigns/" + id;
+    }
+
+    /** Sửa nội dung Tin 1 (chỉ khi chưa gửi cho khách nào của chiến dịch). */
+    @PostMapping("/campaigns/{id}/first-message")
+    public String saveFirstMessage(@PathVariable long id, @RequestParam String template, RedirectAttributes redirect) {
+        steps.saveFirstMessage(id, template, ContactService.actor());
+        redirect.addFlashAttribute("flash", "Đã lưu nội dung Tin 1 của chiến dịch.");
         return "redirect:/campaigns/" + id;
     }
 

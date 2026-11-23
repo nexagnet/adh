@@ -49,6 +49,55 @@
             </div>
         </form>
     </div>
+    <div class="panel stack">
+        <h2>Số lần gửi mời</h2>
+        <div class="notice">
+            <strong>Tin nhắc CHƯA được gửi.</strong>
+            Hiện hệ thống mới lưu và kiểm tra cấu hình; phần tự gửi tin nhắc làm ở bước sau. Chiến dịch luôn chỉ gửi Tin 1 một lần cho mỗi khách cho tới lúc đó.
+        </div>
+        <p class="hint">Mặc định gửi <strong>1 lần</strong>. Có thể gửi thêm tối đa <span th:text="${maxTouches - 1}">2</span> tin nhắc (mỗi khách nhận tối đa <span th:text="${maxTouches}">3</span> lần).
+            Khách đã kết bạn, vào nhóm, từ chối, nhắn xin ngừng hoặc đã nhắn riêng cho shop thì dừng ngay, không nhắc nữa. Hệ thống tự thêm câu xin ngừng
+            "<span th:text="${stopFooter}">Anh/chị không muốn nhận tin nữa cứ nhắn "dừng" ạ.</span>" vào cuối mỗi lần gửi. Hai lần gửi cách nhau ít nhất <span th:text="${minGapDays}">3</span> ngày.</p>
+        <details>
+            <summary>Nội dung Tin 1</summary>
+            <form th:action="@{/campaigns/{id}/first-message(id=${campaign.id})}" method="post" class="stack">
+                <label class="field">Tin 1 (gửi lần đầu)
+                    <textarea name="template" rows="6" maxlength="800" th:text="${campaign.template}">Tin 1</textarea></label>
+                <p class="hint" th:if="${plan.multiple()}">Chiến dịch gửi nhiều lần: Tin 1 không được còn câu "em sẽ không nhắn lại ạ".</p>
+                <details>
+                    <summary>Mẫu Tin 1 cho chiến dịch gửi nhiều lần (bỏ câu "sẽ không nhắn lại")</summary>
+                    <p class="mono" th:text="${multiTemplate}">Mẫu</p>
+                    <p class="hint">Chép mẫu này vào ô trên nếu muốn dùng, rồi sửa tùy ý.</p>
+                </details>
+                <div class="actions"><button type="submit" class="btn secondary">Lưu Tin 1</button></div>
+                <p class="hint">Chỉ sửa được khi chưa gửi Tin 1 cho khách nào của chiến dịch này.</p>
+            </form>
+        </details>
+        <form th:action="@{/campaigns/{id}/touches(id=${campaign.id})}" method="post" class="stack">
+            <label class="field">Số lần gửi
+                <select name="touches">
+                    <option value="1" th:selected="${plan.maxTouches == 1}">1 lần (như hiện nay)</option>
+                    <option value="2" th:selected="${plan.maxTouches == 2}">2 lần (Tin 1 và một tin nhắc)</option>
+                    <option value="3" th:selected="${plan.maxTouches == 3}">3 lần (Tin 1 và hai tin nhắc)</option>
+                </select></label>
+            <div class="formrow">
+                <label class="field grow2">Tin nhắc lần 2
+                    <textarea name="text2" rows="3" maxlength="500" th:text="${plan.step(2) != null ? plan.step(2).template : ''}"
+                              placeholder="Ví dụ: Em nhắn lại phòng khi mình chưa kịp xem tin trước ạ. Mình cần hướng dẫn dùng sản phẩm thì kết bạn để em hỗ trợ nhé."></textarea></label>
+                <label class="field">Cách lần trước (ngày)
+                    <input type="number" name="gap2" th:attr="min=${minGapDays}" max="30" th:value="${plan.step(2) != null ? plan.step(2).gapDays : minGapDays}"></label>
+            </div>
+            <div class="formrow">
+                <label class="field grow2">Tin nhắc lần 3
+                    <textarea name="text3" rows="3" maxlength="500" th:text="${plan.step(3) != null ? plan.step(3).template : ''}"></textarea></label>
+                <label class="field">Cách lần trước (ngày)
+                    <input type="number" name="gap3" th:attr="min=${minGapDays}" max="30" th:value="${plan.step(3) != null ? plan.step(3).gapDays : minGapDays}"></label>
+            </div>
+            <p class="hint">Tin nhắc chỉ dùng {ten}, {cua_hang}, {mien}; không có đường dẫn, số điện thoại; không tạo cảm giác ép ("cuối cùng", "chỉ còn", "gấp"...); phải khác tin liền trước.
+                Ô của lần không dùng sẽ bị bỏ qua.</p>
+            <div class="actions"><button type="submit" class="btn">Lưu số lần gửi</button></div>
+        </form>
+    </div>
     <div class="panel stack" th:if="${autoApproved}">
         <h2>Tự nhận khách mới</h2>
         <p class="hint">Thay cho duyệt từng người: chiến dịch có <strong>tiêu chí duyệt sẵn</strong>. Khi bật, khách <strong>mới nhập về từ lúc bật</strong> (đồng bộ hoặc nhập đơn hằng ngày)

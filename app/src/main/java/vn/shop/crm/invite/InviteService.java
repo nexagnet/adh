@@ -37,6 +37,15 @@ public class InviteService {
             + "Anh/chị đồng ý kết bạn, em sẽ thêm anh chị vào nhóm ạ. Không cần thì anh/chị bỏ qua, em sẽ không nhắn lại ạ.";
 
     /**
+     * Tin 1 cho chiến dịch gửi NHIỀU lần (D21): như {@link #DEFAULT_TEMPLATE} nhưng bỏ câu "em sẽ không nhắn lại ạ", vì còn tin nhắc thì câu đó sai.
+     * Chỉ là gợi ý để chủ shop xem và sửa; cách xin ngừng nhận tin do mã tự thêm vào cuối mỗi lần gửi (CampaignSteps.STOP_FOOTER).
+     */
+    public static final String MULTI_TEMPLATE = "Chào anh/chị {ten}, em bên {cua_hang}. Anh/chị dùng sản phẩm shop gửi thấy ổn không ạ? "
+            + "Em mời mình vào nhóm Zalo khách hàng {mien} để được hướng dẫn sử dụng sản phẩm và nhận ưu đãi.\n"
+            + "Anh chị mua trực tiếp qua nhóm sẽ rẻ hơn mua qua tiktok 10% và được miễn ship đó ạ.\n"
+            + "Anh/chị đồng ý kết bạn, em sẽ thêm anh chị vào nhóm ạ.";
+
+    /**
      * Tin 2 (gửi link nhóm cho khách ĐÃ đồng ý kết bạn; người gửi dán tay, hệ thống không tự gửi): dùng khi khách không được
      * thêm tự động vào nhóm. Chủ shop chốt nội dung 22/11/2026.
      */
