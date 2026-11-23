@@ -73,7 +73,7 @@ Kiểm cứng bằng mã (không dùng AI kiểm AI), đề xuất sai thì **b�
 
 Trang "Đề xuất của AI" (menu cạnh Chiến dịch): nút **Nhờ AI đề xuất** (chỉ người bấm mới gọi; trần 5 lần/ngày, thêm vào trần chung của AI), danh sách đề xuất: tiêu đề, khu vực, số khách, ngày giờ, **lý do, rủi ro, độ tin cậy**, số liệu đã dùng (xem được đúng JSON đã gửi cho AI, để người dùng thấy không có dữ liệu cá nhân). Nút **Duyệt và tạo chiến dịch** / **Bỏ qua** (ghi lý do bỏ qua để sau này đo AI đoán trúng hay trượt). Đề xuất quá hạn (ngày bắt đầu đã qua) tự thành EXPIRED. Công tắc `APP_AI_ADVISOR_ENABLED`, **tắt mặc định**, cần cả `APP_AI_ENABLED`.
 
-Nhật ký (bảng `advisor_run`, `campaign_proposal`, V32): ai bấm, lúc nào, snapshot tổng hợp đã gửi, JSON AI trả về, đề xuất nào bị mã bỏ và vì sao, ai duyệt hoặc bỏ qua, chiến dịch được tạo. Không có dữ liệu cá nhân nên giữ lâu được; không bao giờ tự xóa khách hay số điện thoại (CLAUDE.md mục 5a).
+Nhật ký (bảng `advisor_run`, `campaign_proposal`, V33): ai bấm, lúc nào, snapshot tổng hợp đã gửi, JSON AI trả về, đề xuất nào bị mã bỏ và vì sao, ai duyệt hoặc bỏ qua, chiến dịch được tạo. Không có dữ liệu cá nhân nên giữ lâu được; không bao giờ tự xóa khách hay số điện thoại (CLAUDE.md mục 5a).
 
 ## 5. Chiến dịch là nơi duy nhất cấu hình nghiệp vụ nhắn tin (chủ dự án chốt 23/11/2026)
 
