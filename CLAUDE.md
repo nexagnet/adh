@@ -6,7 +6,7 @@ Nếu file này và tài liệu khác trong repo mâu thuẫn, **ưu tiên file 
 
 ## 1. Quy tắc làm việc (chủ dự án đã dặn)
 
-1. **Trả lời bằng tiếng Việt**, ngắn gọn, dễ hiểu cho người không rành kỹ thuật. Giao diện web cũng 100% tiếng Việt ("trợ lý AI", không dùng chữ "bot"). Chủ dự án là Phùng Việt; hệ thống phục vụ cửa hàng bán pin của bố mẹ họ, mẹ dùng **điện thoại**.
+1. **Trả lời bằng tiếng Việt**, ngắn gọn, dễ hiểu cho người không rành kỹ thuật. Giao diện web cũng 100% tiếng Việt ("trợ lý AI", không dùng chữ "bot"). Chủ dự án là Phùng Việt; hệ thống phục vụ cửa hàng bán chủ yếu áo điều hòa và phụ kiện áo điều hòa (trong đó có pin) của bố mẹ họ, mẹ dùng **điện thoại**.
 2. **Backend phải được review kỹ trước mỗi PR** (đọc diff, chạy test, tìm lỗi; có thể dùng skill `code-review`), rồi **ghi kết quả review vào mô tả PR**: đúng đắn, an toàn, xử lý lỗi, migration, test. Phần Zalo càng phải kỹ.
 3. **Được tự gộp PR của `nexagnet/adh` và tự thao tác git/GitHub không cần hỏi**, với điều kiện: CI xanh, không xung đột, và (nếu có đụng backend) đã review kỹ và ghi vào PR. PR chỉ tài liệu thì chỉ cần CI xanh. Không áp dụng cho repo `nexagnet/.github` (bản nháp của người dùng, đừng đụng) hay PR của người khác.
 4. Mỗi việc một nhánh `claude/project-thread-*` từ `main`; sau khi gộp thì khởi lại nhánh từ `main`. PR nhỏ, một việc.
@@ -20,14 +20,14 @@ Nếu file này và tài liệu khác trong repo mâu thuẫn, **ưu tiên file 
 - Dùng **tài khoản Zalo cá nhân phụ** (không bao giờ dùng tài khoản của bố mẹ) nhắn tin tư vấn sản phẩm cho **người đã mua**. Ai **đồng ý kết bạn** thì được thêm vào **nhóm Zalo theo khu vực** (Miền Bắc/Trung/Nam, phân theo tỉnh trong địa chỉ).
 - Chỉ nhắn mỗi khách **đúng một lần** (một Tin 1). Khách từ chối thì không bao giờ nhắn lại. Nội dung tin soạn trên trang quản trị.
 - Nhóm Zalo do hệ thống **tự thêm** và nhóm của **link mời** phải là **MỘT nhóm** (cùng `reserved_group_id`).
-- Quy ước tên nhóm **chưa chốt** (đề xuất: `Pin ADH - Khu vực - 01`).
+- Tên nhóm mẫu **chốt 23/11/2026**: `Áo điều hòa ADH - Khu vực - 01` (cửa hàng bán chủ yếu áo điều hòa và phụ kiện, không chỉ pin; không dùng tiền tố "Pin").
 - Giấy in A5 bỏ vào mọi gói hàng, một mã QR tĩnh chung (`/n`, `/moi`). **Chưa in giấy** vì tên miền hiện là tên miền tạm.
 
 ### Nội dung tin đã chốt (22/11/2026; mặc định nằm trong `InviteService.DEFAULT_TEMPLATE`)
 
 **Tin 1** (mời một lần, `{ten}`, `{cua_hang}`, `{mien}` được thay khi gửi):
 
-> Chào anh/chị [Tên khách], em bên [Tên shop]. Anh/chị dùng pin shop gửi thấy ổn không ạ? Em mời mình vào nhóm Zalo khách hàng [Miền Trung/Miền Nam] để được hướng dẫn dùng pin và nhận ưu đãi. Anh chị mua trực tiếp qua nhóm sẽ rẻ hơn mua qua tiktok 10% và được miễn ship đó ạ. Anh/chị đồng ý kết bạn, em sẽ thêm anh chị vào nhóm ạ. Không cần thì anh/chị bỏ qua, em sẽ không nhắn lại ạ.
+> Chào anh/chị [Tên khách], em bên [Tên shop]. Anh/chị dùng sản phẩm shop gửi thấy ổn không ạ? Em mời mình vào nhóm Zalo khách hàng [Miền Trung/Miền Nam] để được hướng dẫn sử dụng sản phẩm và nhận ưu đãi. Anh chị mua trực tiếp qua nhóm sẽ rẻ hơn mua qua tiktok 10% và được miễn ship đó ạ. Anh/chị đồng ý kết bạn, em sẽ thêm anh chị vào nhóm ạ. Không cần thì anh/chị bỏ qua, em sẽ không nhắn lại ạ.
 
 **Tin 2** (chỉ gửi khi việc tự thêm vào nhóm lỗi theo từng người):
 

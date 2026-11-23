@@ -27,7 +27,7 @@ public record ZaloGroupProperties(
         /* Bao lâu thì xét đề xuất một lần (phút). */
         @DefaultValue("10") int planEveryMinutes,
         /* Mẫu tên nhóm: %s là tên khu vực, %02d là số thứ tự. Sai mẫu thì dùng mẫu mặc định. */
-        @DefaultValue("Pin ADH - %s - %02d") String namePattern,
+        @DefaultValue("Áo điều hòa ADH - %s - %02d") String namePattern,
         /* Đề xuất chờ duyệt quá số giờ này thì hết hạn (khách có thể đã đổi). */
         @DefaultValue("48") int proposalExpireHours) {
 
@@ -65,8 +65,8 @@ public record ZaloGroupProperties(
         try {
             name = String.format(namePattern, areaLabel, seq);
         } catch (java.util.IllegalFormatException e) {
-            name = String.format("Pin ADH - %s - %02d", areaLabel, seq);
+            name = String.format("Áo điều hòa ADH - %s - %02d", areaLabel, seq);
         }
-        return name.length() > 100 ? String.format("Pin ADH - %s - %02d", areaLabel, seq) : name;
+        return name.length() > 100 ? String.format("Áo điều hòa ADH - %s - %02d", areaLabel, seq) : name;
     }
 }

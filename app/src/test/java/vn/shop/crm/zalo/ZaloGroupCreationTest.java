@@ -132,7 +132,7 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
         assertThat(svc.step()).isEqualTo(Step.PROPOSED);
         var p = svc.recent(5).getFirst();
         assertThat(p.state()).isEqualTo("PROPOSED");
-        assertThat(p.groupName()).isEqualTo("Pin ADH - Cần Thơ - 01");
+        assertThat(p.groupName()).isEqualTo("Áo điều hòa ADH - Cần Thơ - 01");
         assertThat(p.reason()).contains("3 khách chờ ở Cần Thơ");
         assertThat(p.members()).isEqualTo(3);
         assertThat(fake.creates).isEmpty();
@@ -165,12 +165,12 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
         assertThat(svc.step()).isEqualTo(Step.CREATED);
 
         assertThat(fake.creates).singleElement().satisfies(c -> {
-            assertThat(c.name()).isEqualTo("Pin ADH - Cần Thơ - 01");
+            assertThat(c.name()).isEqualTo("Áo điều hòa ADH - Cần Thơ - 01");
             assertThat(c.members()).containsExactly("70000001", "70000002", "70000003");
             assertThat(c.deputy()).isEqualTo("99887766");
         });
         var g = groups.list().getFirst();
-        assertThat(g.name()).isEqualTo("Pin ADH - Cần Thơ - 01");
+        assertThat(g.name()).isEqualTo("Áo điều hòa ADH - Cần Thơ - 01");
         assertThat(g.scopeCode()).isEqualTo("P:can-tho");
         assertThat(g.zaloGroupId()).isEqualTo("5555");
         assertThat(g.inviteLink()).isEqualTo("https://zalo.me/g/fake5555");
@@ -242,7 +242,7 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
         // sang ngày hôm sau thì tạo nhóm thứ hai cùng khu vực, số thứ tự 02
         clock.set(LocalDateTime.of(2026, 11, 23, 9, 0));
         assertThat(svc.step()).isEqualTo(Step.CREATED);
-        assertThat(fake.creates.get(1).name()).isEqualTo("Pin ADH - Cần Thơ - 02");
+        assertThat(fake.creates.get(1).name()).isEqualTo("Áo điều hòa ADH - Cần Thơ - 02");
     }
 
     @Test
@@ -257,7 +257,7 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
         later(60);
         // đủ khoảng nghỉ cố định: còn 3 khách chờ mà nhóm đầu đã đầy, nên tạo nhóm thứ hai cùng khu vực
         assertThat(svc.step()).isEqualTo(Step.CREATED);
-        assertThat(fake.creates.get(1).name()).isEqualTo("Pin ADH - Cần Thơ - 02");
+        assertThat(fake.creates.get(1).name()).isEqualTo("Áo điều hòa ADH - Cần Thơ - 02");
         assertThat(fake.creates.get(1).members()).hasSize(3);
     }
 

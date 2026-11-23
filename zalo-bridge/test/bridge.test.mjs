@@ -696,13 +696,13 @@ test('tệp sổ tin hỏng thì dừng ngay; nhật ký không chứa nội dun
 // ---------- D19: tạo MỘT nhóm theo khu vực ----------
 
 const GROUP_GAP = 300 * 1000;
-const NEW_GROUP = { name: 'Pin ADH - Miền Nam - 01', members: ['501', '502', '503'], deputy: '900' };
+const NEW_GROUP = { name: 'Áo điều hòa ADH - Miền Nam - 01', members: ['501', '502', '503'], deputy: '900' };
 
 test('tạo nhóm: tạo một nhóm với đúng các thành viên, bật link, thêm phó nhóm, trả mã nhóm và link', async () => {
   const c = await ready();
   const r = await c.bridge.createGroup(NEW_GROUP);
   assert.deepEqual(r, { outcome: 'OK', groupId: '9001', link: 'https://zalo.me/g/fake9001', added: ['501', '502', '503'], failed: [], deputy: 'OK' });
-  assert.deepEqual(c.adapter.created, [{ name: 'Pin ADH - Miền Nam - 01', members: ['501', '502', '503'] }]);
+  assert.deepEqual(c.adapter.created, [{ name: 'Áo điều hòa ADH - Miền Nam - 01', members: ['501', '502', '503'] }]);
   assert.deepEqual(c.adapter.deputies, [{ uid: '900', groupId: '9001' }]);
   assert.equal(c.bridge.status().state, 'LISTENING');
   c.cleanup();

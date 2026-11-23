@@ -26,7 +26,7 @@ public class ZaloWelcomeSender implements ZaloTickHook {
     static final String CHANNEL_LOG = "WELCOME";
 
     /** Tin mẫu cố định. Nói rõ là trợ lý tự động, không giả làm chủ shop, và cho khách đường từ chối. */
-    static final String TEMPLATE = "Chào anh/chị, em là trợ lý tự động của {cua_hang} ạ. Em thấy anh/chị nhắn muốn mua pin nên em đã báo chủ shop, "
+    static final String TEMPLATE = "Chào anh/chị, em là trợ lý tự động của {cua_hang} ạ. Em thấy anh/chị nhắn muốn mua hàng nên em đã báo chủ shop, "
             + "và sẽ thêm anh/chị vào nhóm Zalo khách hàng để mua giá ưu đãi. Chủ shop sẽ nhắn anh/chị sớm ạ. "
             + "Nếu anh/chị không muốn, cứ nhắn \"đừng nhắn nữa\", em sẽ không nhắn lại ạ.";
 

@@ -18,7 +18,7 @@ Mỗi lần chạy (một lần mỗi 10 phút, chỉ trong 08:00 đến 20:00):
 2. Nếu hệ thống đã có nhóm đang nhận khách và còn chỗ ở đúng phạm vi đó (tỉnh, vùng hoặc miền) thì **không tạo**, để khách được thêm vào nhóm đó như bình thường.
 3. Tìm phạm vi **nhỏ nhất** còn đủ người chờ, kiểm từ nhỏ đến lớn: tỉnh, rồi vùng (nhiều tỉnh cạnh nhau), rồi miền. Phạm vi nào có **từ 3 khách chờ trở lên** (ngưỡng chỉnh được) thì chọn phạm vi đó. Tỉnh nhỏ, ít khách thì tự gộp lên vùng: không tạo nhóm 1 đến 2 người.
 4. Nhóm mới lấy tối đa 5 khách đang chờ đầu tiên (người kết bạn sớm nhất trước). Khách còn lại vào nhóm tiếp theo.
-5. Tên nhóm: `Pin ADH - <Khu vực> - <số thứ tự hai chữ số>`, ví dụ `Pin ADH - Miền Nam - 01`; số thứ tự là số nhóm đã có ở phạm vi đó cộng một. (Đúng với đề xuất tên nhóm trong CLAUDE.md; bạn chưa chốt quy ước nên đổi được bằng một dòng cấu hình.)
+5. Tên nhóm: `Áo điều hòa ADH - <Khu vực> - <số thứ tự hai chữ số>`, ví dụ `Áo điều hòa ADH - Miền Nam - 01`; số thứ tự là số nhóm đã có ở phạm vi đó cộng một. (Đúng với đề xuất tên nhóm trong CLAUDE.md; bạn chưa chốt quy ước nên đổi được bằng một dòng cấu hình.)
 6. Sau khi tạo: bật link mời của nhóm, ghi **mã nhóm và link** vào Adh (nhóm mới ở trạng thái đang nhận khách), rồi khách chờ được thêm vào bằng đúng đường thêm người hiện có. Link mời vẫn để khách tự bấm khi việc thêm trực tiếp lỗi, như hiện nay.
 
 **Vì sao thuật toán này:** nhỏ nhất trước giữ nhóm đúng "cùng tỉnh" như thiết kế cũ; ngưỡng 3 tránh nhóm vắng; gộp vùng/miền tránh sinh hàng chục nhóm nhỏ; mỗi lần chỉ xét việc tạo, không tạo hàng loạt.
@@ -62,4 +62,4 @@ Vì vậy bước đầu tiên khi có code là **chạy thử tay với 1 nhóm
 1. Duyệt thuật toán mục 2 (ngưỡng 3 khách, nhỏ nhất trước, tối đa 5 khách mỗi nhóm đầu)? (Có / Sửa / Không)
 2. Mặc định nấc **Xác nhận** (mẹ bấm duyệt từng nhóm), trần 1 nhóm mỗi ngày: đồng ý?
 3. Tài khoản hệ thống là trưởng nhóm, mẹ là phó nhóm (mục 4): đồng ý? Và bạn có cho tôi mã Zalo của mẹ qua biến môi trường được không?
-4. Tên nhóm theo mẫu `Pin ADH - <Khu vực> - 01`: chốt luôn mẫu này chứ?
+4. Tên nhóm theo mẫu `Áo điều hòa ADH - <Khu vực> - 01`: chốt luôn mẫu này chứ?
