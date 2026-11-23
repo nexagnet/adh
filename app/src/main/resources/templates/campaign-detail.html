@@ -49,7 +49,7 @@
         <table>
             <tr><th>Khách</th><th>Tình trạng</th><th>Nhóm Zalo</th><th>Bước tiếp theo</th><th class="num">Lượt bấm</th><th>Hết hạn</th></tr>
             <tr th:each="r : ${rows}">
-                <td><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.name != null ? r.name : 'Khách #' + r.customerId}">Nguyen Van A</a></td>
+                <td class="who"><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.name != null ? r.name : 'Khách #' + r.customerId}">Nguyen Van A</a></td>
                 <td th:replace="~{invite-parts :: status(${r})}"></td>
                 <td th:replace="~{invite-parts :: group(${r})}"></td>
                 <td th:replace="~{invite-parts :: actions(${r}, null)}"></td>
