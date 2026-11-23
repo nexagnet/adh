@@ -1046,3 +1046,60 @@ test('REPLY không đánh dấu sổ đã gửi nên không chặn nhầm Tin 1 
   assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', uid: '777', text: 'Mời' })).code, 'DUPLICATE');
   c.cleanup();
 });
+
+// ---------- tin nhắc của chiến dịch nhiều lần gửi (FOLLOWUP2, FOLLOWUP3; D21) ----------
+
+test('FOLLOWUP: cần bật đọc tin riêng; không bật thì từ chối trước khi chạm Zalo', async () => {
+  const c = await ready();
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'Mời' })).outcome, 'OK');
+  c.clock.t += GAP;
+  assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP2', uid: '501', text: 'Nhắc' })).code, 'BAD_INPUT');
+  assert.equal(c.adapter.sent.length, 1);
+  c.cleanup();
+});
+
+test('FOLLOWUP: chỉ theo mã Zalo, chỉ cho người đã nhận Tin 1 qua cầu nối này; người lạ hay người chỉ nhận Tin 2 bị từ chối trước khi chạm Zalo', async () => {
+  const c = await ready({ BRIDGE_INBOX_ENABLED: 'true' });
+  assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP2', phone: '84900000001', text: 'Nhắc' })).code, 'BAD_INPUT'); // không theo số điện thoại
+  assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP4', uid: '501', text: 'Nhắc' })).code, 'BAD_INPUT'); // không có lần thứ tư
+  assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP2', uid: '888', text: 'Nhắc' })).code, 'NO_INVITE'); // người lạ
+  assert.equal((await c.bridge.sendMessage({ kind: 'LINK', uid: '501', text: 'Link' })).outcome, 'OK');
+  c.clock.t += GAP;
+  assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP2', uid: '501', text: 'Nhắc' })).code, 'NO_INVITE'); // chỉ có Tin 2, chưa có Tin 1
+  assert.equal(c.adapter.sent.length, 1);
+  assert.equal(c.bridge.status().state, 'LISTENING'); // từ chối kiểu này không làm cầu dao nhảy
+  c.cleanup();
+});
+
+test('FOLLOWUP: mỗi lần nhắc một lần cho một người, lần ba cần lần hai đã gửi, vẫn chịu khoảng nghỉ chung, và không chặn nhầm Tin 1 hay Tin 2', async () => {
+  const c = await ready({ BRIDGE_INBOX_ENABLED: 'true' });
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'Mời' })).outcome, 'OK');
+  c.clock.t += GAP;
+  assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP3', uid: '501', text: 'Nhắc 3' })).code, 'NO_PREVIOUS'); // chưa có lần hai
+  assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP2', uid: '501', text: 'Nhắc 2' })).outcome, 'OK');
+  assert.deepEqual(c.adapter.sent.at(-1), { uid: '501', text: 'Nhắc 2' });
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'FOLLOWUP3', uid: '501', text: 'Nhắc 3' }), { outcome: 'RATE_LIMITED', retryAfterSec: 90 }); // chưa đủ nghỉ
+  c.clock.t += GAP;
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'FOLLOWUP2', uid: '501', text: 'Nhắc 2' }), { outcome: 'PERSON_ERROR', code: 'DUPLICATE' });
+  assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP3', uid: '501', text: 'Nhắc 3' })).outcome, 'OK');
+  c.clock.t += GAP;
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'FOLLOWUP3', uid: '501', text: 'Nhắc 3' }), { outcome: 'PERSON_ERROR', code: 'DUPLICATE' });
+  assert.equal((await c.bridge.sendMessage({ kind: 'LINK', uid: '501', text: 'Link' })).outcome, 'OK'); // Tin 2 vẫn gửi được
+  assert.equal(c.adapter.sent.length, 4);
+  c.cleanup();
+});
+
+test('FOLLOWUP: không nhắc người vừa tự nhắn tới trong 24 giờ, qua 24 giờ thì bộ nối không chặn nữa và phía Adh tự kiểm điều kiện dừng', async () => {
+  const c = setup({ env: { BRIDGE_INBOX_ENABLED: 'true' } });
+  await c.bridge.start();
+  await loginAndListen(c);
+  await c.bridge.sendMessage({ kind: 'INVITE', uid: '777', text: 'Mời' });
+  c.adapter.emitMessage('777', 'Cho em hỏi');
+  c.clock.t += 120000;
+  const before = c.adapter.sent.length;
+  assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP2', uid: '777', text: 'Nhắc' })).code, 'CUSTOMER_REPLIED');
+  assert.equal(c.adapter.sent.length, before);
+  c.clock.t += 25 * 3600 * 1000;
+  assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP2', uid: '777', text: 'Nhắc' })).outcome, 'OK'); // tin của khách đã quá 24 giờ: bộ nối không còn căn cứ chặn (Adh tự kiểm điều kiện dừng)
+  c.cleanup();
+});

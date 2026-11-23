@@ -390,19 +390,24 @@ export class Bridge {
    * một việc, lỗi lạ thì dừng. Văn bản, số điện thoại, mã Zalo không vào log.
    * Loại WELCOME (D19, khách từng từ chối nhắn lại) và REPLY (D20, câu trả lời do trợ lý AI soạn, Adh đã kiểm cứng): chỉ theo mã Zalo, chỉ cho người VỪA tự nhắn tới (trong 24 giờ), MỖI tin đến chỉ được trả lời
    * MỘT lần, và cần bật cờ đọc tin riêng. Không có đường nào để nhắn người chưa nhắn trước. Vẫn chịu trần ngày, khoảng nghỉ và cầu dao chung.
-   * @param {{kind: 'INVITE'|'LINK'|'WELCOME'|'REPLY', phone?: string, uid?: string, text: string}} m
+   * Loại FOLLOWUP2 và FOLLOWUP3 (D21, tin nhắc của chiến dịch nhiều lần gửi): chỉ theo mã Zalo, chỉ cho người ĐÃ nhận Tin 1 qua chính cầu nối này
+   * (sổ có INVITE), FOLLOWUP3 còn cần FOLLOWUP2 đã gửi; mỗi loại một lần cho một người; người đang nhắn tới (trong 24 giờ, chưa được trả lời) thì không nhắc.
+   * Cần bật cờ đọc tin riêng (không nghe được khách xin ngừng thì không nhắc). Vẫn chịu khung giờ, trần ngày, khoảng nghỉ và cầu dao chung; không có đường nào nhắn người chưa từng nhận Tin 1.
+   * @param {{kind: 'INVITE'|'LINK'|'WELCOME'|'REPLY'|'FOLLOWUP2'|'FOLLOWUP3', phone?: string, uid?: string, text: string}} m
    */
   async sendMessage(m) {
     const kind = m?.kind;
     const text = typeof m?.text === 'string' ? m.text : '';
-    if ((kind !== 'INVITE' && kind !== 'LINK' && kind !== 'WELCOME' && kind !== 'REPLY') || text.trim().length === 0 || text.length > MAX_TEXT) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' };
+    if (!['INVITE', 'LINK', 'WELCOME', 'REPLY', 'FOLLOWUP2', 'FOLLOWUP3'].includes(kind) || text.trim().length === 0 || text.length > MAX_TEXT) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' };
     const isReply = kind === 'WELCOME' || kind === 'REPLY'; // trả lời người vừa nhắn tới
+    const isFollow = kind === 'FOLLOWUP2' || kind === 'FOLLOWUP3'; // tin nhắc cho người đã nhận Tin 1
     const phone = m.phone === undefined || m.phone === null ? null : String(m.phone).replace(/\D/g, '');
     const uidIn = m.uid === undefined || m.uid === null ? null : String(m.uid);
     if ((phone === null) === (uidIn === null)) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' }; // đúng một trong hai
     if (phone !== null && !/^\d{8,15}$/.test(phone)) return { outcome: 'PERSON_ERROR', code: 'BAD_PHONE' };
     if (uidIn !== null && !ZALO_ID.test(uidIn)) return { outcome: 'PERSON_ERROR', code: 'BAD_ID' };
     if (isReply && (uidIn === null || !this.config.inboxEnabled)) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' };
+    if (isFollow && (uidIn === null || !this.config.inboxEnabled)) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' }; // chỉ nhắc khi đang nghe tin riêng, để nghe được khách xin ngừng
     if (this.state === 'LOGIN_REQUIRED') return { outcome: 'SESSION_LOST', code: 'LOGIN_REQUIRED' };
     if (this.state === 'TRIPPED' || this.state === 'STOPPED') return { outcome: 'RESTRICTED', code: 'NOT_ACTIVE' };
     if (this.state !== 'LISTENING') return { outcome: 'SYSTEM_ERROR', code: 'NOT_CONNECTED' };
@@ -425,6 +430,13 @@ export class Bridge {
       const at = this.replyable.get(uidIn);
       if (at === undefined || t - at > REPLY_WINDOW_MS) return { outcome: 'PERSON_ERROR', code: 'NOT_REPLYABLE' };
     } else if (uidIn !== null && this.msgLedger.has(kind, uidIn)) return { outcome: 'PERSON_ERROR', code: 'DUPLICATE' };
+    if (isFollow) {
+      // chỉ nhắc người đã nhận Tin 1 từ chính cầu nối này; lần nhắc sau cần lần nhắc trước đã gửi; người đang nhắn tới thì để người thật xem
+      if (!this.msgLedger.has('INVITE', uidIn)) return { outcome: 'PERSON_ERROR', code: 'NO_INVITE' };
+      if (kind === 'FOLLOWUP3' && !this.msgLedger.has('FOLLOWUP2', uidIn)) return { outcome: 'PERSON_ERROR', code: 'NO_PREVIOUS' };
+      const said = this.replyable.get(uidIn);
+      if (said !== undefined && t - said <= REPLY_WINDOW_MS) return { outcome: 'PERSON_ERROR', code: 'CUSTOMER_REPLIED' };
+    }
     this.busy = true;
     try {
       this.msgLedger.record(t); // ghi trước khi gọi, tính cả lần lỗi và lần không tìm thấy

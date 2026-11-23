@@ -186,9 +186,9 @@ public class ZaloMessageService {
         return clock.instant().atZone(clock.getZone()).toLocalDate().atStartOfDay(clock.getZone()).toInstant();
     }
 
-    /** Đếm các lần gọi trong sổ tin. {@code invitesOnly}: chỉ Tin 1 (INVITE), tức là số KHÁCH được nhắn chủ động. */
+    /** Đếm các lần gọi trong sổ tin. {@code invitesOnly}: chỉ tin shop chủ động nhắn (Tin 1 và tin nhắc), không tính Tin 2 và tin trả lời. */
     private int countSince(Instant since, String scope, boolean invitesOnly) {
-        String where = (scope == null ? "" : " AND scope = :sc") + (invitesOnly ? " AND kind = 'INVITE'" : "");
+        String where = (scope == null ? "" : " AND scope = :sc") + (invitesOnly ? " AND kind IN ('INVITE', 'FOLLOWUP2', 'FOLLOWUP3')" : "");
         var spec = jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE at >= :s" + where)
                 .param("s", OffsetDateTime.ofInstant(since, ZoneOffset.UTC));
         if (scope != null) {
@@ -206,7 +206,7 @@ public class ZaloMessageService {
         return spec.query(OffsetDateTime.class).optional().map(OffsetDateTime::toInstant).orElse(null);
     }
 
-    /** Số khách được nhắn chủ động hôm nay (Tin 1). Tin 2 và tin mẫu trả lời không tính vào hạn mức ngày. */
+    /** Số tin chủ động hôm nay (Tin 1 và tin nhắc của chiến dịch nhiều lần). Tin 2 và tin mẫu trả lời không tính vào hạn mức ngày. */
     public int usedToday(String scope) {
         return countSince(startOfDay(), scope, true);
     }
@@ -239,9 +239,9 @@ public class ZaloMessageService {
         }
         Limits l = limits();
         Instant now = clock.instant();
-        // Hạn mức ngày là số KHÁCH được nhắn chủ động (Tin 1). Tin 2 (link nhóm) và tin mẫu trả lời người đã nhắn mình không bị giới hạn riêng,
+        // Hạn mức ngày là số tin shop chủ động nhắn (Tin 1 và tin nhắc, D21: tin nhắc tính vào hạn mức). Tin 2 (link nhóm) và tin mẫu trả lời người đã nhắn mình không bị giới hạn riêng,
         // nhưng vẫn chịu khung giờ, khoảng nghỉ cố định, cầu dao, và trần cứng của cầu nối.
-        boolean invite = kind == Kind.INVITE;
+        boolean invite = kind.proactive();
         if (invite && countSince(startOfDay(), null, true) >= l.daily()) {
             return Optional.of(Block.DAILY_LIMIT);
         }
