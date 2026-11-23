@@ -74,7 +74,7 @@ Khách vào nhóm bằng link hay do bộ nối tự thêm thì **luôn là cùn
 Làm sau khi nấc 0 xong (đã đăng nhập tài khoản phụ). Chạy bằng 3 số tự nhập (số của bạn hoặc người quen đồng ý), **trước** khi duyệt bất kỳ chiến dịch thật nào.
 1. Trang **Zalo tài khoản phụ**: chọn nấc "Tự thêm trong hạn mức" (cần để tự thêm vào nhóm); ở mục *Nhóm Zalo* gán **mã nhóm Zalo** cho một nhóm thử (nhóm đó cũng cần link mời).
 2. Cùng trang, panel **Tự gửi tin cho khách**: đặt hạn mức (vd 5 tin/ngày) và khoảng nghỉ (vd 120 giây), rồi bật công tắc. Mặc định công tắc TẮT.
-3. Trang **Chiến dịch thử**: tạo đợt thử, nhập 3 số, chọn nhóm đích, sửa nội dung Tin 1/Tin 2 nếu muốn, bấm *Bắt đầu* (chỉ gửi trong 08:00–20:00).
+3. Trang **Chiến dịch thử**: (trước hết khai báo 3 số ở `/zalo`, mục "Chế độ thử"; số chưa khai báo hoặc trùng khách trong hệ thống bị từ chối, xem `HUONG-DAN-CHAY-THU-TOAN-DIEN.md` mục 0A) tạo đợt thử, nhập 3 số, chọn nhóm đích, sửa nội dung Tin 1/Tin 2 nếu muốn, bấm *Bắt đầu* (chỉ gửi trong 08:00–20:00).
 4. Trên điện thoại 3 người: nhận Tin 1, bấm chấp nhận kết bạn; hệ thống tự thêm vào nhóm đích rồi gửi Tin 2 (link nhóm).
 5. Mở nhật ký bộ nối (`docker logs`; không có SĐT/nội dung) để xem **mã lỗi thật** của Zalo (vd khi số không có Zalo). Điền mã chắc chắn là lỗi theo từng người vào `ZALO_PERSON_ERROR_CODES`; mã lạ sẽ làm bộ nối dừng (chủ ý).
 6. Khi ổn, vào chi tiết một chiến dịch thật, bấm *Duyệt cho hệ thống tự gửi*. Bỏ duyệt hoặc tắt công tắc là dừng ngay. Khi xong việc thử, màn *Chiến dịch thử* bỏ đi (xóa gói `testrun`, 2 mẫu `test-run*.html`, thêm migration bỏ cột V22).

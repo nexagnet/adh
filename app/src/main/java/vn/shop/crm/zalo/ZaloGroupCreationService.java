@@ -226,7 +226,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
                 .query((rs, n) -> new Object[]{rs.getLong("id"), rs.getLong("customer_id"), rs.getString("province"),
                         rs.getObject("friended_at", OffsetDateTime.class)}).list().forEach(r -> {
                     var province = VnGeo.byCode((String) r[2]).orElse(null);
-                    if (province == null || groups.pickGroup(all, province).isPresent() || !contacts.stillEligible((Long) r[1])) {
+                    if (province == null || groups.pickGroup(all, province).isPresent() || !contacts.mayContact((Long) r[1])) {
                         return;
                     }
                     OffsetDateTime at = (OffsetDateTime) r[3];
@@ -368,7 +368,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
                         ORDER BY i.friended_at NULLS LAST, i.id""")
                 .param("p", proposalId).query((rs, n) -> new Member(rs.getLong(1), rs.getLong(2), rs.getString(3))).list()
                 .forEach(m -> {
-                    if (contacts.stillEligible(m.customerId())) {
+                    if (contacts.mayContact(m.customerId())) {
                         out.add(m);
                     }
                 });

@@ -4,6 +4,7 @@
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
+    <div th:replace="~{fragments :: testModeAlert}"></div>
     <h1 th:text="${campaign.name}">Chiến dịch</h1>
     <p class="hint"><a th:href="@{/campaigns}">‹ Tất cả chiến dịch</a> · tạo bởi <span th:text="${@labels.person(campaign.createdBy)}">Bố/Mẹ</span> lúc
         <span th:text="${#temporals.format(campaign.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</span> · khu vực: <strong th:text="${campaign.scopeLabel}">Miền Nam</strong></p>

@@ -356,7 +356,7 @@ public class ReplyService {
         return jdbc.sql("""
                         SELECT id, zalo_uid, reply_text FROM reply_draft
                         WHERE state = 'READY' AND reply_text IS NOT NULL AND inbound_at > now() - make_interval(hours => :h)
-                        ORDER BY id LIMIT 1""")
+                        """ + contacts.onlyTestCustomerSql("customer_id") + " ORDER BY id LIMIT 1")
                 .param("h", REPLY_WINDOW_HOURS)
                 .query((rs, n) -> new Ready(rs.getLong("id"), rs.getString("zalo_uid"), rs.getString("reply_text"))).optional();
     }

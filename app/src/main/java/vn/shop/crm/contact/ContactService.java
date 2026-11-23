@@ -5,6 +5,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vn.shop.crm.safety.TestMode;
 import vn.shop.crm.common.ImportException;
 import vn.shop.crm.common.PhoneHash;
 
@@ -71,9 +72,11 @@ public class ContactService {
     }
 
     private final JdbcClient jdbc;
+    private final TestMode testMode;
 
-    public ContactService(JdbcClient jdbc) {
+    public ContactService(JdbcClient jdbc, TestMode testMode) {
         this.jdbc = jdbc;
+        this.testMode = testMode;
     }
 
     /** Tên người đang đăng nhập, để ghi "ai làm". */
@@ -87,7 +90,7 @@ public class ContactService {
     public Stats stats() {
         long oneTime = count("SELECT count(*) FROM customer c WHERE c.segment = 'ONE_TIME'");
         long eligible = count(inviteCountSql());
-        long candidates = count("SELECT count(*) FROM customer c WHERE " + CANDIDATE_WHERE);
+        long candidates = count("SELECT count(*) FROM customer c WHERE " + candidateWhere());
         long blocked = count("SELECT count(*) FROM contact_basis WHERE purpose = '" + PURPOSE
                 + "' AND status = 'BLOCKED'");
         long optedOut = count("SELECT count(*) FROM suppression WHERE reason = 'OPT_OUT' AND lifted_at IS NULL");
@@ -153,7 +156,13 @@ public class ContactService {
         return jdbc.sql(sql).query(Long.class).single();
     }
 
-    private static String inviteFrom() {
+    /** Điều kiện của "ứng viên" cộng giới hạn chế độ thử: đang ở chế độ thử thì chỉ khách có số trong danh sách thử. */
+    private String candidateWhere() {
+        return CANDIDATE_WHERE + testMode.onlyTestSql("c.phone");
+    }
+
+    /** Đủ điều kiện mời theo nghiệp vụ, KHÔNG xét chế độ thử (dùng cho {@link #stillEligible}). */
+    private static String inviteFromAll() {
         return """
                 FROM customer c
                 JOIN contact_basis b ON b.customer_id = c.id AND b.purpose = '%s' AND b.status = 'ELIGIBLE'
@@ -162,7 +171,15 @@ public class ContactService {
                 """.formatted(PURPOSE, SUPPRESSED_HASH);
     }
 
-    private static String inviteCountSql() {
+    /**
+     * Nguồn của MỌI danh sách mời và chiến dịch. Đang ở chế độ thử (mặc định) thì chỉ có khách thử (số khai báo ở trang Zalo), nên khách
+     * thật không bao giờ lọt vào danh sách, chiến dịch hay hàng chờ tự gửi, kể cả khi công tắc tự gửi đang bật.
+     */
+    private String inviteFrom() {
+        return inviteFromAll() + testMode.onlyTestSql("c.phone");
+    }
+
+    private String inviteCountSql() {
         return "SELECT count(*) " + inviteFrom();
     }
 
@@ -216,7 +233,7 @@ public class ContactService {
      * liên hệ nào (chưa duyệt, chưa chặn), chưa từng được mời, đúng khu vực. Đây là tiêu chí duyệt sẵn thay cho duyệt từng người.
      */
     public List<Invitee> newCandidates(java.time.Instant since, String area, int limit) {
-        StringBuilder sql = new StringBuilder("SELECT c.id, c.phone, c.name FROM customer c WHERE " + CANDIDATE_WHERE
+        StringBuilder sql = new StringBuilder("SELECT c.id, c.phone, c.name FROM customer c WHERE " + candidateWhere()
                 + " AND c.first_seen_at >= :since AND NOT EXISTS (SELECT 1 FROM invitation i WHERE i.customer_id = c.id)");
         var areaCodes = appendArea(sql, area);
         sql.append(" ORDER BY c.first_seen_at, c.id LIMIT :limit");
@@ -265,7 +282,20 @@ public class ContactService {
 
     /** Khách này CÒN đủ điều kiện mời ngay lúc này không (kiểm lại ở thời điểm khách bấm link và trước khi gửi). */
     public boolean stillEligible(long customerId) {
-        return count("SELECT count(*) " + inviteFrom() + " AND c.id = " + customerId) > 0;
+        return count("SELECT count(*) " + inviteFromAll() + " AND c.id = " + customerId) > 0;
+    }
+
+    /** Đoạn SQL lọc dòng theo chế độ thử cho một cột mã khách (rỗng khi chạy thật). Cho các hàng chờ gửi ở gói khác. */
+    public String onlyTestCustomerSql(String customerIdColumn) {
+        return testMode.onlyTestCustomerSql(customerIdColumn);
+    }
+
+    /**
+     * {@link #stillEligible} VÀ được phép liên hệ lúc này: đang ở chế độ thử thì chỉ khách thử. Mọi chỗ sắp gọi Zalo cho một khách
+     * (thêm nhóm, tạo nhóm, gửi tin) dùng hàm này thay vì {@link #stillEligible}.
+     */
+    public boolean mayContact(long customerId) {
+        return testMode.customerAllowed(customerId) && stillEligible(customerId);
     }
 
     // ---------- duyệt / chặn / từ chối ----------
@@ -287,7 +317,7 @@ public class ContactService {
         }
     }
 
-    private static String approveSql(String extraWhere) {
+    private String approveSql(String extraWhere) {
         return """
                 WITH ins AS (
                     INSERT INTO contact_basis (customer_id, purpose, basis, status, evidence_ref, statement, recorded_by)
@@ -302,7 +332,7 @@ public class ContactService {
                 INSERT INTO contact_event (customer_id, phone_tail, event, detail, recorded_by)
                 SELECT ins.customer_id, '***' || right(c.phone, 3), 'BASIS_APPROVED', 'Duyệt cơ sở liên hệ sau bán hàng', :by
                 FROM ins JOIN customer c ON c.id = ins.customer_id
-                """.formatted(PURPOSE, CANDIDATE_WHERE, extraWhere);
+                """.formatted(PURPOSE, candidateWhere(), extraWhere);
     }
 
     /** Chặn thủ công một khách (ví dụ khách phàn nàn). Khách đã từ chối thì giữ nguyên. */
