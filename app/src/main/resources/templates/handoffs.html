@@ -46,6 +46,25 @@
         </div>
     </section>
 
+    <section class="stack" th:if="${!replyHandoffs.isEmpty()}" aria-label="Khách nhắn riêng, cần người thật trả lời">
+        <h2>Khách nhắn riêng, cần người thật trả lời</h2>
+        <p class="hint">Trợ lý AI <strong>không tự trả lời</strong> những tin này (ngoài việc mời vào nhóm và ưu đãi, hoặc chưa đủ chắc). Người thật xem tin, trả lời khách
+            trên Zalo thật, rồi bấm "Đã xử lý". Khách nhắn thêm thì tin được ghi tiếp vào cùng việc.</p>
+        <div class="job" th:each="r : ${replyHandoffs}">
+            <div class="meta">
+                <span class="badge bad" th:text="${r.reason.label()}">Khách muốn mua hàng</span>
+                <span><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.customerName}">Khách</a>
+                    · <span th:text="${#temporals.format(r.createdAt, 'dd/MM HH:mm')}">21/11 09:12</span></span>
+            </div>
+            <div class="what" th:if="${r.inbound != null}" th:text="'“' + ${r.inbound} + '”'">“Cho mình hỏi giá pin”</div>
+            <div class="actions">
+                <form th:action="@{/handoffs/replies/{id}/done(id=${r.id})}" method="post">
+                    <button type="submit" class="btn sm">Đã xử lý</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
     <section class="stack" th:if="${!comebackTasks.isEmpty()}" aria-label="Khách từng từ chối nhắn lại muốn mua">
         <h2>Khách từng từ chối nay nhắn lại</h2>
         <p class="hint">Khách này trước đó bảo đừng nhắn nữa, nay <strong>tự nhắn tới</strong>. Hệ thống chưa nhắn gì và vẫn giữ cờ "không nhắn nữa". Mẹ xem tin trên Zalo rồi chọn.

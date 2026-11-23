@@ -48,6 +48,7 @@ class RefusalDetectionTest extends AbstractPostgresTest {
     @Autowired InviteService invites;
     @Autowired RefusalReviewService reviews;
     @Autowired vn.shop.crm.inbox.ComebackService comebacks;
+    @Autowired vn.shop.crm.inbox.ReplyService replies;
     @Autowired ZaloAutoSettings auto;
     @Autowired AppSettings settings;
     @Autowired AiUsage usage;
@@ -92,7 +93,7 @@ class RefusalDetectionTest extends AbstractPostgresTest {
             return aiAnswer.get();
         }, p, usage, Clock.systemUTC());
         return new ZaloInboxService(new ZaloInboxProperties(true, threshold, 0.85), fake, fake, auto, settings,
-                new RefusalClassifier(gate), reviews, comebacks);
+                new RefusalClassifier(gate), reviews, comebacks, replies);
     }
 
     private long inv(int n) {
@@ -141,7 +142,7 @@ class RefusalDetectionTest extends AbstractPostgresTest {
         fake.pushInbound(uid(1), "đừng nhắn nữa");
         ZaloInboxService off = new ZaloInboxService(new ZaloInboxProperties(false, 0.8, 0.85), fake, fake, auto, settings,
                 new RefusalClassifier(new AiGate((s, u, j) -> "x", new AiProperties(true, "k", "m", "u", 5, 10, 300), usage,
-                        Clock.systemUTC())), reviews, comebacks);
+                        Clock.systemUTC())), reviews, comebacks, replies);
         assertThat(off.poll()).isZero();
         assertThat(fake.inboxCalls).isZero();
         ZaloInboxService noAi = service(false, 0.8);
@@ -272,7 +273,7 @@ class RefusalDetectionTest extends AbstractPostgresTest {
         // hết hạn mức ngày cũng vậy
         AiProperties zero = new AiProperties(true, "khoa", "m", "https://api.deepseek.com", 0, 10, 300);
         ZaloInboxService limited = new ZaloInboxService(new ZaloInboxProperties(true, 0.8, 0.85), fake, fake, auto, settings,
-                new RefusalClassifier(new AiGate((s, u, j) -> "x", zero, usage, Clock.systemUTC())), reviews, comebacks);
+                new RefusalClassifier(new AiGate((s, u, j) -> "x", zero, usage, Clock.systemUTC())), reviews, comebacks, replies);
         fake.pushInbound(uid(2), "khỏi nhé");
         limited.poll();
         assertThat(status(2)).isEqualTo("CANCELLED");

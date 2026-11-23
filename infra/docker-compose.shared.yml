@@ -58,7 +58,7 @@ services:
       APP_AI_ENABLED: ${APP_AI_ENABLED:-false}
       APP_AI_API_KEY: ${APP_AI_API_KEY:-}
       APP_AI_MODEL: ${APP_AI_MODEL:-}
-      APP_AI_DAILY_LIMIT: ${APP_AI_DAILY_LIMIT:-200}
+      APP_AI_DAILY_LIMIT: ${APP_AI_DAILY_LIMIT:-1000}
       APP_ZALO_INBOX_ENABLED: ${APP_ZALO_INBOX_ENABLED:-false}
       APP_ZALO_INBOX_THRESHOLD: ${APP_ZALO_INBOX_THRESHOLD:-0.8}
       # Trần Java thấp hơn bản mặc định (512m) vì máy dùng chung; ghi đè được bằng ADH_JAVA_OPTS.

@@ -13,7 +13,9 @@ public interface ZaloMessenger {
         /** Tin 2: link nhóm, gửi theo mã Zalo của khách đã thành bạn. */
         LINK,
         /** Tin thứ ba (D19): MỘT tin mẫu cố định trả lời người từng từ chối mà vừa TỰ nhắn tới muốn mua. Chỉ theo mã Zalo, chỉ cho người vừa nhắn trước. */
-        WELCOME
+        WELCOME,
+        /** Tin thứ tư (D20): câu trả lời do trợ lý AI soạn (đã qua kiểm tra cứng) cho người vừa TỰ nhắn tới. Chỉ theo mã Zalo, cùng chốt chặn như WELCOME. */
+        REPLY
     }
 
     enum Result {
