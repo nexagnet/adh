@@ -132,6 +132,15 @@ class AdvisorWebTest extends AbstractPostgresTest {
         assertThat(row[2]).isEqualTo("R:NAM");
         assertThat(row[3]).as("chưa duyệt cho tự gửi").isNull();
         assertThat(row[4]).as("chưa bật tự nhận khách mới").isNull();
+        var sched = jdbc.sql("SELECT start_on, end_on, window_from, window_to, daily_cap, gap_seconds FROM invitation_campaign")
+                .query((rs, n) -> new Object[]{rs.getObject(1, LocalDate.class), rs.getObject(2, LocalDate.class),
+                        rs.getObject(3, java.time.LocalTime.class), rs.getObject(4, java.time.LocalTime.class), rs.getObject(5), rs.getObject(6)}).single();
+        assertThat(sched[0]).as("ngày bắt đầu AI đề xuất được đặt vào chiến dịch").isEqualTo(today());
+        assertThat(sched[1]).isEqualTo(today().plusDays(5));
+        assertThat(sched[2]).isEqualTo(java.time.LocalTime.of(9, 0));
+        assertThat(sched[3]).isEqualTo(java.time.LocalTime.of(11, 0));
+        assertThat(sched[4]).isEqualTo(10);
+        assertThat(sched[5]).as("AI không đề xuất khoảng nghỉ").isNull();
         assertThat((String) row[1]).as("chữ của AI không vào tin gửi khách").doesNotContain(ANGLE);
         var p = jdbc.sql("SELECT state, decided_by, campaign_id FROM campaign_proposal WHERE id = :id").param("id", id)
                 .query((rs, n) -> new Object[]{rs.getString(1), rs.getString(2), rs.getObject(3)}).single();

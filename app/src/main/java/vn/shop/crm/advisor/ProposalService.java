@@ -10,6 +10,7 @@ import vn.shop.crm.common.ImportException;
 import vn.shop.crm.contact.ContactService;
 import vn.shop.crm.geo.GeoArea;
 import vn.shop.crm.invite.InviteService;
+import vn.shop.crm.zalo.CampaignPolicy;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -24,6 +25,7 @@ import java.util.Optional;
 /**
  * Xem, duyệt và bỏ qua đề xuất của AI (D21, PR 3). Duyệt chỉ tạo chiến dịch bằng đường HIỆN CÓ ({@link InviteService#createCampaign}):
  * chiến dịch CHƯA duyệt tự gửi, nên chưa có tin nào đi cho ai; người dùng vẫn phải vào chiến dịch bấm duyệt tự gửi như mọi chiến dịch khác.
+ * Lịch, khung giờ và hạn mức ngày của đề xuất được đặt vào chiến dịch qua {@link CampaignPolicy#saveClamped} (kẹp trong trần hệ thống).
  * Nội dung tin gửi khách luôn là mẫu tin mặc định của cửa hàng: chữ của AI ({@code message_angle}) chỉ để người dùng đọc, không bao giờ vào tin.
  */
 @Service
@@ -80,9 +82,11 @@ public class ProposalService {
     private final JdbcClient jdbc;
     private final ContactService contacts;
     private final InviteService invites;
+    private final CampaignPolicy policy;
     private final Clock clock;
 
-    ProposalService(JdbcClient jdbc, ContactService contacts, InviteService invites, Clock clock) {
+    ProposalService(JdbcClient jdbc, ContactService contacts, InviteService invites, CampaignPolicy policy, Clock clock) {
+        this.policy = policy;
         this.jdbc = jdbc;
         this.contacts = contacts;
         this.invites = invites;
@@ -147,6 +151,8 @@ public class ProposalService {
         }
         String name = p.title().length() <= MAX_NAME ? p.title() : p.title().substring(0, MAX_NAME);
         long campaignId = invites.createCampaign(name, null, EXPIRES_DAYS, count, p.area());
+        // Lịch, khung giờ và hạn mức ngày AI đề xuất được đặt vào chiến dịch, nhưng luôn KẸP trong trần hệ thống (chỉ chặt hơn, không bao giờ nới).
+        policy.saveClamped(campaignId, new CampaignPolicy.Raw(p.startOn(), p.endOn(), p.windowFrom(), p.windowTo(), p.dailyCap(), null), by);
         jdbc.sql("""
                         UPDATE campaign_proposal SET state = 'APPROVED', decided_by = :by, decided_at = now(), campaign_id = :cid
                         WHERE id = :id""")
