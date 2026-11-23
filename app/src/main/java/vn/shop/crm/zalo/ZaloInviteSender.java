@@ -51,7 +51,7 @@ public class ZaloInviteSender {
     }
 
     private record LinkTask(long id, long campaignId, long customerId, String phone, String uid, String name, String province,
-                            String token, Long heldGroupId) {
+                            String token, Long heldGroupId, String template) {
     }
 
     private final JdbcClient jdbc;
@@ -294,7 +294,8 @@ public class ZaloInviteSender {
     private Optional<LinkTask> nextLink() {
         return jdbc.sql("""
                         SELECT i.id, i.campaign_id, i.customer_id, c.phone, i.zalo_uid, c.name, c.province, i.token,
-                               coalesce(i.group_id, CASE WHEN i.reserved_until > now() THEN i.reserved_group_id END) AS held
+                               coalesce(i.group_id, CASE WHEN i.reserved_until > now() THEN i.reserved_group_id END) AS held,
+                               k.group_link_template
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
                         JOIN invitation_campaign k ON k.id = i.campaign_id
                         WHERE i.zalo_link_state = 'PENDING' AND i.zalo_uid IS NOT NULL AND i.status = 'FRIENDED'
@@ -302,7 +303,7 @@ public class ZaloInviteSender {
                         """ + testMode.onlyTestSql("c.phone") + " ORDER BY i.id LIMIT 1")
                 .query((rs, n) -> new LinkTask(rs.getLong("id"), rs.getLong("campaign_id"), rs.getLong("customer_id"),
                         rs.getString("phone"), rs.getString("zalo_uid"), rs.getString("name"), rs.getString("province"),
-                        rs.getString("token"), (Long) rs.getObject("held")))
+                        rs.getString("token"), (Long) rs.getObject("held"), rs.getString("group_link_template")))
                 .optional();
     }
 
@@ -320,7 +321,8 @@ public class ZaloInviteSender {
             return Step.FAILED_ONE;
         }
         GroupService.Group g = group.get();
-        String text = invites.renderGroupLink(invites.groupLinkTemplate(), t.name(), g.name(), g.inviteLink(), invites.linkFor(t.token()));
+        String linkTemplate = t.template() != null && !t.template().isBlank() ? t.template() : invites.groupLinkTemplate();
+        String text = invites.renderGroupLink(linkTemplate, t.name(), g.name(), g.inviteLink(), invites.linkFor(t.token()));
         // đánh dấu trước khi gọi: nhịp chồng nhau hay sập giữa chừng không gửi Tin 2 hai lần
         int claimed = jdbc.sql("UPDATE invitation SET zalo_link_state = 'FAILED', last_error = 'Đang gửi Tin 2' WHERE id = :id AND zalo_link_state = 'PENDING'")
                 .param("id", t.id()).update();

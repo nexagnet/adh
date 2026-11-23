@@ -170,6 +170,11 @@ public class InviteService {
 
     /** Lưu mẫu tin gửi link nhóm (để trống = dùng lại mẫu có sẵn). Phải có {link_nhom} hoặc {link}, không thì tin vô ích. */
     public void saveGroupLinkTemplate(String template) {
+        settings.set(SETTING_GROUP_LINK_TEMPLATE, checkedGroupLinkTemplate(template), ContactService.actor());
+    }
+
+    /** Kiểm mẫu tin gửi link nhóm (dùng cho mẫu chung và mẫu riêng của chiến dịch): trả mẫu đã cắt khoảng trắng; rỗng là hợp lệ. */
+    public static String checkedGroupLinkTemplate(String template) {
         String tpl = template == null ? "" : template.strip();
         if (tpl.length() > MAX_TEMPLATE) {
             throw new ImportException("Nội dung tin quá dài (tối đa " + MAX_TEMPLATE + " ký tự).");
@@ -178,7 +183,7 @@ public class InviteService {
             throw new ImportException("Tin gửi link nhóm phải có {link_nhom} (link nhóm Zalo) hoặc {link} (link riêng của khách) "
                     + "để khách có chỗ bấm.");
         }
-        settings.set(SETTING_GROUP_LINK_TEMPLATE, tpl, ContactService.actor());
+        return tpl;
     }
 
     public int maxBatch() {

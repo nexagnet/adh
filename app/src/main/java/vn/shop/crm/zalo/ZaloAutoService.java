@@ -245,12 +245,17 @@ public class ZaloAutoService {
         ZaloMode mode = cfg.effectiveMode();
         String state = mode == ZaloMode.AUTO ? "QUEUED" : "WAITING_APPROVAL";
         // Kiểm trùng ngay trong câu lệnh: một lỗi vi phạm unique trong giao dịch làm Postgres hủy cả giao dịch.
+        // Chiến dịch chọn "chỉ gửi link nhóm" (D21 PR 6, chỉ chặt hơn hệ thống): KHÔNG xếp vào hàng thêm tự động; nếu đã duyệt tự gửi và
+        // công tắc tự gửi bật thì xếp Tin 2 (link nhóm) cho khách tự bấm, nhóm do bộ gửi chọn theo khu vực khi gửi.
         int n = jdbc.sql("""
-                        UPDATE invitation SET zalo_uid = :u, zalo_add_code = NULL, zalo_add_at = NULL,
-                               zalo_add_state = CASE WHEN group_link_sent_at IS NULL THEN CAST(:s AS TEXT) END
-                        WHERE id = :id AND zalo_uid IS NULL
+                        UPDATE invitation i SET zalo_uid = :u, zalo_add_code = NULL, zalo_add_at = NULL,
+                               zalo_add_state = CASE WHEN i.group_link_sent_at IS NULL AND k.group_delivery IS NULL THEN CAST(:s AS TEXT) END,
+                               zalo_link_state = CASE WHEN k.group_delivery = 'LINK_ONLY' AND i.group_link_sent_at IS NULL AND i.zalo_link_state IS NULL
+                                                           AND k.auto_send_approved_at IS NOT NULL AND :msg THEN 'PENDING' ELSE i.zalo_link_state END
+                        FROM invitation_campaign k
+                        WHERE k.id = i.campaign_id AND i.id = :id AND i.zalo_uid IS NULL
                           AND NOT EXISTS (SELECT 1 FROM invitation o WHERE o.zalo_uid = :u)""")
-                .param("u", uid).param("s", state).param("id", invitationId).update();
+                .param("u", uid).param("s", state).param("msg", messages.enabled()).param("id", invitationId).update();
         if (n == 0) {
             return false;
         }
