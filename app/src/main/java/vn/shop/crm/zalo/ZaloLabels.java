@@ -108,6 +108,32 @@ public class ZaloLabels {
             "FAILED", "Đăng nhập không thành công, hãy bắt đầu lại",
             "ACCOUNT_MISMATCH", "Sai tài khoản: đã từ chối và đăng xuất tài khoản vừa quét");
 
+    private static final Map<String, String> HEALTH_TITLE = Map.of(
+            ZaloHealthService.K_LOGIN, "Tài khoản phụ bị đăng xuất hoặc phiên Zalo hết hạn",
+            ZaloHealthService.K_RESTRICTED, "Zalo có dấu hiệu hạn chế tài khoản phụ",
+            ZaloHealthService.K_STRANGE, "Lỗi lạ hoặc không biết tin đã gửi chưa",
+            ZaloHealthService.K_ACCOUNT, "Tài khoản đăng nhập không đúng, hoặc Zalo đang mở ở nơi khác",
+            ZaloHealthService.K_STOPPED, "Bộ nối Zalo đã tự dừng",
+            ZaloHealthService.K_FAIL_RATE, "Nhiều tin gửi bị lỗi trong 24 giờ qua",
+            ZaloHealthService.K_BRIDGE_DOWN, "Không gọi được tới cầu nối Zalo hơn 15 phút");
+
+    private static final Map<String, String> HEALTH_ADVICE = Map.of(
+            ZaloHealthService.K_LOGIN, "Bấm Quét mã QR ở dưới rồi quét bằng điện thoại của tài khoản phụ. Nếu Zalo báo tài khoản bị khóa thì dừng lại và báo cho Việt.",
+            ZaloHealthService.K_RESTRICTED, "Bộ nối đã tự dừng. Đừng bấm Mở lại ngay. Mở Zalo trên điện thoại của tài khoản phụ xem có yêu cầu xác minh hay thông báo hạn chế không, chờ ít nhất một ngày rồi mở lại với hạn mức thấp hơn.",
+            ZaloHealthService.K_STRANGE, "Hệ thống không tự gửi lại. Xem nhật ký và kiểm tra trên Zalo của tài khoản phụ xem tin đã đi chưa rồi mới bấm Mở lại. Mã ghi bên cạnh gửi cho Việt để biết đây là lỗi gì.",
+            ZaloHealthService.K_ACCOUNT, "Đăng xuất Zalo của tài khoản phụ ở máy khác, hoặc quét lại mã QR bằng đúng tài khoản phụ.",
+            ZaloHealthService.K_STOPPED, "Đọc nhật ký bên dưới để biết vì sao, xử lý rồi bấm Mở lại.",
+            ZaloHealthService.K_FAIL_RATE, "Chưa dừng, nhưng Zalo đang từ chối nhiều tin. Nên giảm hạn mức mỗi ngày hoặc bấm Dừng ngay, rồi xem nhật ký gửi.",
+            ZaloHealthService.K_BRIDGE_DOWN, "Nhờ Việt kiểm tra máy chủ: cầu nối có thể đang tắt hoặc máy hết bộ nhớ.");
+
+    public String healthTitle(String kind) {
+        return HEALTH_TITLE.getOrDefault(kind, "Có dấu hiệu bất thường ở tài khoản Zalo phụ");
+    }
+
+    public String healthAdvice(String kind) {
+        return HEALTH_ADVICE.getOrDefault(kind, "Xem nhật ký bên dưới.");
+    }
+
     public String bridgeState(String code) {
         return BRIDGE_STATE.getOrDefault(code, "Chưa rõ");
     }

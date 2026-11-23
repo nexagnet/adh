@@ -126,7 +126,7 @@ class PagesSmokeTest extends AbstractPostgresTest {
         long campaign = jdbc.sql("SELECT id FROM invitation_campaign").query(Long.class).single();
         var owner = user("admin").roles("OWNER");
         mvc.perform(get("/zalo").with(owner)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("Tạm dừng, giới hạn và nhật ký gửi")))
+                .andExpect(content().string(containsString("Tạm dừng và nhật ký gửi")))
                 .andExpect(content().string(not(containsString("SMS"))))
                 .andExpect(content().string(not(containsString("Chưa chọn"))));
         mvc.perform(get("/campaigns/" + campaign).with(owner)).andExpect(status().isOk())

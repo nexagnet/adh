@@ -107,6 +107,8 @@ grep -q "deploy.sh deploy $SHA2" "$FAKE/deploy.calls" && ok "truyền đúng th�
 [ "$(cat "$T/infra/.current-tag")" = "$SHA2" ] && ok ".current-tag mới" || bad ".current-tag sai"
 expect_log "adh-1.sql.gz" "log ghi bản sao lưu"
 grep -q "rmi ghcr.io/nexagnet/adh-app:3333" "$FAKE/docker.calls" && ok "dọn ảnh cũ" || bad "không dọn ảnh cũ"
+grep -q "rmi ghcr.io/nexagnet/adh-zalo-bridge:3333" "$FAKE/docker.calls" && ok "dọn cả ảnh bộ nối cũ" || bad "không dọn ảnh bộ nối cũ"
+! grep -q "rmi ghcr.io/nexagnet/adh-zalo-bridge:$SHA1" "$FAKE/docker.calls" && ok "giữ ảnh bộ nối của thẻ trước" || bad "xóa nhầm ảnh bộ nối thẻ trước"
 ! grep -q "rmi ghcr.io/nexagnet/adh-app:$SHA1" "$FAKE/docker.calls" && ok "giữ ảnh của thẻ trước (để lùi)" || bad "xóa nhầm ảnh thẻ trước"
 "$RUN"; [ "$(deploy_calls)" = 1 ] && ok "lượt sau không triển khai lại" || bad "triển khai lặp"
 
