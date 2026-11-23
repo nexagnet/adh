@@ -1,6 +1,6 @@
 // Lõi của cầu nối: máy trạng thái phiên, cầu dao phía cầu nối, nối lại có backoff, thêm MỘT người vào MỘT nhóm.
 // Việc được làm: nghe sự kiện kết bạn, thêm MỘT người vào MỘT nhóm, và (từ D18) gửi MỘT tin văn bản cho MỘT khách đã mua. Không có gửi lời
-// mời kết bạn, không có liệt kê bạn bè, không có gửi hàng loạt (ADR-0002 mục 3.1, 4; ADR-0003).
+// mời kết bạn, không có liệt kê bạn bè, không có gửi hàng loạt (ADR-0002 mục 3.1, 4).
 // Không bao giờ ghi uid, số điện thoại, tên vào log.
 
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';

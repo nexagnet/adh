@@ -4,14 +4,15 @@ Dịch vụ Node nhỏ nằm sau giao diện `ZaloGateway` của Adh (`docs/ADR-
 
 **Cảnh báo:** dùng thư viện không chính thức `zca-js` (giả lập Zalo Web) là **trái điều khoản Zalo** và **tài khoản phụ có thể bị khóa**. Chủ shop đã chấp nhận rủi ro cho tài khoản phụ (22/11/2026). Không bao giờ dùng tài khoản của bố mẹ.
 
-## Chỉ có ba việc
+## Chỉ có bốn việc (ba việc gốc + gửi tin từ D18)
 1. `GET /status`: trạng thái phiên.
 2. `GET /events?after=`: các lần "thành bạn" (sự kiện `ADD` của người khác); chỉ hỏi số điện thoại của đúng người đó.
 3. `POST /groups/{id}/members`: thêm MỘT người vào MỘT nhóm.
+4. `POST /messages` (D18): gửi MỘT tin (Tin 1 mời hoặc Tin 2 link nhóm) cho MỘT khách; có trần ngày, khoảng nghỉ CỐ ĐỊNH, mỗi khách một tin mỗi loại.
 
-> **D18 (23/11/2026):** chủ shop đã bỏ nguyên tắc "không tự gửi tin" (gửi từ từ, như người thật, qua tài khoản phụ). Mới ghi tài liệu, chưa có mã; các câu "không có gửi tin" dưới đây mô tả mã hiện tại và sẽ đổi cùng PR mã. Xem `docs/ADR-0002-bo-noi-zalo-khong-chinh-thuc.md` mục 12.
+> **D18 (23/11/2026):** chủ shop đã bỏ nguyên tắc "không tự gửi tin"; việc gửi nay có mã (`POST /messages`, hợp đồng ở `docs/ZALO-BRIDGE-API.md`) nhưng vẫn giới hạn chặt: công tắc tắt mặc định, giờ gửi, trần ngày, khoảng nghỉ cố định, mỗi khách một lần, lỗi lạ thì dừng. Xem ADR-0002 mục 12.
 
-Cộng với quản lý phiên cho trang quản trị (quét QR, đăng xuất, dừng, nghe lại). **Không có** gửi tin, gửi lời mời kết bạn, tìm người theo số, liệt kê bạn bè hay lệnh tùy ý. Ba bài test khóa điều này: `test/no-send.test.mjs`, `test/server.test.mjs`, và `ZaloGatewayShapeTest` bên Java.
+Cộng với quản lý phiên cho trang quản trị (quét QR, đăng xuất, dừng, nghe lại). **Không có** gửi lời mời kết bạn, nhận lời mời, liệt kê bạn bè, tìm người hàng loạt hay lệnh tùy ý (chỉ `findUser` cho đúng số của khách đang được nhắn, và `sendMessage` đúng một tin). Các bài test khóa điều này, kể cả số lần xuất hiện của `findUser`/`sendMessage` trong mã. Ba bài test khóa điều này: `test/no-send.test.mjs`, `test/server.test.mjs`, và `ZaloGatewayShapeTest` bên Java.
 
 Cộng thêm một đường **chỉ đọc** `GET /groups`: nhóm Zalo mà tài khoản phụ đang tham gia (mã, tên, số thành viên), để trang quản trị chọn "mã nhóm Zalo". Không phải liệt kê bạn bè.
 
@@ -44,6 +45,8 @@ BRIDGE_MODE=fake BRIDGE_KEY=khoa-chung-thu-nghiem-1 SESSION_KEY=$(openssl rand -
 | `BRIDGE_MODE` | `zca` (mặc định) hoặc `fake` |
 | `BRIDGE_DATA_DIR` | Thư mục dữ liệu (mặc định `/data`) |
 | `APP_ZALO_AUTO_MAX_DAILY` | Trần cứng của Adh (mặc định 100); cầu nối dùng gấp đôi |
+| `BRIDGE_MSG_DAILY` | Trần cứng số tin mỗi ngày (mặc định 60; Adh có trần riêng thấp hơn, mặc định 25) |
+| `BRIDGE_MSG_GAP_SEC` | Khoảng nghỉ tối thiểu giữa hai tin, **cố định** (mặc định 90, tối thiểu 30; Adh buộc ≥ 100) |
 | `BRIDGE_PERSON_ERROR_CODES` | Mã lỗi Zalo đã biết là lỗi riêng người, cách nhau dấu phẩy |
 | `BRIDGE_PORT`, `BRIDGE_HOST` | Mặc định 3100, 0.0.0.0 (trong mạng Docker, không công bố cổng) |
 

@@ -74,9 +74,9 @@ Mã nguồn trên nhánh `main` của `nexagnet/adh`, đã gộp các PR #1 đ�
 
 **Còn thiếu (làm tiếp, theo thứ tự):**
 1. Chạy lại toàn bộ `mvn test` (JDK 25 trên CI; cục bộ dùng `-Djava.version=21 -Dmaven.compiler.release=21`).
-2. Test cho `TestRunAutomation` (Tin 1 → bạn bè → `addExternal` → Tin 2; cô lập khỏi khách thật; hạn mức chỉ thấp hơn trần; Start cần nhóm đích).
-3. `ZaloGatewayShapeTest`: thêm khóa hình dạng `ZaloMessenger` (chỉ `sendByPhone`, `sendByUid`) và cấm `Random/ThreadLocalRandom` trong `zalo`/`testrun`/`send`; thêm test `ZcaBridgeGateway` cho `/messages` (RATE_LIMITED, mã chưa gửi, hết thời gian).
-4. Tài liệu: `docs/ZALO-BRIDGE-API.md` (hợp đồng `POST /messages`, outcome `RATE_LIMITED/DUPLICATE/NOT_FOUND/NO_ACK`, biến `BRIDGE_MSG_DAILY`, `BRIDGE_MSG_GAP_SEC`), `zalo-bridge/README.md` (không còn câu "không có findUser/sendMessage"), ADR-0003 (quyết định D18, "không che, không né"), cập nhật `docs/HUONG-DAN-THU-ZALO-TU-DONG.md`, file 01 (đổi D9).
+2. ~~Test cho `TestRunAutomation`~~ **xong** (`TestRunAutomationTest`, 7 test).
+3. ~~`ZaloGatewayShapeTest` + test `/messages` của `ZcaBridgeGateway`~~ **xong**.
+4. ~~Tài liệu~~ **xong**: `docs/ZALO-BRIDGE-API.md`, `zalo-bridge/README.md`, hướng dẫn mục 2A, ghi vào ADR-0002 mục 12 (không tạo ADR mới). Còn: file 01 (đổi D9) nếu người dùng muốn ghi nghiệp vụ.
 5. Thử thật (chưa ai làm): xem "Cách chạy thử" dưới đây.
 
 **Cách chạy thử chiến dịch thử (sau khi PR gộp và cron tự deploy xong):**

@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Tự gửi tin cho khách của CHIẾN DỊCH THẬT (D18, ADR-0003), mỗi nhịp tối đa MỘT tin, qua {@link ZaloMessageService}
+ * Tự gửi tin cho khách của CHIẾN DỊCH THẬT (D18, ADR-0002 mục 12), mỗi nhịp tối đa MỘT tin, qua {@link ZaloMessageService}
  * (công tắc, giờ, hạn mức, khoảng nghỉ cố định, cầu dao dùng chung).
  *
  * <ul>

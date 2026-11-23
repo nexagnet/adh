@@ -1,7 +1,7 @@
 package vn.shop.crm.zalo;
 
 /**
- * Việc thứ tư của bộ nối (D18, ADR-0003): gửi MỘT tin văn bản cho MỘT khách đã mua, qua tài khoản Zalo phụ. Tách khỏi
+ * Việc thứ tư của bộ nối (D18, ADR-0002 mục 12): gửi MỘT tin văn bản cho MỘT khách đã mua, qua tài khoản Zalo phụ. Tách khỏi
  * {@link ZaloGateway} (vẫn đúng ba việc). Không có gửi lời mời kết bạn, không gửi hàng loạt, không đính kèm.
  * Chỉ {@link vn.shop.crm.zalo.ZaloMessageService} được gọi giao diện này: chốt chặn (hạn mức, giờ, khoảng nghỉ, cầu dao) nằm ở đó.
  */

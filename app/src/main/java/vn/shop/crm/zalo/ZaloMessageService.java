@@ -20,7 +20,7 @@ import java.util.Optional;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * Cổng DUY NHẤT để Adh gửi tin cho khách qua Zalo (D18, ADR-0003). Chiến dịch thật và chiến dịch thử đều đi qua đây nên dùng
+ * Cổng DUY NHẤT để Adh gửi tin cho khách qua Zalo (D18, ADR-0002 mục 12). Chiến dịch thật và chiến dịch thử đều đi qua đây nên dùng
  * CHUNG một công tắc, một hạn mức ngày, một khoảng nghỉ và một cầu dao.
  *
  * <p>Chốt chặn, tất cả công khai và cố định, KHÔNG có yếu tố ngẫu nhiên và không cố giống người thật: công tắc tắt/bật (mặc định
