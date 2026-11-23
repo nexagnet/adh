@@ -24,7 +24,8 @@
                 Không qua thì <strong>không gửi</strong>, chuyển người thật.</li>
             <li>Trợ lý luôn nói rõ mình là trợ lý AI, không giả làm người hay chủ shop. Mỗi câu kèm chữ ký:
                 <em th:text="${signature}">— Trợ lý AI của Cửa hàng.</em></li>
-            <li>Chỉ gửi AI văn bản đã che số điện thoại, không kèm tên, địa chỉ, mã Zalo hay lịch sử. Khách từng từ chối không bao giờ được trả lời ở đây.</li>
+            <li>Bước soạn câu nhận thêm <a href="#ho-so">hồ sơ của ĐÚNG khách đang nhắn</a> (khu vực, hàng đã mua, nhóm...), chỉ các trường bạn cho phép bên dưới. Không bao giờ gửi
+                số điện thoại, địa chỉ, mã vận đơn, thanh toán, mã Zalo, tên khách hay link nhóm. Khách từng từ chối không bao giờ được trả lời ở đây.</li>
             <li>Khách nhắn trước thì không giới hạn số câu trả lời (mỗi tin đến một câu trả lời); vẫn theo giờ gửi, khoảng nghỉ cố định, cầu dao và phanh khẩn cấp của bộ nối.</li>
         </ul>
         <p><span class="badge" th:classappend="${inboxRunning} ? 'ok' : 'warn'" th:text="${inboxRunning} ? 'Đọc tin riêng: đang bật' : 'Đọc tin riêng: đang tắt'">Đang tắt</span>
@@ -61,6 +62,23 @@
         </form>
     </section>
 
+    <section class="panel stack" id="ho-so">
+        <h2>Hồ sơ khách gửi cho AI</h2>
+        <p class="hint">Khi soạn câu trả lời, AI nhận thêm hồ sơ của <strong>đúng khách đang nhắn</strong> (không bao giờ của khách khác) để trả lời đúng người: đúng nhóm theo khu vực,
+            khách đã vào nhóm chưa, hàng khách đã mua. Chỉ các trường được tick dưới đây mới được gửi. Mọi chữ đều đã che số điện thoại. Bước phân loại phạm vi không nhận hồ sơ.
+            <strong>Không có</strong> ô nào cho số điện thoại, địa chỉ, mã vận đơn, tiền và thanh toán, mã Zalo, tên khách hay link nhóm. Bỏ tick hết thì AI không nhận hồ sơ nào.</p>
+        <form class="stack" th:action="@{/zalo/reply/context}" method="post">
+            <label class="field" th:each="f : ${ctxFields}">
+                <input type="checkbox" name="field" th:value="${f.key()}" th:checked="${ctxOn.contains(f)}">
+                <span th:text="${f.label()}">Khu vực của khách</span>
+                <span class="sub-line" th:text="${f.hint()}">Gợi ý</span>
+            </label>
+            <div><button type="submit" class="btn">Lưu các trường được gửi</button></div>
+        </form>
+        <p class="sub-line" th:if="${!ctxSample.isEmpty()}">Ví dụ hồ sơ (dữ liệu GIẢ) AI sẽ nhận:</p>
+        <pre class="sub-line" th:if="${!ctxSample.isEmpty()}" th:text="${ctxSample.block()}">- Khu vực: ...</pre>
+    </section>
+
     <section class="panel stack" id="thu">
         <h2>Thử một câu</h2>
         <p class="hint">Gõ một câu khách có thể nhắn để xem trợ lý sẽ làm gì. Không lưu, không gửi gì cho ai; chỉ tốn một vài lượt AI. Hãy thử vài chục câu (cả câu trong và ngoài phạm vi,
@@ -87,6 +105,7 @@
             </div>
             <div class="what" th:if="${r.inbound != null}" th:text="'Khách: “' + ${r.inbound} + '”'">Khách: “...”</div>
             <div class="what" th:if="${r.reply != null}" th:text="'Nháp: ' + ${r.reply}">Nháp: ...</div>
+            <div class="sub-line" th:if="${!r.contextLabels.isEmpty()}" th:text="'Hồ sơ đã gửi cho AI: ' + ${#strings.listJoin(r.contextLabels, ', ')}">Hồ sơ đã gửi cho AI: ...</div>
             <div class="actions">
                 <form th:action="@{/handoffs/replies/{id}/done(id=${r.id})}" method="post">
                     <button type="submit" class="btn sm secondary">Đã xử lý</button>
@@ -105,6 +124,7 @@
             </div>
             <div class="what" th:if="${r.inbound != null}" th:text="'Khách: “' + ${r.inbound} + '”'">Khách: “...”</div>
             <div class="what" th:if="${r.reply != null}" th:text="'Trợ lý: ' + ${r.reply}">Trợ lý: ...</div>
+            <div class="sub-line" th:if="${!r.contextLabels.isEmpty()}" th:text="'Hồ sơ đã gửi cho AI: ' + ${#strings.listJoin(r.contextLabels, ', ')}">Hồ sơ đã gửi cho AI: ...</div>
         </div>
     </section>
 
