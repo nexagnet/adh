@@ -71,10 +71,10 @@ test('phiên: đăng nhập QR, dừng, mở lại, đăng xuất', async () => 
   await s.close();
 });
 
-test('KHÔNG có đường gửi tin, gửi lời mời kết bạn, tìm người, liệt kê bạn bè', async () => {
+test('KHÔNG có đường gửi hàng loạt, gửi lời mời kết bạn, tìm người rời, liệt kê bạn bè (chỉ POST /messages một tin một người)', async () => {
   const s = await boot();
   const forbidden = [
-    ['POST', '/messages'], ['POST', '/message'], ['POST', '/send'], ['POST', '/sendMessage'], ['POST', '/friends/request'],
+    ['POST', '/message'], ['POST', '/messages/1'], ['GET', '/messages'], ['POST', '/send'], ['POST', '/sendMessage'], ['POST', '/friends/request'],
     ['POST', '/friends'], ['GET', '/friends'], ['GET', '/users'], ['POST', '/users/find'], ['GET', '/users/84912345678'],
     ['POST', '/broadcast'], ['POST', '/groups'], ['PUT', '/groups'],  // GET /groups (đọc nhóm của chính tài khoản phụ) là đường được phép riêng
     ['GET', '/groups/1/members'], ['DELETE', '/groups/1/members'],
@@ -90,7 +90,7 @@ test('KHÔNG có đường gửi tin, gửi lời mời kết bạn, tìm ngư�
 
 test('danh sách đường được phép là cố định', () => {
   assert.deepEqual(ROUTES, [
-    'GET /healthz', 'GET /status', 'GET /events', 'GET /groups', 'POST /groups/{id}/members', 'POST /session/login', 'GET /session/login',
+    'GET /healthz', 'GET /status', 'GET /events', 'GET /groups', 'POST /groups/{id}/members', 'POST /messages', 'POST /session/login', 'GET /session/login',
     'POST /session/logout', 'POST /session/stop', 'POST /session/resume',
   ]);
 });
@@ -123,5 +123,22 @@ test('GET /groups cần khóa và trả nhóm của tài khoản phụ; chỉ c�
   assert.equal(r.json.groups[0].id, '222');
   assert.equal((await s.call('POST', '/groups', { body: {} })).status, 404);
   assert.equal(s.c.adapter.adds.length, 0);
+  await s.close();
+});
+
+test('POST /messages cần khóa, gửi đúng một tin cho một người, không nhận danh sách người nhận', async () => {
+  const s = await boot();
+  assert.equal((await s.call('POST', '/messages', { key: '', body: {} })).status, 401);
+  s.c.adapter.uids = new Map([['84912345678', '777']]);
+  const r = await s.call('POST', '/messages', { body: { kind: 'INVITE', phone: '0912345678'.replace(/^0/, '84'), text: 'Xin chào' } });
+  assert.deepEqual(r.json, { outcome: 'OK', uid: '777' });
+  assert.deepEqual(s.c.adapter.sent, [{ uid: '777', text: 'Xin chào' }]);
+  // danh sách người nhận hay cả hai trường cùng lúc: từ chối, không gửi
+  s.c.clock.t += 10 * 60 * 1000;
+  const many = await s.call('POST', '/messages', { body: { kind: 'INVITE', phone: ['84900000001', '84900000002'], text: 'x' } });
+  assert.deepEqual(many.json, { outcome: 'PERSON_ERROR', code: 'BAD_PHONE' });
+  const both = await s.call('POST', '/messages', { body: { kind: 'INVITE', phone: '84900000001', uid: '1', text: 'x' } });
+  assert.deepEqual(both.json, { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' });
+  assert.equal(s.c.adapter.sent.length, 1);
   await s.close();
 });

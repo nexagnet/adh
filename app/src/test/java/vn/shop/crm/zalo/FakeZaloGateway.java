@@ -7,7 +7,7 @@ import java.util.Deque;
 import java.util.List;
 
 /**
- * Bộ nối GIẢ cho test và chạy thử không cần Zalo thật. Có đúng ba việc của {@link ZaloGateway} cộng quản lý phiên; ghi lại
+ * Bộ nối GIẢ cho test và chạy thử không cần Zalo thật. Có đúng ba việc của {@link ZaloGateway} cộng quản lý phiên và gửi tin; ghi lại
  * mọi lệnh gọi để test kiểm tra "không gọi gì" khi bộ nối tắt.
  */
 public class FakeZaloGateway implements ZaloLink {
@@ -44,6 +44,50 @@ public class FakeZaloGateway implements ZaloLink {
         logouts = 0;
         groupList = GroupList.failed("LOGIN_REQUIRED");
         groupListCalls = 0;
+        messages.clear();
+        messageResults.clear();
+        defaultMessage = null;
+        phoneToUid.clear();
+        uidSeq = 0;
+    }
+
+    // ---------- gửi tin (D18) ----------
+
+    /** Một lần gọi gửi tin: loại, số điện thoại (hoặc null), mã Zalo (hoặc null), nội dung. */
+    public record Msg(Kind kind, String phone, String uid, String text) {
+    }
+
+    public final List<Msg> messages = new ArrayList<>();
+    private final Deque<Sent> messageResults = new ArrayDeque<>();
+    /** Mặc định: gửi OK, trả mã Zalo theo số điện thoại. */
+    public Sent defaultMessage;
+    public final java.util.Map<String, String> phoneToUid = new java.util.HashMap<>();
+    private int uidSeq;
+
+    public void willReturnMessage(Sent... r) {
+        messageResults.addAll(List.of(r));
+    }
+
+    @Override
+    public Sent sendByPhone(Kind kind, String phoneDigits, String text) {
+        messages.add(new Msg(kind, phoneDigits, null, text));
+        if (!messageResults.isEmpty()) {
+            return messageResults.poll();
+        }
+        if (defaultMessage != null) {
+            return defaultMessage;
+        }
+        String uid = phoneToUid.computeIfAbsent(phoneDigits, p -> "9" + (100000 + ++uidSeq));
+        return new Sent(Result.OK, null, uid, 0, false);
+    }
+
+    @Override
+    public Sent sendByUid(Kind kind, String uid, String text) {
+        messages.add(new Msg(kind, null, uid, text));
+        if (!messageResults.isEmpty()) {
+            return messageResults.poll();
+        }
+        return defaultMessage != null ? defaultMessage : new Sent(Result.OK, null, uid, 0, false);
     }
 
     public void push(FriendEvent e) {
@@ -59,7 +103,7 @@ public class FakeZaloGateway implements ZaloLink {
     }
 
     public int totalCalls() {
-        return statusCalls + eventCalls + adds.size() + stops + resumes + logouts;
+        return statusCalls + eventCalls + adds.size() + stops + resumes + logouts + messages.size();
     }
 
     @Override

@@ -1,9 +1,11 @@
 // Bộ điều hợp THẬT dùng thư viện không chính thức zca-js (ghim đúng 2.3.0 trong package.json và package-lock.json).
 // Thư viện giả lập Zalo Web nên trái điều khoản Zalo và tài khoản phụ có thể bị khóa; xem docs/ADR-0002.
-// Cố ý KHÔNG dùng: sendMessage, sendFriendRequest, findUser, getAllFriends, bất kỳ hàm gửi hay dò nào khác.
+// Cố ý KHÔNG dùng: sendFriendRequest, getAllFriends, acceptFriendRequest, bất kỳ hàm gửi hay dò hàng loạt nào khác.
+// Từ D18 (23/11/2026, chủ shop chốt) có thêm đúng hai hàm để nhắn khách đã mua của chính họ, mỗi người một tin: findUser (một số)
+// và sendMessage (văn bản, một người). Có trần ngày, khoảng nghỉ cố định, khung giờ và cầu dao ở bridge.mjs; không che việc dùng thư viện.
 // Không đặt userAgent, không đổi dấu vân tay, không proxy: dùng mặc định của thư viện, không thêm lớp nào để che.
 
-import { Zalo, FriendEventType, LoginQRCallbackEventType } from 'zca-js';
+import { Zalo, FriendEventType, LoginQRCallbackEventType, ThreadType } from 'zca-js';
 
 export class ZcaAdapter {
   constructor() {
@@ -47,6 +49,17 @@ export class ZcaAdapter {
     const profiles = Object.values(r?.changed_profiles ?? {});
     const p = profiles.find((x) => String(x?.userId) === String(uid)) ?? profiles[0];
     return p?.phoneNumber || null;
+  }
+
+  /** Tìm mã Zalo của MỘT số điện thoại khách đã mua (để gửi tin mời). Không liệt kê, không dò hàng loạt. */
+  async findUid(phone) {
+    const u = await this.api.findUser(phone);
+    return u?.uid ? String(u.uid) : null;
+  }
+
+  /** Gửi MỘT tin văn bản cho MỘT người. Không đính kèm, không gửi lời mời kết bạn. */
+  async sendText(uid, text) {
+    return this.api.sendMessage({ msg: text }, uid, ThreadType.User);
   }
 
   async addUserToGroup(uid, groupId) {

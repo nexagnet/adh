@@ -25,15 +25,14 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Cổng chặn gửi (mục 3.3 file 03, D3–D6). MỌI lần đưa lời mời tới khách đều đi qua đây:
  * tạm dừng, bật gửi thật, giờ gửi 07:00–22:00, hạn mức ngày, trần ngân sách tháng, kiểm lại điều kiện liên hệ,
  * mỗi lời mời gửi tối đa một lần (khóa bằng cập nhật có điều kiện), nhật ký gửi, tự dừng khi lỗi/từ chối cao.
  *
- * <p>Không có thủ thuật né phát hiện (giả lập thao tác, xoay vòng tài khoản): chỉ gửi chậm, từng tin, nghỉ ngẫu
- * nhiên giữa các tin.
+ * <p>Không có thủ thuật né phát hiện (giả lập thao tác, xoay vòng tài khoản, nghỉ ngẫu nhiên cho giống người): chỉ gửi
+ * chậm, từng tin, nghỉ CỐ ĐỊNH và công khai giữa các tin.
  */
 @Service
 public class SendService {
@@ -161,8 +160,8 @@ public class SendService {
     }
 
     /**
-     * Gửi đúng MỘT lời mời kế tiếp trong mọi chiến dịch, nếu đã qua khoảng nghỉ ngẫu nhiên từ tin trước. Bộ hẹn giờ
-     * gọi hàm này; sau mỗi tin gửi thật, đặt khoảng nghỉ mới giữa {@code minGapSeconds} và {@code maxGapSeconds}.
+     * Gửi đúng MỘT lời mời kế tiếp trong mọi chiến dịch, nếu đã qua khoảng nghỉ cố định từ tin trước. Bộ hẹn giờ
+     * gọi hàm này; sau mỗi tin gửi thật, đặt mốc cho tin sau cách đúng {@code gapSeconds} giây.
      */
     public BatchResult sendNext(InvitationSender sender) {
         Instant now = clock.instant();
@@ -174,10 +173,7 @@ public class SendService {
                 .query((rs, n) -> candidate(rs)).list();
         BatchResult result = process(list, sender);
         if (result.sent() + result.failed() > 0) {
-            int min = Math.max(0, props.minGapSeconds());
-            int max = Math.max(min, props.maxGapSeconds());
-            int gap = min == max ? min : ThreadLocalRandom.current().nextInt(min, max + 1);
-            settings.set(NEXT_AT, now.plusSeconds(gap).toString(), "he-thong");
+            settings.set(NEXT_AT, now.plusSeconds(Math.max(0, props.gapSeconds())).toString(), "he-thong");
         }
         return result;
     }
@@ -462,6 +458,22 @@ public class SendService {
 
     private long count(String sql, OffsetDateTime t) {
         return jdbc.sql(sql).param("t", t).query(Long.class).single();
+    }
+
+    /**
+     * Ghi một dòng nhật ký gửi cho tin do bộ nối Zalo tự gửi (D18): để hạn mức ngày, nhật ký và tự dừng nhìn thấy cả đường này.
+     * {@code phone} chỉ để lấy vài số cuối; không lưu số đầy đủ.
+     */
+    public void recordExternal(long invitationId, long campaignId, long customerId, String phone, String channel,
+                               String outcome, String reason, String template) {
+        jdbc.sql("""
+                        INSERT INTO send_log (invitation_id, campaign_id, customer_id, phone_tail, channel, outcome,
+                                              reason, cost_vnd, template_sha, recorded_by, recorded_at)
+                        VALUES (:inv, :camp, :cust, :tail, :ch, :outcome, :reason, 0, :sha, :by, :at)""")
+                .param("inv", invitationId).param("camp", campaignId).param("cust", customerId)
+                .param("tail", PhoneHash.tail(phone)).param("ch", channel).param("outcome", outcome)
+                .param("reason", truncate(reason)).param("sha", sha(template)).param("by", ContactService.actor())
+                .param("at", OffsetDateTime.now(clock)).update();
     }
 
     private void log(Candidate c, InvitationSender sender, String outcome, String reason, int cost) {

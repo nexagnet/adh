@@ -53,6 +53,17 @@ export class FakeAdapter {
     return n ?? { errorMembers: [], error_data: {} };
   }
 
+  async findUid(phone) {
+    if (this.findError) throw this.findError;
+    return this.uids?.get(String(phone)) ?? null;
+  }
+
+  async sendText(uid, text) {
+    if (this.sendError) throw this.sendError;
+    (this.sent ??= []).push({ uid, text });
+    return { message: { msgId: 1 }, attachment: [] };
+  }
+
   async listGroups() {
     if (this.groupsError) throw this.groupsError;
     this.groupListCalls = (this.groupListCalls ?? 0) + 1;

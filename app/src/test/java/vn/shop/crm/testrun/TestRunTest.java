@@ -183,7 +183,7 @@ class TestRunTest extends AbstractPostgresTest {
         MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
         var owner = user("admin").roles("OWNER");
         mvc.perform(get("/test-runs").with(owner)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("Chạy thử trên Zalo")))
+                .andExpect(content().string(containsString("Chiến dịch thử")))
                 .andExpect(content().string(containsString("không đụng tới khách thật")))
                 .andExpect(content().string(containsString("Hà Nội")));
         mvc.perform(post("/test-runs").with(owner).with(csrf()).param("name", "Thử web")
@@ -193,7 +193,7 @@ class TestRunTest extends AbstractPostgresTest {
         long run = tests.runs().get(0).id();
         long t = tests.targets(run).get(0).id();
         mvc.perform(get("/test-runs/" + run).with(owner)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("ĐÂY LÀ ĐỢT THỬ")))
+                .andExpect(content().string(containsString("ĐÂY LÀ CHIẾN DỊCH THỬ")))
                 .andExpect(content().string(containsString("0933333333")))
                 .andExpect(content().string(containsString("Nhóm miền Bắc")));
         mvc.perform(post("/test-runs/" + run + "/targets/" + t + "/sent").with(owner).with(csrf()))

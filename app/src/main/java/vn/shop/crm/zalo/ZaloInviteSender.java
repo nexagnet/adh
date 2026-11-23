@@ -1,0 +1,321 @@
+package vn.shop.crm.zalo;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.stereotype.Service;
+import vn.shop.crm.common.AppSettings;
+import vn.shop.crm.common.ImportException;
+import vn.shop.crm.contact.ContactService;
+import vn.shop.crm.geo.VnGeo;
+import vn.shop.crm.invite.GroupService;
+import vn.shop.crm.invite.GroupStatus;
+import vn.shop.crm.invite.InviteService;
+import vn.shop.crm.send.SendService;
+import vn.shop.crm.zalo.ZaloMessageService.Delivery;
+import vn.shop.crm.zalo.ZaloMessenger.Kind;
+
+import java.time.Clock;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * Tự gửi tin cho khách của CHIẾN DỊCH THẬT (D18, ADR-0003), mỗi nhịp tối đa MỘT tin, qua {@link ZaloMessageService}
+ * (công tắc, giờ, hạn mức, khoảng nghỉ cố định, cầu dao dùng chung).
+ *
+ * <ul>
+ *   <li><b>Tin 1</b>: lời mời READY của chiến dịch ĐÃ ĐƯỢC DUYỆT tự gửi, mỗi khách đúng một lần (khóa bằng cập nhật có điều kiện
+ *       READY→SENT trước khi gọi). Khách không còn đủ điều kiện liên hệ (đã từ chối, bị chặn, bị xóa) thì không bao giờ được gửi.
+ *       Cầu nối tra mã Zalo lúc gửi; mã được lưu để khớp khi khách đồng ý kết bạn mà không cần số điện thoại.</li>
+ *   <li><b>Tin 2</b> (link nhóm): chỉ cho khách đã kết bạn mà bộ nối KHÔNG thêm được vào nhóm vì lỗi riêng người; link là của chính
+ *       nhóm đã giữ chỗ lúc thêm, nên nhóm thêm và nhóm qua link là một.</li>
+ * </ul>
+ * Không biết kết quả (hết giờ chờ, Zalo không xác nhận, sập giữa chừng) thì lời mời ở lại FAILED để người kiểm tra tay,
+ * không bao giờ tự gửi lại.
+ */
+@Service
+public class ZaloInviteSender {
+
+    private static final Logger log = LoggerFactory.getLogger(ZaloInviteSender.class);
+    public static final String CHANNEL = "ZALO_AUTO";
+    /** Số lời mời xem xét mỗi nhịp để bỏ qua (và đóng) những khách không còn gửi được mà không làm tắc hàng. */
+    private static final int SCAN = 25;
+
+    public enum Step { NOT_ACTIVE, BLOCKED, NOTHING, INVITE_SENT, LINK_SENT, FAILED_ONE, RETRY, TRIPPED }
+
+    private record Invite(long id, long campaignId, long customerId, String phone, String name, String province, String token,
+                          OffsetDateTime expiresAt, String template) {
+    }
+
+    private record LinkTask(long id, long campaignId, long customerId, String phone, String uid, String name, String province,
+                            String token, Long heldGroupId) {
+    }
+
+    private final JdbcClient jdbc;
+    private final AppSettings settings;
+    private final ZaloMessageService messages;
+    private final ContactService contacts;
+    private final InviteService invites;
+    private final GroupService groups;
+    private final SendService sends;
+    private final Clock clock;
+
+    public ZaloInviteSender(JdbcClient jdbc, AppSettings settings, ZaloMessageService messages, ContactService contacts,
+                            InviteService invites, GroupService groups, SendService sends, Clock clock) {
+        this.jdbc = jdbc;
+        this.settings = settings;
+        this.messages = messages;
+        this.contacts = contacts;
+        this.invites = invites;
+        this.groups = groups;
+        this.sends = sends;
+        this.clock = clock;
+    }
+
+    /** Một nhịp: gửi tối đa MỘT tin nếu được phép. Tin 2 (khách đang chờ link) đi trước Tin 1. */
+    public Step step() {
+        if (!messages.enabled() || settings.paused()) {
+            return Step.NOT_ACTIVE;
+        }
+        if (messages.blocker(ZaloMessageService.SCOPE_REAL, null, null).isPresent()) {
+            return Step.BLOCKED;
+        }
+        Optional<LinkTask> link = nextLink();
+        if (link.isPresent()) {
+            return sendLink(link.get());
+        }
+        return sendNextInvite();
+    }
+
+    // ---------- Tin 1 ----------
+
+    private Step sendNextInvite() {
+        List<Invite> candidates = jdbc.sql("""
+                        SELECT i.id, i.campaign_id, i.customer_id, c.phone, c.name, c.province, i.token, i.expires_at, k.message_template
+                        FROM invitation i JOIN customer c ON c.id = i.customer_id
+                        JOIN invitation_campaign k ON k.id = i.campaign_id
+                        WHERE i.status = 'READY' AND k.auto_send_approved_at IS NOT NULL
+                        ORDER BY i.campaign_id, i.id LIMIT :n""")
+                .param("n", SCAN)
+                .query((rs, n) -> new Invite(rs.getLong("id"), rs.getLong("campaign_id"), rs.getLong("customer_id"),
+                        rs.getString("phone"), rs.getString("name"), rs.getString("province"), rs.getString("token"),
+                        rs.getObject("expires_at", OffsetDateTime.class), rs.getString("message_template"))).list();
+        for (Invite c : candidates) {
+            if (c.expiresAt().isBefore(OffsetDateTime.now(clock))) {
+                closeUnsendable(c, "Link đã hết hạn");
+                continue;
+            }
+            if (!contacts.stillEligible(c.customerId())) {
+                closeUnsendable(c, "Không còn đủ điều kiện liên hệ");
+                continue;
+            }
+            return sendInvite(c);
+        }
+        return Step.NOTHING;
+    }
+
+    /** Khách không còn gửi được: đóng lời mời (FAILED, có lý do) để không bị xem lại mỗi nhịp. Không gọi Zalo, không tính hạn mức. */
+    private void closeUnsendable(Invite c, String reason) {
+        int n = jdbc.sql("UPDATE invitation SET status = 'FAILED', last_error = :e WHERE id = :id AND status = 'READY'")
+                .param("e", reason).param("id", c.id()).update();
+        if (n > 0) {
+            sends.recordExternal(c.id(), c.campaignId(), c.customerId(), c.phone(), CHANNEL, "SKIPPED", reason, c.template());
+        }
+    }
+
+    private Step sendInvite(Invite c) {
+        String text = invites.render(c.template(), c.name(), invites.linkFor(c.token()), VnGeo.byCode(c.province()).orElse(null));
+        // khóa lời mời trước khi gọi: hai nhịp chồng nhau không thể gửi trùng một khách
+        int claimed = jdbc.sql("""
+                        UPDATE invitation SET status = 'SENT', sent_at = :at, sent_channel = :ch
+                        WHERE id = :id AND status = 'READY'""")
+                .param("at", OffsetDateTime.now(clock)).param("ch", CHANNEL).param("id", c.id()).update();
+        if (claimed == 0) {
+            return Step.NOTHING;
+        }
+        String digits = c.phone().replaceAll("\\D", "");
+        Delivery d;
+        try {
+            d = messages.sendByPhone(ZaloMessageService.SCOPE_REAL, Kind.INVITE, c.id(), digits, text, null, null);
+        } catch (RuntimeException e) {
+            log.warn("Gửi Tin 1 báo lỗi: {}", e.getClass().getSimpleName());
+            failUnknown(c, "LOI_HE_THONG");
+            return Step.TRIPPED;
+        }
+        switch (d.status()) {
+            case SENT -> {
+                if (d.uid() != null) {
+                    jdbc.sql("UPDATE invitation SET zalo_target_uid = :u WHERE id = :id").param("u", d.uid())
+                            .param("id", c.id()).update();
+                }
+                sends.recordExternal(c.id(), c.campaignId(), c.customerId(), c.phone(), CHANNEL, "SENT", "Tin 1 tự gửi qua bộ nối Zalo", c.template());
+                contacts.event(c.customerId(), c.phone(), "INVITATION_SENT", "Kênh: " + vn.shop.crm.common.Labels.channelLabel(CHANNEL));
+                return Step.INVITE_SENT;
+            }
+            case PERSON_ERROR -> {
+                return personError(c, d);
+            }
+            case RETRY, BLOCKED -> {
+                revert(c);
+                return Step.RETRY;
+            }
+            default -> {
+                if (d.certainlyNotSent()) {
+                    revert(c); // cầu dao nhảy nhưng chắc chắn chưa gửi: mở lại thì gửi tiếp
+                } else {
+                    failUnknown(c, d.code());
+                }
+                return Step.TRIPPED;
+            }
+        }
+    }
+
+    private Step personError(Invite c, Delivery d) {
+        String code = d.code() == null ? "LOI_NGUOI" : d.code();
+        if ("DUPLICATE".equals(code)) {
+            // cầu nối nhớ đã gửi Tin 1 cho mã Zalo này rồi: giữ SENT, không gửi lại
+            if (d.uid() != null) {
+                jdbc.sql("UPDATE invitation SET zalo_target_uid = :u WHERE id = :id").param("u", d.uid()).param("id", c.id()).update();
+            }
+            sends.recordExternal(c.id(), c.campaignId(), c.customerId(), c.phone(), CHANNEL, "SKIPPED",
+                    "Cầu nối báo đã gửi Tin 1 cho người này trước đó", c.template());
+            return Step.FAILED_ONE;
+        }
+        String reason = "NOT_FOUND".equals(code)
+                ? "Không tìm thấy trên Zalo (số chưa có Zalo hoặc người này không cho tìm bằng số điện thoại)"
+                : "Zalo từ chối gửi cho người này (mã " + code + ")";
+        jdbc.sql("UPDATE invitation SET status = 'FAILED', last_error = :e WHERE id = :id").param("e", reason).param("id", c.id()).update();
+        // "không tìm thấy" là chuyện thường của khách: ghi SKIPPED để không bị tính vào tự dừng vì lỗi gửi liên tiếp
+        boolean common = "NOT_FOUND".equals(code) || code.startsWith("BAD_");
+        sends.recordExternal(c.id(), c.campaignId(), c.customerId(), c.phone(), CHANNEL, common ? "SKIPPED" : "FAILED", reason, c.template());
+        if (!common) {
+            sends.evaluateAutoStop();
+        }
+        return Step.FAILED_ONE;
+    }
+
+    private void revert(Invite c) {
+        jdbc.sql("""
+                        UPDATE invitation SET status = 'READY', sent_at = NULL, sent_channel = NULL
+                        WHERE id = :id AND status = 'SENT' AND sent_channel = :ch""").param("id", c.id()).param("ch", CHANNEL).update();
+    }
+
+    /** Không biết tin đã đi hay chưa: giữ FAILED để người kiểm tra trên Zalo, KHÔNG tự gửi lại. */
+    private void failUnknown(Invite c, String code) {
+        String reason = "Không rõ tin đã gửi chưa (" + (code == null ? "lỗi" : code) + "). Hãy kiểm tra trên Zalo rồi xử lý tay";
+        jdbc.sql("UPDATE invitation SET status = 'FAILED', last_error = :e WHERE id = :id").param("e", reason).param("id", c.id()).update();
+        sends.recordExternal(c.id(), c.campaignId(), c.customerId(), c.phone(), CHANNEL, "FAILED", reason, c.template());
+        sends.evaluateAutoStop();
+    }
+
+    // ---------- Tin 2 ----------
+
+    private Optional<LinkTask> nextLink() {
+        return jdbc.sql("""
+                        SELECT i.id, i.campaign_id, i.customer_id, c.phone, i.zalo_uid, c.name, c.province, i.token,
+                               coalesce(i.group_id, CASE WHEN i.reserved_until > now() THEN i.reserved_group_id END) AS held
+                        FROM invitation i JOIN customer c ON c.id = i.customer_id
+                        JOIN invitation_campaign k ON k.id = i.campaign_id
+                        WHERE i.zalo_link_state = 'PENDING' AND i.zalo_uid IS NOT NULL AND i.status = 'FRIENDED'
+                          AND i.group_link_sent_at IS NULL AND k.auto_send_approved_at IS NOT NULL
+                        ORDER BY i.id LIMIT 1""")
+                .query((rs, n) -> new LinkTask(rs.getLong("id"), rs.getLong("campaign_id"), rs.getLong("customer_id"),
+                        rs.getString("phone"), rs.getString("zalo_uid"), rs.getString("name"), rs.getString("province"),
+                        rs.getString("token"), (Long) rs.getObject("held")))
+                .optional();
+    }
+
+    private Step sendLink(LinkTask t) {
+        if (!contacts.stillEligible(t.customerId())) {
+            setLink(t.id(), "FAILED", "Không còn đủ điều kiện liên hệ");
+            return Step.FAILED_ONE;
+        }
+        // cùng nhóm với lần thêm: nhóm đã giữ chỗ; không có thì chọn theo khu vực trong các nhóm có link và đang nhận
+        Optional<GroupService.Group> group = t.heldGroupId() != null
+                ? groups.find(t.heldGroupId()).filter(g -> g.hasLink() && g.status() == GroupStatus.OPEN)
+                : groups.pickGroup(VnGeo.byCode(t.province()).orElse(null)).filter(GroupService.Group::hasLink);
+        if (group.isEmpty()) {
+            setLink(t.id(), "FAILED", "Chưa có nhóm có link để gửi Tin 2");
+            return Step.FAILED_ONE;
+        }
+        GroupService.Group g = group.get();
+        String text = invites.renderGroupLink(invites.groupLinkTemplate(), t.name(), g.name(), g.inviteLink(), invites.linkFor(t.token()));
+        // đánh dấu trước khi gọi: nhịp chồng nhau hay sập giữa chừng không gửi Tin 2 hai lần
+        int claimed = jdbc.sql("UPDATE invitation SET zalo_link_state = 'FAILED', last_error = 'Đang gửi Tin 2' WHERE id = :id AND zalo_link_state = 'PENDING'")
+                .param("id", t.id()).update();
+        if (claimed == 0) {
+            return Step.NOTHING;
+        }
+        Delivery d = messages.sendByUid(ZaloMessageService.SCOPE_REAL, Kind.LINK, t.id(), t.uid(), text, null, null);
+        switch (d.status()) {
+            case SENT -> {
+                setLink(t.id(), "SENT", null);
+                try {
+                    invites.markGroupLinkSent(t.id(), g.id()); // giữ chỗ đúng nhóm này, gỡ khỏi hàng thêm tự động
+                } catch (ImportException e) {
+                    log.warn("Đã gửi Tin 2 nhưng không ghi được nhóm: {}", e.getClass().getSimpleName());
+                }
+                sends.recordExternal(t.id(), t.campaignId(), t.customerId(), t.phone(), CHANNEL, "SENT", "Tin 2 (link nhóm) tự gửi qua bộ nối Zalo", text);
+                return Step.LINK_SENT;
+            }
+            case PERSON_ERROR -> {
+                setLink(t.id(), "FAILED", "Zalo từ chối gửi Tin 2 (mã " + d.code() + ")");
+                return Step.FAILED_ONE;
+            }
+            case RETRY, BLOCKED -> {
+                jdbc.sql("UPDATE invitation SET zalo_link_state = 'PENDING', last_error = NULL WHERE id = :id AND zalo_link_state = 'FAILED'")
+                        .param("id", t.id()).update();
+                return Step.RETRY;
+            }
+            default -> {
+                if (d.certainlyNotSent()) {
+                    jdbc.sql("UPDATE invitation SET zalo_link_state = 'PENDING', last_error = NULL WHERE id = :id AND zalo_link_state = 'FAILED'")
+                            .param("id", t.id()).update();
+                } else {
+                    setLink(t.id(), "FAILED", "Không rõ Tin 2 đã gửi chưa (" + d.code() + "). Hãy kiểm tra trên Zalo");
+                    sends.evaluateAutoStop();
+                }
+                return Step.TRIPPED;
+            }
+        }
+    }
+
+    private void setLink(long invitationId, String state, String error) {
+        jdbc.sql("UPDATE invitation SET zalo_link_state = :s, last_error = :e WHERE id = :id")
+                .param("s", state).param("e", error, java.sql.Types.VARCHAR).param("id", invitationId).update();
+    }
+
+    // ---------- duyệt chiến dịch ----------
+
+    /** Người dùng DUYỆT chiến dịch cho hệ thống tự gửi Tin 1. Chưa duyệt thì không tự gửi gì. */
+    public void approveCampaign(long campaignId, String by) {
+        int n = jdbc.sql("""
+                        UPDATE invitation_campaign SET auto_send_approved_at = now(), auto_send_approved_by = :by
+                        WHERE id = :id AND auto_send_approved_at IS NULL""").param("by", by).param("id", campaignId).update();
+        if (n == 0 && !campaignExists(campaignId)) {
+            throw new ImportException("Không tìm thấy chiến dịch.");
+        }
+        messages.audit("DUYET_CHIEN_DICH", campaignId, by);
+    }
+
+    /** Bỏ duyệt: dừng tự gửi cho chiến dịch này ngay (các tin đã gửi giữ nguyên). */
+    public void revokeCampaign(long campaignId, String by) {
+        int n = jdbc.sql("""
+                        UPDATE invitation_campaign SET auto_send_approved_at = NULL, auto_send_approved_by = NULL
+                        WHERE id = :id AND auto_send_approved_at IS NOT NULL""").param("id", campaignId).update();
+        if (n == 0 && !campaignExists(campaignId)) {
+            throw new ImportException("Không tìm thấy chiến dịch.");
+        }
+        messages.audit("BO_DUYET_CHIEN_DICH", campaignId, by);
+    }
+
+    public boolean approved(long campaignId) {
+        return jdbc.sql("SELECT auto_send_approved_at IS NOT NULL FROM invitation_campaign WHERE id = :id").param("id", campaignId)
+                .query(Boolean.class).optional().orElse(false);
+    }
+
+    private boolean campaignExists(long id) {
+        return jdbc.sql("SELECT count(*) FROM invitation_campaign WHERE id = :id").param("id", id).query(Long.class).single() > 0;
+    }
+}

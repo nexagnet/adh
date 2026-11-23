@@ -10,27 +10,33 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import vn.shop.crm.common.ImportException;
 import vn.shop.crm.customers.CustomerController;
 import vn.shop.crm.invite.InviteService;
+import vn.shop.crm.zalo.ZaloMessageService;
 
 import java.util.ArrayList;
 import java.util.List;
 
-/** Trang "Chạy thử trên Zalo": thử cả quy trình bằng vài số tự nhập, tách hẳn khỏi khách thật. */
+/** Trang "Chiến dịch thử": chạy thử cả quy trình qua bộ nối thật bằng vài số tự nhập, tách hẳn khỏi khách thật. Tạm thời. */
 @Controller
 @org.springframework.web.bind.annotation.RequestMapping("/test-runs")
 public class TestRunController {
 
     private final TestRunService tests;
     private final InviteService invites;
+    private final ZaloMessageService messages;
 
-    public TestRunController(TestRunService tests, InviteService invites) {
+    public TestRunController(TestRunService tests, InviteService invites, ZaloMessageService messages) {
         this.tests = tests;
         this.invites = invites;
+        this.messages = messages;
     }
 
     @GetMapping
     public String list(Model model) {
         model.addAttribute("runs", tests.runs());
         model.addAttribute("defaultTemplate", invites.defaultTemplate());
+        model.addAttribute("cfg", tests.defaults());
+        model.addAttribute("groups", tests.targetGroups());
+        model.addAttribute("quota", messages.quota());
         model.addAttribute("provinces", vn.shop.crm.geo.VnGeo.all());
         model.addAttribute("areaGroups", CustomerController.areaGroups());
         model.addAttribute("slots", java.util.stream.IntStream.range(0, TestRunService.MAX_TARGETS).boxed().toList());
@@ -40,6 +46,9 @@ public class TestRunController {
 
     @PostMapping
     public String create(@RequestParam String name, @RequestParam(required = false) String template,
+                         @RequestParam(required = false) String linkTemplate, @RequestParam(required = false) Integer dailyLimit,
+                         @RequestParam(required = false) Integer gapSeconds, @RequestParam(required = false) Long zaloGroupId,
+                         @RequestParam(required = false) String sendLink,
                          @RequestParam(name = "phone", required = false) List<String> phones,
                          @RequestParam(name = "personName", required = false) List<String> names,
                          @RequestParam(name = "province", required = false) List<String> provinces,
@@ -48,8 +57,9 @@ public class TestRunController {
         for (int i = 0; phones != null && i < phones.size(); i++) {
             entries.add(new TestRunService.Entry(phones.get(i), at(names, i), at(provinces, i)));
         }
-        long id = tests.create(name, template, entries);
-        redirect.addFlashAttribute("flash", "Đã tạo đợt chạy thử. Đây là dữ liệu thử, không đụng tới khách thật.");
+        long id = tests.create(new TestRunService.Config(name, template, linkTemplate, dailyLimit, gapSeconds, zaloGroupId,
+                sendLink != null), entries);
+        redirect.addFlashAttribute("flash", "Đã tạo chiến dịch thử. Đây là dữ liệu thử, không đụng tới khách thật. Bấm Bắt đầu khi sẵn sàng.");
         return "redirect:/test-runs/" + id;
     }
 
@@ -62,7 +72,35 @@ public class TestRunController {
         var run = tests.run(id).orElseThrow(() -> new ImportException("Không tìm thấy đợt chạy thử."));
         model.addAttribute("run", run);
         model.addAttribute("targets", tests.targets(id));
+        model.addAttribute("groups", tests.targetGroups());
+        model.addAttribute("quota", messages.quota());
+        model.addAttribute("blocker", messages.blocker("TEST:" + id, run.dailyLimit(), run.gapSeconds()).orElse(null));
+        model.addAttribute("usedByRun", messages.usedToday("TEST:" + id));
         return "test-run-detail";
+    }
+
+    @PostMapping("/{id}/config")
+    public String config(@PathVariable long id, @RequestParam String name, @RequestParam(required = false) String template,
+                         @RequestParam(required = false) String linkTemplate, @RequestParam(required = false) Integer dailyLimit,
+                         @RequestParam(required = false) Integer gapSeconds, @RequestParam(required = false) Long zaloGroupId,
+                         @RequestParam(required = false) String sendLink, RedirectAttributes redirect) {
+        tests.updateConfig(id, new TestRunService.Config(name, template, linkTemplate, dailyLimit, gapSeconds, zaloGroupId, sendLink != null));
+        redirect.addFlashAttribute("flash", "Đã lưu cấu hình chiến dịch thử.");
+        return "redirect:/test-runs/" + id;
+    }
+
+    @PostMapping("/{id}/start")
+    public String start(@PathVariable long id, RedirectAttributes redirect) {
+        tests.start(id);
+        redirect.addFlashAttribute("flash", "Đã bắt đầu. Hệ thống gửi từng tin một theo hạn mức và khoảng nghỉ; trang tự cập nhật khi bạn mở lại.");
+        return "redirect:/test-runs/" + id;
+    }
+
+    @PostMapping("/{id}/stop")
+    public String stop(@PathVariable long id, RedirectAttributes redirect) {
+        tests.stop(id);
+        redirect.addFlashAttribute("flash", "Đã dừng chiến dịch thử. Tin đã gửi không thu hồi được.");
+        return "redirect:/test-runs/" + id;
     }
 
     @PostMapping("/{id}/targets/{targetId}/sent")

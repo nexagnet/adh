@@ -18,11 +18,16 @@ public class CampaignController {
     private final InviteService invites;
     private final ContactService contacts;
     private final AppSettings settings;
+    private final vn.shop.crm.zalo.ZaloInviteSender autoSender;
+    private final vn.shop.crm.zalo.ZaloMessageService messages;
 
-    public CampaignController(InviteService invites, ContactService contacts, AppSettings settings) {
+    public CampaignController(InviteService invites, ContactService contacts, AppSettings settings,
+                              vn.shop.crm.zalo.ZaloInviteSender autoSender, vn.shop.crm.zalo.ZaloMessageService messages) {
         this.invites = invites;
         this.contacts = contacts;
         this.settings = settings;
+        this.autoSender = autoSender;
+        this.messages = messages;
     }
 
     @GetMapping("/campaigns")
@@ -81,6 +86,8 @@ public class CampaignController {
         model.addAttribute("rows", invites.invitations(id, campaign.template()));
         model.addAttribute("paused", settings.paused());
         model.addAttribute("joinGroups", invites.joinableGroups());
+        model.addAttribute("autoApproved", autoSender.approved(id));
+        model.addAttribute("autoSwitch", messages.enabled());
         return "campaign-detail";
     }
 
@@ -146,6 +153,24 @@ public class CampaignController {
         redirect.addFlashAttribute("flash", "Đã ghi: khách từ chối. Số này vào danh sách từ chối vĩnh viễn, không nhắn lại. "
                 + "Nếu khách đang ở trong nhóm, nhớ mời khách ra khỏi nhóm trên Zalo (số khách của nhóm đã giảm 1).");
         return redirectTo(id, back);
+    }
+
+    /** Duyệt chiến dịch cho hệ thống tự gửi Tin 1 qua bộ nối Zalo (D18). Chưa duyệt thì không tự gửi gì. */
+    @PostMapping("/campaigns/{id}/auto-send/approve")
+    public String approveAutoSend(@PathVariable long id, RedirectAttributes redirect) {
+        autoSender.approveCampaign(id, ContactService.actor());
+        redirect.addFlashAttribute("flash", messages.enabled()
+                ? "Đã duyệt. Hệ thống sẽ tự gửi Tin 1 từng khách một theo hạn mức và khoảng nghỉ."
+                : "Đã duyệt, nhưng công tắc \"Tự gửi tin\" ở trang Zalo tài khoản phụ đang TẮT nên chưa có tin nào được gửi.");
+        return "redirect:/campaigns/" + id;
+    }
+
+    /** Bỏ duyệt: dừng tự gửi cho chiến dịch này ngay. */
+    @PostMapping("/campaigns/{id}/auto-send/revoke")
+    public String revokeAutoSend(@PathVariable long id, RedirectAttributes redirect) {
+        autoSender.revokeCampaign(id, ContactService.actor());
+        redirect.addFlashAttribute("flash", "Đã bỏ duyệt: hệ thống không tự gửi cho chiến dịch này nữa. Tin đã gửi giữ nguyên.");
+        return "redirect:/campaigns/" + id;
     }
 
     @PostMapping("/campaigns/{id}/cancel-unsent")

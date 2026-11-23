@@ -485,3 +485,210 @@ test('liệt kê nhóm: chỉ đọc, chỉ khi đang nghe, giữ kết quả 30
   assert.equal(c.adapter.adds.length, 0);
   c.cleanup();
 });
+
+// ---------- D18: gửi MỘT tin cho MỘT khách ----------
+
+const GAP = 90 * 1000;
+
+async function ready(env = {}) {
+  const c = setup({ env });
+  await c.bridge.start();
+  await loginAndListen(c);
+  c.adapter.uids = new Map([['84900000001', '501'], ['84900000002', '502'], ['84900000003', '503']]);
+  return c;
+}
+
+test('gửi tin mời theo số: tìm đúng một số, gửi đúng một tin văn bản cho đúng một người, trả uid', async () => {
+  const c = await ready();
+  const r = await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'Chào anh' });
+  assert.deepEqual(r, { outcome: 'OK', uid: '501' });
+  assert.deepEqual(c.adapter.sent, [{ uid: '501', text: 'Chào anh' }]);
+  c.cleanup();
+});
+
+test('gửi tin theo mã Zalo (tin gửi link): không tìm số, trả uid', async () => {
+  const c = await ready();
+  const r = await c.bridge.sendMessage({ kind: 'LINK', uid: '777', text: 'Link nhóm' });
+  assert.deepEqual(r, { outcome: 'OK', uid: '777' });
+  assert.deepEqual(c.adapter.sent, [{ uid: '777', text: 'Link nhóm' }]);
+  c.cleanup();
+});
+
+test('đầu vào sai bị từ chối trước khi chạm Zalo: loại tin, văn bản trống hoặc quá dài, thiếu hay thừa người nhận, số/mã sai', async () => {
+  const c = await ready();
+  const bad = [
+    { kind: 'X', phone: '84900000001', text: 'a' },
+    { kind: 'INVITE', phone: '84900000001', text: '   ' },
+    { kind: 'INVITE', phone: '84900000001', text: 'a'.repeat(1001) },
+    { kind: 'INVITE', text: 'a' },
+    { kind: 'INVITE', phone: '84900000001', uid: '1', text: 'a' },
+    { kind: 'INVITE', phone: '12', text: 'a' },
+    { kind: 'LINK', uid: '1; rm', text: 'a' },
+    { kind: 'LINK', uid: ['1', '2'], text: 'a' },
+  ];
+  for (const m of bad) assert.equal((await c.bridge.sendMessage(m)).outcome, 'PERSON_ERROR', JSON.stringify(m));
+  assert.equal(c.adapter.sent?.length ?? 0, 0);
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  c.cleanup();
+});
+
+test('khoảng nghỉ cố định giữa hai tin: gửi sớm hơn thì bị từ chối RATE_LIMITED (không dừng, không gọi Zalo), đủ khoảng nghỉ thì gửi', async () => {
+  const c = await ready();
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' })).outcome, 'OK');
+  c.clock.t += 30 * 1000;
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000002', text: 'a' }), { outcome: 'RATE_LIMITED', retryAfterSec: 60 });
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  assert.equal(c.adapter.sent.length, 1);
+  c.clock.t += 60 * 1000;
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000002', text: 'a' })).outcome, 'OK');
+  assert.equal(c.adapter.sent.length, 2);
+  c.cleanup();
+});
+
+test('khoảng nghỉ còn nguyên sau khi khởi động lại (đọc từ sổ trên đĩa)', async () => {
+  const c = await ready();
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' })).outcome, 'OK');
+  const b2 = c.rebuild();
+  await b2.start();
+  await flush();
+  assert.equal(b2.status().state, 'LISTENING');
+  assert.equal((await b2.sendMessage({ kind: 'INVITE', phone: '84900000002', text: 'a' })).outcome, 'RATE_LIMITED');
+  c.cleanup();
+});
+
+test('trần tin mỗi ngày: chạm trần thì dừng cầu cao (cả thêm nhóm), tính cả lần không tìm thấy, và nhớ sau khi khởi động lại', async () => {
+  const c = await ready({ BRIDGE_MSG_DAILY: '2' });
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' })).outcome, 'OK');
+  c.clock.t += GAP;
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'INVITE', phone: '84911111111', text: 'a' }), { outcome: 'PERSON_ERROR', code: 'NOT_FOUND' });
+  c.clock.t += GAP;
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000002', text: 'a' }), { outcome: 'RESTRICTED', code: 'MSG_LIMIT' });
+  assert.equal(c.bridge.status().state, 'TRIPPED');
+  assert.equal(c.adapter.sent.length, 1);
+  assert.equal((await c.bridge.addMember('2', '3')).outcome, 'RESTRICTED');
+  const b2 = c.rebuild();
+  await b2.start();
+  assert.equal(b2.status().tripReason, 'MSG_LIMIT');
+  c.cleanup();
+});
+
+test('ngoài khung giờ thì từ chối và dừng, không gọi Zalo', async () => {
+  const c = await ready();
+  c.clock.t = Date.parse('2026-11-22T16:00:00Z'); // 23:00 giờ Việt Nam
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' }), { outcome: 'RESTRICTED', code: 'WINDOW' });
+  assert.equal(c.bridge.status().tripReason, 'WINDOW');
+  assert.equal(c.adapter.sent?.length ?? 0, 0);
+  c.cleanup();
+});
+
+test('mỗi loại tin chỉ một lần cho một người: lần hai bị từ chối DUPLICATE (theo số lẫn theo mã), loại tin khác vẫn gửi được', async () => {
+  const c = await ready();
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' })).outcome, 'OK');
+  c.clock.t += GAP;
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' }), { outcome: 'PERSON_ERROR', code: 'DUPLICATE', uid: '501' });
+  c.clock.t += GAP;
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'INVITE', uid: '501', text: 'a' }), { outcome: 'PERSON_ERROR', code: 'DUPLICATE' });
+  c.clock.t += GAP;
+  assert.equal((await c.bridge.sendMessage({ kind: 'LINK', uid: '501', text: 'link' })).outcome, 'OK');
+  assert.equal(c.adapter.sent.length, 2);
+  // còn nhớ sau khi khởi động lại; tệp trên đĩa không chứa uid hay số điện thoại đọc được
+  const { readFileSync } = await import('node:fs');
+  const raw = readFileSync(path.join(c.dir, 'messages.json'), 'utf8');
+  assert.ok(!raw.includes('501') && !raw.includes('84900000001'));
+  const b2 = c.rebuild();
+  await b2.start();
+  await flush();
+  c.clock.t += GAP;
+  assert.equal((await b2.sendMessage({ kind: 'LINK', uid: '501', text: 'link' })).code, 'DUPLICATE');
+  c.cleanup();
+});
+
+test('không tìm thấy người trên Zalo là lỗi riêng người: không dừng, không gửi gì', async () => {
+  const c = await ready();
+  const r = await c.bridge.sendMessage({ kind: 'INVITE', phone: '84955555555', text: 'a' });
+  assert.deepEqual(r, { outcome: 'PERSON_ERROR', code: 'NOT_FOUND' });
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  assert.equal(c.adapter.sent?.length ?? 0, 0);
+  c.cleanup();
+});
+
+test('lỗi lạ khi tìm hay gửi thì dừng cầu dao; mã đã khai báo là lỗi riêng người thì không dừng', async () => {
+  let c = await ready();
+  c.adapter.sendError = Object.assign(new Error('lỗi lạ'), { code: 999 });
+  let r = await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' });
+  assert.deepEqual(r, { outcome: 'SYSTEM_ERROR', code: 'Z999', uid: '501' });
+  assert.equal(c.bridge.status().state, 'TRIPPED');
+  c.cleanup();
+
+  c = await ready();
+  c.adapter.findError = Object.assign(new Error('chưa đăng ký'), { code: 216 });
+  r = await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' });
+  assert.equal(r.outcome, 'SYSTEM_ERROR');
+  assert.equal(c.bridge.status().state, 'TRIPPED');
+  c.cleanup();
+
+  c = await ready({ BRIDGE_PERSON_ERROR_CODES: '216' });
+  c.adapter.findError = Object.assign(new Error('chưa đăng ký'), { code: 216 });
+  r = await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' });
+  assert.deepEqual(r, { outcome: 'PERSON_ERROR', code: 'Z216' });
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  c.cleanup();
+});
+
+test('Zalo cảnh báo (RESTRICTED), mất phiên (SESSION_LOST) hay hết giờ chờ khi gửi thì dừng', async () => {
+  for (const [err, outcome] of [
+    [Object.assign(new Error('Too many requests'), { code: 114 }), 'RESTRICTED'],
+    [Object.assign(new Error('cần xác minh captcha'), { code: 5 }), 'RESTRICTED'],
+    [Object.assign(new Error('zpw_sek hết hạn'), { code: 600 }), 'SESSION_LOST'],
+  ]) {
+    const c = await ready();
+    c.adapter.sendError = err;
+    const r = await c.bridge.sendMessage({ kind: 'LINK', uid: '9', text: 'a' });
+    assert.equal(r.outcome, outcome);
+    assert.equal(c.bridge.status().state, 'TRIPPED');
+    c.cleanup();
+  }
+});
+
+test('Zalo không xác nhận tin (không có message) thì coi là không biết kết quả và dừng, không ghi là đã gửi', async () => {
+  const c = await ready();
+  c.adapter.sendText = async () => ({ message: null, attachment: [] });
+  const r = await c.bridge.sendMessage({ kind: 'LINK', uid: '9', text: 'a' });
+  assert.deepEqual(r, { outcome: 'SYSTEM_ERROR', code: 'NO_ACK', uid: '9' });
+  assert.equal(c.bridge.status().state, 'TRIPPED');
+  c.cleanup();
+});
+
+test('không gửi khi chưa đăng nhập, đang dừng, hay đang bận; sập giữa lúc gửi thì khởi động lại dừng', async () => {
+  const c = setup();
+  await c.bridge.start();
+  assert.equal((await c.bridge.sendMessage({ kind: 'LINK', uid: '9', text: 'a' })).outcome, 'SESSION_LOST');
+  await loginAndListen(c);
+  c.bridge.stop();
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'LINK', uid: '9', text: 'a' }), { outcome: 'RESTRICTED', code: 'NOT_ACTIVE' });
+  await c.bridge.resume();
+  await flush();
+  c.bridge.busy = true;
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'LINK', uid: '9', text: 'a' }), { outcome: 'SYSTEM_ERROR', code: 'BUSY' });
+  c.bridge.busy = false;
+  const { writeFileSync } = await import('node:fs');
+  writeFileSync(path.join(c.dir, 'bridge-state.json'), JSON.stringify({ inflight: true }));
+  const b2 = c.rebuild();
+  await b2.start();
+  assert.equal(b2.status().tripReason, 'INTERRUPTED');
+  assert.equal(c.adapter.sent?.length ?? 0, 0);
+  c.cleanup();
+});
+
+test('tệp sổ tin hỏng thì dừng ngay; nhật ký không chứa nội dung tin, số điện thoại hay mã Zalo', async () => {
+  const c = await ready();
+  await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'NOIDUNGBIMAT' });
+  assert.ok(!c.logs.join('\n').match(/NOIDUNGBIMAT|84900000001|501/));
+  const { writeFileSync } = await import('node:fs');
+  writeFileSync(path.join(c.dir, 'messages.json'), '{hỏng');
+  const b2 = c.rebuild();
+  await b2.start();
+  assert.equal(b2.status().state, 'TRIPPED');
+  assert.equal(b2.status().tripReason, 'LEDGER_CORRUPT');
+  c.cleanup();
+});

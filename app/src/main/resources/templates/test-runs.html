@@ -1,35 +1,52 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="vi">
-<head th:replace="~{fragments :: head('Chạy thử trên Zalo')}"></head>
+<head th:replace="~{fragments :: head('Chiến dịch thử')}"></head>
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
     <header class="page-head">
         <div class="titles">
-            <h1>Chạy thử trên Zalo</h1>
-            <p class="hint">Thử cả quy trình bằng vài số điện thoại <strong>do bạn tự nhập</strong> (số của bạn hoặc người quen đã đồng ý). Dữ liệu thử nằm riêng, <strong>không đụng tới khách thật</strong>: không đổi trạng thái "đã nhắn", không vào danh sách từ chối, không tăng số khách của nhóm Zalo.</p>
+            <h1>Chiến dịch thử</h1>
+            <p class="hint">Chạy thử cả quy trình <strong>qua đúng bộ nối Zalo thật</strong> bằng vài số điện thoại <strong>do bạn tự nhập</strong> (số của bạn hoặc người quen đã đồng ý). Dữ liệu thử nằm riêng, <strong>không đụng tới khách thật</strong>: không đổi trạng thái "đã nhắn", không vào danh sách từ chối, không tăng số khách của nhóm Zalo. Màn hình này tạm thời, xong việc sẽ bỏ.</p>
         </div>
     </header>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã tạo.</div>
     <div class="notice">
-        <strong>Hướng dẫn thử từng bước (hệ thống không tự gửi tin và không đăng nhập Zalo):</strong>
+        <strong>Cách chạy thử (hệ thống tự làm, bạn chỉ cần có mặt để chấp nhận kết bạn):</strong>
         <ol>
-            <li>Soạn nội dung tin ở dưới (hoặc ở mục <a th:href="@{/campaigns}">Chiến dịch mời</a>, phần "Nội dung tin mặc định").</li>
-            <li>Nhập 1 đến <span th:text="${maxTargets}">10</span> số điện thoại thử. Chọn tỉnh khác miền nhau để thử gợi ý nhóm theo khu vực.</li>
-            <li>Mở đợt thử, đọc tin hiển thị cho từng số, rồi <strong>tự nhắn</strong> bằng tài khoản Zalo phụ (gửi kết bạn kèm tin hoặc nhắn tin). Nhắn xong bấm <em>Đã nhắn</em>.</li>
-            <li>Dùng điện thoại bên kia chấp nhận kết bạn, rồi bấm <em>Đã kết bạn</em>.</li>
-            <li>Xem cột "Nhóm Zalo nên thêm vào": phải đúng nhóm cùng khu vực. Thêm vào nhóm bằng tay rồi bấm <em>Đã vào nhóm</em>.</li>
-            <li>Thử thêm <em>Khách từ chối</em>, rồi <em>Thử lại từ đầu</em> hoặc <em>Xóa đợt thử</em> khi xong.</li>
+            <li>Ở trang <a th:href="@{/zalo}">Zalo tài khoản phụ</a>: bật bộ nối (nấc "Mẹ duyệt" hoặc "Tự thêm"), <strong>bật công tắc "Tự gửi tin"</strong> và gán mã nhóm Zalo cho nhóm đích.</li>
+            <li>Tạo chiến dịch thử bên dưới: nhập số, chọn <strong>nhóm đích</strong>, soạn Tin 1 và Tin 2, đặt hạn mức (chỉ được THẤP hơn hạn mức chung).</li>
+            <li>Mở chiến dịch thử, bấm <em>Bắt đầu</em>. Hệ thống gửi <strong>Tin 1</strong> từng số một, nghỉ cố định giữa các tin, chỉ trong khung giờ cho phép.</li>
+            <li>Trên điện thoại của số thử: chấp nhận kết bạn. Hệ thống nhận ra, <strong>thêm vào nhóm đích</strong>, rồi gửi <strong>Tin 2</strong> (nếu bật).</li>
+            <li>Xem từng bước ở trang chi tiết. Gặp lỗi lạ thì bộ nối tự dừng (cầu dao), không tự gửi lại.</li>
         </ol>
+        <p class="hint">Hạn mức hiện tại (chung với chiến dịch thật): <strong th:text="${quota.limits.daily}">10</strong> tin/ngày, nghỉ
+            <strong th:text="${quota.limits.gapSeconds}">120</strong> giây, giờ gửi <span th:text="${quota.windowStart}">08:00</span>–<span th:text="${quota.windowEnd}">20:00</span>.
+            Đã dùng hôm nay: <strong th:text="${quota.usedToday}">0</strong>. Công tắc tự gửi tin: <strong th:text="${quota.enabled ? 'BẬT' : 'TẮT'}">TẮT</strong>.</p>
     </div>
 
     <form th:action="@{/test-runs}" method="post" class="stack">
         <div class="panel stack">
-            <h2>Tạo đợt chạy thử</h2>
+            <h2>Tạo chiến dịch thử</h2>
             <label class="field">Tên đợt thử <input type="text" name="name" required maxlength="100" placeholder="Thử lần 1"></label>
-            <label class="field">Nội dung tin
-                <textarea name="template" rows="5" maxlength="800" th:text="${defaultTemplate}"></textarea></label>
+            <label class="field">Tin 1 (mời kết bạn)
+                <textarea name="template" rows="5" maxlength="800" th:text="${cfg.template}"></textarea></label>
+            <label class="field">Tin 2 (gửi link nhóm sau khi thêm vào nhóm)
+                <textarea name="linkTemplate" rows="2" maxlength="800" th:text="${cfg.linkTemplate}"></textarea></label>
+            <label class="field"><input type="checkbox" name="sendLink" checked> Gửi Tin 2 sau khi thêm vào nhóm</label>
+            <div class="formrow">
+                <label class="field grow">Nhóm đích (nhóm đã gán mã nhóm Zalo)
+                    <select name="zaloGroupId">
+                        <option value="">Chưa chọn</option>
+                        <option th:each="g : ${groups}" th:value="${g.id}" th:text="${g.name}">Nhóm miền Nam</option>
+                    </select></label>
+                <label class="field">Tối đa tin mỗi ngày
+                    <input type="number" name="dailyLimit" min="1" th:max="${quota.limits.daily}" th:value="${cfg.dailyLimit}"></label>
+                <label class="field">Nghỉ giữa hai tin (giây)
+                    <input type="number" name="gapSeconds" th:min="${quota.limits.gapSeconds}" max="3600" th:value="${cfg.gapSeconds}"></label>
+            </div>
+            <p class="muted" th:if="${groups.isEmpty()}">Chưa có nhóm nào được gán mã nhóm Zalo. Gán ở trang <a th:href="@{/zalo}">Zalo tài khoản phụ</a>, mục Nhóm Zalo.</p>
             <div class="table-wrap">
                 <table>
                     <tr><th>Số điện thoại thử</th><th>Tên (tùy chọn)</th><th>Khu vực (tỉnh/thành)</th></tr>
@@ -45,15 +62,15 @@
                     </tr>
                 </table>
             </div>
-            <div class="actions"><button type="submit" class="btn">Tạo đợt chạy thử</button></div>
+            <div class="actions"><button type="submit" class="btn">Tạo chiến dịch thử</button></div>
         </div>
     </form>
 
     <section>
-        <h2>Các đợt chạy thử</h2>
+        <h2>Các chiến dịch thử</h2>
         <div class="table-wrap" th:if="${!runs.isEmpty()}">
             <table>
-                <tr><th>Đợt</th><th>Tạo lúc</th><th>Số thử</th><th>Đã nhắn</th><th>Đã kết bạn</th><th>Đã vào nhóm</th><th>Từ chối</th></tr>
+                <tr><th>Chiến dịch thử</th><th>Tạo lúc</th><th>Số thử</th><th>Đã nhắn</th><th>Đã kết bạn</th><th>Đã vào nhóm</th><th>Từ chối</th></tr>
                 <tr th:each="r : ${runs}">
                     <td><a th:href="@{/test-runs/{id}(id=${r.id})}" th:text="${r.name}">Thử lần 1</a></td>
                     <td th:text="${#temporals.format(r.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
@@ -65,7 +82,7 @@
                 </tr>
             </table>
         </div>
-        <p class="muted" th:if="${runs.isEmpty()}">Chưa có đợt chạy thử nào.</p>
+        <p class="muted" th:if="${runs.isEmpty()}">Chưa có chiến dịch thử nào.</p>
     </section>
 </main>
 </body>
