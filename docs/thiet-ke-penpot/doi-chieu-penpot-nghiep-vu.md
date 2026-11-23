@@ -34,7 +34,7 @@ Chỗ cần sửa chủ yếu là: số liệu mâu thuẫn giữa các màn, tr
 - **Cần chủ shop quyết (xung đột trong tài liệu, không phải lỗi thiết kế):** file 03 mục 1 ghi SMS quảng cáo cần khách đăng ký trước, khách cũ chưa đăng ký thì SMS gần như bị chặn, còn mốc 1D nói SMS chỉ cho khách `OPT_IN`. Nhưng quyết định D4 chọn SMS làm kênh chính. Màn 12 theo D4. Nếu giữ SMS thì màn 3 và 12 cần cho thấy khách nào có đồng ý (OPT_IN) thật, vì hiện chỉ có "duyệt cơ sở sau bán hàng".
 
 ### 4. Thanh điều hướng thiếu 5 mục và tab sáng sai
-- **Đọc trực tiếp.** Thanh điều hướng trên mọi board có 8 mục: Tổng quan, Nhập đơn, Danh sách mời, Khách mua 1 lần, Khách mua từ 2 lần, Trạng thái đơn, Yêu cầu của khách, Đăng xuất. Code `fragments.html` có thêm Chiến dịch mời, Nhóm Zalo, Gửi tin, Bot, Việc cần mẹ xử lý (tổng 12 mục + Đăng xuất). Ở màn 11 và 12, tab sáng là "Danh sách mời".
+- **Đọc trực tiếp.** Thanh điều hướng trên mọi board có 8 mục: Tổng quan, Nhập đơn, Danh sách mời, Khách mua 1 lần, Khách mua từ 2 lần, Trạng thái đơn, Yêu cầu của khách, Đăng xuất. Code `fragments.html` có thêm Chiến dịch mời, Nhóm Zalo, Gửi tin, Bot, Việc cần người thật xử lý (tổng 12 mục + Đăng xuất). Ở màn 11 và 12, tab sáng là "Danh sách mời".
 - **Sửa:** thêm 5 mục vào thanh điều hướng của mọi board và làm tab sáng đúng màn. Với 13 mục, cân nhắc gộp nhóm: "Dữ liệu" (nhập đơn, hai danh sách, trạng thái đơn), "Mời khách" (danh sách mời, chiến dịch, nhóm, gửi tin), "Trợ lý" (bot, việc cần mẹ), "Yêu cầu của khách".
 
 ### 5. Màn 14 chưa nói mẹ nhận báo việc bằng đường nào
@@ -104,7 +104,7 @@ Cách làm: quét toàn bộ chữ trên 16 board Penpot, tìm chữ không có 
 | 3 Chi tiết khách | Mã nhật ký `BASIS_APPROVED`, `EXPORTED` (cột "Việc"); người thực hiện `admin`; mã bằng chứng `VIETTEL_POST:VTP000000001`, `JT000000002` | Nhật ký ghi "Duyệt cơ sở liên hệ", "Xuất dữ liệu khách" (đã có ở cột "Chi tiết" nên bỏ cột mã); người thực hiện ghi "Bố" hoặc "Mẹ"; bằng chứng ghi "Viettel Post, vận đơn VTP000000001" |
 | 4 Danh sách mời | Cột "Bằng chứng": `VIETTEL_POST:VTP0001`, `JT_EXPRESS:JT0002`, `VIETTEL_POST:VTP0003` | "Viettel Post · vận đơn VTP0001" |
 | 8 Tài khoản Zalo của bot | "(DRY_RUN)", "(kill switch)", "Bot", "quét mã QR" | "Chỉ ghi dự kiến, chưa gửi thật"; "Tạm dừng trợ lý ngay"; dùng "Trợ lý AI" thay "Bot"; "quét mã QR" có thể giữ vì quen thuộc, hoặc "quét mã vuông" |
-| 14 Việc cần mẹ xử lý | "bot" (nhiều chỗ) | "trợ lý AI" |
+| 14 Việc cần người thật xử lý | "bot" (nhiều chỗ) | "trợ lý AI" |
 | 1, 11 | "bot", "Việc bot chuyển cho mẹ" | "Việc trợ lý AI chuyển cho mẹ" |
 | 12 Chiến dịch mời | "BR-16" (mã tài liệu), "SMS brandname" | Bỏ "(BR-16)"; "tin nhắn SMS có tên cửa hàng" |
 | 15 Cài đặt gửi tin | "SMS", "brandname", "[QC]", tên eSMS/SpeedSMS | "SMS" quen với người dùng nên có thể giữ; "brandname" đổi thành "tên cửa hàng hiển thị"; "[QC]" giải thích là "nhãn quảng cáo" |

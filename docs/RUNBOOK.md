@@ -64,7 +64,7 @@ Trang **In giấy giới thiệu**: một mã QR tĩnh và một link ngắn gi�
    - **Lớp thời tiết chạy trên bản đồ:** phía trên bản đồ chọn **Nhiệt độ**, **Mưa** hoặc **Mây**, rồi bấm **Chạy** để xem 48 giờ tới chuyển theo từng giờ (kéo thanh trượt để dừng ở một giờ). Mỗi tỉnh hiện một ô màu theo số liệu của giờ đó; phóng to bản đồ để thấy con số. Đây là dự báo theo điểm (thành phố tỉnh lỵ), **không phải ảnh radar**. Ảnh radar RainViewer chỉ miễn phí cho cá nhân/học tập, chỉ có 2 giờ đã qua, phóng to tối đa mức 7 nên không dùng; Open-Meteo bản miễn phí chỉ cho phi thương mại nên cũng không dùng.
 3. **Nhắc việc thời tiết** hiện trên Bản đồ và Tổng quan khi một tỉnh có từ 10 khách trở lên mà 48 giờ tới dự báo lạnh bất thường (thấp nhất ≤13°C miền Bắc, ≤16°C miền Trung, ≤22°C miền Nam) hoặc nóng (cao nhất ≥37°C). Chỉ là nhắc việc cho mẹ, **hệ thống không tự nhắn gì cho khách**. Ngưỡng chỉnh trong `application.yml` mục `app.weather`.
 
-### 6. Việc cần mẹ xử lý (khi bật bot)
+### 6. Việc cần người thật xử lý (khi bật bot)
 Bot báo khi trong nhóm có khách muốn mua, khiếu nại hoặc cần người thật. Mẹ vào Zalo trả lời, rồi bấm **Đã nhận** và **Xong**. Bot không bao giờ tự chốt đơn.
 Muốn tắt bot ngay: **Bot → TẮT bot ngay**. Mẹ vẫn trả lời khách bình thường.
 

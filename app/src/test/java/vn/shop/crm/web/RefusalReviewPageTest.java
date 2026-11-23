@@ -27,7 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Trang "Việc cần mẹ xử lý": khách nhắn riêng trợ lý AI nghi từ chối (tạm dừng) và những lần AI đã tự ghi (Hoàn tác). */
+/** Trang "Việc cần người thật xử lý": khách nhắn riêng trợ lý AI nghi từ chối (tạm dừng) và những lần AI đã tự ghi (Hoàn tác). */
 class RefusalReviewPageTest extends AbstractPostgresTest {
 
     @Autowired WebApplicationContext context;
@@ -62,7 +62,7 @@ class RefusalReviewPageTest extends AbstractPostgresTest {
         reviews.hold(target("7001"), RefusalReviewService.Reason.AI_KHONG_CHAC, "TU_CHOI", 0.6, "thôi phiền quá");
         reviews.autoRecord(target("7002"), "TU_CHOI", 0.95);
         mvc.perform(get("/handoffs").with(user("me").roles("STAFF"))).andExpect(status().isOk())
-                .andExpect(content().string(containsString("Khách nhắn riêng, cần mẹ xem")))
+                .andExpect(content().string(containsString("Khách nhắn riêng, cần người thật xem")))
                 .andExpect(content().string(containsString("thôi phiền quá")))
                 .andExpect(content().string(containsString("Chi Lan")))
                 .andExpect(content().string(containsString("Khách từ chối thật, đừng nhắn lại")))
@@ -71,7 +71,7 @@ class RefusalReviewPageTest extends AbstractPostgresTest {
                 .andExpect(content().string(containsString("Anh Hung")))
                 .andExpect(content().string(containsString("Hoàn tác")));
         mvc.perform(get("/").with(user("me").roles("STAFF"))).andExpect(status().isOk())
-                .andExpect(content().string(containsString("khách nhắn riêng cần mẹ xem")));
+                .andExpect(content().string(containsString("khách nhắn riêng cần người thật xem")));
     }
 
     @Test
@@ -87,7 +87,7 @@ class RefusalReviewPageTest extends AbstractPostgresTest {
         assertThat(jdbc.sql("SELECT string_agg(status, ',' ORDER BY id) FROM invitation").query(String.class).single()).isEqualTo("SENT,SENT");
         assertThat(contacts.isSuppressed("+84900000002")).isFalse();
         mvc.perform(get("/handoffs").with(user("me").roles("STAFF")))
-                .andExpect(content().string(not(containsString("Khách nhắn riêng, cần mẹ xem"))))
+                .andExpect(content().string(not(containsString("Khách nhắn riêng, cần người thật xem"))))
                 .andExpect(content().string(not(containsString("Trợ lý AI đã ghi khách từ chối"))));
     }
 

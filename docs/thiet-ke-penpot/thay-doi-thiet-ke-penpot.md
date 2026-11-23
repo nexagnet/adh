@@ -4,7 +4,7 @@ Trang Penpot: **"Bản chỉnh sửa (đã rà soát)"** (20 board) và **"Giấ
 
 ## Nguyên tắc thiết kế mới
 
-- **Thanh bên trái chia nhóm** thay thanh trên cùng (đủ 12 mục, có đếm việc cần làm): Khách hàng (Tổng quan, Nhập đơn, Khách mua 1 lần, Khách mua từ 2 lần, Trạng thái đơn); Mời vào nhóm (Danh sách mời, Chiến dịch mời, Nhóm Zalo, Cài đặt gửi tin); Trợ lý AI (Việc cần mẹ xử lý, Tài khoản trợ lý AI); Khác (Yêu cầu của khách). Tab đang mở được tô sáng đúng màn.
+- **Thanh bên trái chia nhóm** thay thanh trên cùng (đủ 12 mục, có đếm việc cần làm): Khách hàng (Tổng quan, Nhập đơn, Khách mua 1 lần, Khách mua từ 2 lần, Trạng thái đơn); Mời vào nhóm (Danh sách mời, Chiến dịch mời, Nhóm Zalo, Cài đặt gửi tin); Trợ lý AI (Việc cần người thật xử lý, Tài khoản trợ lý AI); Khác (Yêu cầu của khách). Tab đang mở được tô sáng đúng màn.
 - **Mỗi màn một việc chính** (một nút nổi bật), việc phụ là nút viền, việc nguy hiểm (xóa, tạm dừng) màu đỏ và tách riêng.
 - Chữ nội dung ≥ 17px, nhãn nhỏ ≥ 16px. Màu chữ tương phản cao. Trạng thái luôn có chữ, không chỉ dựa vào màu.
 - 100% tiếng Việt: bỏ mã nội bộ (BASIS_APPROVED, EXPORTED, VIETTEL_POST:..., admin, BR-16, DRY_RUN, kill switch, "bot"). "Bot" đổi thành "trợ lý AI"; "CSV" đổi thành "Excel". Còn giữ tên riêng (Viettel Post, J&T Express, Zalo, SMS, QR).
@@ -25,7 +25,7 @@ Trang Penpot: **"Bản chỉnh sửa (đã rà soát)"** (20 board) và **"Giấ
 | 7 Đăng nhập | Chọn Bố hoặc Mẹ, mật khẩu riêng. Thêm trạng thái **7b: nhập sai nhiều lần, đợi 15 phút** (khớp code). |
 | 8 Tài khoản trợ lý AI | Công tắc an toàn lên đầu; "Cách kết nối" là ba lựa chọn chưa chọn (Zalo Bot chính thức, Zalo OA, tài khoản cá nhân riêng có cảnh báo khóa); nút Kết nối bị khóa tới khi chọn. |
 | 13 Trang khách (điện thoại) | Chữ to hơn; nói rõ trong nhóm có chủ cửa hàng và trợ lý AI; thêm nút **"Tôi không muốn nhận tin từ cửa hàng nữa"**. Thêm ba trạng thái: **13b đã ngừng nhận tin, 13c link hết hạn, 13d các nhóm đã đủ người** (khớp `landing-stopped` và `landing-unavailable`). |
-| 14 Việc cần mẹ xử lý | Dạng thẻ việc, mỗi thẻ một lý do, tóm tắt, nhóm, giờ và nút xử lý; thêm ghi chú "Chưa chọn cách báo cho mẹ". |
+| 14 Việc cần người thật xử lý | Dạng thẻ việc, mỗi thẻ một lý do, tóm tắt, nhóm, giờ và nút xử lý; thêm ghi chú "Chưa chọn cách báo cho mẹ". |
 | 15 Cài đặt gửi tin | Thêm bảng **Nhật ký gửi gần đây**; nhà cung cấp SMS ghi "Chưa chọn"; nút tạm dừng tất cả. |
 | 16 Khách mua từ 2 lần | Ghi chú "không có nút mời", bảng gọn, dữ liệu mẫu riêng. |
 

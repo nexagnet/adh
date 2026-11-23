@@ -208,7 +208,7 @@
         <h2>Nhận diện khách từ chối bằng AI</h2>
         <p class="hint">Trợ lý AI đọc tin RIÊNG của người đã nhận Tin 1 hoặc Tin 2 để nhận ra khách bảo đừng nhắn nữa. AI rất chắc (từ
             <strong th:text="${#numbers.formatDecimal(inboxThreshold, 1, 2)}">0,80</strong>) thì tự ghi sổ từ chối, có nút Hoàn tác ở trang
-            <a th:href="@{/handoffs}">Việc cần mẹ xử lý</a>. AI không chắc hoặc lỗi thì tạm dừng mọi tin cho khách đó và báo mẹ. Hệ thống không trả lời khách,
+            <a th:href="@{/handoffs}">Việc cần người thật xử lý</a>. AI không chắc hoặc lỗi thì tạm dừng mọi tin cho khách đó và báo mẹ. Hệ thống không trả lời khách,
             không đọc tin nhóm, không đọc tin người lạ; chỉ gửi cho AI văn bản đã che số điện thoại, không kèm tên hay mã Zalo.</p>
         <p><span class="badge" th:classappend="${inboxRunning} ? 'ok' : 'warn'" th:text="${inboxRunning} ? 'Đang bật' : 'Đang tắt'">Đang tắt</span>
             <span class="sub-line" th:unless="${inboxRunning}">Bật cần cả ba công tắc ở máy chủ: APP_ZALO_INBOX_ENABLED, BRIDGE_INBOX_ENABLED ở cầu nối và APP_AI_ENABLED (kèm khóa và tên mô hình).</span></p>
@@ -217,7 +217,7 @@
 
         <h3>Khách từng từ chối nay nhắn lại muốn mua</h3>
         <p class="hint">Số điện thoại và sổ từ chối <strong>không bao giờ bị xóa</strong>. Khi một khách từng từ chối <strong>tự nhắn tới</strong> và AI hiểu là muốn mua, mẹ thấy việc nổi bật
-            ở <a th:href="@{/handoffs}">Việc cần mẹ xử lý</a> kèm đơn khách đã mua. Ở nấc Tự động, AI chắc từ
+            ở <a th:href="@{/handoffs}">Việc cần người thật xử lý</a> kèm đơn khách đã mua. Ở nấc Tự động, AI chắc từ
             <strong th:text="${#numbers.formatDecimal(comebackThreshold, 1, 2)}">0,85</strong> thì hệ thống tự gỡ cờ (chỉ đánh dấu "đã gỡ" kèm giờ), đưa khách vào hàng chờ vào nhóm theo khu vực
             và gửi <strong>một</strong> tin mẫu cố định (không do AI viết). Mỗi khách tối đa một lần tự gỡ trong 30 ngày, luôn có nút Hoàn tác, dùng chung hạn mức và cầu dao.
             Hệ thống không bao giờ nhắn người chưa nhắn trước.</p>
