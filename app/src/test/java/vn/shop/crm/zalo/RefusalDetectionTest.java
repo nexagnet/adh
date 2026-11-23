@@ -196,6 +196,25 @@ class RefusalDetectionTest extends AbstractPostgresTest {
         assertThat(aiPrompts.get(0)).doesNotContain("0912345678").contains("[số điện thoại]");
     }
 
+    /** D21 PR 5b: khách đã nhận Tin 1 mà nhắn riêng BẤT CỨ điều gì thì ghi dấu để mọi tin nhắc dừng, dù AI gắn nhãn gì hay AI lỗi. */
+    @Test
+    void khachNhanRiengBatCuDieuGiThiGhiDauDeTinNhacDung() {
+        aiAnswer.set(ai("KHAC", 0.9));
+        fake.pushInbound(uid(1), "Ok em nhé");
+        assertThat(svc.poll()).isEqualTo(1);
+        aiDown = true;
+        fake.pushInbound(uid(2), "Cho mình hỏi chút");
+        assertThat(svc.poll()).isEqualTo(1);
+        aiDown = false;
+        fake.pushInbound(uid(3), "   ");
+        assertThat(svc.poll()).isEqualTo(1);
+        for (int n = 1; n <= 3; n++) {
+            assertThat(jdbc.sql("SELECT inbound_at IS NOT NULL FROM invitation WHERE id = :id").param("id", inv(n)).query(Boolean.class).single())
+                    .as("khách " + n).isTrue();
+        }
+        assertThat(jdbc.sql("SELECT inbound_at IS NOT NULL FROM invitation WHERE id = :id").param("id", inv(4)).query(Boolean.class).single()).isFalse();
+    }
+
     @Test
     void nguongChinhDuoc() {
         ZaloInboxService strict = service(true, 0.97);

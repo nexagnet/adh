@@ -143,6 +143,33 @@ class ZaloGatewayShapeTest {
                 .doesNotContain("HttpClient", "RestClient", "WebClient");
     }
 
+    /** D21 PR 5b: tin nhắc (FOLLOWUP2/3) chỉ có MỘT nơi gửi, chỉ theo mã Zalo, chỉ khi phần đọc tin riêng chạy, ghi sổ đếm cứng trước khi gọi. */
+    @Test
+    void tinNhacChiGuiTuMotNoiVaChiTheoMaZalo() throws IOException {
+        List<Path> offenders = new java.util.ArrayList<>();
+        try (Stream<Path> all = Files.walk(Path.of("src/main/java"))) {
+            for (Path f : all.filter(x -> x.toString().endsWith(".java")).toList()) {
+                String name = f.getFileName().toString();
+                if (Files.readString(f).contains("Kind.FOLLOWUP") && !name.equals("ZaloFollowupSender.java")) {
+                    offenders.add(f);
+                }
+            }
+        }
+        assertThat(offenders).isEmpty();
+        String sender = Files.readString(Path.of("src/main/java/vn/shop/crm/zalo/ZaloFollowupSender.java"));
+        assertThat(sender).contains("Kind.FOLLOWUP2", "Kind.FOLLOWUP3", "sendByUid", "inbox.running()", "CampaignSteps.STOP_FOOTER",
+                        "INSERT INTO invitation_touch", "ON CONFLICT DO NOTHING", "inbound_at IS NULL", "policy.blocker", "testMode.onlyTestSql")
+                .doesNotContain("sendByPhone", "addToGroup", "createGroup", "findByPhone", "while");
+        // phần soạn tin nhắc (cấu hình) và phần nhận tin riêng không có đường gửi nào
+        assertThat(Files.readString(Path.of("src/main/java/vn/shop/crm/invite/CampaignSteps.java")))
+                .doesNotContain("ZaloMessenger", "sendByUid", "sendByPhone", "Kind.");
+        try (Stream<Path> inbox = Files.walk(Path.of("src/main/java/vn/shop/crm/inbox"))) {
+            for (Path f : inbox.filter(x -> x.toString().endsWith(".java")).toList()) {
+                assertThat(Files.readString(f)).as(f.toString()).doesNotContain("FOLLOWUP");
+            }
+        }
+    }
+
     /** D18: khoảng cách giữa hai tin là CỐ ĐỊNH. Không dùng số ngẫu nhiên để rải thời gian gửi (không né phát hiện). */
     @Test
     void khongDungSoNgauNhienTrongMaGuiTin() throws IOException {

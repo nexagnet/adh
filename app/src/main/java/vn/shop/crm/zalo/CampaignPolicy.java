@@ -141,19 +141,35 @@ public class CampaignPolicy {
         return Optional.empty();
     }
 
-    /** Số khách của chiến dịch đã được tự gửi Tin 1 hôm nay (đếm theo lời mời, nên tin bị trả lại về READY không tính). */
+    /**
+     * Số tin chủ động của chiến dịch hôm nay: Tin 1 tự gửi (đếm theo lời mời, nên tin bị trả lại về READY không tính) cộng các tin nhắc
+     * (D21 PR 5b: mỗi lần nhắc đã nhận phần việc, kể cả lần lỗi hay không rõ kết quả, là một dòng ở {@code invitation_touch}).
+     */
     public int sentToday(long campaignId, LocalDate today) {
-        Instant start = today.atStartOfDay(clock.getZone()).toInstant();
-        return jdbc.sql("""
+        OffsetDateTime since = OffsetDateTime.ofInstant(today.atStartOfDay(clock.getZone()).toInstant(), clock.getZone());
+        int first = jdbc.sql("""
                         SELECT count(*) FROM invitation WHERE campaign_id = :id AND sent_channel = :ch AND sent_at >= :since""")
-                .param("id", campaignId).param("ch", ZaloInviteSender.CHANNEL).param("since", OffsetDateTime.ofInstant(start, clock.getZone()))
+                .param("id", campaignId).param("ch", ZaloInviteSender.CHANNEL).param("since", since)
                 .query(Integer.class).single();
+        int follow = jdbc.sql("""
+                        SELECT count(*) FROM invitation_touch t JOIN invitation i ON i.id = t.invitation_id
+                        WHERE i.campaign_id = :id AND t.step_no >= 2 AND t.sent_at >= :since""")
+                .param("id", campaignId).param("since", since).query(Integer.class).single();
+        return first + follow;
     }
 
     private Instant lastSent(long campaignId) {
-        return jdbc.sql("SELECT max(sent_at) FROM invitation WHERE campaign_id = :id AND sent_channel = :ch")
+        Instant first = jdbc.sql("SELECT max(sent_at) FROM invitation WHERE campaign_id = :id AND sent_channel = :ch")
                 .param("id", campaignId).param("ch", ZaloInviteSender.CHANNEL)
                 .query(OffsetDateTime.class).optional().map(OffsetDateTime::toInstant).orElse(null);
+        Instant follow = jdbc.sql("""
+                        SELECT max(t.sent_at) FROM invitation_touch t JOIN invitation i ON i.id = t.invitation_id
+                        WHERE i.campaign_id = :id AND t.step_no >= 2""")
+                .param("id", campaignId).query(OffsetDateTime.class).optional().map(OffsetDateTime::toInstant).orElse(null);
+        if (first == null) {
+            return follow;
+        }
+        return follow != null && follow.isAfter(first) ? follow : first;
     }
 
     // ---------- ghi ----------

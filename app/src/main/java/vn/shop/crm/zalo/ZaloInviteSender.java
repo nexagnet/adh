@@ -8,6 +8,7 @@ import vn.shop.crm.common.AppSettings;
 import vn.shop.crm.common.ImportException;
 import vn.shop.crm.contact.ContactService;
 import vn.shop.crm.geo.VnGeo;
+import vn.shop.crm.invite.CampaignSteps;
 import vn.shop.crm.invite.GroupService;
 import vn.shop.crm.invite.GroupStatus;
 import vn.shop.crm.invite.InviteService;
@@ -43,7 +44,7 @@ public class ZaloInviteSender {
     /** Số lời mời xem xét mỗi nhịp để bỏ qua (và đóng) những khách không còn gửi được mà không làm tắc hàng. */
     private static final int SCAN = 25;
 
-    public enum Step { NOT_ACTIVE, BLOCKED, NOTHING, INVITE_SENT, LINK_SENT, FAILED_ONE, RETRY, TRIPPED }
+    public enum Step { NOT_ACTIVE, BLOCKED, NOTHING, INVITE_SENT, LINK_SENT, FOLLOWUP_SENT, FAILED_ONE, RETRY, TRIPPED }
 
     private record Invite(long id, long campaignId, long customerId, String phone, String name, String province, String token,
                           OffsetDateTime expiresAt, String template) {
@@ -64,10 +65,15 @@ public class ZaloInviteSender {
     private final ZaloCampaignIntake intake;
     private final TestMode testMode;
     private final CampaignPolicy policy;
+    private final CampaignSteps steps;
+    private final ZaloFollowupSender followups;
 
     public ZaloInviteSender(JdbcClient jdbc, AppSettings settings, ZaloMessageService messages, ContactService contacts,
                             InviteService invites, GroupService groups, SendService sends, Clock clock,
-                            ZaloCampaignIntake intake, TestMode testMode, CampaignPolicy policy) {
+                            ZaloCampaignIntake intake, TestMode testMode, CampaignPolicy policy, CampaignSteps steps,
+                            ZaloFollowupSender followups) {
+        this.steps = steps;
+        this.followups = followups;
         this.intake = intake;
         this.policy = policy;
         this.testMode = testMode;
@@ -96,7 +102,33 @@ public class ZaloInviteSender {
         if (link.isPresent()) {
             return sendLink(link.get());
         }
-        // Tin 1: hạn mức ngày tính theo số khách được nhắn chủ động.
+        // Tin nhắc của chiến dịch nhiều lần gửi (D21 PR 5b): đi trước Tin 1 của khách mới vì có hạn, cùng hạn mức ngày và khoảng nghỉ.
+        ZaloFollowupSender.Step follow;
+        try {
+            follow = followups.step();
+        } catch (RuntimeException e) {
+            // một lỗi ở phần tin nhắc không được làm kẹt Tin 1 của khách mới
+            log.warn("Phần tin nhắc gặp lỗi: {}", e.getClass().getSimpleName());
+            follow = ZaloFollowupSender.Step.NOTHING;
+        }
+        switch (follow) {
+            case SENT -> {
+                return Step.FOLLOWUP_SENT;
+            }
+            case FAILED_ONE -> {
+                return Step.FAILED_ONE;
+            }
+            case RETRY -> {
+                return Step.RETRY;
+            }
+            case TRIPPED -> {
+                return Step.TRIPPED;
+            }
+            default -> {
+                // không có tin nhắc nào đến hạn hoặc được phép: sang Tin 1
+            }
+        }
+        // Tin 1: hạn mức ngày tính theo số tin chủ động (Tin 1 và tin nhắc).
         if (messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.INVITE, null, null).isPresent()) {
             return Step.BLOCKED;
         }
@@ -150,6 +182,10 @@ public class ZaloInviteSender {
 
     private Step sendInvite(Invite c) {
         String text = invites.render(c.template(), c.name(), invites.linkFor(c.token()), VnGeo.byCode(c.province()).orElse(null));
+        // Chiến dịch nhiều lần gửi: MÃ tự thêm câu xin ngừng vào cuối mọi lần gửi, kể cả Tin 1 (không phụ thuộc người soạn có nhớ hay không).
+        if (steps.plan(c.campaignId()).multiple() && !text.contains(CampaignSteps.STOP_FOOTER)) {
+            text = text + "\n" + CampaignSteps.STOP_FOOTER;
+        }
         // khóa lời mời trước khi gọi: hai nhịp chồng nhau không thể gửi trùng một khách
         int claimed = jdbc.sql("""
                         UPDATE invitation SET status = 'SENT', sent_at = :at, sent_channel = :ch
@@ -173,6 +209,7 @@ public class ZaloInviteSender {
                     jdbc.sql("UPDATE invitation SET zalo_target_uid = :u WHERE id = :id").param("u", d.uid())
                             .param("id", c.id()).update();
                 }
+                recordTouch(c.id(), "SENT");
                 sends.recordExternal(c.id(), c.campaignId(), c.customerId(), c.phone(), CHANNEL, "SENT", "Tin 1 tự gửi qua bộ nối Zalo", c.template());
                 contacts.event(c.customerId(), c.phone(), "INVITATION_SENT", "Kênh: " + vn.shop.crm.common.Labels.channelLabel(CHANNEL));
                 return Step.INVITE_SENT;
@@ -225,8 +262,17 @@ public class ZaloInviteSender {
                         WHERE id = :id AND status = 'SENT' AND sent_channel = :ch""").param("id", c.id()).param("ch", CHANNEL).update();
     }
 
+    /** Ghi Tin 1 vào sổ đếm cứng (bước 1) để các tin nhắc tính khoảng cách và trần 3 lần từ một nguồn. */
+    private void recordTouch(long invitationId, String outcome) {
+        jdbc.sql("""
+                        INSERT INTO invitation_touch (invitation_id, step_no, sent_at, outcome) VALUES (:id, 1, :at, :o)
+                        ON CONFLICT (invitation_id, step_no) DO UPDATE SET outcome = EXCLUDED.outcome, sent_at = EXCLUDED.sent_at""")
+                .param("id", invitationId).param("at", OffsetDateTime.now(clock)).param("o", outcome).update();
+    }
+
     /** Không biết tin đã đi hay chưa: giữ FAILED để người kiểm tra trên Zalo, KHÔNG tự gửi lại. */
     private void failUnknown(Invite c, String code) {
+        recordTouch(c.id(), "UNKNOWN");
         String reason = "Không rõ tin đã gửi chưa (" + (code == null ? "lỗi" : code) + "). Hãy kiểm tra trên Zalo rồi xử lý tay";
         jdbc.sql("UPDATE invitation SET status = 'FAILED', last_error = :e WHERE id = :id").param("e", reason).param("id", c.id()).update();
         sends.recordExternal(c.id(), c.campaignId(), c.customerId(), c.phone(), CHANNEL, "FAILED", reason, c.template());

@@ -101,6 +101,7 @@ public class CampaignController {
         model.addAttribute("sched", raw);
         model.addAttribute("schedEffective", policy.effective(raw));
         model.addAttribute("plan", steps.plan(id));
+        model.addAttribute("progress", steps.progress(id));
         model.addAttribute("maxTouches", CampaignSteps.MAX_TOUCHES);
         model.addAttribute("minGapDays", CampaignSteps.MIN_GAP_DAYS);
         model.addAttribute("stopFooter", CampaignSteps.STOP_FOOTER);

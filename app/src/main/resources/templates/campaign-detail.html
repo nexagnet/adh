@@ -52,9 +52,13 @@
     <div class="panel stack">
         <h2>Số lần gửi mời</h2>
         <div class="notice">
-            <strong>Tin nhắc CHƯA được gửi.</strong>
-            Hiện hệ thống mới lưu và kiểm tra cấu hình; phần tự gửi tin nhắc làm ở bước sau. Chiến dịch luôn chỉ gửi Tin 1 một lần cho mỗi khách cho tới lúc đó.
+            <strong>Tin nhắc chỉ tự gửi khi đủ điều kiện.</strong>
+            Chiến dịch phải đã duyệt tự gửi, công tắc tự gửi bật, và phần đọc tin riêng của trợ lý AI đang chạy (để nghe được khách xin ngừng). Đang ở chế độ thử thì chỉ đến số thử.
+            Tin nhắc tính vào hạn mức ngày cùng Tin 1.
         </div>
+        <p class="hint" th:if="${plan.multiple()}">Đã gửi: Tin 1 <strong th:text="${progress.first()}">0</strong>,
+            lần 2 <strong th:text="${progress.second()}">0</strong>, lần 3 <strong th:text="${progress.third()}">0</strong>
+            <span th:if="${progress.unknown() > 0}">; <strong th:text="${progress.unknown()}">0</strong> lần không rõ đã gửi chưa (hãy kiểm tra trên Zalo, hệ thống không tự gửi lại)</span>.</p>
         <p class="hint">Mặc định gửi <strong>1 lần</strong>. Có thể gửi thêm tối đa <span th:text="${maxTouches - 1}">2</span> tin nhắc (mỗi khách nhận tối đa <span th:text="${maxTouches}">3</span> lần).
             Khách đã kết bạn, vào nhóm, từ chối, nhắn xin ngừng hoặc đã nhắn riêng cho shop thì dừng ngay, không nhắc nữa. Hệ thống tự thêm câu xin ngừng
             "<span th:text="${stopFooter}">Anh/chị không muốn nhận tin nữa cứ nhắn "dừng" ạ.</span>" vào cuối mỗi lần gửi. Hai lần gửi cách nhau ít nhất <span th:text="${minGapDays}">3</span> ngày.</p>

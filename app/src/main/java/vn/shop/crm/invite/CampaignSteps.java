@@ -10,8 +10,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Chuỗi tin mời của chiến dịch (D21, thiết kế mục 5.3): Tin 1 và tối đa hai tin nhắc. PR 5a: chỉ LƯU và KIỂM cấu hình; chưa có gì gửi tin nhắc
- * (bộ gửi và bộ nối làm ở PR 5b). Mặc định 1 lần, đúng như D18. Trần cứng {@link #MAX_TOUCHES} lần mỗi khách ghi cả trong mã lẫn trong cơ sở dữ liệu;
+ * Chuỗi tin mời của chiến dịch (D21, thiết kế mục 5.3): Tin 1 và tối đa hai tin nhắc. Lưu và kiểm cấu hình (PR 5a); việc gửi tin nhắc do
+ * {@code ZaloFollowupSender} làm (PR 5b), chỉ khi đủ mọi điều kiện của nó. Mặc định 1 lần, đúng như D18. Trần cứng {@link #MAX_TOUCHES} lần mỗi khách ghi cả trong mã lẫn trong cơ sở dữ liệu;
  * khoảng cách tối thiểu {@link #MIN_GAP_DAYS} ngày; nội dung tin nhắc qua {@link FollowupValidator}.
  */
 @Service
@@ -38,6 +38,10 @@ public class CampaignSteps {
         }
     }
 
+    /** Số lần đã gửi theo từng bước của một chiến dịch (đọc từ sổ đếm cứng), để hiện ở trang chiến dịch. {@code unknown} = lần không rõ đã gửi chưa. */
+    public record Progress(int first, int second, int third, int unknown) {
+    }
+
     private final JdbcClient jdbc;
     private final ZaloMessageService messages;
 
@@ -52,6 +56,23 @@ public class CampaignSteps {
         List<Step> steps = jdbc.sql("SELECT step_no, template, gap_days FROM campaign_step WHERE campaign_id = :id ORDER BY step_no")
                 .param("id", campaignId).query((rs, n) -> new Step(rs.getInt(1), rs.getString(2), rs.getInt(3))).list();
         return new Plan(max, steps);
+    }
+
+    public Progress progress(long campaignId) {
+        var rows = jdbc.sql("""
+                        SELECT t.step_no, t.outcome, count(*) AS n FROM invitation_touch t JOIN invitation i ON i.id = t.invitation_id
+                        WHERE i.campaign_id = :id GROUP BY t.step_no, t.outcome""")
+                .param("id", campaignId).query((rs, i) -> new int[]{rs.getInt("step_no"), "SENT".equals(rs.getString("outcome")) ? 1 : "UNKNOWN".equals(rs.getString("outcome")) ? 2 : 0, rs.getInt("n")}).list();
+        int[] sent = new int[4];
+        int unknown = 0;
+        for (int[] r : rows) {
+            if (r[1] == 1) {
+                sent[r[0]] += r[2];
+            } else if (r[1] == 2) {
+                unknown += r[2];
+            }
+        }
+        return new Progress(sent[1], sent[2], sent[3], unknown);
     }
 
     /**
