@@ -1,8 +1,8 @@
 # CLAUDE.md: đọc file này TRƯỚC khi làm việc trong repo `adh`
 
-File này dành cho AI (hoặc người) vào làm tiếp mà **không đọc được lịch sử trò chuyện**. Nó gom các quy tắc và quyết định của chủ dự án vốn chỉ nằm trong trí nhớ của các phiên trước. Cập nhật ngày 23/11/2026 (sau PR #74).
+File này dành cho AI (hoặc người) vào làm tiếp mà **không đọc được lịch sử trò chuyện**. Nó gom các quy tắc và quyết định của chủ dự án vốn chỉ nằm trong trí nhớ của các phiên trước. Cập nhật ngày 23/11/2026 (sau PR #89).
 
-**Phiên mới: đọc file này, rồi `docs/BAN-GIAO.md` mục 0 ("Bắt đầu nhanh": trạng thái PR, quyết định ngày 23/11, máy chủ, phạm vi giai đoạn 1 và 2, danh sách màn sẽ xóa), rồi `docs/HUONG-DAN-CHAY-THU-TOAN-DIEN.md`.** Nếu file này và tài liệu khác trong repo mâu thuẫn, **ưu tiên file này**, rồi tới `docs/BAN-GIAO.md` mục 0 (các mục 1 đến 10 của nó đã cũ, xem mục 9 ở đây). Nghiệp vụ gốc: `01_DAC_TA_NGHIEP_VU.md`. Quyết định D1 đến D18 và kế hoạch: `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md`. Vận hành: `docs/RUNBOOK.md`.
+**Phiên mới: đọc file này, rồi `docs/BAN-GIAO-CHIEN-DICH-THU.md` (cửa vào cho AI làm tiếp: chạy Chiến dịch thử, việc cấm, dữ liệu thật và chế độ thử, thứ tự việc, danh sách xóa sau thử), rồi `docs/BAN-GIAO.md` mục 0 ("Bắt đầu nhanh": trạng thái PR, quyết định ngày 23/11, máy chủ, phạm vi giai đoạn 1 và 2, danh sách màn sẽ xóa), rồi `docs/HUONG-DAN-CHAY-THU-TOAN-DIEN.md`.** Nếu file này và tài liệu khác trong repo mâu thuẫn, **ưu tiên file này**, rồi tới `docs/BAN-GIAO.md` mục 0 (các mục 1 đến 10 của nó đã cũ, xem mục 9 ở đây). Nghiệp vụ gốc: `01_DAC_TA_NGHIEP_VU.md`. Quyết định D1 đến D18 và kế hoạch: `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md`. Vận hành: `docs/RUNBOOK.md`.
 
 ## 1. Quy tắc làm việc (chủ dự án đã dặn)
 
