@@ -2,7 +2,9 @@
 
 Dành cho chủ cửa hàng. Mục đích: thử cả quy trình **bằng số điện thoại của bạn hoặc người quen đã đồng ý**, trước khi nhắn khách thật.
 
-**Nguyên tắc không đổi:** hệ thống **không tự gửi tin** và **không đăng nhập Zalo**. Bạn tự nhắn bằng tài khoản Zalo phụ (cá nhân) trên điện thoại hoặc máy tính, rồi bấm nút ghi lại trên trang quản trị.
+> **Cập nhật 23/11/2026 (D18):** chủ shop đã bỏ nguyên tắc "không tự gửi tin"; hệ thống sẽ tự gửi tin như người thật, gửi từ từ. Mới ghi tài liệu, **chưa có mã**; hướng dẫn dưới đây mô tả bản hiện tại (nhắn tay) và sẽ được sửa khi mã tự gửi gộp. Xem `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md` mục 1I.11.
+
+**Nguyên tắc của bản hiện tại (trước D18):** hệ thống **không tự gửi tin** và **không đăng nhập Zalo**. Bạn tự nhắn bằng tài khoản Zalo phụ (cá nhân) trên điện thoại hoặc máy tính, rồi bấm nút ghi lại trên trang quản trị.
 
 ## Chuẩn bị (một lần)
 
@@ -46,4 +48,4 @@ Vào menu **Mời vào nhóm → Chạy thử trên Zalo**.
 
 - Hạn mức và nhịp chậm chỉ để giữ việc nhắn **nhỏ, thong thả, lịch sự**. Đây **không phải** cam kết Zalo sẽ không hạn chế tài khoản phụ; tin tư vấn cho khách chưa đồng ý nhận tin vẫn có thể bị khách báo cáo.
 - Chỉ nhắn **một lần duy nhất** cho mỗi khách và tôn trọng ngay mọi lời xin ngừng nhận tin (đã chốt ở D13, chủ cửa hàng đã nhận rủi ro ở D3).
-- Hệ thống **không** có chế độ tự gửi tin lên Zalo, không có công cụ giả thao tác hay xoay vòng tài khoản, và sẽ không làm.
+- Bản hiện tại **không** có chế độ tự gửi tin lên Zalo (D18 sẽ thêm, chưa có mã). Công cụ giả thao tác, đổi dấu vân tay hay xoay vòng tài khoản **không** nằm trong D18 và vẫn sẽ không làm.
