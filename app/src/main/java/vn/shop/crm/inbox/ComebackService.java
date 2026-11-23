@@ -74,6 +74,23 @@ public class ComebackService {
                 return OFF;
             }
         }
+
+        /** Nấc người dùng chọn cho chiến dịch; rỗng = theo hệ thống (null). Giá trị lạ là lỗi. */
+        public static Mode ofCampaign(String v) {
+            if (v == null || v.isBlank()) {
+                return null;
+            }
+            try {
+                return valueOf(v.strip());
+            } catch (IllegalArgumentException e) {
+                throw new ImportException("Nấc khách quay lại không đúng.");
+            }
+        }
+
+        /** Nấc THẤP hơn trong hai nấc (OFF &lt; TASKS &lt; AUTO). */
+        static Mode lower(Mode a, Mode b) {
+            return a.ordinal() <= b.ordinal() ? a : b;
+        }
     }
 
     public enum Reason {
@@ -149,6 +166,44 @@ public class ComebackService {
         return Mode.parse(settings.get(MODE_KEY).orElse(null));
     }
 
+    /** Nấc riêng của chiến dịch (null = theo hệ thống). */
+    public Mode campaignMode(long campaignId) {
+        return Mode.ofCampaign(jdbc.sql("SELECT comeback_mode FROM invitation_campaign WHERE id = :id").param("id", campaignId)
+                .query(String.class).optional().orElse(null));
+    }
+
+    /** Người dùng đặt nấc riêng cho chiến dịch (null = theo hệ thống). Không nới được nấc chung: nấc có hiệu lực luôn là nấc thấp hơn. */
+    public void saveCampaignMode(long campaignId, Mode mode, String by) {
+        int n = jdbc.sql("UPDATE invitation_campaign SET comeback_mode = :m WHERE id = :id")
+                .param("m", mode == null ? null : mode.name(), java.sql.Types.VARCHAR).param("id", campaignId).update();
+        if (n == 0) {
+            throw new ImportException("Không tìm thấy chiến dịch.");
+        }
+    }
+
+    /**
+     * Nấc có hiệu lực cho khách của một lời mời: THẤP hơn của hệ thống và của chiến dịch; chiến dịch chọn "chỉ gửi link nhóm" (không tự thêm
+     * vào nhóm) thì tối đa là CHỈ TẠO VIỆC. Chiến dịch chỉ làm chặt hơn, không bao giờ nới.
+     */
+    public Mode effective(long invitationId) {
+        Mode result = mode();
+        var row = jdbc.sql("""
+                        SELECT k.comeback_mode, k.group_delivery FROM invitation i JOIN invitation_campaign k ON k.id = i.campaign_id
+                        WHERE i.id = :id""")
+                .param("id", invitationId).query((rs, n) -> new String[]{rs.getString(1), rs.getString(2)}).optional();
+        if (row.isEmpty()) {
+            return result;
+        }
+        Mode own = Mode.ofCampaign(row.get()[0]);
+        if (own != null) {
+            result = Mode.lower(result, own);
+        }
+        if ("LINK_ONLY".equals(row.get()[1])) {
+            result = Mode.lower(result, Mode.TASKS);
+        }
+        return result;
+    }
+
     public boolean tasksTried() {
         return settings.get(TASKS_TRIED_KEY).isPresent();
     }
@@ -195,7 +250,7 @@ public class ComebackService {
      * Không bao giờ ném lỗi vì "bị chặn": thành việc cho mẹ.
      */
     public Result handle(Candidate c, Verdict v, String text, boolean canAdd, double threshold) {
-        Mode mode = mode();
+        Mode mode = effective(c.invitationId());
         if (mode == Mode.OFF) {
             return Result.IGNORED;
         }

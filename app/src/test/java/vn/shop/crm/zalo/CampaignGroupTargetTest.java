@@ -206,4 +206,23 @@ class CampaignGroupTargetTest extends AbstractPostgresTest {
                 .andExpect(redirectedUrl("/campaigns/" + campaign));
         assertThat(target.load(campaign)).isEqualTo(Target.SYSTEM);
     }
+
+    @Autowired vn.shop.crm.inbox.ComebackService comebacks;
+
+    @Test
+    void trangLuuNacKhachQuayLaiRiengCuaChienDichVaTuChoiNacLa() throws Exception {
+        MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+        mvc.perform(post("/campaigns/" + campaign + "/comeback").with(csrf()).param("mode", "TASKS")).andExpect(status().is3xxRedirection());
+        assertThat(comebacks.campaignMode(campaign)).isNull(); // chưa đăng nhập thì không lưu
+        mvc.perform(post("/campaigns/" + campaign + "/comeback").with(user("admin")).with(csrf()).param("mode", "TASKS"))
+                .andExpect(redirectedUrl("/campaigns/" + campaign));
+        assertThat(comebacks.campaignMode(campaign)).isEqualTo(vn.shop.crm.inbox.ComebackService.Mode.TASKS);
+        mvc.perform(get("/campaigns/" + campaign).with(user("admin")))
+                .andExpect(status().isOk()).andExpect(content().string(containsString("Khách từng từ chối nhưng nhắn lại muốn mua")));
+        mvc.perform(post("/campaigns/" + campaign + "/comeback").with(user("admin")).with(csrf()).param("mode", "TUY_Y"))
+                .andExpect(status().isBadRequest()).andExpect(content().string(containsString("không đúng")));
+        mvc.perform(post("/campaigns/" + campaign + "/comeback").with(user("admin")).with(csrf()).param("mode", ""))
+                .andExpect(redirectedUrl("/campaigns/" + campaign));
+        assertThat(comebacks.campaignMode(campaign)).isNull();
+    }
 }

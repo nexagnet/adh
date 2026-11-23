@@ -95,6 +95,20 @@
         </form>
     </div>
     <div class="panel stack">
+        <h2>Khách từng từ chối nhưng nhắn lại muốn mua</h2>
+        <p class="hint">Nấc chung của hệ thống hiện là <strong th:text="${comebackSystem.label}">Tắt</strong> (đổi ở trang <a th:href="@{/zalo}">Zalo tài khoản phụ</a>).
+            Ở đây bạn chỉ có thể làm <strong>chặt hơn</strong>: nấc có hiệu lực luôn là nấc thấp hơn giữa hệ thống và chiến dịch.
+            Chiến dịch chọn "chỉ gửi link nhóm" thì tối đa là "Chỉ tạo việc" (không tự thêm khách vào nhóm). Khách từng từ chối KHÔNG bao giờ được trả lời nội dung khác.</p>
+        <form th:action="@{/campaigns/{id}/comeback(id=${campaign.id})}" method="post" class="stack">
+            <label class="field">Nấc riêng của chiến dịch
+                <select name="mode">
+                    <option value="" th:selected="${comebackOwn == null}">Theo hệ thống</option>
+                    <option th:each="m : ${comebackModes}" th:value="${m.name()}" th:selected="${comebackOwn == m}" th:text="${m.label} + ' — ' + ${m.hint}">Tắt</option>
+                </select></label>
+            <div class="actions"><button type="submit" class="btn">Lưu</button></div>
+        </form>
+    </div>
+    <div class="panel stack">
         <h2>Số lần gửi mời</h2>
         <div class="notice">
             <strong>Tin nhắc chỉ tự gửi khi đủ điều kiện.</strong>
