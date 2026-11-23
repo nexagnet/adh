@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import vn.shop.crm.inbox.ReplyContext;
 import vn.shop.crm.inbox.ReplyService;
+import vn.shop.crm.inbox.WarrantyService;
 
 import java.security.Principal;
 import java.util.LinkedHashMap;
@@ -25,11 +26,13 @@ public class ReplyController {
     private final ReplyService replies;
     private final ZaloMessageService messages;
     private final ZaloInboxService inbox;
+    private final WarrantyService warranty;
 
-    public ReplyController(ReplyService replies, ZaloMessageService messages, ZaloInboxService inbox) {
+    public ReplyController(ReplyService replies, ZaloMessageService messages, ZaloInboxService inbox, WarrantyService warranty) {
         this.replies = replies;
         this.messages = messages;
         this.inbox = inbox;
+        this.warranty = warranty;
     }
 
     private static String by(Principal p) {
@@ -51,6 +54,8 @@ public class ReplyController {
         model.addAttribute("ctxFields", ReplyContext.Field.values());
         model.addAttribute("ctxOn", replies.context().enabled());
         model.addAttribute("ctxSample", replies.context().sample());
+        model.addAttribute("warrantyOn", warranty.enabled());
+        model.addAttribute("warrantyOpen", warranty.openCount());
     }
 
     @GetMapping
@@ -65,6 +70,14 @@ public class ReplyController {
         replies.setMode(mode, confirmedTested, by(user));
         redirect.addFlashAttribute("flash", "Đã chuyển trợ lý trả lời sang nấc: " + mode.label() + ".");
         return "redirect:/zalo/reply";
+    }
+
+    /** Công tắc phân loại bảo hành và khiếu nại (tắt mặc định). Phần này không bao giờ gửi gì cho khách. */
+    @PostMapping("/warranty")
+    public String warranty(@RequestParam(defaultValue = "false") boolean enabled, Principal user, RedirectAttributes redirect) {
+        warranty.setEnabled(enabled, by(user));
+        redirect.addFlashAttribute("flash", enabled ? "Đã bật phân loại bảo hành và khiếu nại." : "Đã tắt phân loại bảo hành và khiếu nại.");
+        return "redirect:/zalo/reply#bao-hanh";
     }
 
     @PostMapping("/info")

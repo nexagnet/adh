@@ -34,6 +34,7 @@ public class DashboardController {
     private final HandoffService handoffs;
     private final vn.shop.crm.inbox.RefusalReviewService refusals;
     private final vn.shop.crm.inbox.ReplyService replies;
+    private final vn.shop.crm.inbox.WarrantyService warranty;
     private final vn.shop.crm.map.WeatherService weather;
     private final vn.shop.crm.invite.GroupService groups;
     private final int importRemindDays;
@@ -41,7 +42,7 @@ public class DashboardController {
     public DashboardController(JdbcClient jdbc, CustomerService customers, ImportService imports,
                                StatusMappingService statuses, ContactService contacts, PrivacyService privacy,
                                InviteService invites, HandoffService handoffs, vn.shop.crm.inbox.RefusalReviewService refusals,
-                               vn.shop.crm.inbox.ReplyService replies,
+                               vn.shop.crm.inbox.ReplyService replies, vn.shop.crm.inbox.WarrantyService warranty,
                                vn.shop.crm.map.WeatherService weather, vn.shop.crm.invite.GroupService groups,
                                vn.shop.crm.imports.ExportWindowService exportWindow,
                                @org.springframework.beans.factory.annotation.Value("${app.imports.remind-days:7}") int importRemindDays) {
@@ -53,6 +54,7 @@ public class DashboardController {
         this.handoffs = handoffs;
         this.refusals = refusals;
         this.replies = replies;
+        this.warranty = warranty;
         this.contacts = contacts;
         this.privacy = privacy;
         this.jdbc = jdbc;
@@ -85,7 +87,7 @@ public class DashboardController {
         model.addAttribute("friend", invites.friendStats());
         model.addAttribute("overdueDays", invites.overdueDays());
         model.addAttribute("noReplyDays", invites.noReplyDays());
-        model.addAttribute("handoffOpen", handoffs.openCount() + replies.openCount());
+        model.addAttribute("handoffOpen", handoffs.openCount() + replies.openCount() + warranty.openCount());
         model.addAttribute("refusalHeld", refusals.heldCount());
         model.addAttribute("privacyOpen", privacy.openCount());
         model.addAttribute("privacyOverdue", privacy.overdueCount());
