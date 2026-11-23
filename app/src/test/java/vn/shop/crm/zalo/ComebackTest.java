@@ -159,6 +159,74 @@ class ComebackTest extends AbstractPostgresTest {
         assertThat(comebacks.mode()).isEqualTo(Mode.AUTO);
     }
 
+    // ---------- nấc riêng của chiến dịch (D21 PR 7): chỉ chặt hơn hệ thống ----------
+
+    private long campaignId() {
+        return count("SELECT id FROM invitation_campaign");
+    }
+
+    private long inv1Id() {
+        return count("SELECT id FROM invitation WHERE customer_id = " + cust(1));
+    }
+
+    @Test
+    void chienDichChuaDatGiThiTheoHeThong() {
+        autoOn();
+        assertThat(comebacks.campaignMode(campaignId())).isNull();
+        assertThat(comebacks.effective(inv1Id())).isEqualTo(Mode.AUTO);
+    }
+
+    @Test
+    void chienDichTatThiKhongGoiAiDuHeThongDangTuDong() {
+        autoOn();
+        comebacks.saveCampaignMode(campaignId(), Mode.OFF, "mẹ");
+        assertThat(comebacks.effective(inv1Id())).isEqualTo(Mode.OFF);
+        says("cho mình hỏi mua pin 48V");
+        assertThat(aiPrompts).isEmpty();
+        assertThat(count("SELECT count(*) FROM comeback")).isZero();
+        assertThat(suppressed()).isTrue();
+        assertThat(inv1("status")).isEqualTo("CANCELLED");
+    }
+
+    @Test
+    void chienDichChiTaoViecThiHeThongTuDongCungChiTaoViecKhongGoCo() {
+        autoOn();
+        comebacks.saveCampaignMode(campaignId(), Mode.TASKS, "mẹ");
+        says("cho mình hỏi mua pin 48V");
+        assertThat(comebacks.tasks()).singleElement().satisfies(t -> assertThat(t.reason()).isEqualTo(ComebackService.Reason.CHI_TAO_VIEC));
+        assertThat(suppressed()).isTrue(); // cờ giữ nguyên
+        assertThat(inv1("status")).isEqualTo("CANCELLED");
+    }
+
+    @Test
+    void chienDichDatTuDongKhongNoiDuocNacChungDangChiTaoViec() {
+        comebacks.setMode(Mode.TASKS, false, "mẹ");
+        comebacks.saveCampaignMode(campaignId(), Mode.AUTO, "mẹ");
+        assertThat(comebacks.effective(inv1Id())).isEqualTo(Mode.TASKS);
+        says("cho mình hỏi mua pin 48V");
+        assertThat(suppressed()).isTrue();
+        assertThat(comebacks.tasks()).hasSize(1);
+    }
+
+    @Test
+    void chienDichChiGuiLinkNhomThiTuDongHaXuongChiTaoViecVaTuDongTatThiVanTat() {
+        autoOn();
+        jdbc.sql("UPDATE invitation_campaign SET group_delivery = 'LINK_ONLY'").update();
+        assertThat(comebacks.effective(inv1Id())).isEqualTo(Mode.TASKS);
+        says("cho mình hỏi mua pin 48V");
+        assertThat(suppressed()).isTrue(); // không tự gỡ cờ, không tự thêm nhóm
+        assertThat(comebacks.tasks()).hasSize(1);
+        settings.set(ComebackService.MODE_KEY, "OFF", "test");
+        assertThat(comebacks.effective(inv1Id())).isEqualTo(Mode.OFF);
+    }
+
+    @Test
+    void nacLaBiTuChoiVaChienDichKhongCoThiBaoLoi() {
+        assertThatThrownBy(() -> Mode.ofCampaign("TUY_Y")).isInstanceOf(ImportException.class);
+        assertThat(Mode.ofCampaign(" ")).isNull();
+        assertThatThrownBy(() -> comebacks.saveCampaignMode(999999, Mode.OFF, "mẹ")).isInstanceOf(ImportException.class);
+    }
+
     // ---------- chỉ tạo việc ----------
 
     @Test

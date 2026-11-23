@@ -25,12 +25,14 @@ public class CampaignController {
     private final CampaignSteps steps;
     private final vn.shop.crm.zalo.CampaignAutoStop autoStop;
     private final vn.shop.crm.zalo.CampaignGroupTarget groupTarget;
+    private final vn.shop.crm.inbox.ComebackService comebacks;
 
     public CampaignController(InviteService invites, ContactService contacts, AppSettings settings,
                               vn.shop.crm.zalo.ZaloInviteSender autoSender, vn.shop.crm.zalo.ZaloMessageService messages,
                               vn.shop.crm.zalo.ZaloCampaignIntake intake, vn.shop.crm.zalo.CampaignPolicy policy,
                               CampaignSteps steps, vn.shop.crm.zalo.CampaignAutoStop autoStop,
-                              vn.shop.crm.zalo.CampaignGroupTarget groupTarget) {
+                              vn.shop.crm.zalo.CampaignGroupTarget groupTarget, vn.shop.crm.inbox.ComebackService comebacks) {
+        this.comebacks = comebacks;
         this.groupTarget = groupTarget;
         this.autoStop = autoStop;
         this.steps = steps;
@@ -113,6 +115,9 @@ public class CampaignController {
         model.addAttribute("multiTemplate", InviteService.MULTI_TEMPLATE);
         model.addAttribute("extra", policy.loadExtra(id));
         model.addAttribute("groupTarget", groupTarget.load(id));
+        model.addAttribute("comebackOwn", comebacks.campaignMode(id));
+        model.addAttribute("comebackSystem", comebacks.mode());
+        model.addAttribute("comebackModes", vn.shop.crm.inbox.ComebackService.Mode.values());
         model.addAttribute("defaultGroupLinkTemplate", invites.groupLinkTemplate());
         model.addAttribute("sysStopPct", vn.shop.crm.zalo.CampaignAutoStop.SYSTEM_PCT);
         model.addAttribute("minStopSent", vn.shop.crm.zalo.CampaignAutoStop.MIN_SENT);
@@ -178,6 +183,19 @@ public class CampaignController {
         redirect.addFlashAttribute("flash", reset
                 ? "Đã bỏ cài đặt nhóm riêng: chiến dịch theo cài đặt chung của hệ thống."
                 : "Đã lưu cài đặt nhóm Zalo của chiến dịch.");
+        return "redirect:/campaigns/" + id;
+    }
+
+    /**
+     * Khách từng từ chối nhưng tự nhắn lại muốn mua (D21 PR 7): nấc RIÊNG của chiến dịch. Chỉ làm chặt hơn nấc chung của hệ thống
+     * (nấc có hiệu lực luôn là nấc thấp hơn); để trống là theo hệ thống.
+     */
+    @PostMapping("/campaigns/{id}/comeback")
+    public String saveComeback(@PathVariable long id, @RequestParam(required = false) String mode, RedirectAttributes redirect) {
+        invites.campaign(id).orElseThrow(() -> new ImportException("Không tìm thấy chiến dịch."));
+        comebacks.saveCampaignMode(id, vn.shop.crm.inbox.ComebackService.Mode.ofCampaign(mode), ContactService.actor());
+        messages.audit("KHACH_QUAY_LAI_CHIEN_DICH", id, ContactService.actor());
+        redirect.addFlashAttribute("flash", "Đã lưu cách xử lý khách từng từ chối nhắn lại của chiến dịch. Nấc chung của hệ thống vẫn áp dụng thêm (lấy nấc thấp hơn).");
         return "redirect:/campaigns/" + id;
     }
 

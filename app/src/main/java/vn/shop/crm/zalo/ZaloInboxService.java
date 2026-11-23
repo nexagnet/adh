@@ -182,8 +182,8 @@ public class ZaloInboxService implements ZaloTickHook {
             return false;
         }
         Optional<ComebackService.Candidate> c = comebacks.candidateFor(m.uid());
-        if (c.isEmpty()) {
-            return false;
+        if (c.isEmpty() || comebacks.effective(c.get().invitationId()) == ComebackService.Mode.OFF) {
+            return false; // chiến dịch của khách này tắt phần khách quay lại: không gọi AI
         }
         String text = RefusalClassifier.prepare(m.text());
         if (text.isBlank()) {
