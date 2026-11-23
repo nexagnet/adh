@@ -4,12 +4,11 @@ Dành cho chủ cửa hàng và người cài đặt. Bộ nối này **mặc đ
 
 Toàn bộ phần mã đã được kiểm bằng test với **bộ nối giả**. **Chưa có lần nào chạy bản này với Zalo thật.** Mục "Những điều chưa ai kiểm" ở cuối nói rõ cái gì còn trống. Hãy đi từng bước nhỏ, dừng ngay khi thấy bất thường.
 
-## Ranh giới (không đổi, có test khóa)
-> **D18 (23/11/2026):** chủ shop đã bỏ nguyên tắc "không tự gửi tin". Bộ nối nay có thêm việc gửi MỘT tin cho MỘT khách (có hạn mức, khoảng nghỉ cố định, giờ gửi). Các ý "không có chức năng gửi tin" bên dưới là mô tả CŨ; ba ý còn lại (không giả người, không gửi lời mời kết bạn, dừng khi lỗi lạ) vẫn đúng. Phần thử mới: mục 2A.
+## Ranh giới (có test khóa)
+> **Cập nhật 23/11/2026 (D18 đến D20):** phần này từng viết "bộ nối chỉ làm ba việc". Nay bộ nối làm thêm: tìm người theo số điện thoại (`findUser`), gửi MỘT tin cho MỘT người (Tin 1, Tin 2), liệt kê nhóm, tạo nhóm, tra tên và ảnh một số (chọn mẹ làm phó nhóm), đọc tin riêng của người đã nhận tin hệ thống, và trả lời MỘT tin cho người vừa nhắn tới trong 24 giờ. Hướng dẫn chạy thử đầy đủ: `docs/HUONG-DAN-CHAY-THU-TOAN-DIEN.md`.
 
-
-- Bộ nối chỉ làm **ba việc**: báo trạng thái, đọc sự kiện "đã thành bạn", thêm **một** người vào **một** nhóm. Không có chức năng gửi tin, gửi lời mời kết bạn, tìm người theo số, liệt kê bạn bè.
-- **Không có cách nào làm cho giống người thật bấm** (không ngẫu nhiên giờ giấc, không đổi dấu vân tay thiết bị, không dùng proxy). Chỉ có giới hạn tốc độ và khung giờ 07:00 đến 22:00.
+- Bộ nối **không** gửi lời mời kết bạn, không nhận lời mời kết bạn, không đọc danh sách bạn bè, không nhắn người chưa nhắn trước (trừ Tin 1 đã duyệt theo chiến dịch). Việc kết bạn do người cầm điện thoại tài khoản phụ làm bằng tay.
+- **Không có cách nào làm cho giống người thật bấm** (không ngẫu nhiên giờ giấc, không đổi dấu vân tay thiết bị, không dùng proxy, không xoay tài khoản). Chỉ có giới hạn tốc độ, khoảng nghỉ cố định và khung giờ: gửi tin và tạo nhóm 08:00 đến 20:00; thêm vào nhóm 07:00 đến 22:00.
 - Khách chưa chấp nhận kết bạn thì không bị tác động. Người lạ kết bạn không lưu lại gì.
 - Gặp cảnh báo của Zalo, mất phiên đang lúc thêm người, lỗi lạ hoặc hết giờ chờ: **dừng ngay, không tự thử lại**. Chỉ người bấm "Mở lại" trên trang quản trị mới chạy tiếp.
 

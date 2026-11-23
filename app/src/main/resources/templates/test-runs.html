@@ -21,6 +21,8 @@
             <li>Trên điện thoại của số thử: chấp nhận kết bạn. Hệ thống nhận ra, <strong>thêm vào nhóm đích</strong>, rồi gửi <strong>Tin 2</strong> (nếu bật).</li>
             <li>Xem từng bước ở trang chi tiết. Gặp lỗi lạ thì bộ nối tự dừng (cầu dao), không tự gửi lại.</li>
         </ol>
+        <p class="hint"><strong>Chiến dịch thử chỉ kiểm phần mời:</strong> Tin 1, kết bạn, tự thêm vào nhóm, Tin 2. Phần <strong>trợ lý AI</strong> (nhận diện từ chối, trả lời tin riêng, khách quay lại) và <strong>tự nhận khách mới</strong> chỉ chạy với khách trong danh sách khách hàng, không chạy với số thử ở đây. Muốn thử các phần đó, xem hướng dẫn "chạy thử toàn diện" ở <code>docs/HUONG-DAN-CHAY-THU-TOAN-DIEN.md</code>.</p>
+        <p class="hint"><strong>Mỗi số chỉ nhận Tin 1 một lần</strong> (cầu nối nhớ và không gửi lại, kể cả khi bấm "Thử lại từ đầu" hay dùng số đó ở chiến dịch thật). Hãy chia các số của bạn: vài số cho chiến dịch thử, số còn lại để dành thử với khách giả.</p>
         <p class="hint">Hạn mức hiện tại (chung với chiến dịch thật): <strong th:text="${quota.limits.daily}">10</strong> khách/ngày, nghỉ
             <strong th:text="${quota.limits.gapSeconds}">120</strong> giây, giờ gửi <span th:text="${quota.windowStart}">08:00</span>–<span th:text="${quota.windowEnd}">20:00</span>.
             Đã dùng hôm nay: <strong th:text="${quota.usedToday}">0</strong>. Công tắc tự gửi tin: <strong th:text="${quota.enabled ? 'BẬT' : 'TẮT'}">TẮT</strong>.</p>
