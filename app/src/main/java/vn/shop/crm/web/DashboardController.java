@@ -37,6 +37,8 @@ public class DashboardController {
     private final vn.shop.crm.inbox.WarrantyService warranty;
     private final vn.shop.crm.map.WeatherService weather;
     private final vn.shop.crm.invite.GroupService groups;
+    private final vn.shop.crm.zalo.ZaloMessageService messages;
+    private final vn.shop.crm.advisor.ProposalService proposals;
     private final int importRemindDays;
 
     public DashboardController(JdbcClient jdbc, CustomerService customers, ImportService imports,
@@ -45,8 +47,11 @@ public class DashboardController {
                                vn.shop.crm.inbox.ReplyService replies, vn.shop.crm.inbox.WarrantyService warranty,
                                vn.shop.crm.map.WeatherService weather, vn.shop.crm.invite.GroupService groups,
                                vn.shop.crm.imports.ExportWindowService exportWindow,
+                               vn.shop.crm.zalo.ZaloMessageService messages, vn.shop.crm.advisor.ProposalService proposals,
                                @org.springframework.beans.factory.annotation.Value("${app.imports.remind-days:7}") int importRemindDays) {
         this.importRemindDays = importRemindDays;
+        this.messages = messages;
+        this.proposals = proposals;
         this.exportWindow = exportWindow;
         this.groups = groups;
         this.weather = weather;
@@ -100,6 +105,11 @@ public class DashboardController {
         model.addAttribute("groupsNeedRecount", openGroups.stream()
                 .filter(vn.shop.crm.invite.GroupService.Group::needsRecount).count());
         model.addAttribute("exportDue", exportWindow.overdue());
+        // Tự gửi (D18) và đề xuất của AI (D21): trạng thái công tắc, số khách đã nhắn hôm nay so với hạn mức, số chiến dịch đã duyệt tự gửi.
+        model.addAttribute("msg", messages.quota());
+        model.addAttribute("autoCampaigns", jdbc.sql("SELECT count(*) FROM invitation_campaign WHERE auto_send_approved_at IS NOT NULL")
+                .query(Long.class).single());
+        model.addAttribute("proposalsOpen", proposals.open().size());
         model.addAttribute("importRemindDays", importRemindDays);
         model.addAttribute("weatherAlerts", weather.alerts());
         var recentBatches = imports.list();

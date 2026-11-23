@@ -4,6 +4,7 @@
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
+    <div th:replace="~{fragments :: testModeAlert}"></div>
     <header class="page-head">
         <div class="titles">
             <h1 th:text="'Lượt nhờ AI lúc ' + ${#temporals.format(detail.run.createdAt, 'dd/MM/yyyy HH:mm')}">Lượt nhờ AI</h1>

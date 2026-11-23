@@ -74,6 +74,39 @@ class NavMenuTest extends AbstractPostgresTest {
     }
 
     @Test
+    void menuCoTrangTraLoiKhachVaDeXuatAiVaToSangDungMuc() {
+        var all = menu.groups("/zalo/reply").stream().flatMap(g -> g.items().stream()).toList();
+        assertThat(all).extracting(NavMenu.Item::label).contains("Trợ lý AI trả lời khách", "Đề xuất của AI", "Hiệu quả chiến dịch");
+        // /zalo/reply có mục riêng nên không được tô sáng thêm "Zalo tài khoản phụ".
+        assertThat(all.stream().filter(NavMenu.Item::active).map(NavMenu.Item::label)).containsExactly("Trợ lý AI trả lời khách");
+        assertThat(menu.groups("/zalo").stream().flatMap(g -> g.items().stream()).filter(NavMenu.Item::active)
+                .map(NavMenu.Item::label)).containsExactly("Zalo tài khoản phụ");
+        // Ba mục nhắn tay và chạy thử (sẽ bỏ) nằm cuối nhóm, sau các mục của luồng tự động.
+        var invite = menu.groups("/").get(1).items().stream().map(NavMenu.Item::label).toList();
+        assertThat(invite.indexOf("Zalo tài khoản phụ")).isLessThan(invite.indexOf("Chờ vào nhóm"));
+        assertThat(invite.indexOf("Đề xuất của AI")).isLessThan(invite.indexOf("Lô nhắn hôm nay"));
+    }
+
+    @Test
+    void tongQuanHienKhoiTuGuiVaDeXuatAi() throws Exception {
+        var owner = user("admin").roles("OWNER");
+        mvc.perform(get("/").with(owner)).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Tự gửi tin hôm nay")))
+                .andExpect(content().string(containsString("Đề xuất chiến dịch của AI đang chờ")))
+                .andExpect(content().string(containsString("Trợ lý AI trả lời khách")));
+    }
+
+    @Test
+    void moiTrangQuanTriCoDaiCheDoThuHoacChayThat() throws Exception {
+        // Test chạy với app.zalo.safety.live=true nên dải đỏ "CHẠY THẬT" phải hiện ở mọi trang điều khiển, kể cả các trang trước đây thiếu dải.
+        var owner = user("admin").roles("OWNER");
+        for (String path : new String[]{"/handoffs", "/performance", "/zalo/reply", "/friends", "/groups", "/map", "/bot", "/campaigns", "/advisor"}) {
+            mvc.perform(get(path).with(owner)).andExpect(status().isOk())
+                    .andExpect(content().string(containsString("Đang CHẠY THẬT")));
+        }
+    }
+
+    @Test
     void tongQuanCoViecCanLamHomNayKhiDaCoDon() throws Exception {
         var owner = user("admin").roles("OWNER");
         long batch = imports.createBatch(Carrier.VIETTEL_POST, "t.csv", CSV.getBytes(StandardCharsets.UTF_8));

@@ -10,6 +10,7 @@
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
+    <div th:replace="~{fragments :: testModeAlert}"></div>
     <h1>Bản đồ khách theo tỉnh</h1>
     <p class="hint">Bản đồ thật của Việt Nam: tỉnh/thành nào càng đậm màu xanh thì càng nhiều khách. Bấm vào một tỉnh (hoặc tên tỉnh ở bảng bên dưới) để xem số khách,
         nhóm Zalo phù hợp và thời tiết. Kéo để di chuyển, cuộn chuột hoặc bấm +/− để phóng to. Chỉ hiện <strong>số đếm</strong>, không có địa chỉ hay số điện thoại.</p>
@@ -51,7 +52,7 @@
                 <ul>
                     <li th:each="a : ${alerts}"><strong th:text="${a.kindLabel()}">Lạnh bất thường</strong>: <span th:text="${a.message()}">Cần Thơ...</span></li>
                 </ul>
-                <p class="hint">Chỉ là nhắc việc cho mẹ trên web, hệ thống không tự nhắn gì cho khách.</p>
+                <p class="hint">Chỉ là nhắc việc trên web, hệ thống không tự nhắn gì cho khách. Muốn lập chiến dịch theo thời tiết, nhờ AI ở <a th:href="@{/advisor}">Đề xuất của AI</a> (AI dùng dự báo này, người bấm duyệt).</p>
             </div>
             <div class="notice" th:if="${weatherOn and alerts.isEmpty()}">
                 Hiện chưa có tỉnh nào đông khách mà thời tiết bất thường (lạnh hoặc nóng) trong 48 giờ tới.

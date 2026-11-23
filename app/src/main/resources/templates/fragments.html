@@ -16,8 +16,13 @@
         <span th:text="${n < current ? '' : n + '. '} + (${n == 1} ? 'Chọn file' : (${n == 2} ? 'Chọn cột' : (${n == 3} ? 'Xem trước' : 'Xác nhận')))">Chọn file</span>
     </li>
 </ol>
-<div th:fragment="testModeAlert" th:if="${@testMode.testOnly()}">
-    <div class="notice info">
+<div th:fragment="testModeAlert">
+    <div class="notice bad" th:if="${@testMode.live()}">
+        <strong>Đang CHẠY THẬT</strong>
+        Hệ thống có thể nhắn cho khách thật theo các chiến dịch đã duyệt. Cần dừng ngay thì vào <a th:href="@{/zalo}">Zalo tài khoản phụ</a> bấm Dừng ngay,
+        hoặc <a th:href="@{/campaigns}">Chiến dịch mời</a> bấm Tạm dừng tất cả chiến dịch.
+    </div>
+    <div class="notice info" th:if="${@testMode.testOnly()}">
         <strong>Đang ở chế độ thử</strong>
         Hệ thống chỉ được nhắn tin, thêm nhóm, tạo nhóm, tự nhận khách và để AI trả lời với những số điện thoại đã khai báo là số thử.
         Khách thật được bảo vệ, kể cả khi công tắc tự gửi đang bật.

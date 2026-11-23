@@ -4,10 +4,11 @@
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
 <main>
+    <div th:replace="~{fragments :: testModeAlert}"></div>
     <header class="page-head">
         <div class="titles">
             <h1>Việc cần người thật xử lý</h1>
-            <p class="hint">Người thật (mẹ, sau này là đội bán hàng) trả lời khách trên Zalo thật, rồi bấm «Mẹ đã xem» hoặc «Đã xử lý xong» ở đây để mọi người biết.
+            <p class="hint">Người thật (mẹ, sau này là đội bán hàng) trả lời khách trên Zalo thật, rồi bấm «Đã xem» hoặc «Đã xử lý xong» ở đây để mọi người biết.
                 Trợ lý AI không tự chốt đơn, không tự hứa giá hay bảo hành.</p>
         </div>
         <div class="actions" th:if="${botEnabled}">
@@ -21,13 +22,22 @@
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã nhận.</div>
     <div class="notice">
         <strong>Việc chỉ hiện ở trang này và trên Tổng quan</strong>
-        Nếu mẹ không mở trang này, việc khách muốn mua có thể bị bỏ sót. Chưa có tin Zalo tự báo tới mẹ; phần đó để sau, chờ duyệt.
+        Đây là hàng đợi chung của người thật (mẹ, sau này là đội bán hàng). Nếu không ai mở trang này, việc khách muốn mua có thể bị bỏ sót. Chưa có tin Zalo tự báo ra ngoài; phần đó để sau, chờ duyệt.
     </div>
 
-    <section class="stack" th:if="${!heldRefusals.isEmpty()}" aria-label="Tin khách nhắn riêng cần người thật xem">
+    <nav class="chips" aria-label="Đi nhanh tới nhóm việc">
+        <a class="chip" href="#v-nghi-tu-choi" th:if="${!heldRefusals.isEmpty()}">Nghi từ chối <span class="n" th:text="${heldRefusals.size()}">0</span></a>
+        <a class="chip" href="#v-bao-hanh" th:if="${!warrantyCases.isEmpty()}">Bảo hành, khiếu nại <span class="n" th:text="${warrantyCases.size()}">0</span></a>
+        <a class="chip" href="#v-tra-loi" th:if="${!replyHandoffs.isEmpty()}">Cần trả lời <span class="n" th:text="${replyHandoffs.size()}">0</span></a>
+        <a class="chip" href="#v-quay-lai" th:if="${!comebackTasks.isEmpty()}">Khách quay lại <span class="n" th:text="${comebackTasks.size()}">0</span></a>
+        <a class="chip" href="#v-da-go" th:if="${!comebackLifted.isEmpty()}">Đã gỡ cờ <span class="n" th:text="${comebackLifted.size()}">0</span></a>
+        <a class="chip" href="#v-ai-tu-choi" th:if="${!autoRefusals.isEmpty()}">AI đã ghi từ chối <span class="n" th:text="${autoRefusals.size()}">0</span></a>
+    </nav>
+
+    <section class="stack" id="v-nghi-tu-choi" th:if="${!heldRefusals.isEmpty()}" aria-label="Tin khách nhắn riêng cần người thật xem">
         <h2>Khách nhắn riêng, cần người thật xem</h2>
         <p class="hint">Trợ lý AI đọc tin riêng của khách đã nhận lời mời và nghi khách không muốn nhận tin nữa (hoặc chưa đọc được). Hệ thống đã
-            <strong>tạm dừng mọi tin cho khách này</strong>. Mẹ xem tin trên Zalo rồi chọn. Trợ lý không tự trả lời khách.</p>
+            <strong>tạm dừng mọi tin cho khách này</strong>. Người thật xem tin trên Zalo rồi chọn. Trợ lý không tự trả lời khách.</p>
         <div class="job" th:each="r : ${heldRefusals}">
             <div class="meta">
                 <span class="badge bad" th:text="${r.reason.label()}">AI nghi khách từ chối</span>
@@ -46,11 +56,11 @@
         </div>
     </section>
 
-    <section class="stack" th:if="${!warrantyCases.isEmpty()}" aria-label="Bảo hành và khiếu nại">
+    <section class="stack" id="v-bao-hanh" th:if="${!warrantyCases.isEmpty()}" aria-label="Bảo hành và khiếu nại">
         <h2>Bảo hành và khiếu nại</h2>
         <p class="hint">Khách tự nhắn riêng báo lỗi hoặc phàn nàn. Trợ lý AI chỉ <strong>phân loại, tóm tắt và soạn nháp</strong>; hệ thống <strong>không tự trả lời</strong> và
-            không hứa bảo hành hay hoàn tiền. Mẹ xem tin trên Zalo (hệ thống chỉ đọc chữ, <strong>không đọc ảnh hay video</strong> khách gửi), quyết định rồi tự trả lời khách,
-            sau đó bấm "Đã xử lý". Nháp chỉ để tham khảo, mẹ sửa thoải mái.</p>
+            không hứa bảo hành hay hoàn tiền. Người thật xem tin trên Zalo (hệ thống chỉ đọc chữ, <strong>không đọc ảnh hay video</strong> khách gửi), quyết định rồi tự trả lời khách,
+            sau đó bấm "Đã xử lý". Nháp chỉ để tham khảo, người xử lý sửa thoải mái.</p>
         <div class="job" th:each="w : ${warrantyCases}">
             <div class="meta">
                 <span class="badge" th:classappend="${w.urgency.name() == 'CAO'} ? 'bad' : (${w.urgency.name() == 'THAP'} ? 'info' : 'warn')" th:text="${w.urgency.label()}">Gấp</span>
@@ -62,7 +72,7 @@
             <div class="what" th:if="${w.summary != null}" th:text="'Tóm tắt: ' + ${w.summary}">Tóm tắt: ...</div>
             <div class="what" th:if="${w.inbound != null}" th:text="'Khách: “' + ${w.inbound} + '”'">Khách: “...”</div>
             <div class="sub-line" th:if="${w.needsPhoto}">Nên xin khách ảnh hoặc video sản phẩm để xem lỗi.</div>
-            <div class="sub-line" th:if="${w.category.name() == 'CHUA_PHAN_LOAI'}">AI chưa đọc được tin này nên chưa phân loại. Mẹ đọc tin trên Zalo nhé.</div>
+            <div class="sub-line" th:if="${w.category.name() == 'CHUA_PHAN_LOAI'}">AI chưa đọc được tin này nên chưa phân loại. Người thật đọc tin trên Zalo nhé.</div>
             <div class="what" th:if="${w.draft != null}" th:text="'Nháp (chưa gửi): ' + ${w.draft}">Nháp (chưa gửi): ...</div>
             <div class="what" th:if="${w.orders.isEmpty()}">Chưa tìm thấy đơn nào của khách này trong dữ liệu đã nhập.</div>
             <div class="sub-line" th:each="o : ${w.orders}"
@@ -78,7 +88,7 @@
         </div>
     </section>
 
-    <section class="stack" th:if="${!replyHandoffs.isEmpty()}" aria-label="Khách nhắn riêng, cần người thật trả lời">
+    <section class="stack" id="v-tra-loi" th:if="${!replyHandoffs.isEmpty()}" aria-label="Khách nhắn riêng, cần người thật trả lời">
         <h2>Khách nhắn riêng, cần người thật trả lời</h2>
         <p class="hint">Trợ lý AI <strong>không tự trả lời</strong> những tin này (ngoài việc mời vào nhóm và ưu đãi, hoặc chưa đủ chắc). Người thật xem tin, trả lời khách
             trên Zalo thật, rồi bấm "Đã xử lý". Khách nhắn thêm thì tin được ghi tiếp vào cùng việc.</p>
@@ -97,9 +107,9 @@
         </div>
     </section>
 
-    <section class="stack" th:if="${!comebackTasks.isEmpty()}" aria-label="Khách từng từ chối nhắn lại muốn mua">
+    <section class="stack" id="v-quay-lai" th:if="${!comebackTasks.isEmpty()}" aria-label="Khách từng từ chối nhắn lại muốn mua">
         <h2>Khách từng từ chối nay nhắn lại</h2>
-        <p class="hint">Khách này trước đó bảo đừng nhắn nữa, nay <strong>tự nhắn tới</strong>. Hệ thống chưa nhắn gì và vẫn giữ cờ "không nhắn nữa". Mẹ xem tin trên Zalo rồi chọn.
+        <p class="hint">Khách này trước đó bảo đừng nhắn nữa, nay <strong>tự nhắn tới</strong>. Hệ thống chưa nhắn gì và vẫn giữ cờ "không nhắn nữa". Người thật xem tin trên Zalo rồi chọn.
             Gỡ cờ chỉ đánh dấu "đã gỡ", số điện thoại vẫn giữ nguyên.</p>
         <div class="job" th:each="r : ${comebackTasks}">
             <div class="meta">
@@ -120,7 +130,7 @@
         </div>
     </section>
 
-    <section class="stack" th:if="${!comebackLifted.isEmpty()}" aria-label="Khách quay lại đã được gỡ cờ">
+    <section class="stack" id="v-da-go" th:if="${!comebackLifted.isEmpty()}" aria-label="Khách quay lại đã được gỡ cờ">
         <h2>Khách quay lại đã gỡ cờ (14 ngày gần đây)</h2>
         <p class="hint">Gỡ nhầm thì bấm Hoàn tác: khách lại bị đánh dấu không nhắn nữa. Khách đã vào nhóm rồi thì hệ thống không đưa ra khỏi nhóm được, mẹ tự mời ra trên Zalo.</p>
         <div class="job" th:each="r : ${comebackLifted}">
@@ -130,7 +140,7 @@
                     · <span th:text="${#temporals.format(r.createdAt, 'dd/MM HH:mm')}">21/11 09:12</span></span>
                 <span class="sub-line" th:if="${r.welcomeState == 'SENT'}">Đã gửi tin mẫu</span>
                 <span class="sub-line" th:if="${r.welcomeState == 'PENDING' or r.welcomeState == 'SENDING'}">Tin mẫu đang chờ gửi</span>
-                <span class="sub-line" th:if="${r.welcomeState == 'FAILED'}">Tin mẫu chưa gửi được, mẹ nhắn tay nhé</span>
+                <span class="sub-line" th:if="${r.welcomeState == 'FAILED'}">Tin mẫu chưa gửi được, người thật nhắn tay nhé</span>
             </div>
             <ul class="sub-line" th:if="${!r.orders.isEmpty()}"><li th:each="o : ${r.orders}" th:text="${o}">12/05/2026 · pin 48V</li></ul>
             <div class="actions">
@@ -141,7 +151,7 @@
         </div>
     </section>
 
-    <section class="stack" th:if="${!autoRefusals.isEmpty()}" aria-label="Khách trợ lý AI đã ghi từ chối">
+    <section class="stack" id="v-ai-tu-choi" th:if="${!autoRefusals.isEmpty()}" aria-label="Khách trợ lý AI đã ghi từ chối">
         <h2>Trợ lý AI đã ghi khách từ chối (14 ngày gần đây)</h2>
         <p class="hint">AI rất chắc khách từ chối nên đã ghi sổ và không nhắn lại. Nếu ghi nhầm, mẹ bấm Hoàn tác. Hệ thống không giữ nội dung tin của khách.</p>
         <div class="job" th:each="r : ${autoRefusals}">
@@ -168,14 +178,14 @@
             <div class="meta">
                 <span class="badge info" th:text="${r.reason.label()}">Muốn đặt thêm hàng</span>
                 <span class="badge bad" th:if="${r.status == 'OPEN'}">Mới</span>
-                <span class="badge" th:if="${r.status == 'ACKNOWLEDGED'}">Mẹ đã xem<span th:if="${r.ackedBy != null}" th:text="' (' + ${r.ackedBy} + ')'"></span></span>
+                <span class="badge" th:if="${r.status == 'ACKNOWLEDGED'}">Đã xem<span th:if="${r.ackedBy != null}" th:text="' (' + ${r.ackedBy} + ')'"></span></span>
                 <span class="badge ok" th:if="${r.status == 'RESOLVED'}">Đã xong</span>
                 <span><span th:text="${r.groupName}">Nhóm 1</span> · <span th:text="${#temporals.format(r.createdAt, 'dd/MM HH:mm')}">21/11 09:12</span></span>
             </div>
             <div class="what" th:text="${r.excerpt}">Khách hỏi còn pin Aki ta 18V và muốn lấy 2 cái</div>
             <div class="actions" th:if="${r.status != 'RESOLVED'}">
                 <form th:if="${r.status == 'OPEN'}" th:action="@{/handoffs/{id}/ack(id=${r.id})}" method="post">
-                    <button type="submit" class="btn sm">Mẹ đã xem</button>
+                    <button type="submit" class="btn sm">Đã xem</button>
                 </form>
                 <form th:action="@{/handoffs/{id}/resolve(id=${r.id})}" method="post">
                     <button type="submit" class="btn sm" th:classappend="${r.status == 'OPEN'} ? 'secondary'">Đã xử lý xong</button>
