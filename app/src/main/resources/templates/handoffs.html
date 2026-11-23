@@ -150,7 +150,7 @@
                 </form>
             </div>
         </div>
-        <p class="muted" th:if="${rows.isEmpty()}">Không có việc nào đang chờ.</p>
+        <p class="muted" th:if="${rows.isEmpty() and replyHandoffs.isEmpty()}">Không có việc nào đang chờ.</p>
     </div>
 </main>
 </body>

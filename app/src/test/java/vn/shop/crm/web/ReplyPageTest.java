@@ -89,7 +89,8 @@ class ReplyPageTest extends AbstractPostgresTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Khách nhắn riêng, cần người thật trả lời")))
                 .andExpect(content().string(containsString("Pin 48V giá bao nhiêu")))
-                .andExpect(content().string(containsString("Khách hỏi ngoài việc mời vào nhóm")));
+                .andExpect(content().string(containsString("Khách hỏi ngoài việc mời vào nhóm")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Không có việc nào đang chờ"))));
         mvc.perform(get("/").with(user("admin").roles("OWNER")))
                 .andExpect(content().string(containsString("việc trợ lý AI chuyển cho người thật")));
         long id = replies.handoffs().get(0).id();
