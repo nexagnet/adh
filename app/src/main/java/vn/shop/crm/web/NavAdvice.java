@@ -18,6 +18,6 @@ public class NavAdvice {
         if (context != null && !context.isEmpty() && path.startsWith(context)) {
             path = path.substring(context.length());
         }
-        return NavMenu.keyOf(path, request.getParameter("segment"));
+        return NavMenu.keyOf(path);
     }
 }

@@ -43,14 +43,11 @@ class NavMenuTest extends AbstractPostgresTest {
     }
 
     @Test
-    void khoaMucDangMoPhanBietKhachMuaMotLanVaTuHaiLan() {
-        assertThat(NavMenu.keyOf("/customers", "ONE_TIME")).isEqualTo("/customers/one-time");
-        assertThat(NavMenu.keyOf("/customers", "REPEAT")).isEqualTo("/customers/repeat");
-        assertThat(NavMenu.keyOf("/customers/12", null)).isEqualTo("/customers/one-time");
-        assertThat(NavMenu.keyOf("/groups", null)).isEqualTo("/groups");
-        // xuất file và lọc "cần kiểm tra" không tô sai mục
-        assertThat(NavMenu.keyOf("/customers/export.csv", "ONE_TIME")).isEqualTo("/customers/export.csv");
-        assertThat(NavMenu.keyOf("/customers", null)).isEqualTo("/customers");
+    void khoaMucDangMoGomMotKhachVaTrangDanhSachVaoMucKhachHang() {
+        assertThat(NavMenu.keyOf("/customers")).isEqualTo("/customers");
+        assertThat(NavMenu.keyOf("/customers/12")).isEqualTo("/customers");
+        assertThat(NavMenu.keyOf("/groups")).isEqualTo("/groups");
+        assertThat(NavMenu.keyOf("/customers/export.csv")).isEqualTo("/customers/export.csv");
     }
 
     @Test
@@ -73,7 +70,7 @@ class NavMenuTest extends AbstractPostgresTest {
                 .andExpect(content().string(containsString("class=\"active\"")))
                 .andExpect(content().string(not(containsString(">Bot<"))));
         mvc.perform(get("/customers").param("segment", "REPEAT").with(owner)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("Khách mua từ 2 lần")));
+                .andExpect(content().string(containsString("Mua từ 2 lần")));
     }
 
     @Test

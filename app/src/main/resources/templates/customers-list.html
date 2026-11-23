@@ -21,6 +21,24 @@
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã xóa.</div>
 
+
+    <div class="notice info" th:if="${segment != null and segment.name() == 'REPEAT'}">
+        <strong>Không có nút mời vào nhóm</strong>
+        Khách ở đây không được đưa vào chiến dịch mời hay quảng cáo hàng loạt. Bố mẹ gọi điện hoặc nhắn theo cách khách đồng ý.
+    </div>
+
+    <div class="chips" aria-label="Loại khách">
+        <a class="chip" th:classappend="${segment == null} ? 'on'" th:href="@{${links.with('segment', null)}}">Tất cả loại</a>
+        <a class="chip" th:classappend="${segment != null and segment.name() == 'ONE_TIME'} ? 'on'" th:href="@{${links.with('segment', 'ONE_TIME')}}">Khách mua 1 lần</a>
+        <a class="chip" th:classappend="${segment != null and segment.name() == 'REPEAT'} ? 'on'" th:href="@{${links.with('segment', 'REPEAT')}}">Khách mua từ 2 lần</a>
+    </div>
+    <div class="chips" aria-label="Lọc khách">
+        <a class="chip" th:classappend="${!review} ? 'on'" th:href="@{${links.with('review', null)}}">Tất cả
+            <span class="n" th:text="${allCount}">0</span></a>
+        <a class="chip" th:classappend="${review} ? 'on'" th:href="@{${links.with('review', 'true')}}">Cần kiểm tra
+            <span class="n" th:text="${reviewCount}">0</span></a>
+    </div>
+
     <details class="more">
         <summary>Lọc theo khu vực và công cụ khác</summary>
         <p class="hint">Khu vực suy ra từ địa chỉ trên vận đơn (tên tỉnh/thành). Địa chỉ không ghi rõ tỉnh thì để "Chưa rõ", hệ thống không đoán bừa.</p>
@@ -52,18 +70,6 @@
             <button type="submit" class="btn secondary sm">Tính lại phân loại và khu vực của tất cả khách</button>
         </form>
     </details>
-
-    <div class="notice info" th:if="${segment != null and segment.name() == 'REPEAT'}">
-        <strong>Không có nút mời vào nhóm</strong>
-        Khách ở đây không được đưa vào chiến dịch mời hay quảng cáo hàng loạt. Bố mẹ gọi điện hoặc nhắn theo cách khách đồng ý.
-    </div>
-
-    <div class="chips" aria-label="Lọc khách">
-        <a class="chip" th:classappend="${!review} ? 'on'" th:href="@{${links.with('review', null)}}">Tất cả
-            <span class="n" th:text="${allCount}">0</span></a>
-        <a class="chip" th:classappend="${review} ? 'on'" th:href="@{${links.with('review', 'true')}}">Cần kiểm tra
-            <span class="n" th:text="${reviewCount}">0</span></a>
-    </div>
 
     <form th:action="@{/customers}" method="get" role="search">
         <input type="hidden" th:each="h : ${searchHidden}" th:name="${h.name}" th:value="${h.value}">
