@@ -64,7 +64,6 @@ public class NavMenu {
                 item("Lô nhắn hôm nay", "/today", "/today", 0, key),
                 item("Chạy thử trên Zalo", "/test-runs", "/test-runs", 0, key),
                 item("Nhóm Zalo", "/groups", "/groups", 0, key),
-                item("Cài đặt gửi tin", "/sending", "/sending", 0, key),
                 // Luôn hiện (D18): đây là trung tâm điều khiển tự gửi; khi bộ nối tắt, trang chỉ báo "đang tắt".
                 item("Zalo tài khoản phụ", "/zalo", "/zalo", zalo.attentionCount(), key)));
         return List.of(
