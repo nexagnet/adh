@@ -18,7 +18,7 @@ Người dùng (chủ shop) chê giao diện "quá rác" và dặn bỏ các mà
 | **Chạy thử trên Zalo** (`/test-runs`) | **Giữ** tới khi chủ shop cấu hình xong chiến dịch thử và chạy thật, **sau đó xóa**. Chủ shop đã chốt: chiến dịch thử phải có trước khi chạy chiến dịch thật. Đừng xóa khi dọn màn lỗi thời. | Đã làm đẹp (#45); xóa sau |
 | Zalo tài khoản phụ (`/zalo`) | Giữ, **luôn hiện trên menu** (nay là trung tâm điều khiển tự gửi, không còn là tùy chọn) | Xong |
 | Cài đặt gửi tin (`/sending`) | **Gộp** vào Zalo tài khoản phụ (hạn mức, giờ nhắn, tạm dừng) | Xong: mục "Tạm dừng, giới hạn gửi tay và nhật ký chiến dịch" cuối `/zalo`; `/sending` chuyển hướng sang đó |
-| Nhóm Zalo (`/groups`) + gán mã nhóm (`/zalo/groups`) | **Gộp một trang** (nhóm tự thêm và nhóm link phải là một) | Chưa làm |
+| Nhóm Zalo (`/groups`) + gán mã nhóm (`/zalo/groups`) | **Gộp một trang** (nhóm tự thêm và nhóm link phải là một) | Một nửa: `/groups` đã hiện trạng thái mã nhóm của từng nhóm và dẫn sang `/zalo/groups` để gán. Chưa nhét danh sách nhóm của tài khoản phụ vào chính `/groups` vì việc đó gọi bộ nối mỗi lần mở trang và `/zalo/**` chỉ dành cho OWNER (cần quyết định riêng) |
 | Lô nhắn hôm nay (`/today`) | **Bỏ hẳn khi tự gửi chạy** (chủ shop chọn: bỏ hẳn, không giữ dự phòng) | Chờ phần tự gửi ở backend |
 | Chờ vào nhóm (`/friends`) | Bỏ cùng đợt, chỉ giữ danh sách **ngoại lệ** (kẹt, chưa có nhóm hợp khu vực) trong chi tiết chiến dịch | Chờ phần tự gửi |
 | Nút nhắn tay (Đã nhắn, Đã kết bạn, Đã vào nhóm, Đã gửi link nhóm, Khách đã rời nhóm) và "Xuất danh sách để mẹ gửi tay" | Bỏ hẳn cùng đợt (chủ shop chọn "Bỏ hẳn khi tự gửi chạy") | Chờ phần tự gửi |
