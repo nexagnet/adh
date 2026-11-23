@@ -78,12 +78,17 @@ public class ZaloInviteSender {
         if (!messages.enabled() || settings.paused()) {
             return Step.NOT_ACTIVE;
         }
-        if (messages.blocker(ZaloMessageService.SCOPE_REAL, null, null).isPresent()) {
+        // Tin 2 (link nhóm) không bị hạn mức ngày riêng: chỉ giờ gửi, khoảng nghỉ và cầu dao.
+        if (messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.LINK, null, null).isPresent()) {
             return Step.BLOCKED;
         }
         Optional<LinkTask> link = nextLink();
         if (link.isPresent()) {
             return sendLink(link.get());
+        }
+        // Tin 1: hạn mức ngày tính theo số khách được nhắn chủ động.
+        if (messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.INVITE, null, null).isPresent()) {
+            return Step.BLOCKED;
         }
         return sendNextInvite();
     }

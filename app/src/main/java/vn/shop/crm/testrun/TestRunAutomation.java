@@ -130,7 +130,7 @@ public class TestRunAutomation implements ZaloFriendTap, ZaloTickHook {
 
     /** Gửi một tin (Tin 2 trước, rồi Tin 1). Trả true nếu đã dùng một lượt gửi. */
     private boolean tryMessage(RunRow run) {
-        if (messages.blocker(scope(run), run.dailyLimit(), run.gapSeconds()).isPresent()) {
+        if (messages.blocker(scope(run), vn.shop.crm.zalo.ZaloMessenger.Kind.INVITE, run.dailyLimit(), run.gapSeconds()).isPresent()) {
             return false;
         }
         if (run.sendLink() && run.groupId() != null) {

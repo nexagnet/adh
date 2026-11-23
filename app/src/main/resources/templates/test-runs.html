@@ -21,7 +21,7 @@
             <li>Trên điện thoại của số thử: chấp nhận kết bạn. Hệ thống nhận ra, <strong>thêm vào nhóm đích</strong>, rồi gửi <strong>Tin 2</strong> (nếu bật).</li>
             <li>Xem từng bước ở trang chi tiết. Gặp lỗi lạ thì bộ nối tự dừng (cầu dao), không tự gửi lại.</li>
         </ol>
-        <p class="hint">Hạn mức hiện tại (chung với chiến dịch thật): <strong th:text="${quota.limits.daily}">10</strong> tin/ngày, nghỉ
+        <p class="hint">Hạn mức hiện tại (chung với chiến dịch thật): <strong th:text="${quota.limits.daily}">10</strong> khách/ngày, nghỉ
             <strong th:text="${quota.limits.gapSeconds}">120</strong> giây, giờ gửi <span th:text="${quota.windowStart}">08:00</span>–<span th:text="${quota.windowEnd}">20:00</span>.
             Đã dùng hôm nay: <strong th:text="${quota.usedToday}">0</strong>. Công tắc tự gửi tin: <strong th:text="${quota.enabled ? 'BẬT' : 'TẮT'}">TẮT</strong>.</p>
     </details>

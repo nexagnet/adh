@@ -49,7 +49,7 @@ public class ZaloMessageService {
         SWITCH_OFF("Công tắc tự gửi tin đang TẮT"),
         MODE_OFF("Bộ nối Zalo đang tắt hoặc đã dừng (cầu dao)"),
         OUTSIDE_WINDOW("Ngoài khung giờ được gửi"),
-        DAILY_LIMIT("Đã đủ hạn mức tin trong ngày"),
+        DAILY_LIMIT("Đã đủ số khách được nhắn trong ngày"),
         GAP("Chưa đủ khoảng nghỉ sau tin trước"),
         BUSY("Đang có một tin khác được gửi"),
         NOT_READY("Cầu nối chưa nghe được hoặc chưa chắc đúng tài khoản phụ");
@@ -186,8 +186,9 @@ public class ZaloMessageService {
         return clock.instant().atZone(clock.getZone()).toLocalDate().atStartOfDay(clock.getZone()).toInstant();
     }
 
-    private int countSince(Instant since, String scope) {
-        String where = scope == null ? "" : " AND scope = :sc";
+    /** Đếm các lần gọi trong sổ tin. {@code invitesOnly}: chỉ Tin 1 (INVITE), tức là số KHÁCH được nhắn chủ động. */
+    private int countSince(Instant since, String scope, boolean invitesOnly) {
+        String where = (scope == null ? "" : " AND scope = :sc") + (invitesOnly ? " AND kind = 'INVITE'" : "");
         var spec = jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE at >= :s" + where)
                 .param("s", OffsetDateTime.ofInstant(since, ZoneOffset.UTC));
         if (scope != null) {
@@ -205,8 +206,9 @@ public class ZaloMessageService {
         return spec.query(OffsetDateTime.class).optional().map(OffsetDateTime::toInstant).orElse(null);
     }
 
+    /** Số khách được nhắn chủ động hôm nay (Tin 1). Tin 2 và tin mẫu trả lời không tính vào hạn mức ngày. */
     public int usedToday(String scope) {
-        return countSince(startOfDay(), scope);
+        return countSince(startOfDay(), scope, true);
     }
 
     public Quota quota() {
@@ -225,7 +227,7 @@ public class ZaloMessageService {
      * Lý do KHÔNG được gửi ngay lúc này, hoặc rỗng nếu được. {@code scopeDaily}/{@code scopeGap} là hạn mức riêng của một
      * đợt thử (chỉ làm chặt hơn, không bao giờ nới hạn mức chung); null = không có.
      */
-    public Optional<Block> blocker(String scope, Integer scopeDaily, Integer scopeGap) {
+    public Optional<Block> blocker(String scope, Kind kind, Integer scopeDaily, Integer scopeGap) {
         if (!enabled()) {
             return Optional.of(Block.SWITCH_OFF);
         }
@@ -237,14 +239,17 @@ public class ZaloMessageService {
         }
         Limits l = limits();
         Instant now = clock.instant();
-        if (countSince(startOfDay(), null) >= l.daily()) {
+        // Hạn mức ngày là số KHÁCH được nhắn chủ động (Tin 1). Tin 2 (link nhóm) và tin mẫu trả lời người đã nhắn mình không bị giới hạn riêng,
+        // nhưng vẫn chịu khung giờ, khoảng nghỉ cố định, cầu dao, và trần cứng của cầu nối.
+        boolean invite = kind == Kind.INVITE;
+        if (invite && countSince(startOfDay(), null, true) >= l.daily()) {
             return Optional.of(Block.DAILY_LIMIT);
         }
         Instant last = lastAt(null);
         if (last != null && now.isBefore(last.plusSeconds(l.gapSeconds()))) {
             return Optional.of(Block.GAP);
         }
-        if (scopeDaily != null && countSince(startOfDay(), scope) >= scopeDaily) {
+        if (invite && scopeDaily != null && countSince(startOfDay(), scope, true) >= scopeDaily) {
             return Optional.of(Block.DAILY_LIMIT);
         }
         Instant lastScope = lastAt(scope);
@@ -277,7 +282,7 @@ public class ZaloMessageService {
                 tripAndStop("TIN_INTERRUPTED");
                 return new Delivery(Status.TRIPPED, null, Sent.of(Result.SYSTEM_ERROR, "INTERRUPTED", true));
             }
-            Optional<Block> block = blocker(scope, scopeDaily, scopeGap);
+            Optional<Block> block = blocker(scope, kind, scopeDaily, scopeGap);
             if (block.isPresent()) {
                 return Delivery.blocked(block.get());
             }

@@ -84,7 +84,7 @@ services:
       APP_ZALO_AUTO_MAX_DAILY: ${APP_ZALO_AUTO_MAX_DAILY:-100}
       BRIDGE_PERSON_ERROR_CODES: ${ZALO_PERSON_ERROR_CODES:-}
       # Tự gửi tin (D18): trần cứng và khoảng cách tối thiểu ở bộ nối (cao hơn trần của ứng dụng, là lớp bảo hiểm thứ hai).
-      BRIDGE_MSG_DAILY: ${BRIDGE_MSG_DAILY:-60}
+      BRIDGE_MSG_DAILY: ${BRIDGE_MSG_DAILY:-150}
       BRIDGE_MSG_GAP_SEC: ${BRIDGE_MSG_GAP_SEC:-90}
       # Đọc tin riêng của người đã nhận tin hệ thống, chỉ để nhận diện từ chối (D19). MẶC ĐỊNH TẮT; tin chỉ nằm trong bộ nhớ.
       BRIDGE_INBOX_ENABLED: ${BRIDGE_INBOX_ENABLED:-false}

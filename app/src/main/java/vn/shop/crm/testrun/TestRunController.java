@@ -74,7 +74,7 @@ public class TestRunController {
         model.addAttribute("targets", tests.targets(id));
         model.addAttribute("groups", tests.targetGroups());
         model.addAttribute("quota", messages.quota());
-        model.addAttribute("blocker", messages.blocker("TEST:" + id, run.dailyLimit(), run.gapSeconds()).orElse(null));
+        model.addAttribute("blocker", messages.blocker("TEST:" + id, vn.shop.crm.zalo.ZaloMessenger.Kind.INVITE, run.dailyLimit(), run.gapSeconds()).orElse(null));
         model.addAttribute("usedByRun", messages.usedToday("TEST:" + id));
         return "test-run-detail";
     }

@@ -32,9 +32,10 @@ public record ZaloAutoProperties(
         @DefaultValue("20:00") LocalTime msgWindowEnd,
         @DefaultValue("10") int msgDefaultDaily,
         @DefaultValue("120") int msgDefaultGapSeconds,
-        /* Trần cứng của số tin mỗi ngày (cả Tin 1 và Tin 2) và sàn của khoảng nghỉ; trang quản trị không chỉnh vượt các số này.
-           Cầu nối có trần riêng cao hơn (BRIDGE_MSG_DAILY) và khoảng nghỉ tối thiểu riêng (BRIDGE_MSG_GAP_SEC, phải ≤ sàn này). */
-        @DefaultValue("25") int msgMaxDaily,
+        /* Trần cứng của số KHÁCH được nhắn chủ động mỗi ngày (chỉ Tin 1; Tin 2 và tin mẫu trả lời không tính, 23/11/2026: 50 khách/ngày)
+           và sàn của khoảng nghỉ; trang quản trị không chỉnh vượt các số này. Cầu nối có phanh khẩn cấp riêng đếm MỌI tin (BRIDGE_MSG_DAILY,
+           mặc định 150) và khoảng nghỉ tối thiểu riêng (BRIDGE_MSG_GAP_SEC, phải ≤ sàn này). */
+        @DefaultValue("50") int msgMaxDaily,
         @DefaultValue("100") int msgMinGapSeconds) {
 
     public ZaloAutoProperties {
