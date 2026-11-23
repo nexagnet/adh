@@ -183,6 +183,36 @@ public class ContactService {
         return "SELECT count(*) " + inviteFrom();
     }
 
+    /**
+     * Số khách đủ điều kiện mời mà chưa từng được mời, theo mã tỉnh (chuỗi rỗng = chưa rõ tỉnh). Chỉ là số tổng hợp, dùng đúng
+     * điều kiện của {@link #eligibleNotInvited}; phục vụ bản tổng hợp ẩn danh cho phần đề xuất chiến dịch.
+     */
+    public java.util.Map<String, Long> eligibleNotInvitedByProvince() {
+        return countsByProvince("SELECT coalesce(c.province, '') AS p, count(*) AS n " + inviteFrom()
+                + " AND NOT EXISTS (SELECT 1 FROM invitation i WHERE i.customer_id = c.id) GROUP BY 1");
+    }
+
+    /** Số khách "chờ duyệt" (ứng viên chưa có dòng cơ sở liên hệ nào) theo mã tỉnh; chuỗi rỗng = chưa rõ tỉnh. */
+    public java.util.Map<String, Long> candidatesByProvince() {
+        return countsByProvince("SELECT coalesce(c.province, '') AS p, count(*) AS n FROM customer c WHERE "
+                + CANDIDATE_WHERE + " GROUP BY 1");
+    }
+
+    /** Số khách đã được nhắn mà nay đang nằm trong sổ từ chối (còn hiệu lực), theo mã tỉnh; chuỗi rỗng = chưa rõ tỉnh. */
+    public java.util.Map<String, Long> optedOutAfterInviteByProvince() {
+        return countsByProvince("SELECT coalesce(c.province, '') AS p, count(DISTINCT c.id) AS n FROM customer c "
+                + "JOIN invitation i ON i.customer_id = c.id AND i.sent_at IS NOT NULL "
+                + "WHERE EXISTS (SELECT 1 FROM suppression s WHERE s.phone_hash = " + SUPPRESSED_HASH
+                + " AND s.reason = 'OPT_OUT' AND s.lifted_at IS NULL) GROUP BY 1");
+    }
+
+    private java.util.Map<String, Long> countsByProvince(String sql) {
+        java.util.Map<String, Long> out = new java.util.LinkedHashMap<>();
+        jdbc.sql(sql).query((rs, i) -> java.util.Map.entry(rs.getString("p"), rs.getLong("n"))).list()
+                .forEach(e -> out.put(e.getKey(), e.getValue()));
+        return out;
+    }
+
     /** Danh sách "đủ điều kiện mời". Đây là nguồn DUY NHẤT cho mọi chiến dịch mời (mốc 1C trở đi). */
     public InvitePage inviteList(int page, int size) {
         int p = Math.max(1, page);
