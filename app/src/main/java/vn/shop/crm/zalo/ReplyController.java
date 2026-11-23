@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import vn.shop.crm.inbox.ReplyContext;
 import vn.shop.crm.inbox.ReplyService;
 
 import java.security.Principal;
@@ -47,6 +48,9 @@ public class ReplyController {
         model.addAttribute("sendEnabled", messages.enabled());
         model.addAttribute("scopeMin", ReplyService.SCOPE_MIN);
         model.addAttribute("signature", replies.signature());
+        model.addAttribute("ctxFields", ReplyContext.Field.values());
+        model.addAttribute("ctxOn", replies.context().enabled());
+        model.addAttribute("ctxSample", replies.context().sample());
     }
 
     @GetMapping
@@ -71,6 +75,13 @@ public class ReplyController {
         }
         replies.info().save(values, by(user));
         redirect.addFlashAttribute("flash", "Đã lưu bảng thông tin cửa hàng.");
+        return "redirect:/zalo/reply";
+    }
+
+    @PostMapping("/context")
+    public String context(@RequestParam(name = "field", required = false) java.util.List<String> fields, Principal user, RedirectAttributes redirect) {
+        replies.context().saveEnabled(fields == null ? java.util.Set.of() : new java.util.HashSet<>(fields), by(user));
+        redirect.addFlashAttribute("flash", "Đã lưu các trường hồ sơ khách được gửi cho AI.");
         return "redirect:/zalo/reply";
     }
 

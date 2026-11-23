@@ -17,7 +17,7 @@ Chặn: câu rỗng hoặc quá 500 ký tự; đường dẫn; số điện tho�
 Mặc định (chủ shop chốt 23/11): cửa hàng bán chủ yếu **áo điều hòa và phụ kiện áo điều hòa (trong đó có pin)**; ưu đãi vào nhóm là giảm 10% so với giá TikTok và miễn phí ship; lý do: TikTok thu phí sàn nên mua qua Zalo shop nhường lại 10%, TikTok khó mua hơn, liên hệ bảo hành qua Zalo thuận tiện hơn; cách vào nhóm. Ô bảo hành để trống (AI không nói gì cụ thể). Không ghi chính sách đổi trả của TikTok vào bảng; AI không chủ động nhắc và được chỉ dẫn không nói.
 
 ## Dữ liệu và an toàn
-- Chỉ gửi AI văn bản đã che (`PiiMasker`), không tên, số điện thoại, địa chỉ, mã Zalo hay lịch sử; tin của khách là dữ liệu không đáng tin (bọc giữa `<<<` `>>>`, đầu ra phải đúng khuôn JSON).
+- Chỉ gửi AI văn bản đã che (`PiiMasker`), không tên, số điện thoại, địa chỉ hay mã Zalo. Riêng bước soạn câu nhận thêm **hồ sơ của đúng khách đang nhắn** (khu vực, hàng đã mua, nhóm, các mốc, lượt trao đổi trước) theo danh sách trường được phép, xem `THIET-KE-AI-NGU-CANH-KHACH.md`; tin của khách là dữ liệu không đáng tin (bọc giữa `<<<` `>>>`, đầu ra phải đúng khuôn JSON).
 - Mỗi lượt đi qua `AiGate` (trần ngày, cầu dao). Mỗi tin dùng tối đa 3 lượt (nhãn, phạm vi, soạn); nên đặt `APP_AI_DAILY_LIMIT` đủ rộng.
 - Bảng `reply_draft` (V31): chữ khách (đã che) và câu AI soạn tự xóa sau 30 ngày; không lưu số điện thoại. Không bao giờ tự xóa số điện thoại hay khách (CLAUDE.md mục 5a).
 - Bộ nối `POST /messages` có thêm loại `REPLY`, cùng chốt chặn với `WELCOME`: chỉ theo mã Zalo, cần cờ đọc tin riêng, chỉ người vừa nhắn trong 24 giờ, một lần cho mỗi tin đến.

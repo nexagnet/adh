@@ -374,7 +374,7 @@ public class ComebackService {
         return jdbc.sql("""
                         SELECT k.id, i.zalo_uid FROM comeback k JOIN invitation i ON i.id = k.invitation_id
                         WHERE k.state = 'LIFTED' AND k.welcome_state = 'PENDING' AND i.zalo_uid IS NOT NULL
-                        ORDER BY k.id LIMIT 1""")
+                        """ + contacts.onlyTestCustomerSql("k.customer_id") + " ORDER BY k.id LIMIT 1")
                 .query((rs, n) -> new Welcome(rs.getLong(1), rs.getString(2))).optional();
     }
 

@@ -117,7 +117,7 @@ public class ReplyService {
     }
 
     public record Row(long id, long customerId, String customerName, String state, Reason reason, String detail, String inbound, String reply,
-                      LocalDateTime createdAt, LocalDateTime sentAt) {
+                      LocalDateTime createdAt, LocalDateTime sentAt, List<String> contextLabels) {
     }
 
     public record Ready(long id, String uid, String text) {
@@ -129,10 +129,12 @@ public class ReplyService {
     private final ReplyInfo info;
     private final InviteService invites;
     private final ContactService contacts;
+    private final ReplyContext context;
 
     public ReplyService(JdbcClient jdbc, AppSettings settings, ReplyAssistant assistant, ReplyInfo info, InviteService invites,
-                        ContactService contacts) {
+                        ContactService contacts, ReplyContext context) {
         this.contacts = contacts;
+        this.context = context;
         this.jdbc = jdbc;
         this.settings = settings;
         this.assistant = assistant;
@@ -142,6 +144,10 @@ public class ReplyService {
 
     public ReplyInfo info() {
         return info;
+    }
+
+    public ReplyContext context() {
+        return context;
     }
 
     // ---------- nấc ----------
@@ -248,24 +254,30 @@ public class ReplyService {
         if (label == Label.KHIEU_NAI) {
             return handoff(s, Reason.KHACH_KHIEU_NAI, null, v.confidence(), text, at);
         }
-        Plan p = plan(text);
+        // Hồ sơ chỉ được dựng (và đọc từ CSDL) khi đã qua bước phân loại phạm vi, và chỉ của đúng khách này.
+        Plan p = plan(text, () -> context.forCustomer(s.customerId()));
         if (p.reply == null) {
-            return handoff(s, p.reason, p.detail, p.confidence, text, at);
+            return handoff(s, p.reason, p.detail, p.confidence, text, p.fields, at);
         }
         Mode mode = mode();
         String state = mode == Mode.AUTO ? "READY" : "DRAFT";
-        insert(s, state, null, null, p.confidence, text, p.reply + signature(), at);
+        insert(s, state, null, null, p.confidence, text, p.reply + signature(), p.fields, at);
         return mode == Mode.AUTO ? Result.QUEUED : Result.DRAFTED;
     }
 
     /** Kết quả của chuỗi phân loại phạm vi, soạn câu, kiểm cứng. {@code reply} khác null nghĩa là có câu dùng được (chưa kèm chữ ký). */
-    private record Plan(String reply, Reason reason, String detail, Double confidence) {
+    private record Plan(String reply, Reason reason, String detail, Double confidence, String fields) {
         static Plan no(Reason r, String detail, Double c) {
-            return new Plan(null, r, detail, c);
+            return new Plan(null, r, detail, c, null);
+        }
+
+        Plan withFields(String f) {
+            return new Plan(reply, reason, detail, confidence, f);
         }
     }
 
-    private Plan plan(String text) {
+    /** Bước phân loại phạm vi không nhận hồ sơ khách; chỉ bước soạn câu mới nhận (và chỉ khi tin nằm trong phạm vi). */
+    private Plan plan(String text, java.util.function.Supplier<ReplyContext.Built> profile) {
         ReplyAssistant.Scope sc = assistant.scope(text);
         if (sc.outcome() == ReplyAssistant.Outcome.UNAVAILABLE) {
             return Plan.no(Reason.AI_LOI, null, null);
@@ -276,21 +288,24 @@ public class ReplyService {
         if (!sc.inScope() || sc.confidence() < SCOPE_MIN) {
             return Plan.no(Reason.NGOAI_PHAM_VI, null, sc.confidence());
         }
-        ReplyAssistant.Composed c = assistant.compose(text);
+        ReplyContext.Built p = profile.get();
+        ReplyAssistant.Composed c = assistant.compose(text, p);
+        // Từ đây hồ sơ đã được gửi (hoặc đã định gửi) cho AI: ghi lại các trường để kiểm tra sau, kể cả khi câu bị chặn.
+        String fields = p.fields().isBlank() ? null : p.fields();
         if (c.outcome() == ReplyAssistant.Outcome.UNAVAILABLE) {
-            return Plan.no(Reason.AI_LOI, null, sc.confidence());
+            return Plan.no(Reason.AI_LOI, null, sc.confidence()).withFields(fields);
         }
         if (c.outcome() == ReplyAssistant.Outcome.INVALID) {
-            return Plan.no(Reason.AI_SAI_KHUON, null, sc.confidence());
+            return Plan.no(Reason.AI_SAI_KHUON, null, sc.confidence()).withFields(fields);
         }
         if (c.reply().isBlank()) {
-            return Plan.no(Reason.KHONG_DU_THONG_TIN, null, sc.confidence());
+            return Plan.no(Reason.KHONG_DU_THONG_TIN, null, sc.confidence()).withFields(fields);
         }
-        Optional<String> blocked = ReplyValidator.check(c.reply(), info.allowedText() + " " + invites.shopName());
+        Optional<String> blocked = ReplyValidator.check(c.reply(), info.allowedText() + " " + invites.shopName(), p.numbers());
         if (blocked.isPresent()) {
-            return Plan.no(Reason.CAU_BI_CHAN, blocked.get(), sc.confidence());
+            return Plan.no(Reason.CAU_BI_CHAN, blocked.get(), sc.confidence()).withFields(fields);
         }
-        return new Plan(c.reply(), null, null, sc.confidence());
+        return new Plan(c.reply(), null, null, sc.confidence(), fields);
     }
 
     /** Kết quả thử một câu (không lưu, không gửi). */
@@ -306,7 +321,8 @@ public class ReplyService {
         if (text.isBlank()) {
             return new Preview(false, null, "Hãy gõ một câu khách có thể nhắn.");
         }
-        Plan p = plan(text);
+        // Thử bằng hồ sơ mẫu GIẢ: không bao giờ đọc hay gửi dữ liệu khách thật ở ô thử.
+        Plan p = plan(text, context::sample);
         if (p.reply != null) {
             return new Preview(true, p.reply + signature(), "Hệ thống sẽ trả lời câu này (nấc tự động) hoặc lưu nháp (nấc nháp).");
         }
@@ -314,14 +330,21 @@ public class ReplyService {
     }
 
     private Result handoff(Subject s, Reason reason, String detail, Double confidence, String text, Instant at) {
-        insert(s, "HANDOFF", reason, detail, confidence, text, null, at);
+        return handoff(s, reason, detail, confidence, text, null, at);
+    }
+
+    private Result handoff(Subject s, Reason reason, String detail, Double confidence, String text, String fields, Instant at) {
+        insert(s, "HANDOFF", reason, detail, confidence, text, null, fields, at);
         return Result.HANDOFF;
     }
 
-    private void insert(Subject s, String state, Reason reason, String detail, Double confidence, String inbound, String reply, Instant at) {
+    private void insert(Subject s, String state, Reason reason, String detail, Double confidence, String inbound, String reply, String fields,
+                        Instant at) {
         jdbc.sql("""
-                        INSERT INTO reply_draft (customer_id, invitation_id, zalo_uid, state, reason, detail, scope_confidence, inbound_text, reply_text, inbound_at)
-                        VALUES (:c, :i, :u, :s, :r, :d, :cf, :in, :re, :at)""")
+                        INSERT INTO reply_draft (customer_id, invitation_id, zalo_uid, state, reason, detail, scope_confidence, inbound_text, reply_text,
+                                                 context_fields, inbound_at)
+                        VALUES (:c, :i, :u, :s, :r, :d, :cf, :in, :re, :cx, :at)""")
+                .param("cx", fields, java.sql.Types.VARCHAR)
                 .param("c", s.customerId()).param("i", s.invitationId(), java.sql.Types.BIGINT).param("u", s.uid()).param("s", state)
                 .param("r", reason == null ? null : reason.name(), java.sql.Types.VARCHAR).param("d", detail, java.sql.Types.VARCHAR)
                 .param("cf", confidence == null ? null : java.math.BigDecimal.valueOf(confidence).setScale(3, java.math.RoundingMode.HALF_UP),
@@ -356,7 +379,7 @@ public class ReplyService {
         return jdbc.sql("""
                         SELECT id, zalo_uid, reply_text FROM reply_draft
                         WHERE state = 'READY' AND reply_text IS NOT NULL AND inbound_at > now() - make_interval(hours => :h)
-                        ORDER BY id LIMIT 1""")
+                        """ + contacts.onlyTestCustomerSql("customer_id") + " ORDER BY id LIMIT 1")
                 .param("h", REPLY_WINDOW_HOURS)
                 .query((rs, n) -> new Ready(rs.getLong("id"), rs.getString("zalo_uid"), rs.getString("reply_text"))).optional();
     }
@@ -396,7 +419,7 @@ public class ReplyService {
     // ---------- cho trang quản trị ----------
 
     private static final String SELECT = """
-            SELECT d.id, d.customer_id, c.name, d.state, d.reason, d.detail, d.inbound_text, d.reply_text, d.created_at, d.sent_at
+            SELECT d.id, d.customer_id, c.name, d.state, d.reason, d.detail, d.inbound_text, d.reply_text, d.created_at, d.sent_at, d.context_fields
             FROM reply_draft d JOIN customer c ON c.id = d.customer_id
             """;
 
@@ -406,7 +429,7 @@ public class ReplyService {
         return new Row(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("name"), rs.getString("state"),
                 r == null ? null : Reason.valueOf(r), rs.getString("detail"), rs.getString("inbound_text"), rs.getString("reply_text"),
                 rs.getTimestamp("created_at").toInstant().atZone(VN).toLocalDateTime(),
-                sent == null ? null : sent.toInstant().atZone(VN).toLocalDateTime());
+                sent == null ? null : sent.toInstant().atZone(VN).toLocalDateTime(), ReplyContext.labelsOf(rs.getString("context_fields")));
     }
 
     /** Việc chờ người thật (hàng đợi chung). */

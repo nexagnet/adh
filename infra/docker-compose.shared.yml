@@ -51,6 +51,9 @@ services:
       APP_ZALO_BRIDGE_KEY: ${APP_ZALO_BRIDGE_KEY:-}
       APP_ZALO_AUTO_MAX_DAILY: ${APP_ZALO_AUTO_MAX_DAILY:-100}
       APP_ZALO_GROUP_DEPUTY_ID: ${ZALO_DEPUTY_ID:-}
+      # CHẾ ĐỘ THỬ (23/11/2026): mặc định (false) hệ thống chỉ được liên hệ các số thử khai báo ở trang Zalo. Chỉ đặt true (trong .env trên
+      # máy chủ, rồi tạo lại container app) khi đã thử xong và muốn nhắn khách thật. Không có nút bật trên giao diện.
+      APP_ZALO_LIVE: ${APP_ZALO_LIVE:-false}
       # Tự gửi tin (D18): trần cứng số KHÁCH được nhắn chủ động mỗi ngày (Tin 1) mà trang quản trị được phép đặt. Công tắc mặc định TẮT.
       APP_ZALO_AUTO_MSG_MAX_DAILY: ${APP_ZALO_AUTO_MSG_MAX_DAILY:-50}
       # AI (DeepSeek) nhận diện khách từ chối (D19). MẶC ĐỊNH TẮT; cần cả ba cờ: APP_AI_ENABLED, APP_ZALO_INBOX_ENABLED và BRIDGE_INBOX_ENABLED ở bộ nối.

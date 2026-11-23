@@ -90,4 +90,15 @@ class ReplyValidatorTest {
         // "đồng ý" không được coi là đơn vị tiền "đồng"
         assertThat(check("Dạ nếu anh/chị đồng ý kết bạn thì em thêm vào nhóm ạ.")).isEqualTo("OK");
     }
+
+    @Test
+    void hoSoKhachChiMoThemConSoKhongMoThemTu() {
+        String info = "Khách mua qua nhóm được giảm 10% so với TikTok và miễn phí ship.";
+        String profile = "Ngày mua gần nhất: 05/01/2026. Số lần mua: 2. Hàng đã mua: Pin bảo hành đủ";
+        assertThat(ReplyValidator.check("Dạ anh/chị mua 2 lần, gần nhất 05/01/2026, vào nhóm giảm 10% ạ.", info, profile)).isEmpty();
+        assertThat(ReplyValidator.check("Dạ anh/chị mua 3 lần ạ.", info, profile)).contains("CON_SO_NGOAI_BANG");
+        // chữ "bảo hành" chỉ có trong hồ sơ, không có trong bảng thông tin: vẫn bị chặn
+        assertThat(ReplyValidator.check("Dạ bên em có bảo hành ạ.", info, profile)).contains("NOI_NGOAI_BANG");
+        assertThat(ReplyValidator.check("Dạ anh/chị mua 2 lần ạ.", info)).contains("CON_SO_NGOAI_BANG"); // không có hồ sơ thì như cũ
+    }
 }

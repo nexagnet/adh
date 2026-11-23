@@ -16,6 +16,14 @@
         <span th:text="${n < current ? '' : n + '. '} + (${n == 1} ? 'Chọn file' : (${n == 2} ? 'Chọn cột' : (${n == 3} ? 'Xem trước' : 'Xác nhận')))">Chọn file</span>
     </li>
 </ol>
+<div th:fragment="testModeAlert" th:if="${@testMode.testOnly()}">
+    <div class="notice info">
+        <strong>Đang ở chế độ thử</strong>
+        Hệ thống chỉ được nhắn tin, thêm nhóm, tạo nhóm, tự nhận khách và để AI trả lời với những số điện thoại đã khai báo là số thử.
+        Khách thật được bảo vệ, kể cả khi công tắc tự gửi đang bật.
+        <a th:href="@{/zalo#che-do-thu}">Xem danh sách số thử</a>
+    </div>
+</div>
 <div th:fragment="zaloAlert" th:with="za=${@zaloAutoService.alert().orElse(null)}">
     <div class="notice" th:if="${za != null}" th:classappend="${za.level}">
         <strong th:text="${za.text}">Bộ nối Zalo đã dừng</strong>
