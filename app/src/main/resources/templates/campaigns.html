@@ -37,9 +37,9 @@
         <strong>Đang TẠM DỪNG tất cả chiến dịch</strong>
         <span th:if="${!pausedReason.isEmpty()}" th:text="'Lý do: ' + ${pausedReason}">Lý do</span>
     </div>
-    <div class="notice bad" th:unless="${paused}">
-        <strong>Hệ thống không tự gửi tin cho ai khi chưa bật và chưa duyệt</strong>
-        Bật công tắc ở <a th:href="@{/zalo}">Zalo tài khoản phụ</a>, rồi duyệt từng chiến dịch ở trang chi tiết. Chưa bật thì chỉ có chạy thử (không gửi gì) hoặc xuất danh sách để mẹ gửi tay qua Zalo. Tạm chưa dùng SMS.
+    <div class="notice info" th:unless="${paused}">
+        <strong>Tạo chiến dịch chưa gửi gì</strong>
+        Hệ thống chỉ tự gửi khi công tắc ở <a th:href="@{/zalo}">Zalo tài khoản phụ</a> đã bật và bạn đã duyệt chiến dịch ở trang chi tiết.
     </div>
 
     <div class="cards c4">
@@ -84,7 +84,6 @@
             <h2>Bước 3. Làm gì với lô này?</h2>
             <div class="actions">
                 <button type="submit" class="btn">Tạo chiến dịch (chưa gửi gì)</button>
-                <button type="button" class="btn" disabled title="Tạm chưa dùng SMS. Tự gửi qua Zalo được duyệt ở trang chi tiết chiến dịch sau khi tạo">Gửi SMS (đang khóa)</button>
             </div>
             <p class="muted">Sau khi tạo chiến dịch, bạn vào trang chi tiết để chạy thử và duyệt cho hệ thống tự gửi (khi công tắc ở <a th:href="@{/zalo}">Zalo tài khoản phụ</a> đã bật). Chưa bật thì làm tay ở <a th:href="@{/today}">Lô nhắn hôm nay</a>. Mặc định hệ thống không tự gửi tin cho ai.</p>
         </div>

@@ -89,15 +89,16 @@ class PagesSmokeTest extends AbstractPostgresTest {
     }
 
     @Test
-    void trangTroLyAiVaViecCanMeNoiRoKenhZaloDaChonCachNoiChuaChon() throws Exception {
+    void trangTroLyAiNoiRoDungChungMotTaiKhoanVaChuaNoiZalo() throws Exception {
         var owner = user("admin").roles("OWNER");
         mvc.perform(get("/bot").with(owner)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("Kênh của trợ lý và việc báo mẹ là Zalo")))
-                .andExpect(content().string(containsString("Chưa chọn cách nối cụ thể")))
-                .andExpect(content().string(containsString("Kết nối (chọn một cách trước)")))
+                .andExpect(content().string(containsString("chung một tài khoản Zalo phụ")))
+                .andExpect(content().string(containsString("Chưa nối trợ lý vào Zalo thật")))
+                .andExpect(content().string(not(containsString("Tài khoản Zalo RIÊNG"))))
+                .andExpect(content().string(not(containsString("Kết nối (chọn một cách trước)"))))
                 .andExpect(content().string(not(containsString("Bot trợ lý"))));
         mvc.perform(get("/handoffs").with(owner)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("Cách báo cho mẹ: qua Zalo (đã chọn, chưa làm)")));
+                .andExpect(content().string(containsString("Việc chỉ hiện ở trang này và trên Tổng quan")));
     }
 
     @Test
@@ -117,7 +118,7 @@ class PagesSmokeTest extends AbstractPostgresTest {
     }
 
     @Test
-    void trangGuiTinVaChienDichCoNutKhoaVaTamChuaDungSms() throws Exception {
+    void trangGuiTinVaChienDichKhongConChuSms() throws Exception {
         contacts.approveAllCandidates();
         long group = groups.create("Nhóm 1", "https://zalo.me/g/abc123", 5);
         groups.setStatus(group, GroupStatus.OPEN);
@@ -125,7 +126,8 @@ class PagesSmokeTest extends AbstractPostgresTest {
         long campaign = jdbc.sql("SELECT id FROM invitation_campaign").query(Long.class).single();
         var owner = user("admin").roles("OWNER");
         mvc.perform(get("/zalo").with(owner)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("Tạm chưa dùng")))
+                .andExpect(content().string(containsString("Tạm dừng, giới hạn và nhật ký gửi")))
+                .andExpect(content().string(not(containsString("SMS"))))
                 .andExpect(content().string(not(containsString("Chưa chọn"))));
         mvc.perform(get("/campaigns/" + campaign).with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("CHƯA DUYỆT")))

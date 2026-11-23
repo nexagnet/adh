@@ -75,7 +75,7 @@ public class NavMenu {
                 new Group("Mời vào nhóm", List.copyOf(invite)),
                 new Group("Trợ lý AI", List.of(
                         item("Việc cần mẹ xử lý", "/handoffs", "/handoffs", handoffOpen, key),
-                        item("Tài khoản trợ lý AI", "/bot", "/bot", 0, key))),
+                        item("Trợ lý trong nhóm", "/bot", "/bot", 0, key))),
                 new Group("Khác", List.of(
                         item("Yêu cầu của khách", "/privacy", "/privacy", privacyOpen, key),
                         item("In giấy giới thiệu", "/print", "/print", 0, key),
