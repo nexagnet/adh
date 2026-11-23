@@ -259,7 +259,7 @@ public class CustomerService {
 
     /** Trạng thái duyệt như chữ hiện trên bảng: sổ từ chối thắng, rồi tới cơ sở liên hệ, không có dòng thì chờ duyệt. */
     private static final String APPROVAL_EXPR = """
-            CASE WHEN EXISTS (SELECT 1 FROM suppression s WHERE s.phone_hash = encode(sha256(convert_to(c.phone, 'UTF8')), 'hex'))
+            CASE WHEN EXISTS (SELECT 1 FROM suppression s WHERE s.phone_hash = encode(sha256(convert_to(c.phone, 'UTF8')), 'hex') AND s.lifted_at IS NULL)
                       THEN 'REFUSED'
                  WHEN b.id IS NULL THEN 'PENDING'
                  WHEN b.status = 'ELIGIBLE' THEN 'ELIGIBLE'

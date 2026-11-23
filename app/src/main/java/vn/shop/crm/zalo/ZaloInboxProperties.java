@@ -11,12 +11,18 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 public record ZaloInboxProperties(
         @DefaultValue("false") boolean enabled,
         /* Độ chắc tối thiểu để AI tự ghi sổ từ chối (chỉ nhận từ 0,5 tới 0,99). Dưới ngưỡng thì tạm dừng và báo mẹ. */
-        @DefaultValue("0.8") double threshold) {
+        @DefaultValue("0.8") double threshold,
+        /* Độ chắc tối thiểu để AI tự gỡ cờ khi khách từng từ chối nhắn lại muốn mua (chỉ nhận từ 0,7 tới 0,99). */
+        @DefaultValue("0.85") double comebackThreshold) {
 
     public ZaloInboxProperties {
         if (Double.isNaN(threshold)) {
             threshold = 0.8;
         }
         threshold = Math.max(0.5, Math.min(0.99, threshold));
+        if (Double.isNaN(comebackThreshold)) {
+            comebackThreshold = 0.85;
+        }
+        comebackThreshold = Math.max(0.7, Math.min(0.99, comebackThreshold));
     }
 }

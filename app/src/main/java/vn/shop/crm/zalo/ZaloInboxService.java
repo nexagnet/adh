@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import vn.shop.crm.common.AppSettings;
+import vn.shop.crm.inbox.ComebackService;
 import vn.shop.crm.inbox.RefusalClassifier;
 import vn.shop.crm.inbox.RefusalClassifier.Label;
 import vn.shop.crm.inbox.RefusalClassifier.Verdict;
@@ -41,9 +42,11 @@ public class ZaloInboxService implements ZaloTickHook {
     private final AppSettings settings;
     private final RefusalClassifier classifier;
     private final RefusalReviewService reviews;
+    private final ComebackService comebacks;
 
     public ZaloInboxService(ZaloInboxProperties props, ZaloInboxReader reader, ZaloGateway gateway, ZaloAutoSettings cfg,
-                            AppSettings settings, RefusalClassifier classifier, RefusalReviewService reviews) {
+                            AppSettings settings, RefusalClassifier classifier, RefusalReviewService reviews,
+                            ComebackService comebacks) {
         this.props = props;
         this.reader = reader;
         this.gateway = gateway;
@@ -51,6 +54,7 @@ public class ZaloInboxService implements ZaloTickHook {
         this.settings = settings;
         this.classifier = classifier;
         this.reviews = reviews;
+        this.comebacks = comebacks;
     }
 
     public boolean running() {
@@ -61,10 +65,15 @@ public class ZaloInboxService implements ZaloTickHook {
         return props.threshold();
     }
 
+    public double comebackThreshold() {
+        return props.comebackThreshold();
+    }
+
     @Override
     public void tick() {
         try {
             reviews.purgeOld();
+            comebacks.purgeOld();
         } catch (RuntimeException e) {
             log.warn("Không dọn được trích đoạn cũ: {}", e.getClass().getSimpleName());
         }
@@ -116,7 +125,7 @@ public class ZaloInboxService implements ZaloTickHook {
     void process(ZaloInboxReader.Inbound m) {
         Optional<Target> target = reviews.targetFor(m.uid());
         if (target.isEmpty()) {
-            cfg.log(A_INBOX, null, null, "KHONG_PHAI_KHACH", null, "system");
+            comeback(m);
             return;
         }
         Target t = target.get();
@@ -139,6 +148,29 @@ public class ZaloInboxService implements ZaloTickHook {
                 }
             }
         }
+    }
+
+    /**
+     * Người không còn lời mời đang chạy: có thể là khách TỪNG TỪ CHỐI tự nhắn lại. Chỉ xử lý khi phần khách quay lại không tắt và cờ từ chối còn
+     * hiệu lực; còn lại bỏ qua (không gọi AI). Hệ thống không trả lời ở đây; tin mẫu (nếu có) do {@code ZaloWelcomeSender} gửi sau.
+     */
+    private void comeback(ZaloInboxReader.Inbound m) {
+        if (comebacks.mode() == ComebackService.Mode.OFF) {
+            cfg.log(A_INBOX, null, null, "KHONG_PHAI_KHACH", null, "system");
+            return;
+        }
+        Optional<ComebackService.Candidate> c = comebacks.candidateFor(m.uid());
+        if (c.isEmpty()) {
+            cfg.log(A_INBOX, null, null, "KHONG_PHAI_KHACH", null, "system");
+            return;
+        }
+        String text = RefusalClassifier.prepare(m.text());
+        if (text.isBlank()) {
+            return;
+        }
+        Verdict v = classifier.classify(text);
+        ComebackService.Result r = comebacks.handle(c.get(), v, text, cfg.effectiveMode().adds(), props.comebackThreshold());
+        cfg.log(A_INBOX, c.get().invitationId(), null, "QUAY_LAI_" + r.name(), null, "system");
     }
 
     private void hold(Target t, Reason reason, String label, Double confidence, String text) {

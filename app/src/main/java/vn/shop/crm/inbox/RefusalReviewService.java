@@ -201,8 +201,10 @@ public class RefusalReviewService {
                 .param("d", days).query((rs, i) -> row(rs)).list();
     }
 
+    /** Số việc chờ mẹ xem ở tin riêng: khách nghi từ chối (đã tạm dừng tin) cộng khách từng từ chối nhắn lại (xem {@link ComebackService}). */
     public long heldCount() {
-        return jdbc.sql("SELECT count(*) FROM refusal_review WHERE state = 'HELD'").query(Long.class).single();
+        return jdbc.sql("SELECT (SELECT count(*) FROM refusal_review WHERE state = 'HELD') "
+                + "+ (SELECT count(*) FROM comeback WHERE state = 'TASK')").query(Long.class).single();
     }
 
     /** Xóa trích đoạn quá {@value #KEEP_DAYS} ngày (chỉ còn nhãn và giờ). */

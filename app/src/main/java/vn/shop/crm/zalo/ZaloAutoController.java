@@ -31,10 +31,13 @@ public class ZaloAutoController {
     private final ZaloDeputyService deputy;
 
     private final ZaloInboxService inbox;
+    private final vn.shop.crm.inbox.ComebackService comebacks;
 
     public ZaloAutoController(ZaloAutoService service, ZaloMessageService messages, vn.shop.crm.send.SendService send,
-                              ZaloGroupCreationService groupMaker, ZaloDeputyService deputy, ZaloInboxService inbox) {
+                              ZaloGroupCreationService groupMaker, ZaloDeputyService deputy, ZaloInboxService inbox,
+                              vn.shop.crm.inbox.ComebackService comebacks) {
         this.inbox = inbox;
+        this.comebacks = comebacks;
         this.groupMaker = groupMaker;
         this.deputy = deputy;
         this.service = service;
@@ -87,6 +90,10 @@ public class ZaloAutoController {
             model.addAttribute("deputyCandidate", deputy.candidate().orElse(null));
             model.addAttribute("inboxRunning", inbox.running());
             model.addAttribute("inboxThreshold", inbox.threshold());
+            model.addAttribute("comebackModes", vn.shop.crm.inbox.ComebackService.Mode.values());
+            model.addAttribute("comebackChosen", comebacks.mode());
+            model.addAttribute("comebackTried", comebacks.tasksTried());
+            model.addAttribute("comebackThreshold", inbox.comebackThreshold());
             model.addAttribute("groupMayNow", groupMaker.mayCreateNow());
             model.addAttribute("proposals", groupMaker.recent(10));
         }
@@ -100,6 +107,17 @@ public class ZaloAutoController {
         service.settings().setMode(mode, confirmedTested, by(user));
         redirect.addFlashAttribute("flash", "Đã chuyển sang nấc: " + mode.label() + ".");
         return "redirect:/zalo";
+    }
+
+    // ---------- khách từng từ chối nhắn lại muốn mua (D19) ----------
+
+    @PostMapping("/comeback-mode")
+    public String comebackMode(@RequestParam vn.shop.crm.inbox.ComebackService.Mode mode,
+                               @RequestParam(defaultValue = "false") boolean confirmedTested, Principal user, RedirectAttributes redirect) {
+        requireEnabled();
+        comebacks.setMode(mode, confirmedTested, by(user));
+        redirect.addFlashAttribute("flash", "Đã chuyển việc khách quay lại sang nấc: " + mode.label() + ".");
+        return "redirect:/zalo#tin-rieng";
     }
 
     // ---------- tự tạo nhóm theo khu vực (D19) ----------

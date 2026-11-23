@@ -34,10 +34,13 @@ public class BotController {
     private final BotEngine engine;
     private final HandoffService handoffs;
     private final vn.shop.crm.inbox.RefusalReviewService refusals;
+    private final vn.shop.crm.inbox.ComebackService comebacks;
 
     public BotController(JdbcClient jdbc, AppSettings settings, FaqService faqs, BotEngine engine,
-                         HandoffService handoffs, vn.shop.crm.inbox.RefusalReviewService refusals) {
+                         HandoffService handoffs, vn.shop.crm.inbox.RefusalReviewService refusals,
+                         vn.shop.crm.inbox.ComebackService comebacks) {
         this.refusals = refusals;
+        this.comebacks = comebacks;
         this.jdbc = jdbc;
         this.settings = settings;
         this.faqs = faqs;
@@ -149,6 +152,8 @@ public class BotController {
         model.addAttribute("botEnabled", settings.botEnabled());
         model.addAttribute("heldRefusals", done ? List.of() : refusals.held());
         model.addAttribute("autoRefusals", done ? List.of() : refusals.recentAuto(14));
+        model.addAttribute("comebackTasks", done ? List.of() : comebacks.tasks());
+        model.addAttribute("comebackLifted", done ? List.of() : comebacks.recentLifted(14));
         return "handoffs";
     }
 
@@ -188,6 +193,30 @@ public class BotController {
         boolean restored = refusals.undo(id);
         redirect.addFlashAttribute("flash", restored ? "Đã hoàn tác: khách không còn bị ghi từ chối, lời mời trở lại như trước."
                 : "Đã gỡ ghi từ chối, nhưng lời mời của khách đã bị đổi ở chỗ khác nên không khôi phục.");
+        return "redirect:/handoffs";
+    }
+
+    // ---------- khách từng từ chối tự nhắn lại muốn mua (D19, docs/THIET-KE-KHACH-QUAY-LAI.md) ----------
+
+    @PostMapping("/handoffs/comebacks/{id}/lift")
+    public String liftComeback(@PathVariable long id, RedirectAttributes redirect) {
+        comebacks.liftByHand(id);
+        redirect.addFlashAttribute("flash", "Đã gỡ \"không nhắn nữa\": khách vào hàng chờ vào nhóm theo khu vực. Mẹ nhắn khách trên Zalo nhé. Số điện thoại vẫn được giữ như cũ.");
+        return "redirect:/handoffs";
+    }
+
+    @PostMapping("/handoffs/comebacks/{id}/keep")
+    public String keepComeback(@PathVariable long id, RedirectAttributes redirect) {
+        comebacks.dismiss(id);
+        redirect.addFlashAttribute("flash", "Đã giữ nguyên: khách vẫn không được nhắn.");
+        return "redirect:/handoffs";
+    }
+
+    @PostMapping("/handoffs/comebacks/{id}/undo")
+    public String undoComeback(@PathVariable long id, RedirectAttributes redirect) {
+        boolean restored = comebacks.undo(id);
+        redirect.addFlashAttribute("flash", restored ? "Đã hoàn tác: khách lại bị đánh dấu không nhắn nữa."
+                : "Đã đánh dấu khách lại không nhắn nữa. Khách đã được thêm vào nhóm (hoặc đang được thêm) nên hệ thống không đưa ra khỏi nhóm được; mẹ tự mời ra trên Zalo nếu cần.");
         return "redirect:/handoffs";
     }
 }

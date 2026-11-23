@@ -205,6 +205,15 @@ class ZcaBridgeGatewayTest {
     }
 
     @Test
+    void tinMauGuiTheoMaVaKhongTraLoiDuocThiLaChacChanChuaGui() {
+        reply.set("{\"outcome\":\"PERSON_ERROR\",\"code\":\"NOT_REPLYABLE\"}");
+        var r = gateway.sendByUid(ZaloMessenger.Kind.WELCOME, "654321", "chào");
+        assertThat(r.result()).isEqualTo(ZaloMessenger.Result.PERSON_ERROR);
+        assertThat(r.notSent()).isTrue(); // cầu nối từ chối trước khi chạm Zalo: không tính hạn mức, không làm nhảy cầu dao
+        assertThat(bodies.get(0)).contains("\"kind\":\"WELCOME\"", "\"uid\":\"654321\"").doesNotContain("phone");
+    }
+
+    @Test
     void guiTinDauVaoSaiKhongGoiBoNoi() {
         assertThat(gateway.sendByPhone(ZaloMessenger.Kind.INVITE, "abc", "x").code()).isEqualTo("BAD_PHONE");
         assertThat(gateway.sendByUid(ZaloMessenger.Kind.INVITE, "1; DROP", "x").code()).isEqualTo("BAD_ID");

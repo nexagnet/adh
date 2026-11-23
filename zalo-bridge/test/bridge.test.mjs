@@ -939,3 +939,63 @@ test('tin riêng: cắt 500 ký tự, xác nhận (after) thì bỏ tin cũ, qu�
   assert.deepEqual(c.bridge.inboxMessages(0), []);
   c.cleanup();
 });
+
+// ---------- tin mẫu trả lời người đã nhắn trước (WELCOME, D19) ----------
+
+test('WELCOME: chỉ theo mã Zalo, cần bật đọc tin riêng và người đó phải vừa nhắn tới; phone hoặc người chưa nhắn đều bị từ chối trước khi chạm Zalo', async () => {
+  const off = setup();
+  await off.bridge.start();
+  await loginAndListen(off);
+  assert.equal((await off.bridge.sendMessage({ kind: 'WELCOME', uid: '777', text: 'Chào' })).code, 'BAD_INPUT'); // chưa bật cờ
+  off.cleanup();
+
+  const c = setup({ env: { BRIDGE_INBOX_ENABLED: 'true' } });
+  await c.bridge.start();
+  await loginAndListen(c);
+  await c.bridge.sendMessage({ kind: 'INVITE', uid: '777', text: 'Mời' });
+  c.clock.t += 120000;
+  assert.equal((await c.bridge.sendMessage({ kind: 'WELCOME', phone: '84900000001', text: 'Chào' })).code, 'BAD_INPUT');
+  const sentBefore = c.adapter.sent.length;
+  assert.equal((await c.bridge.sendMessage({ kind: 'WELCOME', uid: '777', text: 'Chào' })).code, 'NOT_REPLYABLE'); // chưa nhắn tới
+  assert.equal((await c.bridge.sendMessage({ kind: 'WELCOME', uid: '888', text: 'Chào' })).code, 'NOT_REPLYABLE'); // người lạ
+  assert.equal(c.adapter.sent.length, sentBefore);
+  assert.equal(c.bridge.status().state, 'LISTENING'); // từ chối kiểu này không làm cầu dao nhảy
+  c.cleanup();
+});
+
+test('WELCOME: mỗi tin đến chỉ được trả lời một lần, quá 24 giờ thì thôi, tin mới thì được lại; vẫn chịu khoảng nghỉ và trần ngày chung', async () => {
+  const c = setup({ env: { BRIDGE_INBOX_ENABLED: 'true' } });
+  await c.bridge.start();
+  await loginAndListen(c);
+  await c.bridge.sendMessage({ kind: 'INVITE', uid: '777', text: 'Mời' });
+  c.adapter.emitMessage('777', 'Em muốn mua thêm');
+  const early = await c.bridge.sendMessage({ kind: 'WELCOME', uid: '777', text: 'Chào' });
+  assert.equal(early.outcome, 'RATE_LIMITED'); // vừa gửi Tin 1 xong, chưa đủ khoảng nghỉ
+  c.clock.t += 120000;
+  assert.equal((await c.bridge.sendMessage({ kind: 'WELCOME', uid: '777', text: 'Dạ em chào' })).outcome, 'OK');
+  assert.deepEqual(c.adapter.sent.at(-1), { uid: '777', text: 'Dạ em chào' });
+  c.clock.t += 120000;
+  assert.equal((await c.bridge.sendMessage({ kind: 'WELCOME', uid: '777', text: 'Dạ em chào' })).code, 'NOT_REPLYABLE'); // đã trả lời tin đó
+  c.adapter.emitMessage('777', 'Cho em hỏi nữa');
+  c.clock.t += 120000;
+  assert.equal((await c.bridge.sendMessage({ kind: 'WELCOME', uid: '777', text: 'Dạ em chào' })).outcome, 'OK'); // tin mới, được lại
+  c.adapter.emitMessage('777', 'Alo');
+  c.clock.t += 25 * 3600 * 1000;
+  assert.equal((await c.bridge.sendMessage({ kind: 'WELCOME', uid: '777', text: 'Dạ em chào' })).code, 'NOT_REPLYABLE'); // quá 24 giờ
+  c.cleanup();
+});
+
+test('WELCOME không đánh dấu sổ đã gửi nên không chặn nhầm Tin 1 hay Tin 2; lỗi gửi vẫn tiêu tin đến đó (không tự thử lại)', async () => {
+  const c = setup({ env: { BRIDGE_INBOX_ENABLED: 'true' } });
+  await c.bridge.start();
+  await loginAndListen(c);
+  await c.bridge.sendMessage({ kind: 'INVITE', uid: '777', text: 'Mời' });
+  c.adapter.emitMessage('777', 'ok');
+  c.clock.t += 120000;
+  await c.bridge.sendMessage({ kind: 'WELCOME', uid: '777', text: 'Chào' });
+  c.clock.t += 120000;
+  assert.equal((await c.bridge.sendMessage({ kind: 'LINK', uid: '777', text: 'Link' })).outcome, 'OK');
+  c.clock.t += 120000;
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', uid: '777', text: 'Mời' })).code, 'DUPLICATE'); // Tin 1 vẫn chỉ một lần
+  c.cleanup();
+});

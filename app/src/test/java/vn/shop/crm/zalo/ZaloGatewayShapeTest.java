@@ -94,6 +94,30 @@ class ZaloGatewayShapeTest {
         }
     }
 
+    /** D19: tin thứ ba (WELCOME) chỉ có MỘT nơi gửi, chỉ theo mã Zalo, và phần nhận diện không tự gửi gì. */
+    @Test
+    void tinMauChiGuiTuMotNoiVaChiTheoMaZalo() throws IOException {
+        List<Path> offenders = new java.util.ArrayList<>();
+        try (Stream<Path> all = Files.walk(Path.of("src/main/java"))) {
+            for (Path f : all.filter(x -> x.toString().endsWith(".java")).toList()) {
+                if (Files.readString(f).contains("Kind.WELCOME") && !f.getFileName().toString().equals("ZaloWelcomeSender.java")) {
+                    offenders.add(f);
+                }
+            }
+        }
+        assertThat(offenders).isEmpty();
+        String sender = Files.readString(Path.of("src/main/java/vn/shop/crm/zalo/ZaloWelcomeSender.java"));
+        assertThat(sender).contains("Kind.WELCOME", "sendByUid").doesNotContain("sendByPhone", "addToGroup", "createGroup", "findByPhone");
+        // phần quyết định (ComebackService) không có đường gửi tin nào
+        try (Stream<Path> inbox = Files.walk(Path.of("src/main/java/vn/shop/crm/inbox"))) {
+            for (Path f : inbox.filter(x -> x.toString().endsWith(".java")).toList()) {
+                assertThat(Files.readString(f)).as(f.toString()).doesNotContain("ZaloMessageService", "ZaloMessenger", "sendByUid");
+            }
+        }
+        // WELCOME chỉ chạy ở nấc tự động và không có vòng thử lại tự động
+        assertThat(sender).contains("Mode.AUTO").doesNotContain("while", "for (");
+    }
+
     /** D18: khoảng cách giữa hai tin là CỐ ĐỊNH. Không dùng số ngẫu nhiên để rải thời gian gửi (không né phát hiện). */
     @Test
     void khongDungSoNgauNhienTrongMaGuiTin() throws IOException {
