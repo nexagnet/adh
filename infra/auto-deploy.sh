@@ -39,6 +39,7 @@ MIN_DISK_MB="$(envval ADH_AUTO_MIN_DISK_MB 1500)"
 MAX_ATTEMPTS="$(envval ADH_AUTO_MAX_ATTEMPTS 3)"
 HOST_PORT="$(envval ADH_HOST_PORT 8081)"
 IMAGE="ghcr.io/nexagnet/adh-app"
+BRIDGE_IMAGE="ghcr.io/nexagnet/adh-zalo-bridge"
 
 CUR=.current-tag; PREV=.previous-tag
 LOCK=.auto-deploy.lock; PAUSED=.auto-deploy-paused
@@ -186,10 +187,13 @@ if [ "$rc" -eq 0 ] && [ "$(cat "$CUR" 2>/dev/null)" = "$head" ]; then
     rm -f "$FAILED" "$ATTEMPTS"; printf '' >"$NOTE"
     log "XONG: adh đang chạy ${short}. Bản sao lưu trước khi cập nhật: ${backup:-không có (chưa chạy postgres?)}"
     snapshot
-    # Dọn ảnh adh-app cũ, chỉ giữ thẻ đang chạy và thẻ trước (để lùi được); không đụng ảnh khác trên máy.
+    # Dọn ảnh cũ của ứng dụng và của bộ nối Zalo (deploy.sh kéo cả hai khi bật profile zalo-auto), chỉ giữ thẻ đang chạy
+    # và thẻ trước (để lùi được); không đụng ảnh khác trên máy.
     keep_prev="$(cat "$PREV" 2>/dev/null || true)"
-    for t in $($SUDO docker images --format '{{.Tag}}' "$IMAGE" 2>/dev/null); do
-        [ "$t" = "$head" ] || [ "$t" = "$keep_prev" ] || $SUDO docker rmi "$IMAGE:$t" >/dev/null 2>&1 || true
+    for img in "$IMAGE" "$BRIDGE_IMAGE"; do
+        for t in $($SUDO docker images --format '{{.Tag}}' "$img" 2>/dev/null); do
+            [ "$t" = "$head" ] || [ "$t" = "$keep_prev" ] || $SUDO docker rmi "$img:$t" >/dev/null 2>&1 || true
+        done
     done
     notify "đã cập nhật lên ${short}."
     exit 0

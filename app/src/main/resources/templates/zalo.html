@@ -380,9 +380,8 @@
     </th:block>
 
     <section id="gui-tay" class="stack">
-        <h2>Tạm dừng, giới hạn và nhật ký gửi</h2>
-        <p class="hint">Nút tạm dừng dừng mọi chiến dịch ngay. Tự gửi tin Zalo có hạn mức riêng ở mục "Tự gửi tin cho khách" phía trên; các giới hạn dưới đây áp cho đường nhắn tay dự phòng và nhật ký.
-            Chỉ để xem; muốn đổi, người cài đặt sửa cấu hình trên máy chủ rồi khởi động lại.</p>
+        <h2>Tạm dừng và nhật ký gửi</h2>
+        <p class="hint">Nút tạm dừng dừng mọi chiến dịch ngay. Giờ gửi, hạn mức mỗi ngày và khoảng nghỉ của tự gửi tin Zalo nằm ở mục "Tự gửi tin cho khách" phía trên; mục này chỉ có nút tạm dừng, các điều kiện tự dừng và nhật ký.</p>
         <div class="actions">
             <form th:action="@{/campaigns/pause-all}" method="post" th:unless="${send.paused}">
                 <button type="submit" class="btn danger">Tạm dừng tất cả chiến dịch</button>
@@ -395,25 +394,6 @@
         <strong>Đang TẠM DỪNG tất cả chiến dịch</strong>
         <span th:if="${!send.pausedReason.isEmpty()}" th:text="'Lý do: ' + ${send.pausedReason}">Lý do</span>
     </div>
-    <div class="setrows">
-        <div class="setrow">
-            <div><div class="t">Giờ được gửi</div><div class="d">Ngoài giờ này hệ thống tự hoãn sang hôm sau.</div></div>
-            <div class="v"><span th:text="${#temporals.format(send.windowStart, 'HH:mm')}">07:00</span> đến <span th:text="${#temporals.format(send.windowEnd, 'HH:mm')}">22:00</span></div>
-        </div>
-        <div class="setrow">
-            <div><div class="t">Hạn mức mỗi ngày</div><div class="d">Gửi chậm, theo lô nhỏ. Mỗi khách chỉ nhận một lần. Hôm nay đã gửi <span th:text="${send.sentToday}">0</span>.</div></div>
-            <div class="v"><span th:text="${send.dailyLimit}">20</span> tin</div>
-        </div>
-        <div class="setrow">
-            <div><div class="t">Hạn mức mỗi giờ</div><div class="d">Tối đa số tin trong 60 phút gần nhất; 0 là không giới hạn theo giờ. Trong 60 phút qua đã gửi <span th:text="${send.sentThisHour}">0</span>.</div></div>
-            <div class="v"><span th:text="${send.hourlyLimit}">6</span> tin</div>
-        </div>
-        <div class="setrow">
-            <div><div class="t">Nhịp gợi ý khi nhắn tay</div><div class="d">Hai tin cách nhau ít nhất bấy nhiêu phút (chỉ gợi ý ở mục Lô nhắn hôm nay, không ép buộc).</div></div>
-            <div class="v"><span th:text="${send.suggestedGapMinutes}">3</span> phút</div>
-        </div>
-    </div>
-
     <section>
         <h3>Tự động dừng khi</h3>
         <div class="table-wrap">

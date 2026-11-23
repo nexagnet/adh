@@ -85,6 +85,17 @@ class ZaloAdminPageTest extends AbstractPostgresTest {
     }
 
     @Test
+    void trangKhongConHienGioiHanCuaDuongNhanTayLamLechVoiTuGui() throws Exception {
+        // Giờ 07:00 đến 22:00, 20 tin mỗi ngày, 6 tin mỗi giờ là của đường nhắn tay cũ; tự gửi thật có giới hạn riêng.
+        mvc.perform(get("/zalo").with(owner())).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Tạm dừng và nhật ký gửi")))
+                .andExpect(content().string(containsString("Tạm dừng tất cả chiến dịch")))
+                .andExpect(content().string(not(containsString("Giờ được gửi"))))
+                .andExpect(content().string(not(containsString("Hạn mức mỗi giờ"))))
+                .andExpect(content().string(not(containsString("Nhịp gợi ý khi nhắn tay"))));
+    }
+
+    @Test
     void trangHienTiengVietKhongLoMaNoiBo() throws Exception {
         mvc.perform(get("/zalo").with(owner())).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Zalo tài khoản phụ")))
