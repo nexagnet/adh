@@ -96,6 +96,19 @@ public class ZaloGroupCreationService implements ZaloTickHook {
         this.deputies = deputies;
     }
 
+    /** Trần mềm số khách mỗi nhóm (lưu ở GroupService vì chính nó chọn nhóm). */
+    public int softCap() {
+        return groups.softCap();
+    }
+
+    public void setSoftCap(int cap, String by) {
+        int old = groups.softCap();
+        groups.setSoftCap(cap, by);
+        if (old != cap) {
+            auto.log(ZaloAutoSettings.A_CONFIG, null, null, "TAO_NHOM_TRAN_MEM " + cap, "CU " + old, by);
+        }
+    }
+
     public ZaloGroupSettings settings() {
         return cfg;
     }
@@ -190,7 +203,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
                         WHERE state = 'REJECTED' AND decided_at > :since""")
                 .param("since", OffsetDateTime.ofInstant(now.minusSeconds(24 * 3600L), ZoneOffset.UTC)).query(String.class).list());
         Optional<GroupPlanner.Plan> plan = GroupPlanner.plan(waiting, cfg.minCustomers(), cfg.props().maxMembers(), rejected, now,
-                java.time.Duration.ofDays(cfg.props().relaxAfterDays()));
+                java.time.Duration.ofDays(cfg.relaxDays()));
         if (plan.isEmpty()) {
             return Optional.empty();
         }

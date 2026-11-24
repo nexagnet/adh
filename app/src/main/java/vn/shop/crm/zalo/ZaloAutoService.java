@@ -374,7 +374,7 @@ public class ZaloAutoService {
         cfg.log(ZaloAutoSettings.A_APPROVE, invitationId, null, "TU_XU_LY", null, by);
     }
 
-    private record Task(long invitationId, long customerId, String uid, String provinceCode, String prevState, Long heldGroupId) {
+    private record Task(long invitationId, long customerId, String uid, String provinceCode, String prevState, Long heldGroupId, Instant friendedAt) {
     }
 
     /**
@@ -441,7 +441,10 @@ public class ZaloAutoService {
                     List<GroupService.Group> pool = province == null ? usable.stream().filter(g -> g.scope() == null).toList() : usable;
                     group = groups.pickGroup(pool, province);
                     if (group.isEmpty() && province != null && waitingByRegion.getOrDefault(province.region(), 0) < minToCreate) {
-                        group = groups.pickGroup(pool, province, true);
+                        // khách dư lẻ: mới đồng ý chỉ vào nhóm CÙNG TỈNH; chờ quá số ngày đã chỉnh thì được gộp lên nhóm cùng vùng hoặc miền
+                        boolean waitedLong = t.friendedAt() != null
+                                && !t.friendedAt().plus(java.time.Duration.ofDays(groupSettings.mergeUpDays())).isAfter(clock.instant());
+                        group = groups.pickGroup(pool, province, true, waitedLong ? Integer.MAX_VALUE : 0);
                     }
                 }
                 if (group.isEmpty()) {
@@ -461,12 +464,13 @@ public class ZaloAutoService {
         String states = mode == ZaloMode.AUTO ? "('QUEUED', 'WAITING_APPROVAL')" : "('QUEUED')";
         return jdbc.sql("""
                         SELECT i.id, i.customer_id, i.zalo_uid, c.province, i.zalo_add_state,
-                               coalesce(i.group_id, CASE WHEN i.reserved_until > now() THEN i.reserved_group_id END) AS held_group
+                               coalesce(i.group_id, CASE WHEN i.reserved_until > now() THEN i.reserved_group_id END) AS held_group, i.friended_at
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
                         WHERE i.zalo_add_state IN %s AND i.zalo_uid IS NOT NULL AND i.status IN ('SENT', 'CLICKED', 'FRIENDED')
                         """.formatted(states) + testMode.onlyTestSql("c.phone") + " ORDER BY i.friended_at NULLS LAST, i.id LIMIT 500")
                 .query((rs, n) -> new Task(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("zalo_uid"),
-                        rs.getString("province"), rs.getString("zalo_add_state"), (Long) rs.getObject("held_group"))).list();
+                        rs.getString("province"), rs.getString("zalo_add_state"), (Long) rs.getObject("held_group"),
+                        rs.getTimestamp("friended_at") == null ? null : rs.getTimestamp("friended_at").toInstant())).list();
     }
 
     /** Có lần gọi Zalo nào còn ghi "đang gọi" không? Đang giữ khóa thêm người nên mọi dòng như vậy là của lần đã chết giữa chừng. */
@@ -760,7 +764,7 @@ public class ZaloAutoService {
         long inv = jdbc.sql("""
                         SELECT count(*) FROM invitation WHERE zalo_add_state IN ('WAITING_APPROVAL', 'FAILED')
                           AND status IN ('SENT', 'CLICKED', 'FRIENDED')""").query(Long.class).single();
-        return inv + manualCount() + longWaitingCount(groupSettings.props().alertAfterDays());
+        return inv + manualCount() + longWaitingCount(groupSettings.alertDays());
     }
 
     private LocalDateTime local(OffsetDateTime t) {

@@ -23,10 +23,12 @@ public record ZaloGroupProperties(
         /* Số khách tối đa đưa vào nhóm mới lúc tạo (cầu nối cũng giới hạn 5). Các khách còn lại vào dần qua đường thêm người sẵn có. */
         @DefaultValue("5") int maxMembers,
         /* Sức chứa mục tiêu của một nhóm tự tạo (số khách, không tính mẹ và tài khoản phụ); trang quản trị chỉnh trong khoảng 5 đến maxTargetCustomers.
-           Chủ dự án chốt 24/11/2026: khoảng 5 người mỗi nhóm; vượt vài người cũng được (trần mềm, xem app.grouping.soft-overflow ở GroupService). */
+           Chủ dự án chốt 24/11/2026: khoảng 5 người mỗi nhóm; vượt vài người cũng được (trần mềm 8 khách, xem app.grouping.soft-cap ở GroupService). */
         @DefaultValue("5") int targetCustomers,
         @DefaultValue("100") int maxTargetCustomers,
-        /* Khách dư: chờ từ bấy nhiêu ngày thì khu vực chỉ cần 2 khách là tạo nhóm và được ưu tiên; chờ từ alertAfterDays thì báo mẹ. */
+        /* Khách dư lẻ: mới đồng ý thì chỉ vào nhóm CÙNG TỈNH còn dưới trần mềm; chờ từ mergeUpAfterDays ngày thì được gộp lên nhóm cùng vùng hoặc miền;
+           chờ từ relaxAfterDays ngày thì khu vực chỉ cần 2 khách là tạo nhóm và được ưu tiên; chờ từ alertAfterDays thì báo mẹ. Chỉnh ở trang Zalo. */
+        @DefaultValue("3") int mergeUpAfterDays,
         @DefaultValue("7") int relaxAfterDays,
         @DefaultValue("14") int alertAfterDays,
         /* Bao lâu thì xét đề xuất một lần (phút). */
@@ -56,8 +58,11 @@ public record ZaloGroupProperties(
         if (targetCustomers < 5 || targetCustomers > maxTargetCustomers) {
             targetCustomers = Math.min(5, maxTargetCustomers);
         }
-        if (relaxAfterDays < 1) {
-            relaxAfterDays = 7;
+        if (mergeUpAfterDays < 1) {
+            mergeUpAfterDays = 3;
+        }
+        if (relaxAfterDays < mergeUpAfterDays) {
+            relaxAfterDays = Math.max(7, mergeUpAfterDays);
         }
         if (alertAfterDays < relaxAfterDays) {
             alertAfterDays = Math.max(14, relaxAfterDays);

@@ -72,7 +72,7 @@ class GeoGroupingTest extends AbstractPostgresTest {
         // khách chưa rõ khu vực vẫn được xếp (mọi nhóm đều nhận)
         assertThat(pick(null)).isEqualTo("Miền Nam");
 
-        GroupService permissive = new GroupService(jdbc, 0.5, true, 3);
+        GroupService permissive = new GroupService(jdbc, new vn.shop.crm.common.AppSettings(jdbc), 0.5, true, 8);
         assertThat(permissive.pickGroup(VnGeo.byCode("ha-noi").orElseThrow())).isPresent();
     }
 
