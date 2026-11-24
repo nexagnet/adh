@@ -17,9 +17,11 @@ import java.security.Principal;
 public class TestModeController {
 
     private final TestMode mode;
+    private final TestDataSeeder seeder;
 
-    public TestModeController(TestMode mode) {
+    public TestModeController(TestMode mode, TestDataSeeder seeder) {
         this.mode = mode;
+        this.seeder = seeder;
     }
 
     private static String by(Principal p) {
@@ -37,6 +39,13 @@ public class TestModeController {
     public String remove(@RequestParam String phone, Principal user, RedirectAttributes redirect) {
         mode.remove(phone, by(user));
         redirect.addFlashAttribute("flash", "Đã xóa số khỏi danh sách thử.");
+        return "redirect:/zalo#che-do-thu";
+    }
+
+    /** Dựng khách và đơn giả từ các số thử (chỉ ở chế độ thử). */
+    @PostMapping("/seed")
+    public String seed(RedirectAttributes redirect) {
+        redirect.addFlashAttribute("flash", seeder.seed().message());
         return "redirect:/zalo#che-do-thu";
     }
 }

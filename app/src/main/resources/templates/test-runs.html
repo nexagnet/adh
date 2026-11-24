@@ -16,10 +16,10 @@
     <details class="notice">
         <summary>Cách chạy thử (hệ thống tự làm, bạn chỉ cần có mặt để chấp nhận kết bạn)</summary>
         <ol>
-            <li>Ở trang <a th:href="@{/zalo}">Zalo tài khoản phụ</a>: bật bộ nối (nấc "Mẹ duyệt từng người" hoặc "Tự thêm trong hạn mức"), <strong>bật công tắc "Tự gửi tin"</strong> và gán mã nhóm Zalo cho nhóm đích.</li>
-            <li>Tạo chiến dịch thử bên dưới: nhập số, chọn <strong>nhóm đích</strong>, soạn Tin 1 và Tin 2, đặt hạn mức (chỉ được THẤP hơn hạn mức chung).</li>
+            <li>Ở trang <a th:href="@{/zalo}">Zalo tài khoản phụ</a>: bật bộ nối (nấc "Mẹ duyệt từng người" hoặc "Tự thêm trong hạn mức"), <strong>bật công tắc "Tự gửi tin"</strong> và bật "Tự tạo nhóm Zalo" (nấc Xác nhận). Không cần tự tạo nhóm trên điện thoại.</li>
+            <li>Tạo chiến dịch thử bên dưới: nhập số, để trống <strong>nhóm đích</strong> (hệ thống tự tạo nhóm thử), soạn Tin 1 và Tin 2, đặt hạn mức (chỉ được THẤP hơn hạn mức chung).</li>
             <li>Mở chiến dịch thử, bấm <em>Bắt đầu</em>. Hệ thống gửi <strong>Tin 1</strong> từng số một, nghỉ cố định giữa các tin, chỉ trong khung giờ cho phép.</li>
-            <li>Trên điện thoại của số thử: chấp nhận kết bạn. Hệ thống nhận ra, <strong>thêm vào nhóm đích</strong>, rồi gửi <strong>Tin 2</strong> (nếu bật).</li>
+            <li>Trên điện thoại của số thử: chấp nhận kết bạn. Hệ thống nhận ra, <strong>tự tạo nhóm thử</strong> (khi có từ 2 số kết bạn) và thêm vào nhóm, rồi gửi <strong>Tin 2</strong> (nếu bật).</li>
             <li>Xem từng bước ở trang chi tiết. Gặp lỗi lạ thì bộ nối tự dừng (cầu dao), không tự gửi lại.</li>
         </ol>
         <p class="hint"><strong>Chiến dịch thử chỉ kiểm phần mời:</strong> Tin 1, kết bạn, tự thêm vào nhóm, Tin 2. Phần <strong>trợ lý AI</strong> (nhận diện từ chối, trả lời tin riêng, khách quay lại) và <strong>tự nhận khách mới</strong> chỉ chạy với khách trong danh sách khách hàng, không chạy với số thử ở đây. Muốn thử các phần đó, xem hướng dẫn "chạy thử toàn diện" ở <code>docs/HUONG-DAN-CHAY-THU-TOAN-DIEN.md</code>.</p>
@@ -39,9 +39,9 @@
                 <textarea name="linkTemplate" rows="2" maxlength="800" th:text="${cfg.linkTemplate}"></textarea></label>
             <label class="field"><input type="checkbox" name="sendLink" checked> Gửi Tin 2 sau khi thêm vào nhóm</label>
             <div class="formrow">
-                <label class="field grow">Nhóm đích (nhóm đã gán mã nhóm Zalo)
+                <label class="field grow">Nhóm đích (để trống thì hệ thống tự tạo nhóm thử)
                     <select name="zaloGroupId">
-                        <option value="">Chưa chọn</option>
+                        <option value="">Hệ thống tự tạo nhóm thử khi có người kết bạn</option>
                         <option th:each="g : ${groups}" th:value="${g.id}" th:text="${g.name}">Nhóm miền Nam</option>
                     </select></label>
                 <label class="field">Tối đa tin mỗi ngày
@@ -49,7 +49,7 @@
                 <label class="field">Nghỉ giữa hai tin (giây)
                     <input type="number" name="gapSeconds" th:min="${quota.limits.gapSeconds}" max="3600" th:value="${cfg.gapSeconds}"></label>
             </div>
-            <p class="muted" th:if="${groups.isEmpty()}">Chưa có nhóm nào được gán mã nhóm Zalo. Gán ở trang <a th:href="@{/zalo}">Zalo tài khoản phụ</a>, mục Nhóm Zalo.</p>
+            <p class="muted" th:if="${groups.isEmpty()}">Chưa có nhóm nào được gán mã nhóm Zalo: không sao, hệ thống sẽ tự tạo nhóm thử (cần bật "Tự tạo nhóm Zalo" ở trang <a th:href="@{/zalo}">Zalo tài khoản phụ</a>).</p>
             <div class="slots">
                 <div class="slot slot-head" aria-hidden="true"><span>Số điện thoại thử</span><span>Tên (tùy chọn)</span><span>Khu vực (tỉnh/thành)</span></div>
                 <div class="slot" th:each="i : ${slots}" th:if="${i < 3}">

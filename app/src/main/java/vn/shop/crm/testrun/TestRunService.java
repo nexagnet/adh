@@ -11,6 +11,7 @@ import vn.shop.crm.geo.VnGeo;
 import vn.shop.crm.invite.GroupService;
 import vn.shop.crm.invite.InviteService;
 import vn.shop.crm.safety.TestMode;
+import vn.shop.crm.zalo.ZaloGroupCreationService;
 import vn.shop.crm.zalo.ZaloMessageService;
 
 import java.time.LocalDateTime;
@@ -68,9 +69,12 @@ public class TestRunService {
     private final GroupService groups;
     private final ZaloMessageService messages;
     private final TestMode testMode;
+    private final ZaloGroupCreationService creation;
 
-    public TestRunService(JdbcClient jdbc, InviteService invites, GroupService groups, ZaloMessageService messages, TestMode testMode) {
+    public TestRunService(JdbcClient jdbc, InviteService invites, GroupService groups, ZaloMessageService messages, TestMode testMode,
+                          ZaloGroupCreationService creation) {
         this.testMode = testMode;
+        this.creation = creation;
         this.jdbc = jdbc;
         this.invites = invites;
         this.groups = groups;
@@ -190,12 +194,17 @@ public class TestRunService {
                 .param("id", runId).update();
     }
 
-    /** Bắt đầu tự chạy qua bộ nối thật. Cần nhóm đích đã chọn (để thử bước thêm vào nhóm). Các chốt chặn chung vẫn áp dụng. */
+    /**
+     * Bắt đầu tự chạy qua bộ nối thật. Chưa chọn nhóm đích thì hệ thống TỰ TẠO nhóm thử khi có người kết bạn (cần việc "Tự tạo nhóm Zalo"
+     * đang bật); không bắt người dùng tạo nhóm tay. Các chốt chặn chung vẫn áp dụng.
+     */
     @Transactional
     public void start(long runId) {
         Run run = run(runId).orElseThrow(() -> new ImportException("Không tìm thấy đợt chạy thử."));
-        if (run.zaloGroupId() == null) {
-            throw new ImportException("Hãy chọn nhóm đích (nhóm Zalo đã gán mã) trước khi bắt đầu.");
+        if (run.zaloGroupId() == null && !creation.enabled()) {
+            throw new ImportException("Chưa chọn nhóm đích nên hệ thống sẽ tự tạo nhóm thử khi có người kết bạn, nhưng việc "
+                    + "\"Tự tạo nhóm Zalo\" đang tắt. Hãy bật nó ở trang Zalo tài khoản phụ (nấc Xác nhận) rồi bấm Bắt đầu lại, "
+                    + "hoặc chọn một nhóm có sẵn làm nhóm đích.");
         }
         // Kiểm lại lúc bắt đầu: từ lúc tạo đến giờ số có thể đã trở thành khách (nhập đơn) hoặc bị bỏ khỏi danh sách thử.
         for (String phone : jdbc.sql("SELECT phone FROM test_target WHERE run_id = :r").param("r", runId).query(String.class).list()) {
