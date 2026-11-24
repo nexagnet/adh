@@ -75,6 +75,12 @@ export class FakeAdapter {
     return { message: { msgId: 1 }, attachment: [] };
   }
 
+  async sendFriendRequest(uid, text) {
+    if (this.friendError) throw this.friendError;
+    (this.friendRequests ??= []).push({ uid, text });
+    return '';
+  }
+
   async createGroup(name, members) {
     if (this.createError) throw this.createError;
     (this.created ??= []).push({ name, members });

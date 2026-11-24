@@ -39,6 +39,7 @@ const bridge = new Bridge({
   store: new SessionStore(path.join(config.dataDir, 'session.enc'), config.sessionKey),
   ledger: new AddLedger(path.join(config.dataDir, 'adds.json')),
   msgLedger: new MessageLedger(path.join(config.dataDir, 'messages.json'), config.sessionKey),
+  friendLedger: new MessageLedger(path.join(config.dataDir, 'friend-requests.json'), config.sessionKey),
   groupLedger: new AddLedger(path.join(config.dataDir, 'group-creates.json')),
   events: new EventBuffer(),
   inbox: new InboxBuffer(),

@@ -69,6 +69,15 @@ public final class SafeZaloLink implements ZaloLink {
         return inner.sendByUid(kind, uid, text);
     }
 
+    @Override
+    public Sent sendFriendRequest(String uid, String text) {
+        if (!mode.uidAllowed(uid)) {
+            mode.noteBlocked("KET_BAN");
+            return Sent.of(Result.UNREACHABLE, CODE, true);
+        }
+        return inner.sendFriendRequest(uid, text);
+    }
+
     // ---------- ZaloGroupMaker ----------
 
     @Override

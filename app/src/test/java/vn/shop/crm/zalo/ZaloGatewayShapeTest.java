@@ -34,8 +34,7 @@ class ZaloGatewayShapeTest {
 
     @Test
     void khongLopNaoTrongGoiZaloCoHamGuiTinHayKetBan() {
-        for (Class<?> c : List.of(ZaloGateway.class, ZaloSession.class, ZcaBridgeGateway.class, ManualZaloGateway.class,
-                ZaloAutoService.class)) {
+        for (Class<?> c : List.of(ZaloGateway.class, ZaloSession.class, ZaloAutoService.class)) {
             for (Method m : c.getDeclaredMethods()) {
                 String n = m.getName().toLowerCase();
                 assertThat(n).as(c.getSimpleName() + "." + m.getName()).doesNotContain("sendmessage", "sendfriend",
@@ -46,7 +45,27 @@ class ZaloGatewayShapeTest {
 
     @Test
     void messengerChiCoGuiTheoSoHoacTheoMa() {
-        assertThat(names(ZaloMessenger.class)).containsExactly("sendByPhone", "sendByUid");
+        assertThat(names(ZaloMessenger.class)).containsExactly("sendByPhone", "sendByUid", "sendFriendRequest");
+    }
+
+    /** 24/11/2026: lời mời kết bạn (Kind.FRIEND) chỉ có MỘT nơi gửi, chỉ theo mã Zalo của người đã nhận Tin 1, qua cổng gửi chung. */
+    @Test
+    void loiMoiKetBanChiGuiTuMotNoiVaChiTheoMaZalo() throws IOException {
+        List<String> users = new java.util.ArrayList<>();
+        try (Stream<Path> all = Files.walk(Path.of("src/main/java"))) {
+            for (Path f : all.filter(x -> x.toString().endsWith(".java")).toList()) {
+                String text = Files.readString(f);
+                if (text.contains("Kind.FRIEND") || text.contains("sendFriendRequest")) {
+                    users.add(f.getFileName().toString());
+                }
+            }
+        }
+        assertThat(users).containsExactlyInAnyOrder("ZaloFriendRequestSender.java", "ZaloMessageService.java", "ZaloMessenger.java",
+                "ZcaBridgeGateway.java", "ManualZaloGateway.java", "SafeZaloLink.java");
+        String sender = Files.readString(Path.of("src/main/java/vn/shop/crm/zalo/ZaloFriendRequestSender.java"));
+        assertThat(sender).contains("sendFriendRequest", "friend_request_at IS NULL", "inbound_at IS NULL", "policy.blocker",
+                        "testMode.onlyTestSql", "contacts.stillEligible", "UNKNOWN")
+                .doesNotContain("sendByPhone", "sendByUid", "addToGroup", "createGroup", "findByPhone", "while", "Random");
     }
 
     @Test

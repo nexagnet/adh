@@ -37,6 +37,7 @@ export function setup({ env = {}, adapterOpts = {}, start = true } = {}) {
       store: new SessionStore(path.join(dir, 'session.enc'), config.sessionKey),
       ledger: new AddLedger(path.join(dir, 'adds.json')),
       msgLedger: new MessageLedger(path.join(dir, 'messages.json'), config.sessionKey),
+      friendLedger: new MessageLedger(path.join(dir, 'friend-requests.json'), config.sessionKey),
       groupLedger: new AddLedger(path.join(dir, 'group-creates.json')),
       events: new EventBuffer({ now: () => clock.t }),
       now: () => clock.t,

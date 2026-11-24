@@ -4,6 +4,9 @@ app:
     password: test-password-only
 
   zalo:
+    auto:
+      # Lời mời kết bạn tắt mặc định trong test cũ (chúng đếm từng tin theo thứ tự); FriendRequestSendTest tự bật.
+      friend-default-daily: 0
     safety:
       # Các test cũ kiểm luồng gửi thật với khách giả không có trong danh sách thử: giữ nguyên bằng chế độ chạy thật.
       # Test chế độ thử bật lại bằng @TestPropertySource(properties = "app.zalo.safety.live=false").

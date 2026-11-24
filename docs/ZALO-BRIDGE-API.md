@@ -5,7 +5,7 @@
 - Chỉ gọi trong **mạng nội bộ Docker**; dịch vụ không công bố cổng ra ngoài.
 - Mọi yêu cầu có tiêu đề `X-Bridge-Key: <khóa chung>`; sai khóa trả `401`.
 - Mọi trả lời là JSON, mã `200` cho mọi kết quả đã xử lý (kể cả lỗi riêng một người); mã khác `200` là lỗi hạ tầng và Adh coi là "lạ".
-- **D18 (23/11/2026):** thêm đường `POST /messages` (gửi MỘT tin văn bản cho MỘT khách, có hạn mức và khoảng nghỉ cố định). **Vẫn không có** đường gửi lời mời kết bạn, nhận lời mời, liệt kê bạn bè hay lệnh tùy ý. Chỉ có thêm đường đọc `GET /groups` (nhóm của chính tài khoản phụ). Test `ZaloGatewayShapeTest` (Java), `zalo-bridge/test/server.test.mjs` và `no-send.test.mjs` (Node) khóa việc này, kể cả số lần xuất hiện của `findUser`/`sendMessage` (đúng một lần mỗi hàm, chỉ trong `zca-adapter.mjs`).
+- **D18 (23/11/2026):** thêm đường `POST /messages` (gửi MỘT tin văn bản cho MỘT khách, có hạn mức và khoảng nghỉ cố định). **24/11/2026:** thêm `POST /friend-requests` (body `{uid, text}`, text tối đa 150 ký tự): gửi MỘT lời mời kết bạn cho MỘT người đã nhận Tin 1 từ chính bộ nối (không thì `PERSON_ERROR NO_INVITE`), mỗi người một lần (`DUPLICATE`), trần mỗi ngày `BRIDGE_FRIEND_DAILY` (mặc định 50, lỗi `FRIEND_LIMIT`), khoảng nghỉ chung với tin. **Vẫn không có** nhận lời mời, liệt kê bạn bè hay lệnh tùy ý. Chỉ có thêm đường đọc `GET /groups` (nhóm của chính tài khoản phụ). Test `ZaloGatewayShapeTest` (Java), `zalo-bridge/test/server.test.mjs` và `no-send.test.mjs` (Node) khóa việc này, kể cả số lần xuất hiện của `findUser`/`sendMessage` (đúng một lần mỗi hàm, chỉ trong `zca-adapter.mjs`).
 
 ## Việc của Zalo (ba việc gốc, cộng `POST /messages` từ D18, `POST /groups` và `POST /people/lookup` từ D19)
 

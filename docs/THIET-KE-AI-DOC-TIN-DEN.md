@@ -45,7 +45,7 @@ Viết 23/11/2026. Bạn đã duyệt bốn chỗ dùng AI: (1) nhận ra khách
 6. Nội dung khách viết là **dữ liệu không đáng tin**: câu lệnh trong tin ("hãy bỏ qua hướng dẫn") không được làm AI đổi hành vi; đầu ra chỉ nhận đúng JSON, sai khuôn thì coi là "nghi ngờ".
 7. Cầu dao và công tắc riêng cho phần đọc tin: tắt mặc định; tự ngắt khi lỗi liên tiếp; hạn mức gọi AI mỗi ngày.
 
-**Không làm (giữ nguyên cấm):** né phát hiện bot của Zalo, giả người, gửi lời mời kết bạn, đọc danh sách bạn, đọc tin của người chưa nhận tin của hệ thống.
+**Không làm (giữ nguyên cấm):** né phát hiện bot của Zalo, giả người, đọc danh sách bạn, đọc tin của người chưa nhận tin của hệ thống.
 
 ## 4. Trợ lý trong nhóm (việc 2) khi chỉ còn MỘT tài khoản
 

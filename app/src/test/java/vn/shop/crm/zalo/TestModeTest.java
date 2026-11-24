@@ -359,6 +359,14 @@ class TestModeTest extends AbstractPostgresTest {
         assertThat(link.sendByUid(Kind.LINK, "UT4", "x").result()).isEqualTo(Result.OK);
         assertThat(fake.messages).hasSize(2);
 
+        // lời mời kết bạn: cũng chỉ cho số thử
+        assertThat(link.sendFriendRequest("UREAL", "x").result()).isEqualTo(Result.UNREACHABLE);
+        assertThat(link.sendFriendRequest("UREAL", "x").notSent()).isTrue();
+        assertThat(link.sendFriendRequest(null, "x").result()).isEqualTo(Result.UNREACHABLE);
+        assertThat(fake.friendRequests).isEmpty();
+        assertThat(link.sendFriendRequest("UT4", "x").result()).isEqualTo(Result.OK);
+        assertThat(fake.friendRequests).hasSize(1);
+
         // thêm vào nhóm
         assertThat(link.addToGroup("UREAL", "1001").outcome()).isEqualTo(Outcome.UNREACHABLE);
         assertThat(fake.adds).isEmpty();
@@ -372,7 +380,7 @@ class TestModeTest extends AbstractPostgresTest {
         assertThat(link.createGroup("Nhóm", List.of("UT4", "UT5"), null).outcome()).isEqualTo(ZaloGroupMaker.GroupOutcome.OK);
         assertThat(fake.creates).hasSize(1);
 
-        assertThat(mode.blockedCount()).isGreaterThanOrEqualTo(8);
+        assertThat(mode.blockedCount()).isGreaterThanOrEqualTo(10);
     }
 
     @Test

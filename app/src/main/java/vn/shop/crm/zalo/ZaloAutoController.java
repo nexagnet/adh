@@ -79,6 +79,9 @@ public class ZaloAutoController {
             model.addAttribute("bridge", st);
             model.addAttribute("quota", cfg.quota());
             model.addAttribute("msg", messages.quota());
+            model.addAttribute("friendDaily", messages.friendDaily());
+            model.addAttribute("friendUsed", messages.friendUsedToday());
+            model.addAttribute("friendMax", cfg.props().friendMaxDaily());
             model.addAttribute("waiting", service.waiting());
             model.addAttribute("manual", service.manualQueue());
             model.addAttribute("candidates", service.candidates());
@@ -229,6 +232,14 @@ public class ZaloAutoController {
         requireEnabled();
         messages.setLimits(daily, gap, by(user));
         redirect.addFlashAttribute("flash", "Đã lưu hạn mức tin.");
+        return "redirect:/zalo";
+    }
+
+    @PostMapping("/messages/friend-limit")
+    public String friendLimit(@RequestParam int daily, Principal user, RedirectAttributes redirect) {
+        requireEnabled();
+        messages.setFriendDaily(daily, by(user));
+        redirect.addFlashAttribute("flash", daily == 0 ? "Đã TẮT lời mời kết bạn tự động." : "Đã lưu hạn mức lời mời kết bạn.");
         return "redirect:/zalo";
     }
 

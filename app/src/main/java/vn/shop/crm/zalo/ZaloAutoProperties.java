@@ -36,7 +36,10 @@ public record ZaloAutoProperties(
            và sàn của khoảng nghỉ; trang quản trị không chỉnh vượt các số này. Cầu nối có phanh khẩn cấp riêng đếm MỌI tin (BRIDGE_MSG_DAILY,
            mặc định 150) và khoảng nghỉ tối thiểu riêng (BRIDGE_MSG_GAP_SEC, phải ≤ sàn này). */
         @DefaultValue("50") int msgMaxDaily,
-        @DefaultValue("100") int msgMinGapSeconds) {
+        @DefaultValue("100") int msgMinGapSeconds,
+        /* Lời mời kết bạn (24/11/2026): trần mỗi ngày mặc định thấp (10) vì Zalo dễ hạn chế tài khoản gửi kết bạn cho người lạ; trần cứng 50. 0 = tắt hẳn lời mời kết bạn. */
+        @DefaultValue("10") int friendDefaultDaily,
+        @DefaultValue("50") int friendMaxDaily) {
 
     public ZaloAutoProperties {
         if (maxDaily < 1) {
@@ -53,6 +56,12 @@ public record ZaloAutoProperties(
         }
         if (msgMinGapSeconds < 30) {
             msgMinGapSeconds = 30;
+        }
+        if (friendMaxDaily < 1) {
+            friendMaxDaily = 1;
+        }
+        if (friendDefaultDaily < 0 || friendDefaultDaily > friendMaxDaily) {
+            friendDefaultDaily = Math.min(10, friendMaxDaily);
         }
     }
 }

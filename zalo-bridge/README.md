@@ -12,7 +12,7 @@ Dịch vụ Node nhỏ nằm sau giao diện `ZaloGateway` của Adh (`docs/ADR-
 
 > **D18 (23/11/2026):** chủ shop đã bỏ nguyên tắc "không tự gửi tin"; việc gửi nay có mã (`POST /messages`, hợp đồng ở `docs/ZALO-BRIDGE-API.md`) nhưng vẫn giới hạn chặt: công tắc tắt mặc định, giờ gửi, trần ngày, khoảng nghỉ cố định, mỗi khách một lần, lỗi lạ thì dừng. Xem ADR-0002 mục 12.
 
-Cộng với quản lý phiên cho trang quản trị (quét QR, đăng xuất, dừng, nghe lại). **Không có** gửi lời mời kết bạn, nhận lời mời, liệt kê bạn bè, tìm người hàng loạt hay lệnh tùy ý (chỉ `findUser` cho đúng số của khách đang được nhắn, và `sendMessage` đúng một tin). Các bài test khóa điều này, kể cả số lần xuất hiện của `findUser`/`sendMessage` trong mã. Ba bài test khóa điều này: `test/no-send.test.mjs`, `test/server.test.mjs`, và `ZaloGatewayShapeTest` bên Java.
+Cộng với quản lý phiên cho trang quản trị (quét QR, đăng xuất, dừng, nghe lại). Có đúng MỘT đường gửi lời mời kết bạn (`POST /friend-requests`, từ 24/11/2026: cho một người đã nhận Tin 1 từ chính bộ nối, mỗi người một lời mời, có trần mỗi ngày `BRIDGE_FRIEND_DAILY`, mặc định 50). **Không có** nhận lời mời, liệt kê bạn bè, tìm người hàng loạt hay lệnh tùy ý (chỉ `findUser` cho đúng số của khách đang được nhắn, và `sendMessage` đúng một tin). Các bài test khóa điều này, kể cả số lần xuất hiện của `findUser`/`sendMessage` trong mã. Ba bài test khóa điều này: `test/no-send.test.mjs`, `test/server.test.mjs`, và `ZaloGatewayShapeTest` bên Java.
 
 Cộng thêm một đường **chỉ đọc** `GET /groups`: nhóm Zalo mà tài khoản phụ đang tham gia (mã, tên, số thành viên), để trang quản trị chọn "mã nhóm Zalo". Không phải liệt kê bạn bè.
 
