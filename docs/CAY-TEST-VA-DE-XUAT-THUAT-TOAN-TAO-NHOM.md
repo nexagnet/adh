@@ -1,5 +1,8 @@
 # Cây test và đề xuất thuật toán cho việc xếp khách vào nhóm Zalo và tự tạo nhóm
 
+> **Cập nhật 24/11/2026:** các lỗi ở mục 3 đã được sửa ở PR #104 đến #109. Chủ dự án chốt thêm: nhóm khoảng 5 KHÁCH (không tính tài khoản phụ và mẹ), trần mềm 8 khách, không đề xuất "sức chứa 30" ở mục 4.1 nữa. Cây test mới và đánh giá hợp lý ở `docs/CAY-TEST-KHO-NGO-VA-DANH-GIA-HOP-LY.md`. Tài liệu này giữ làm lịch sử.
+
+
 Viết 24/11/2026 theo yêu cầu của chủ dự án: "lập cây test trường hợp quá nhiều khách đồng ý kết bạn, quá ít khách... lập ra những cây test khó ngờ nhất để đề xuất thuật toán, logic hợp lý".
 
 **Đây là tài liệu đề xuất. Chưa sửa mã, chưa chạy test mới, chưa thử với Zalo thật.** Cột "mã hiện tại" bên dưới là kết quả ĐỌC mã (ghi rõ chỗ nào chỉ suy ra). Một luồng khác đang sửa lỗi phó nhóm (thêm mẹ vào nhóm trước rồi mới đặt phó nhóm) và đề xuất đồng bộ danh sách bạn; tài liệu này chỉ nêu yêu cầu kiểm thử cho hai việc đó, không đụng mã của chúng.
