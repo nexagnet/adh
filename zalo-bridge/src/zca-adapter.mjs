@@ -1,6 +1,7 @@
 // Bộ điều hợp THẬT dùng thư viện không chính thức zca-js (ghim đúng 2.3.0 trong package.json và package-lock.json).
 // Thư viện giả lập Zalo Web nên trái điều khoản Zalo và tài khoản phụ có thể bị khóa; xem docs/ADR-0002.
-// Cố ý KHÔNG dùng: getAllFriends, acceptFriendRequest, bất kỳ hàm gửi hay dò hàng loạt nào khác.
+// Cố ý KHÔNG dùng: acceptFriendRequest, bất kỳ hàm gửi hay dò hàng loạt nào khác.
+// Từ 24/11/2026 (chủ shop duyệt) có thêm đúng MỘT hàm CHỈ ĐỌC: getAllFriends, chỉ để đối chiếu người đã nhận Tin 1 (xem Bridge.checkFriends); danh sách không rời bộ nối.
 // Từ 23/11/2026 (chủ shop chốt: tài khoản phụ chủ động kết bạn) có thêm đúng MỘT hàm: sendFriendRequest, chỉ cho người đã nhận Tin 1.
 // Từ D19 (23/11/2026, chủ shop chốt) có thêm đúng ba hàm để tạo nhóm theo khu vực: createGroup, enableGroupLink, addGroupDeputy.
 // Từ D18 (23/11/2026, chủ shop chốt) có thêm đúng hai hàm để nhắn khách đã mua của chính họ, mỗi người một tin: findUser (một số)
@@ -153,6 +154,12 @@ export class ZcaAdapter {
       }
     }
     return out;
+  }
+
+  /** Chỉ ĐỌC: mã Zalo của mọi bạn hiện có. Chỉ dùng cho {@code Bridge.checkFriends}; không trả tên, số hay ảnh và không rời khỏi bộ nối. */
+  async friendUids() {
+    const all = await this.api.getAllFriends();
+    return (Array.isArray(all) ? all : []).map((u) => String(u?.userId ?? '')).filter((id) => /^\d{1,32}$/.test(id));
   }
 
   loginQR(h) {

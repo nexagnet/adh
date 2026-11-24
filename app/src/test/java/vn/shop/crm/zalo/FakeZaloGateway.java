@@ -37,6 +37,9 @@ public class FakeZaloGateway implements ZaloLink {
         statusCalls = 0;
         eventCalls = 0;
         adds.clear();
+        friends.clear();
+        friendChecks = 0;
+        friendCheckError = null;
         friendRequests.clear();
         defaultFriend = null;
         stops = 0;
@@ -202,6 +205,22 @@ public class FakeZaloGateway implements ZaloLink {
 
     public void pushAdd(String uid, String phone, long seq) {
         events.add(new FriendEvent(seq, uid, phone, Instant.parse("2026-11-21T03:00:00Z").plusSeconds(seq)));
+    }
+
+    /** Danh sách bạn giả của tài khoản phụ và số lần đối chiếu (mã nào cũng có thể nằm trong, kể cả người ngoài hệ thống). */
+    public final java.util.Set<String> friends = new java.util.LinkedHashSet<>();
+    public int friendChecks;
+    public java.util.List<String> lastAsked = List.of();
+    public String friendCheckError;
+
+    @Override
+    public FriendCheck friendsAmong(List<String> uids) {
+        friendChecks++;
+        lastAsked = List.copyOf(uids);
+        if (friendCheckError != null) {
+            return FriendCheck.failed(friendCheckError);
+        }
+        return FriendCheck.of(uids.stream().filter(friends::contains).toList());
     }
 
     public void willReturn(AddResult... r) {

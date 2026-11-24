@@ -79,6 +79,8 @@ export class Bridge {
     this.attempts = 0;
     this.timer = null;
     this.busy = false;
+    this.friendSnapshot = null; // bản danh sách bạn đã đọc gần nhất (chỉ trong bộ nhớ, không ghi đĩa, không ghi log)
+    this.friendReads = { day: null, n: 0 };
     this.login = { state: 'IDLE', qr: null };
     this.loginHandle = null;
     this.generation = 0; // tăng mỗi lần dừng/đổi phiên để bỏ qua sự kiện của kết nối cũ
@@ -786,6 +788,42 @@ export class Bridge {
       return result;
     } catch (e) {
       this.log(isSessionDead(e) ? 'đọc danh sách nhóm: phiên có vẻ đã hỏng' : 'đọc danh sách nhóm: lỗi');
+      return { ok: false, code: 'LIST_FAILED' };
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /**
+   * Đối chiếu bạn bè (24/11/2026, chủ shop duyệt). CHỈ ĐỌC, không gửi gì, không nhận lời mời, không lưu gì ra đĩa: Adh gửi danh sách mã Zalo của những
+   * khách đã nhận Tin 1 (tối đa 500), bộ nối đọc danh sách bạn của tài khoản phụ và chỉ trả lại những mã trong danh sách Adh hỏi mà đã là bạn.
+   * Mã của người ngoài danh sách hỏi không rời bộ nối. Chốt chặn công khai và cố định: khung giờ, giữa hai lần đọc Zalo tối thiểu
+   * {@code friendSyncMinMs} (trong khoảng đó trả từ bản đã đọc, không hỏi Zalo), tối đa {@code friendSyncDaily} lần đọc mỗi ngày, mỗi lúc một việc.
+   * Lỗi thì trả {ok:false}, không dừng cầu dao (như đọc danh sách nhóm). Mã Zalo không vào log.
+   */
+  async checkFriends(uids) {
+    if (!Array.isArray(uids) || uids.length === 0 || uids.length > 500 || !uids.every((u) => typeof u === 'string' && ZALO_ID.test(u))) {
+      return { ok: false, code: 'BAD_INPUT' };
+    }
+    if (this.state === 'LOGIN_REQUIRED') return { ok: false, code: 'LOGIN_REQUIRED' };
+    if (this.state !== 'LISTENING') return { ok: false, code: 'NOT_ACTIVE' };
+    const t = this.now();
+    if (!inWindow(t, this.config.windowStartMin, this.config.windowEndMin)) return { ok: false, code: 'WINDOW' };
+    const answer = (set) => ({ ok: true, friends: [...new Set(uids)].filter((u) => set.has(u)) });
+    if (this.friendSnapshot && t - this.friendSnapshot.at < this.config.friendSyncMinMs) return answer(this.friendSnapshot.set);
+    const dayStart = vnDayStart(t);
+    if (this.friendReads.day !== dayStart) this.friendReads = { day: dayStart, n: 0 };
+    if (this.friendReads.n >= this.config.friendSyncDaily) return { ok: false, code: 'LIMIT' };
+    if (this.busy) return { ok: false, code: 'BUSY' };
+    this.busy = true;
+    try {
+      this.friendReads.n += 1;
+      const list = await withTimeout(this.adapter.friendUids(), this.config.addTimeoutMs * 2);
+      this.friendSnapshot = { at: t, set: new Set(list.map(String)) };
+      this.log('đối chiếu bạn bè: xong');
+      return answer(this.friendSnapshot.set);
+    } catch (e) {
+      this.log(isSessionDead(e) ? 'đối chiếu bạn bè: phiên có vẻ đã hỏng' : 'đối chiếu bạn bè: lỗi');
       return { ok: false, code: 'LIST_FAILED' };
     } finally {
       this.busy = false;

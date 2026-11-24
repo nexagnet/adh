@@ -40,6 +40,16 @@ public final class SafeZaloLink implements ZaloLink {
         return inner.friendEvents(afterSeq);
     }
 
+    /** Chỉ đọc; ở chế độ thử chỉ hỏi về các mã thuộc số thử (lớp chặn thứ hai sau bộ lọc ở nơi gọi). */
+    @Override
+    public FriendCheck friendsAmong(List<String> uids) {
+        List<String> allowed = uids == null ? List.of() : uids.stream().filter(mode::uidAllowed).toList();
+        if (allowed.isEmpty()) {
+            return FriendCheck.of(List.of());
+        }
+        return inner.friendsAmong(allowed);
+    }
+
     @Override
     public AddResult addToGroup(String uid, String zaloGroupId) {
         if (!mode.uidAllowed(uid)) {

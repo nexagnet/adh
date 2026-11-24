@@ -82,6 +82,26 @@ public interface ZaloGateway {
     /** Các sự kiện kết bạn có số thứ tự lớn hơn {@code afterSeq}, theo thứ tự tăng dần. Rỗng nếu không có hoặc không gọi được. */
     List<FriendEvent> friendEvents(long afterSeq);
 
+    /**
+     * Kết quả đối chiếu bạn bè (24/11/2026, chủ shop duyệt, CHỈ ĐỌC). {@code friends} chỉ gồm những mã Adh đã hỏi mà đang là bạn của tài khoản phụ.
+     * {@code ok = false}: chưa đối chiếu được (mã lý do ngắn, không chứa dữ liệu khách); không phải lỗi của Zalo và không làm cầu dao nhảy.
+     */
+    record FriendCheck(boolean ok, String code, List<String> friends) {
+        public static FriendCheck failed(String code) {
+            return new FriendCheck(false, code, List.of());
+        }
+
+        public static FriendCheck of(List<String> friends) {
+            return new FriendCheck(true, null, List.copyOf(friends));
+        }
+    }
+
+    /**
+     * Trong số các mã Zalo đã hỏi (tối đa 500, đều là khách đã nhận Tin 1), mã nào đã là bạn của tài khoản phụ. Chỉ đọc: không gửi, không
+     * nhận lời mời, không lưu danh sách bạn; người không nằm trong danh sách hỏi không bao giờ được trả về. Không bao giờ ném lỗi.
+     */
+    FriendCheck friendsAmong(List<String> uids);
+
     /** Thêm một người đã là bạn vào một nhóm (mã nhóm Zalo). Không bao giờ ném lỗi; mọi kết quả nằm trong {@link AddResult}. */
     AddResult addToGroup(String uid, String zaloGroupId);
 }

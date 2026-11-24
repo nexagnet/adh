@@ -19,6 +19,11 @@ public class ManualZaloGateway implements ZaloLink {
     }
 
     @Override
+    public FriendCheck friendsAmong(List<String> uids) {
+        return FriendCheck.failed("DISABLED");
+    }
+
+    @Override
     public AddResult addToGroup(String uid, String zaloGroupId) {
         return AddResult.of(Outcome.UNREACHABLE, "DISABLED");
     }

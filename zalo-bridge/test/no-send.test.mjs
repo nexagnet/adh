@@ -15,8 +15,8 @@ function code(file) {
     .join('\n');
 }
 
-test('không đoạn mã nào gọi hàm gửi đính kèm, tìm theo tên, liệt kê bạn bè hay dò người của zca-js', () => {
-  const banned = /(sendVoice|sendLink|sendSticker|sendCard|sendVideo|sendImage|sendReport|findUserByUsername|getAllFriends|getFriendRequest|sendTypingEvent|forwardMessage|acceptFriendRequest|getFriendRecommendations|sendBankCard|sendToDoc|sendDeliveredEvent|sendSeenEvent)\b/;
+test('không đoạn mã nào gọi hàm gửi đính kèm, tìm theo tên, dò người (getAllFriends có test khóa riêng ở dưới: chỉ một chỗ, chỉ đọc) của zca-js', () => {
+  const banned = /(sendVoice|sendLink|sendSticker|sendCard|sendVideo|sendImage|sendReport|findUserByUsername|getFriendRequest|sendTypingEvent|forwardMessage|acceptFriendRequest|getFriendRecommendations|sendBankCard|sendToDoc|sendDeliveredEvent|sendSeenEvent)\b/;
   for (const f of files) {
     assert.ok(!banned.test(code(f)), `${f} có hàm bị cấm`);
   }
@@ -38,9 +38,9 @@ test('findUser và sendMessage (D18) chỉ nằm trong bộ điều hợp thật
   assert.match(code('zca-adapter.mjs'), /sendMessage\(\{ msg: text \}, uid, ThreadType\.User\)/);
 });
 
-test('bộ điều hợp zca-js chỉ dùng đúng mười ba thành phần của api (thêm hai hàm chỉ đọc nhóm, findUser và sendMessage của D18, ba hàm tạo nhóm của D19, sendFriendRequest)', () => {
+test('bộ điều hợp zca-js chỉ dùng đúng mười bốn thành phần của api (thêm getAllFriends chỉ đọc để đối chiếu, hai hàm chỉ đọc nhóm, findUser và sendMessage của D18, ba hàm tạo nhóm của D19, sendFriendRequest)', () => {
   const used = new Set([...code('zca-adapter.mjs').matchAll(/this\.api\??\.([A-Za-z]+)/g)].map((m) => m[1]));
-  assert.deepEqual([...used].sort(), ['addGroupDeputy', 'addUserToGroup', 'createGroup', 'enableGroupLink', 'findUser', 'getAllGroups', 'getGroupInfo', 'getOwnId', 'getUserInfo', 'listener', 'logout', 'sendFriendRequest', 'sendMessage'].sort());
+  assert.deepEqual([...used].sort(), ['addGroupDeputy', 'addUserToGroup', 'createGroup', 'enableGroupLink', 'findUser', 'getAllFriends', 'getAllGroups', 'getGroupInfo', 'getOwnId', 'getUserInfo', 'listener', 'logout', 'sendFriendRequest', 'sendMessage'].sort());
 });
 
 test('sendFriendRequest chỉ có đúng một chỗ gọi (bộ điều hợp thật), chỉ gọi từ Bridge.sendFriendRequest và chỉ khi người đó đã nhận Tin 1', () => {
@@ -52,7 +52,7 @@ test('sendFriendRequest chỉ có đúng một chỗ gọi (bộ điều hợp t
   assert.equal((b.match(/adapter\.sendFriendRequest\(/g) ?? []).length, 1);
   assert.match(b, /if \(!this\.msgLedger\.has\('INVITE', uid\)\) return \{ outcome: 'PERSON_ERROR', code: 'NO_INVITE' \}/);
   assert.match(b, /this\.friendLedger\.has\('FRIEND', uid\)/);
-  assert.ok(!/acceptFriendRequest|getFriendRequest|getAllFriends/.test(files.map(code).join('\n')));
+  assert.ok(!/acceptFriendRequest|getFriendRequest/.test(files.map(code).join('\n')));
 });
 
 test('đặt phó nhóm chỉ có một chỗ gọi trong bridge.mjs (#makeDeputy, dùng cho createGroup và setDeputy), không có hàm gỡ phó nhóm', () => {
@@ -111,4 +111,15 @@ test('D19/D20: tin WELCOME và REPLY chỉ theo mã Zalo, cần cờ đọc tin 
   assert.match(b, /NOT_REPLYABLE/);
   assert.equal((b.match(/this\.replyable\.delete\(uidIn\)/g) ?? []).length, 1);
   assert.equal((b.match(/this\.replyable\.set\(/g) ?? []).length, 1, 'chỉ tin đến mới mở được đường trả lời');
+});
+
+test('getAllFriends (đối chiếu bạn bè, chỉ đọc) có đúng một chỗ gọi ở bộ điều hợp thật và chỉ được dùng từ Bridge.checkFriends, không trả tên hay số', () => {
+  for (const f of files) {
+    const n = (code(f).match(/\bapi\??\.getAllFriends\b/g) ?? []).length;
+    assert.equal(n, f === 'zca-adapter.mjs' ? 1 : 0, `${f}: getAllFriends`);
+  }
+  const b = code('bridge.mjs');
+  assert.equal((b.match(/adapter\.friendUids\(/g) ?? []).length, 1);
+  assert.match(code('zca-adapter.mjs'), /async friendUids\(\) \{[^}]*String\(u\?\.userId/s);
+  assert.ok(!/displayName|phoneNumber|avatar/.test(code('zca-adapter.mjs').split('async friendUids()')[1].split('loginQR')[0]));
 });

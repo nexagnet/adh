@@ -24,7 +24,7 @@ class ZaloGatewayShapeTest {
 
     @Test
     void gatewayChiCoBaViec() {
-        assertThat(names(ZaloGateway.class)).containsExactly("addToGroup", "friendEvents", "status");
+        assertThat(names(ZaloGateway.class)).containsExactly("addToGroup", "friendEvents", "friendsAmong", "status");
     }
 
     @Test
