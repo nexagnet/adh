@@ -369,11 +369,11 @@ export class Bridge {
       let c;
       try {
         const result = await withTimeout(this.adapter.addUserToGroup(String(uid), String(groupId)), this.config.addTimeoutMs);
-        c = classifyResult(result, uid);
+        c = classifyResult(result, uid, this.config.groupErrorCodes);
       } catch (e) {
-        c = classifyError(e, this.config.personErrorCodes);
+        c = classifyError(e, this.config.personErrorCodes, this.config.groupErrorCodes);
       }
-      if (c.outcome !== 'OK' && c.outcome !== 'PERSON_ERROR') {
+      if (c.outcome !== 'OK' && c.outcome !== 'PERSON_ERROR' && c.outcome !== 'GROUP_ERROR') {
         this.trip(c.code ? `${c.outcome}:${c.code}` : c.outcome);
       } else {
         this.stateFile.write({});

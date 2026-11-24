@@ -26,4 +26,6 @@ test('trần cứng của cầu nối gấp đôi trần của Adh; khung giờ 
 test('mặc định không coi mã lỗi nào là lỗi riêng người', () => {
   assert.equal(loadConfig(makeEnv('/tmp/x')).personErrorCodes.size, 0);
   assert.ok(loadConfig({ ...makeEnv('/tmp/x'), BRIDGE_PERSON_ERROR_CODES: '240, 241' }).personErrorCodes.has('241'));
+  assert.equal(loadConfig(makeEnv('/tmp/x')).groupErrorCodes.size, 0);
+  assert.ok(loadConfig({ ...makeEnv('/tmp/x'), BRIDGE_GROUP_ERROR_CODES: '178, 270' }).groupErrorCodes.has('270'));
 });

@@ -74,6 +74,8 @@ export function loadConfig(env = process.env) {
     reconnectDelaysMs: [5000, 15000, 45000, 120000, 300000],
     reconnectMaxAttempts: int(env, 'BRIDGE_RECONNECT_MAX', 8, 1, 100),
     // Mã lỗi Zalo (do ZaloApiError.code) đã thấy khi chạy thật và biết chắc là lỗi riêng một người. Mặc định rỗng: lỗi lạ thì dừng.
+    // Tương tự, nhưng là mã báo lỗi của CẢ NHÓM khi thêm người (nhóm không còn, mình không đủ quyền...). Mặc định rỗng: lỗi lạ thì dừng.
+    groupErrorCodes: new Set((env.BRIDGE_GROUP_ERROR_CODES ?? '').split(',').map((s) => s.trim()).filter(Boolean)),
     personErrorCodes: new Set((env.BRIDGE_PERSON_ERROR_CODES ?? '').split(',').map((s) => s.trim()).filter(Boolean)),
   };
 }

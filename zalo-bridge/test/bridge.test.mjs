@@ -152,6 +152,22 @@ test('mã lỗi đã khai báo là lỗi riêng người thì không dừng', as
   c.cleanup();
 });
 
+test('mã lỗi đã khai báo là lỗi CẢ NHÓM (ném lỗi hoặc errorMembers) thì báo GROUP_ERROR và không dừng', async () => {
+  const c = setup({ env: { BRIDGE_GROUP_ERROR_CODES: '178, 270' } });
+  await c.bridge.start();
+  await loginAndListen(c);
+  c.adapter.nextAdd = Object.assign(new Error('nhóm không còn'), { code: 178 });
+  assert.deepEqual(await c.bridge.addMember('2002', '777'), { outcome: 'GROUP_ERROR', code: 'Z178' });
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  c.adapter.nextAdd = { errorMembers: ['888'], error_data: { 270: ['888'] } };
+  assert.deepEqual(await c.bridge.addMember('2002', '888'), { outcome: 'GROUP_ERROR', code: 'Z270' });
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  // mã khác vẫn là lỗi riêng người, lỗi lạ vẫn dừng
+  c.adapter.nextAdd = { errorMembers: ['999'], error_data: { 240: ['999'] } };
+  assert.deepEqual(await c.bridge.addMember('2002', '999'), { outcome: 'PERSON_ERROR', code: 'Z240' });
+  c.cleanup();
+});
+
 test('hết giờ chờ lúc thêm người: không biết kết quả nên dừng', async () => {
   const c = setup({ env: { BRIDGE_ADD_TIMEOUT_MS: '1000' } });
   c.config.addTimeoutMs = 30;
