@@ -12,6 +12,7 @@ public class ZaloGroupSettings {
 
     static final String MODE = "zalo.group.mode";
     static final String MIN = "zalo.group.min_customers";
+    static final String TARGET = "zalo.group.target_customers";
     static final String LAST_PLAN = "zalo.group.last_plan_at";
     public static final String A_GROUP = "TAO_NHOM";
 
@@ -62,7 +63,24 @@ public class ZaloGroupSettings {
         return Math.max(2, Math.min(props.maxMembers(), intSetting(MIN, props.minCustomers())));
     }
 
-    public void setLimits(int minCustomers, String by) {
+    /** Sức chứa (số khách) của nhóm tự tạo mới. Nhóm đã có không đổi. */
+    public int targetCustomers() {
+        return Math.max(5, Math.min(props.maxTargetCustomers(), intSetting(TARGET, props.targetCustomers())));
+    }
+
+    public void setLimits(int minCustomers, int targetCustomers, String by) {
+        if (targetCustomers < 5 || targetCustomers > props.maxTargetCustomers()) {
+            throw new ImportException("Sức chứa mỗi nhóm phải từ 5 đến " + props.maxTargetCustomers() + " khách.");
+        }
+        setMinCustomers(minCustomers, by);
+        int oldTarget = targetCustomers();
+        settings.set(TARGET, Integer.toString(targetCustomers), by);
+        if (oldTarget != targetCustomers) {
+            auto.log(ZaloAutoSettings.A_CONFIG, null, null, "TAO_NHOM_SUC_CHUA " + targetCustomers, "CU " + oldTarget, by);
+        }
+    }
+
+    public void setMinCustomers(int minCustomers, String by) {
         if (minCustomers < 2 || minCustomers > props.maxMembers()) {
             throw new ImportException("Số khách chờ tối thiểu phải từ 2 đến " + props.maxMembers() + ".");
         }

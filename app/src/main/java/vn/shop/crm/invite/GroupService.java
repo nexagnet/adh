@@ -58,6 +58,11 @@ public class GroupService {
             return score >= target;
         }
 
+        /** Đã chạm TRẦN MỀM (mục tiêu cộng số người được phép vượt): nhóm không nhận thêm kể cả khách dư lẻ. */
+        public boolean fullWithOverflow(int overflow) {
+            return score >= target + Math.max(0, overflow);
+        }
+
         /** Nhóm đang nhận khách mà chưa đếm lại trong 7 ngày: số "đang chờ" có thể đã lệch nhiều. */
         public boolean needsRecount() {
             return status == GroupStatus.OPEN
@@ -73,9 +78,12 @@ public class GroupService {
     private final JdbcClient jdbc;
     private final double acceptRate;
     private final boolean allowOtherRegion;
+    private final int softOverflow;
 
     public GroupService(JdbcClient jdbc, @Value("${app.invitations.assumed-accept-rate:0.5}") double acceptRate,
-                        @Value("${app.grouping.allow-other-region:false}") boolean allowOtherRegion) {
+                        @Value("${app.grouping.allow-other-region:false}") boolean allowOtherRegion,
+                        @Value("${app.grouping.soft-overflow:3}") int softOverflow) {
+        this.softOverflow = Math.max(0, Math.min(10, softOverflow));
         this.jdbc = jdbc;
         this.acceptRate = acceptRate;
         this.allowOtherRegion = allowOtherRegion;
@@ -210,10 +218,23 @@ public class GroupService {
         return pickGroup(list(), province);
     }
 
+    /** Số người một nhóm được phép vượt mục tiêu để nhận khách dư lẻ (24/11/2026, chủ dự án chốt: nhóm khoảng 5 người, vượt vài người cũng được). */
+    public int softOverflow() {
+        return softOverflow;
+    }
+
     /** Như {@link #pickGroup(Province)} nhưng dùng danh sách nhóm đã tải sẵn (tránh tải lại cho từng khách). */
     public Optional<Group> pickGroup(List<Group> all, Province province) {
+        return pickGroup(all, province, false);
+    }
+
+    /**
+     * Như trên; {@code overflow = true} thì cho cả nhóm đã đủ mục tiêu nhưng còn dưới TRẦN MỀM (mục tiêu + {@link #softOverflow()}). Chỉ dùng cho
+     * khách dư lẻ không thể lập nhóm mới (xem {@code ZaloAutoService.addNext}); nhóm còn dưới mục tiêu vẫn được chọn trước nhờ điểm thấp hơn.
+     */
+    public Optional<Group> pickGroup(List<Group> all, Province province, boolean overflow) {
         return all.stream()
-                .filter(g -> g.status() == GroupStatus.OPEN && g.hasLink() && !g.full())
+                .filter(g -> g.status() == GroupStatus.OPEN && g.hasLink() && (overflow ? !g.fullWithOverflow(softOverflow) : !g.full()))
                 .filter(g -> rank(g, province) >= 0)
                 // cùng thứ tự ưu tiên thì nhóm đã có mã nhóm Zalo đứng trước: nhóm gợi ý ở tin link thường cũng là nhóm bộ nối tự thêm được
                 .min(java.util.Comparator.comparingInt((Group g) -> rank(g, province))

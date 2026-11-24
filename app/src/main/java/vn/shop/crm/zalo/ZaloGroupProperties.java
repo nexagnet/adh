@@ -20,8 +20,12 @@ public record ZaloGroupProperties(
         @DefaultValue("60") int gapMinutes,
         /* Số khách chờ tối thiểu ở một khu vực mới tạo nhóm (chỉnh được ở trang quản trị trong khoảng 2 đến maxMembers). */
         @DefaultValue("3") int minCustomers,
-        /* Số khách tối đa đưa vào nhóm mới lúc tạo (cầu nối cũng giới hạn 5). */
+        /* Số khách tối đa đưa vào nhóm mới lúc tạo (cầu nối cũng giới hạn 5). Các khách còn lại vào dần qua đường thêm người sẵn có. */
         @DefaultValue("5") int maxMembers,
+        /* Sức chứa mục tiêu của một nhóm tự tạo (số khách, không tính mẹ và tài khoản phụ); trang quản trị chỉnh trong khoảng 5 đến maxTargetCustomers.
+           Chủ dự án chốt 24/11/2026: khoảng 5 người mỗi nhóm; vượt vài người cũng được (trần mềm, xem app.grouping.soft-overflow ở GroupService). */
+        @DefaultValue("5") int targetCustomers,
+        @DefaultValue("100") int maxTargetCustomers,
         /* Bao lâu thì xét đề xuất một lần (phút). */
         @DefaultValue("10") int planEveryMinutes,
         /* Mẫu tên nhóm: %s là tên khu vực, %02d là số thứ tự. Sai mẫu thì dùng mẫu mặc định. */
@@ -39,6 +43,15 @@ public record ZaloGroupProperties(
         }
         if (minCustomers < 2 || minCustomers > maxMembers) {
             minCustomers = Math.min(3, maxMembers);
+        }
+        if (maxTargetCustomers < 5) {
+            maxTargetCustomers = 5;
+        }
+        if (maxTargetCustomers > 200) {
+            maxTargetCustomers = 200;
+        }
+        if (targetCustomers < 5 || targetCustomers > maxTargetCustomers) {
+            targetCustomers = Math.min(5, maxTargetCustomers);
         }
         if (planEveryMinutes < 1) {
             planEveryMinutes = 1;
