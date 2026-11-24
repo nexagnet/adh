@@ -60,13 +60,15 @@ public class ZaloAutoService {
     private final org.springframework.beans.factory.ObjectProvider<ZaloFriendTap> taps;
     private final ZaloMessageService messages;
     private final TestMode testMode;
+    private final ZaloGroupSettings groupSettings;
     /** Trạng thái cầu nối lần hỏi gần nhất (do bộ hẹn giờ cập nhật) để các trang không gọi cầu nối mỗi lần mở. */
     private volatile ZaloGateway.Status lastStatus;
 
     public ZaloAutoService(JdbcClient jdbc, ZaloGateway gateway, ZaloSession session, ZaloAutoSettings cfg,
                            InviteService invites, GroupService groups, ContactService contacts, TransactionTemplate tx,
                            Clock clock, org.springframework.beans.factory.ObjectProvider<ZaloFriendTap> taps,
-                           ZaloMessageService messages, TestMode testMode) {
+                           ZaloMessageService messages, TestMode testMode, ZaloGroupSettings groupSettings) {
+        this.groupSettings = groupSettings;
         this.taps = taps;
         this.testMode = testMode;
         this.messages = messages;
@@ -410,7 +412,18 @@ public class ZaloAutoService {
             List<GroupService.Group> usable = groups.list().stream()
                     .filter(g -> g.hasZaloId() && g.hasLink() && g.status() == vn.shop.crm.invite.GroupStatus.OPEN).toList();
             Step best = Step.NOTHING;
-            for (Task t : queued(mode)) {
+            List<Task> tasks = queued(mode);
+            // Khách dư lẻ: nhóm cùng khu vực đã đủ mục tiêu mà khu vực (miền) còn quá ít khách chờ để lập nhóm mới thì được thêm vào nhóm còn
+            // dưới TRẦN MỀM (mục tiêu + vài khách) thay vì chờ mãi. Đếm khách chờ theo miền (khách chưa có nhóm nào dưới mục tiêu).
+            java.util.Map<vn.shop.crm.geo.Region, Integer> waitingByRegion = new java.util.HashMap<>();
+            for (Task t : tasks) {
+                var p = VnGeo.byCode(t.provinceCode()).orElse(null);
+                if (p != null && t.heldGroupId() == null && groups.pickGroup(usable, p).isEmpty()) {
+                    waitingByRegion.merge(p.region(), 1, Integer::sum);
+                }
+            }
+            int minToCreate = groupSettings.minCustomers();
+            for (Task t : tasks) {
                 if (!contacts.stillEligible(t.customerId())) {
                     fail(t.invitationId(), "KHONG_DU_DIEU_KIEN");
                     cfg.log(ZaloAutoSettings.A_MATCH, t.invitationId(), null, "BO_QUA", "KHONG_DU_DIEU_KIEN", "system"); // không phải lần gọi Zalo: không tính hạn mức
@@ -421,7 +434,11 @@ public class ZaloAutoService {
                     // khách đã được giữ chỗ/gán một nhóm (nhóm gợi ý ở tin link): dùng đúng nhóm đó, không đổi sang nhóm khác
                     group = usable.stream().filter(g -> g.id() == t.heldGroupId()).findFirst();
                 } else {
-                    group = groups.pickGroup(usable, VnGeo.byCode(t.provinceCode()).orElse(null));
+                    var province = VnGeo.byCode(t.provinceCode()).orElse(null);
+                    group = groups.pickGroup(usable, province);
+                    if (group.isEmpty() && province != null && waitingByRegion.getOrDefault(province.region(), 0) < minToCreate) {
+                        group = groups.pickGroup(usable, province, true);
+                    }
                 }
                 if (group.isEmpty()) {
                     best = Step.NO_GROUP; // chưa có nhóm hợp khu vực (R7): giữ hàng đợi, không đẩy sang miền khác

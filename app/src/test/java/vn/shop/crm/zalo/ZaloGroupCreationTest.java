@@ -190,6 +190,7 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
         mode(ZaloGroupMode.CONFIRM);
         friended(1, 2, 3);
         long g = groups.create("Nhóm ĐBSCL", "https://zalo.me/g/dbscl", 50, "S:DB_SONG_CUU_LONG");
+        groups.setZaloGroupId(g, "888"); // bộ nối chỉ thêm được vào nhóm có mã nhóm Zalo
         groups.setStatus(g, GroupStatus.OPEN);
         assertThat(svc.step()).isEqualTo(Step.NOTHING);
         assertThat(proposals()).isZero();
@@ -201,7 +202,7 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
         friended(1, 2);
         assertThat(svc.step()).isEqualTo(Step.NOTHING);
         assertThat(proposals()).isZero();
-        cfg.setLimits(2, "mẹ"); // đổi ngưỡng xuống 2 thì được
+        cfg.setMinCustomers(2, "mẹ"); // đổi ngưỡng xuống 2 thì được
         later(15);
         assertThat(svc.step()).isEqualTo(Step.PROPOSED);
     }
@@ -514,5 +515,83 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
         assertThat(all).doesNotContain("7000000").doesNotContain("5555").doesNotContain("zalo.me").doesNotContain("Khach");
         assertThat(jdbc.sql("SELECT string_agg(reason || group_name || coalesce(result_code, ''), ' ') FROM zalo_group_proposal")
                 .query(String.class).single()).doesNotContain("7000000").doesNotContain("Khach");
+    }
+
+    // ---------- 24/11/2026: sức chứa nhóm, nhóm chưa có mã Zalo, nhóm chờ link, tên nhóm ----------
+
+    @Test
+    void mucTieuMacDinhNamKhachVaKhachDuLeVaoNhomConDuoiTranMemKhongTaoNhomThem() {
+        mode(ZaloGroupMode.AUTO);
+        friended(1, 2, 3, 4, 5, 6, 7);
+        assertThat(svc.step()).isEqualTo(Step.CREATED);
+        assertThat(fake.creates).singleElement().satisfies(c -> assertThat(c.members()).hasSize(5));
+        assertThat(groups.list().getFirst().target()).isEqualTo(5);
+        // 2 khách dư (dưới ngưỡng 3) còn chỗ ở nhóm vừa tạo vì trần mềm là 5 + 3 = 8 khách: không cần lập nhóm mới
+        assertThat(svc.waitingCustomers()).isEmpty();
+        later(120);
+        assertThat(svc.step()).isEqualTo(Step.NOTHING);
+        assertThat(fake.creates).hasSize(1);
+    }
+
+    @Test
+    void nhomDaChamTranMemThiKhachDuKhongLotVaoNhom() {
+        mode(ZaloGroupMode.AUTO);
+        friended(1, 2, 3, 4, 5, 6, 7);
+        svc.step();
+        groups.recount(groups.list().getFirst().id(), 8); // đã 8 khách: chạm trần mềm
+        assertThat(svc.waitingCustomers()).hasSize(2); // 2 khách vẫn chờ (dưới ngưỡng lập nhóm mới nên chưa tạo, chờ thêm người hoặc hạ ngưỡng theo tuổi chờ)
+        later(120);
+        assertThat(svc.step()).isEqualTo(Step.NOTHING);
+    }
+
+    @Test
+    void sucChuaPhaiTuNamDenTran() {
+        assertThatThrownBy(() -> cfg.setLimits(3, 4, "mẹ")).isInstanceOf(ImportException.class);
+        assertThatThrownBy(() -> cfg.setLimits(3, 101, "mẹ")).isInstanceOf(ImportException.class);
+        cfg.setLimits(3, 50, "mẹ");
+        assertThat(cfg.targetCustomers()).isEqualTo(50);
+    }
+
+    @Test
+    void nhomMeTaoTayCoLinkNhungChuaCoMaZaloKhongDuocTinhLaConCho() {
+        mode(ZaloGroupMode.CONFIRM);
+        friended(1, 2, 3);
+        long g = groups.create("Nhóm tay", "https://zalo.me/g/tay", 50, "P:can-tho");
+        groups.setStatus(g, GroupStatus.OPEN); // có link, đang mở, KHÔNG có mã nhóm Zalo: bộ nối không thêm được ai
+        assertThat(svc.step()).isEqualTo(Step.PROPOSED);
+        assertThat(svc.recent(1).getFirst().waitingCount()).isEqualTo(3);
+    }
+
+    @Test
+    void nhomTuTaoChuaCoLinkThiChoKhongTaoNhomTrung() {
+        mode(ZaloGroupMode.AUTO);
+        friended(1, 2, 3, 4, 5, 6, 7, 8);
+        // nhóm tạo xong nhưng bật link lỗi: đang chờ mẹ dán link
+        fake.willCreate(new Created(GroupOutcome.OK, null, "6666", null, List.of("70000001", "70000002", "70000003", "70000004", "70000005"), List.of(), "OK", 0, false));
+        assertThat(svc.step()).isEqualTo(Step.CREATED);
+        assertThat(groups.list().getFirst().status()).isNotEqualTo(GroupStatus.OPEN);
+        later(120);
+        assertThat(svc.step()).isEqualTo(Step.NOTHING);
+        assertThat(fake.creates).hasSize(1);
+    }
+
+    @Test
+    void khachVuaLoiThemNhomKhongLotVaoNhomMoi() {
+        mode(ZaloGroupMode.CONFIRM);
+        friended(1, 2, 3, 4);
+        svc.step();
+        svc.approve(svc.recent(1).getFirst().id(), "mẹ");
+        jdbc.sql("UPDATE invitation SET zalo_add_state = 'FAILED', zalo_add_code = 'Z1' WHERE id = :id").param("id", inv(4)).update();
+        assertThat(svc.step()).isEqualTo(Step.CREATED);
+        assertThat(fake.creates).singleElement().satisfies(c -> assertThat(c.members()).containsExactly("70000001", "70000002", "70000003"));
+    }
+
+    @Test
+    void tenNhomKhongLapTenDaCo() {
+        mode(ZaloGroupMode.CONFIRM);
+        groups.create("Áo điều hòa ADH - Cần Thơ - 01", "https://zalo.me/g/cu", 5, null); // nhóm chung trùng tên, khác khu vực
+        friended(1, 2, 3);
+        svc.step();
+        assertThat(svc.recent(1).getFirst().groupName()).isEqualTo("Áo điều hòa ADH - Cần Thơ - 02");
     }
 }

@@ -218,7 +218,13 @@ public class ZaloGroupCreationService implements ZaloTickHook {
 
     /** Khách đã kết bạn, có mã Zalo, chưa vào nhóm nào và KHÔNG có nhóm hợp khu vực đang nhận khách. */
     List<GroupPlanner.Waiting> waitingCustomers() {
-        List<GroupService.Group> all = groups.list();
+        List<GroupService.Group> everyGroup = groups.list();
+        // Cùng định nghĩa "còn chỗ" với bộ nối thêm người (ZaloAutoService.addNext): nhóm có link, đang mở, CÓ mã nhóm Zalo, chưa đầy.
+        // Nhóm chỉ có link (mẹ tạo tay, chưa gán mã Zalo) không được tính, nếu không khách chờ mãi mà không ai đề xuất nhóm mới.
+        List<GroupService.Group> all = everyGroup.stream().filter(GroupService.Group::hasZaloId).toList();
+        // Nhóm tự tạo xong mà chưa có link (đang chờ mẹ dán link và mở nhận khách): cùng khu vực thì CHỜ nhóm đó, đừng tạo thêm nhóm trùng.
+        List<GroupService.Group> pendingGroups = everyGroup.stream()
+                .filter(g -> g.hasZaloId() && !g.hasLink() && g.status() == GroupStatus.PREPARING).toList();
         List<GroupPlanner.Waiting> out = new ArrayList<>();
         jdbc.sql("""
                         SELECT i.id, i.customer_id, c.province, i.friended_at
@@ -233,19 +239,36 @@ public class ZaloGroupCreationService implements ZaloTickHook {
                 .query((rs, n) -> new Object[]{rs.getLong("id"), rs.getLong("customer_id"), rs.getString("province"),
                         rs.getObject("friended_at", OffsetDateTime.class)}).list().forEach(r -> {
                     var province = VnGeo.byCode((String) r[2]).orElse(null);
-                    if (province == null || groups.pickGroup(all, province).isPresent() || !contacts.mayContact((Long) r[1])) {
+                    if (province == null || groups.pickGroup(all, province).isPresent() || !contacts.mayContact((Long) r[1])
+                            || pendingGroups.stream().anyMatch(g -> groups.rank(g, province) >= 0)) {
                         return;
                     }
                     OffsetDateTime at = (OffsetDateTime) r[3];
                     out.add(new GroupPlanner.Waiting((Long) r[0], (String) r[2], at == null ? null : at.toInstant()));
                 });
+        // Khách dư lẻ đã có nhóm dưới trần mềm để vào (xem ZaloAutoService.addNext) thì không tính là đang chờ lập nhóm mới.
+        Map<vn.shop.crm.geo.Region, Integer> byRegion = new java.util.HashMap<>();
+        for (GroupPlanner.Waiting w : out) {
+            VnGeo.byCode(w.provinceCode()).ifPresent(p -> byRegion.merge(p.region(), 1, Integer::sum));
+        }
+        int min = cfg.minCustomers();
+        out.removeIf(w -> {
+            var p = VnGeo.byCode(w.provinceCode()).orElse(null);
+            return p != null && byRegion.getOrDefault(p.region(), 0) < min && groups.pickGroup(all, p, true).isPresent();
+        });
         return out;
     }
 
     private String nextName(GeoArea scope) {
         int existing = jdbc.sql("SELECT count(*) FROM zalo_group WHERE geo_scope = :s").param("s", scope.code())
                 .query(Integer.class).single();
-        return cfg.props().groupName(scope.label(), existing + 1);
+        // Tên chưa dùng: bỏ nhóm giữa chừng thì số thứ tự không lặp lại tên nhóm còn tồn tại.
+        int seq = existing + 1;
+        while (jdbc.sql("SELECT count(*) FROM zalo_group WHERE name = :n").param("n", cfg.props().groupName(scope.label(), seq))
+                .query(Integer.class).single() > 0 && seq < existing + 1000) {
+            seq++;
+        }
+        return cfg.props().groupName(scope.label(), seq);
     }
 
     private void expireOld() {
@@ -441,6 +464,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
                         JOIN invitation_campaign k ON k.id = i.campaign_id
                         WHERE m.proposal_id = :p AND i.status = 'FRIENDED' AND i.zalo_uid IS NOT NULL AND i.group_id IS NULL
                           AND k.allow_group_creation AND k.group_delivery IS NULL
+                          AND (i.zalo_add_state IS NULL OR i.zalo_add_state IN ('WAITING_APPROVAL', 'QUEUED'))
                         ORDER BY i.friended_at NULLS LAST, i.id""")
                 .param("p", proposalId).query((rs, n) -> new Member(rs.getLong(1), rs.getLong(2), rs.getString(3))).list()
                 .forEach(m -> {
@@ -469,7 +493,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
             long groupId;
             String link = safeLink(r.link());
             boolean linkOk = link != null;
-            groupId = groups.create(name, link, 5, scope.code());
+            groupId = groups.create(name, link, cfg.targetCustomers(), scope.code());
             groups.setZaloGroupId(groupId, r.groupId());
             if (linkOk) {
                 groups.setStatus(groupId, GroupStatus.OPEN);

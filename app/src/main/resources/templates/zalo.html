@@ -271,9 +271,10 @@
         </form>
         <form class="formrow" th:action="@{/zalo/group-limits}" method="post">
             <label class="field">Khách chờ tối thiểu để tạo nhóm <input type="number" name="minCustomers" th:value="${groupMin}" min="2" th:max="${groupProps.maxMembers}"></label>
-            <button type="submit" class="btn">Lưu ngưỡng</button>
+            <label class="field">Mục tiêu số khách mỗi nhóm mới <input type="number" name="targetCustomers" th:value="${groupTarget}" min="5" th:max="${groupProps.maxTargetCustomers}"></label>
+            <button type="submit" class="btn">Lưu</button>
         </form>
-        <p class="hint">Không giới hạn số nhóm tạo mỗi ngày; chỉ có khung giờ 08:00 đến 20:00 và khoảng nghỉ cố định giữa hai lần tạo. Số khách được nhắn mỗi ngày vẫn có hạn mức riêng ở mục tự gửi tin.</p>
+        <p class="hint">Không giới hạn số nhóm tạo mỗi ngày; chỉ có khung giờ 08:00 đến 20:00 và khoảng nghỉ cố định giữa hai lần tạo. Số khách được nhắn mỗi ngày vẫn có hạn mức riêng ở mục tự gửi tin. Mục tiêu khoảng 5 KHÁCH mỗi nhóm (không tính tài khoản phụ và mẹ phó nhóm, nên nhóm thật khoảng 7 thành viên). Khách dư lẻ (khu vực quá ít khách để lập nhóm mới) được thêm vào nhóm gần đó còn dưới trần mềm (mục tiêu cộng 3 khách) thay vì chờ mãi. Nhóm đã có không đổi mục tiêu; sửa riêng từng nhóm ở trang Nhóm Zalo.</p>
         <div class="table-wrap">
             <table data-filter>
                 <tr><th>Lúc</th><th>Khu vực và tên nhóm</th><th>Lý do</th><th>Trạng thái</th><th></th></tr>

@@ -137,6 +137,55 @@ class ZaloAutoTest extends AbstractPostgresTest {
         assertThat(fake.adds).isEmpty();
     }
 
+    // ---------- 24/11/2026: nhóm khoảng 5 khách, trần mềm 8 cho khách dư lẻ ----------
+
+    private long smallGroupAt(int actual) {
+        groups.setStatus(north, GroupStatus.PAUSED);
+        groups.setStatus(south, GroupStatus.PAUSED);
+        long g = groups.create("Nhóm nhỏ miền Bắc", "https://zalo.me/g/nho", 5, "R:BAC");
+        groups.setStatus(g, GroupStatus.OPEN);
+        groups.setZaloGroupId(g, "4004");
+        groups.recount(g, actual);
+        return g;
+    }
+
+    @Test
+    void khachDuLeVaoNhomDaDuMucTieuNhungConDuoiTranMem() {
+        mode(ZaloMode.AUTO);
+        long g = smallGroupAt(5); // đủ mục tiêu 5 khách, trần mềm 8
+        sent(1);
+        friend(1, 1);
+        zalo.poll();
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.ADDED);
+        assertThat(fake.adds).singleElement().satisfies(a -> assertThat(a[1]).isEqualTo("4004"));
+        assertThat(groups.find(g).orElseThrow().actual()).isEqualTo(6);
+    }
+
+    @Test
+    void khachDuLeKhongVuotTranMem() {
+        mode(ZaloMode.AUTO);
+        smallGroupAt(8);
+        sent(1);
+        friend(1, 1);
+        zalo.poll();
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.NO_GROUP);
+        assertThat(fake.adds).isEmpty();
+    }
+
+    @Test
+    void nhieuKhachChoCungMienDuNguongLapNhomThiKhongDoDonVaoNhomDay() {
+        mode(ZaloMode.AUTO);
+        smallGroupAt(5);
+        for (int n = 1; n <= 3; n++) {
+            sent(n);
+            friend(n, n);
+        }
+        zalo.poll();
+        // 3 khách cùng miền Bắc đủ ngưỡng lập nhóm mới: họ chờ nhóm mới, không nhồi quá mục tiêu
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.NO_GROUP);
+        assertThat(fake.adds).isEmpty();
+    }
+
     // ---------- mặc định tắt ----------
 
     @Test
