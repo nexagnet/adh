@@ -38,10 +38,13 @@ public class ZaloFriendRequestSender {
     static final int MAX_TEXT = 150;
     static final String DEFAULT_TEXT = "Em là {cua_hang}, vừa nhắn mời anh/chị vào nhóm khách hàng. Anh/chị đồng ý kết bạn để em thêm vào nhóm ạ.";
     static final String FALLBACK_TEXT = "Em vừa nhắn mời anh/chị vào nhóm khách hàng. Anh/chị đồng ý kết bạn để em thêm vào nhóm ạ.";
+    /** Cho khách chưa nhận được Tin 1 (Zalo chặn tin người lạ, Z122): không nhắc tới tin đã gửi. Tin 1 gửi lại ngay khi họ đồng ý kết bạn. */
+    static final String BLOCKED_TEXT = "Em là {cua_hang}, bên em có nhóm khách hàng mua áo điều hòa được giảm giá. Anh/chị đồng ý kết bạn để em gửi thông tin ạ.";
+    static final String BLOCKED_FALLBACK_TEXT = "Bên em có nhóm khách hàng mua áo điều hòa được giảm giá. Anh/chị đồng ý kết bạn để em gửi thông tin ạ.";
 
     public enum Step { NOT_ACTIVE, BLOCKED, NOTHING, SENT, FAILED_ONE, RETRY, TRIPPED }
 
-    private record Task(long invitationId, long campaignId, long customerId, String phone, String uid) {
+    private record Task(long invitationId, long campaignId, long customerId, String phone, String uid, boolean blocked) {
     }
 
     private final JdbcClient jdbc;
@@ -73,6 +76,12 @@ public class ZaloFriendRequestSender {
         return t.length() <= MAX_TEXT ? t : FALLBACK_TEXT;
     }
 
+    /** Câu kèm lời mời cho khách mà Tin 1 bị Zalo chặn (Z122): như {@link #text()} nhưng không nói đã nhắn mời. */
+    String blockedText() {
+        String t = invites.render(BLOCKED_TEXT, null, "", null).replaceAll("[ \\t]{2,}", " ").strip();
+        return t.length() <= MAX_TEXT ? t : BLOCKED_FALLBACK_TEXT;
+    }
+
     /** Một nhịp: gửi tối đa MỘT lời mời kết bạn nếu được phép. */
     public Step step() {
         if (!messages.enabled() || settings.paused()) {
@@ -98,7 +107,7 @@ public class ZaloFriendRequestSender {
     /** Một truy vấn gom mọi điều kiện dừng; giành chỗ ở {@link #send} kiểm lại trong chính câu lệnh. */
     private List<Task> due() {
         return jdbc.sql("""
-                        SELECT i.id, i.campaign_id, i.customer_id, c.phone, i.zalo_target_uid
+                        SELECT i.id, i.campaign_id, i.customer_id, c.phone, i.zalo_target_uid, i.tin1_blocked_at IS NOT NULL AS blocked
                         FROM invitation i
                         JOIN customer c ON c.id = i.customer_id
                         JOIN invitation_campaign k ON k.id = i.campaign_id
@@ -108,12 +117,12 @@ public class ZaloFriendRequestSender {
                         """ + testMode.onlyTestSql("c.phone") + " ORDER BY i.sent_at, i.id LIMIT :n")
                 .param("ch", ZaloInviteSender.CHANNEL).param("now", OffsetDateTime.now(clock)).param("n", SCAN)
                 .query((rs, n) -> new Task(rs.getLong("id"), rs.getLong("campaign_id"), rs.getLong("customer_id"), rs.getString("phone"),
-                        rs.getString("zalo_target_uid")))
+                        rs.getString("zalo_target_uid"), rs.getBoolean("blocked")))
                 .list();
     }
 
     private Step send(Task t) {
-        String text = text();
+        String text = t.blocked() ? blockedText() : text();
         int claimed = jdbc.sql("""
                         UPDATE invitation SET friend_request_at = :at, friend_request_outcome = 'UNKNOWN'
                         WHERE id = :id AND friend_request_at IS NULL AND status = 'SENT' AND friended_at IS NULL AND joined_at IS NULL

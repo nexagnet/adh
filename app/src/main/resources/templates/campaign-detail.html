@@ -223,6 +223,14 @@
     <th:block th:if="${tab == 'tong-quan'}">
 
     <h2>Lời mời</h2>
+    <p class="hint" id="next-send" th:attr="data-at=${nextSend.at() != null ? nextSend.at().toEpochMilli() : ''}">
+        <strong>Tin tiếp theo gửi sau: </strong><span class="mono" data-countdown th:text="${nextSend.at() != null ? '...' : '-'}">-</span>
+        <span th:if="${nextSend.reason() != null}" th:text="'(' + ${nextSend.reason()} + ')'" class="muted"></span>
+        <span class="muted" th:if="${nextSend.reason() == null}">Khoảng nghỉ cố định giữa hai tin; tin gửi vào nhịp kiểm tra kế tiếp.</span></p>
+    <p class="hint" th:with="waiting=${#lists.size(rows.?[tin1Blocked and !tin1Resent and status != 'CANCELLED' and status != 'FAILED'])}"
+       th:if="${waiting > 0}">
+        <strong th:text="${waiting}">0</strong> khách đang trong danh sách <strong>gửi lại Tin 1</strong>: Zalo không cho gửi Tin 1 vì họ không nhận tin người lạ.
+        Hệ thống đã gửi lời mời kết bạn, khách đồng ý kết bạn thì Tin 1 được gửi lại (một lần), rồi mới thêm vào nhóm.</p>
     <div class="table-wrap">
         <table data-filter data-sticky>
             <tr><th>Khách</th><th>Tình trạng</th><th>Nhóm Zalo</th><th>Bước tiếp theo</th><th class="num">Lượt bấm</th><th>Hết hạn</th></tr>
@@ -246,5 +254,6 @@
     </th:block>
 </main>
 <script th:src="@{/copy.js}" defer></script>
+<script th:src="@{/countdown.js}" defer></script>
 </body>
 </html>
