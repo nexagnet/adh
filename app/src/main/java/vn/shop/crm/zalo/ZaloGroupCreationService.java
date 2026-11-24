@@ -189,7 +189,8 @@ public class ZaloGroupCreationService implements ZaloTickHook {
                         SELECT DISTINCT scope FROM zalo_group_proposal
                         WHERE state = 'REJECTED' AND decided_at > :since""")
                 .param("since", OffsetDateTime.ofInstant(now.minusSeconds(24 * 3600L), ZoneOffset.UTC)).query(String.class).list());
-        Optional<GroupPlanner.Plan> plan = GroupPlanner.plan(waiting, cfg.minCustomers(), cfg.props().maxMembers(), rejected);
+        Optional<GroupPlanner.Plan> plan = GroupPlanner.plan(waiting, cfg.minCustomers(), cfg.props().maxMembers(), rejected, now,
+                java.time.Duration.ofDays(cfg.props().relaxAfterDays()));
         if (plan.isEmpty()) {
             return Optional.empty();
         }

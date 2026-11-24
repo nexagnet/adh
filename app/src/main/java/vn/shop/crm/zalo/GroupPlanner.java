@@ -36,6 +36,19 @@ public final class GroupPlanner {
     }
 
     public static Optional<Plan> plan(List<Waiting> waiting, int minCustomers, int maxMembers, Set<String> excludedScopes) {
+        return plan(waiting, minCustomers, maxMembers, excludedScopes, null, null);
+    }
+
+    /** Số khách chờ tối thiểu khi đã có người chờ quá lâu (khách dư không bị kẹt mãi): không bao giờ tạo nhóm 1 người. */
+    public static final int RELAXED_MIN = 2;
+
+    /**
+     * Như {@link #plan(List, int, int, Set)}, thêm "tuổi chờ" (24/11/2026): khu vực có người chờ từ {@code relaxAfter} trở lên chỉ cần
+     * {@value #RELAXED_MIN} khách (thay vì {@code minCustomers}) và được ưu tiên trước khu vực nhiều khách hơn nhưng mới chờ, để khách dư
+     * của một tỉnh ít khách không bị bỏ đói. {@code now} hoặc {@code relaxAfter} là null thì tắt tính năng này.
+     */
+    public static Optional<Plan> plan(List<Waiting> waiting, int minCustomers, int maxMembers, Set<String> excludedScopes,
+                                      Instant now, java.time.Duration relaxAfter) {
         Map<Long, Province> province = new LinkedHashMap<>();
         for (Waiting w : waiting) {
             VnGeo.byCode(w.provinceCode()).ifPresent(p -> province.put(w.invitationId(), p));
@@ -51,9 +64,10 @@ public final class GroupPlanner {
                 byScope.computeIfAbsent(a.code(), k -> new ArrayList<>()).add(w);
             }
             Optional<Map.Entry<String, List<Waiting>>> best = byScope.entrySet().stream()
-                    .filter(e -> e.getValue().size() >= minCustomers && !excludedScopes.contains(e.getKey()))
-                    // nhiều khách chờ nhất trước; bằng nhau thì khu vực có người kết bạn sớm nhất, rồi theo mã cho ổn định
-                    .min(Comparator.<Map.Entry<String, List<Waiting>>>comparingInt(e -> -e.getValue().size())
+                    .filter(e -> e.getValue().size() >= neededFor(e.getValue(), minCustomers, now, relaxAfter) && !excludedScopes.contains(e.getKey()))
+                    // khu vực có người chờ quá lâu trước; rồi nhiều khách chờ nhất; bằng nhau thì khu vực có người kết bạn sớm nhất, rồi theo mã cho ổn định
+                    .min(Comparator.<Map.Entry<String, List<Waiting>>>comparingInt(e -> overdue(e.getValue(), now, relaxAfter) ? 0 : 1)
+                            .thenComparingInt(e -> -e.getValue().size())
                             .thenComparing(e -> earliest(e.getValue()))
                             .thenComparing(Map.Entry::getKey));
             if (best.isPresent()) {
@@ -64,6 +78,18 @@ public final class GroupPlanner {
             }
         }
         return Optional.empty();
+    }
+
+    private static boolean overdue(List<Waiting> list, Instant now, java.time.Duration relaxAfter) {
+        if (now == null || relaxAfter == null) {
+            return false;
+        }
+        Instant first = earliest(list);
+        return first != Instant.MAX && !first.plus(relaxAfter).isAfter(now);
+    }
+
+    private static int neededFor(List<Waiting> list, int minCustomers, Instant now, java.time.Duration relaxAfter) {
+        return overdue(list, now, relaxAfter) ? Math.min(minCustomers, RELAXED_MIN) : minCustomers;
     }
 
     private static Instant friendedOrMax(Waiting w) {

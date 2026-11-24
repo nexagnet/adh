@@ -435,9 +435,11 @@ public class ZaloAutoService {
                     group = usable.stream().filter(g -> g.id() == t.heldGroupId()).findFirst();
                 } else {
                     var province = VnGeo.byCode(t.provinceCode()).orElse(null);
-                    group = groups.pickGroup(usable, province);
+                    // Khách chưa rõ tỉnh chỉ được thêm vào nhóm CHUNG (không gắn khu vực); thêm vào nhóm của một miền bất kỳ có thể sai miền.
+                    List<GroupService.Group> pool = province == null ? usable.stream().filter(g -> g.scope() == null).toList() : usable;
+                    group = groups.pickGroup(pool, province);
                     if (group.isEmpty() && province != null && waitingByRegion.getOrDefault(province.region(), 0) < minToCreate) {
-                        group = groups.pickGroup(usable, province, true);
+                        group = groups.pickGroup(pool, province, true);
                     }
                 }
                 if (group.isEmpty()) {
@@ -775,12 +777,30 @@ public class ZaloAutoService {
                 }).list();
     }
 
+    /**
+     * Khách đã kết bạn mà chờ nhóm quá lâu (khu vực quá ít khách nên không tạo được nhóm) hoặc chưa rõ khu vực: cần mẹ quyết, ví dụ tạo nhóm
+     * tay hoặc chọn tỉnh. Không tính khách chiến dịch "chỉ gửi link nhóm" (họ tự bấm link) hay khách đã có nhóm.
+     */
+    public long longWaitingCount(int days) {
+        return jdbc.sql("""
+                        SELECT count(*) FROM invitation i JOIN customer c ON c.id = i.customer_id
+                        JOIN invitation_campaign k ON k.id = i.campaign_id
+                        WHERE i.status = 'FRIENDED' AND i.zalo_uid IS NOT NULL AND i.group_id IS NULL AND i.group_link_sent_at IS NULL
+                          AND k.group_delivery IS NULL
+                          AND (i.zalo_add_state IS NULL OR i.zalo_add_state IN ('WAITING_APPROVAL', 'QUEUED'))
+                          AND (i.friended_at < :before OR c.province IS NULL OR c.province = '')
+                          AND (i.friended_at IS NULL OR i.friended_at < :unknownAfter)""")
+                .param("before", OffsetDateTime.ofInstant(clock.instant().minusSeconds(days * 86400L), ZoneOffset.UTC))
+                .param("unknownAfter", OffsetDateTime.ofInstant(clock.instant().minusSeconds(2 * 86400L), ZoneOffset.UTC))
+                .query(Long.class).single();
+    }
+
     /** Số việc cần người xử lý (chờ duyệt + lỗi + hàng đợi tay) cho nhãn trên menu. */
     public long attentionCount() {
         long inv = jdbc.sql("""
                         SELECT count(*) FROM invitation WHERE zalo_add_state IN ('WAITING_APPROVAL', 'FAILED')
                           AND status IN ('SENT', 'CLICKED', 'FRIENDED')""").query(Long.class).single();
-        return inv + manualCount();
+        return inv + manualCount() + longWaitingCount(groupSettings.props().alertAfterDays());
     }
 
     private LocalDateTime local(OffsetDateTime t) {

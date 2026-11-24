@@ -77,4 +77,42 @@ class GroupPlannerTest {
         assertThat(plan.scope().code()).isEqualTo("S:DB_SONG_CUU_LONG");
         assertThat(GroupPlanner.plan(list, 3, 5, Set.of("P:can-tho", "S:DB_SONG_CUU_LONG", "R:NAM"))).isEmpty();
     }
+
+    // ---------- 24/11/2026: khách dư không bị kẹt mãi ----------
+
+    private static final Instant NOW = T0.plusSeconds(10 * 86400L);
+    private static final java.time.Duration RELAX = java.time.Duration.ofDays(7);
+
+    @Test
+    void khachDuChoQuaBayNgayThiKhuVucChiCanHaiKhachVaDuocUuTien() {
+        // 2 người Cần Thơ chờ 10 ngày (dưới ngưỡng 3) và 4 người Hà Nội mới kết bạn hôm qua (đủ ngưỡng, đông hơn)
+        List<GroupPlanner.Waiting> list = new ArrayList<>(List.of(w(1, "can-tho", 0), w(2, "can-tho", 60)));
+        for (int i = 3; i <= 6; i++) {
+            list.add(new GroupPlanner.Waiting(i, "ha-noi", NOW.minusSeconds(86400L)));
+        }
+        assertThat(GroupPlanner.plan(list, 3, 5, Set.of(), NOW, RELAX).orElseThrow().scope().code()).isEqualTo("P:can-tho");
+        assertThat(GroupPlanner.plan(list, 3, 5, Set.of(), NOW, RELAX).orElseThrow().invitationIds()).containsExactly(1L, 2L);
+        // không có tuổi chờ thì như cũ: Cần Thơ dưới ngưỡng nên bị bỏ
+        assertThat(GroupPlanner.plan(list, 3, 5, Set.of()).orElseThrow().scope().code()).isEqualTo("P:ha-noi");
+    }
+
+    @Test
+    void chuaDenBayNgayThiGiuNguyenNguongBa() {
+        List<GroupPlanner.Waiting> list = List.of(new GroupPlanner.Waiting(1, "can-tho", NOW.minusSeconds(6 * 86400L)),
+                new GroupPlanner.Waiting(2, "can-tho", NOW.minusSeconds(5 * 86400L)));
+        assertThat(GroupPlanner.plan(list, 3, 5, Set.of(), NOW, RELAX)).isEmpty();
+    }
+
+    @Test
+    void motKhachDuLauMaiKhongBaoGioTaoNhomMotNguoi() {
+        List<GroupPlanner.Waiting> list = List.of(new GroupPlanner.Waiting(1, "can-tho", NOW.minusSeconds(30 * 86400L)));
+        assertThat(GroupPlanner.plan(list, 3, 5, Set.of(), NOW, RELAX)).isEmpty();
+    }
+
+    @Test
+    void haiKhachDuLauNhungKhacMienKhongGopVaoMotNhom() {
+        List<GroupPlanner.Waiting> list = List.of(new GroupPlanner.Waiting(1, "can-tho", NOW.minusSeconds(30 * 86400L)),
+                new GroupPlanner.Waiting(2, "ha-noi", NOW.minusSeconds(30 * 86400L)));
+        assertThat(GroupPlanner.plan(list, 3, 5, Set.of(), NOW, RELAX)).isEmpty();
+    }
 }

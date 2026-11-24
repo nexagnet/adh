@@ -93,6 +93,8 @@ public class ZaloAutoController {
             model.addAttribute("groupChosen", gs.chosenMode());
             model.addAttribute("groupMin", gs.minCustomers());
             model.addAttribute("groupTarget", gs.targetCustomers());
+            model.addAttribute("longWaiting", service.longWaitingCount(gs.props().alertAfterDays()));
+            model.addAttribute("longWaitingDays", gs.props().alertAfterDays());
             model.addAttribute("groupProps", gs.props());
             model.addAttribute("deputyCurrent", deputy.current());
             model.addAttribute("deputyCandidate", deputy.candidate().orElse(null));

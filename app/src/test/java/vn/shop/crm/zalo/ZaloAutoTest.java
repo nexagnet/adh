@@ -186,6 +186,41 @@ class ZaloAutoTest extends AbstractPostgresTest {
         assertThat(fake.adds).isEmpty();
     }
 
+    @Test
+    void khachChuaRoTinhChiVaoNhomChungKhongVaoNhomMotMien() {
+        mode(ZaloMode.AUTO);
+        sent(1);
+        friend(1, 1);
+        zalo.poll();
+        jdbc.sql("UPDATE customer SET province = NULL WHERE id = (SELECT customer_id FROM invitation WHERE id = :id)").param("id", inv(1)).update();
+        // chỉ có nhóm miền Bắc và miền Nam: khách chưa rõ tỉnh không được thêm vào nhóm miền nào
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.NO_GROUP);
+        assertThat(fake.adds).isEmpty();
+        long general = groups.create("Nhóm chung", "https://zalo.me/g/chung", 50, null);
+        groups.setStatus(general, GroupStatus.OPEN);
+        groups.setZaloGroupId(general, "3003");
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.ADDED);
+        assertThat(fake.adds).singleElement().satisfies(a -> assertThat(a[1]).isEqualTo("3003"));
+    }
+
+    @Test
+    void khachChoNhomQuaLauHoacChuaRoKhuVucDuocBaoChoMe() {
+        mode(ZaloMode.AUTO);
+        sent(1);
+        sent(2);
+        friend(1, 1);
+        friend(2, 2);
+        zalo.poll();
+        assertThat(zalo.longWaitingCount(14)).isZero();
+        jdbc.sql("UPDATE invitation SET friended_at = TIMESTAMPTZ '2026-11-06 10:00:00+07' WHERE id = :id").param("id", inv(1)).update();
+        assertThat(zalo.longWaitingCount(14)).isEqualTo(1);
+        jdbc.sql("UPDATE customer SET province = NULL WHERE id = (SELECT customer_id FROM invitation WHERE id = :id)").param("id", inv(2)).update();
+        assertThat(zalo.longWaitingCount(14)).isEqualTo(1); // khách chưa rõ tỉnh mới kết bạn chưa tới 2 ngày
+        jdbc.sql("UPDATE invitation SET friended_at = TIMESTAMPTZ '2026-11-19 10:00:00+07' WHERE id = :id").param("id", inv(2)).update();
+        assertThat(zalo.longWaitingCount(14)).isEqualTo(2);
+        assertThat(zalo.attentionCount()).isGreaterThanOrEqualTo(2);
+    }
+
     // ---------- mặc định tắt ----------
 
     @Test
