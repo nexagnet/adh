@@ -190,4 +190,39 @@ class ProposalValidatorTest {
         var snap2 = new AdvisorSnapshot(base.generatedOn(), base.calendar(), base.limits(), base.overall(), base.areas(), base.sendSlots(), List.of(done));
         assertThat(ProposalValidator.validate(wrap(one()), snap2, TODAY).accepted()).hasSize(1);
     }
+
+    @Test
+    void nhungNumTuyChonDuocNhanVaDoiRaDungGiaTri() {
+        var o = check(wrap(one("weekdays", "[1,2,3,4,5]", "pick_order", "\"NEWEST_PURCHASE\"",
+                "min_days_since_purchase", "0", "max_days_since_purchase", "90")));
+        assertThat(o.accepted()).hasSize(1);
+        var p = o.accepted().getFirst();
+        assertThat(p.weekdays()).isEqualTo(31);
+        assertThat(p.pickOrder()).isEqualTo("NEWEST_PURCHASE");
+        assertThat(p.minDays()).isZero();
+        assertThat(p.maxDays()).isEqualTo(90);
+        // không khai thì mặc định hệ thống; đủ 7 ngày thì là mọi ngày (null)
+        var d = check(wrap(one())).accepted().getFirst();
+        assertThat(d.weekdays()).isNull();
+        assertThat(d.pickOrder()).isEqualTo("OLDEST_APPROVED");
+        assertThat(d.minDays()).isNull();
+        assertThat(check(wrap(one("weekdays", "[1,2,3,4,5,6,7]"))).accepted().getFirst().weekdays()).isNull();
+    }
+
+    @Test
+    void numTuyChonSaiThiBoDeXuat() {
+        rejected(one("weekdays", "[0]"), "weekdays");
+        rejected(one("weekdays", "[8]"), "weekdays");
+        rejected(one("weekdays", "[]"), "weekdays");
+        rejected(one("weekdays", "\"1\""), "weekdays");
+        rejected(one("pick_order", "\"RANDOM\""), "pick_order");
+        rejected(one("min_days_since_purchase", "-5"), "số nguyên từ 0");
+        rejected(one("max_days_since_purchase", "99999"), "số nguyên từ 0");
+        rejected(one("min_days_since_purchase", "100", "max_days_since_purchase", "30"), "không được nhỏ hơn");
+        rejected(one("khoa_la", "1"), "sai khuôn");
+        // hai ngày được chọn (thứ Tư 26/11 chỉ có 1 ngày trong 25 đến 26/11): batch phải theo số ngày gửi thật
+        rejected(one("end_date", "\"2026-11-26\"", "weekdays", "[3]", "batch_size", "15"), "ngày gửi");
+        // khoảng ngày không chứa ngày nào được chọn
+        rejected(one("start_date", "\"2026-11-25\"", "end_date", "\"2026-11-26\"", "weekdays", "[1]", "batch_size", "5"), "không có ngày nào");
+    }
 }

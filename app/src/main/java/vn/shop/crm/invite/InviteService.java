@@ -216,6 +216,12 @@ public class InviteService {
      */
     @Transactional
     public long createCampaign(String name, String template, int expiresDays, int count, String area) {
+        return createCampaign(name, template, expiresDays, count, area, ContactService.Pick.NONE);
+    }
+
+    /** Như trên, kèm cách chọn khách (thứ tự lấy, độ mới của lần mua); chỉ làm hẹp tập khách, xem {@link ContactService.Pick}. */
+    @Transactional
+    public long createCampaign(String name, String template, int expiresDays, int count, String area, ContactService.Pick pick) {
         if (settings.paused()) {
             throw new ImportException("Đang tạm dừng tất cả chiến dịch. Hãy bỏ tạm dừng trước khi tạo chiến dịch mới.");
         }
@@ -238,7 +244,7 @@ public class InviteService {
                     + " khách. Mỗi ngày hệ thống chỉ đưa ra một lô nhỏ để nhắn (mục Lô nhắn hôm nay).");
         }
         String scope = normalizeArea(area);
-        List<ContactService.Invitee> picked = contacts.eligibleNotInvited(count, scope);
+        List<ContactService.Invitee> picked = contacts.eligibleNotInvited(count, scope, pick);
         if (picked.isEmpty()) {
             throw new ImportException(scope == null
                     ? "Chưa có khách nào đủ điều kiện mời và chưa từng được mời. Hãy duyệt khách ở mục Danh sách mời trước."

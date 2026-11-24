@@ -130,6 +130,51 @@ class AdvisorWebTest extends AbstractPostgresTest {
         assertThat(jdbc.sql("SELECT hold_on_rain FROM invitation_campaign").query(Boolean.class).single()).isTrue();
     }
 
+    private void setAges() {
+        // 8 khách đủ điều kiện (id tăng dần): 4 khách mua 5 ngày trước, 2 khách 50 ngày, 2 khách 200 ngày
+        List<Long> ids = jdbc.sql("SELECT id FROM customer ORDER BY id").query(Long.class).list();
+        int[] days = {5, 5, 5, 5, 50, 50, 200, 200, 20, 20};
+        for (int i = 0; i < ids.size(); i++) {
+            jdbc.sql("UPDATE customer SET last_order_on = now() - make_interval(days => :d) WHERE id = :id")
+                    .param("d", days[i]).param("id", ids.get(i)).update();
+        }
+    }
+
+    private List<Integer> pickedAges() {
+        return jdbc.sql("""
+                SELECT (now()::date - c.last_order_on::date) FROM invitation i JOIN customer c ON c.id = i.customer_id ORDER BY 1""")
+                .query(Integer.class).list();
+    }
+
+    @Test
+    void duyetAmChonKhachTheoDoMoiLanMuaVaNgayGuiCuaDeXuat() throws Exception {
+        setAges();
+        long id = proposal("Khách mua trong 3 tháng", "R:NAM", 5, today());
+        // thứ Hai và thứ Sáu (bit 0 và bit 4), khách mua cách đây từ 30 đến 100 ngày
+        jdbc.sql("UPDATE campaign_proposal SET weekdays = 17, min_days = 30, max_days = 100 WHERE id = :id").param("id", id).update();
+        mvc.perform(post("/advisor/proposals/" + id + "/approve").with(user("admin")).with(csrf()))
+                .andExpect(redirectedUrlPattern("/campaigns/*"));
+        assertThat(pickedAges()).as("chỉ 2 khách mua cách đây 50 ngày được chọn").containsExactly(50, 50);
+        assertThat(jdbc.sql("SELECT weekdays FROM invitation_campaign").query(Integer.class).single()).isEqualTo(17);
+    }
+
+    @Test
+    void duyetAmLayKhachMuaGanDayNhatTruocKhiDeXuatYeuCau() throws Exception {
+        setAges();
+        long id = proposal("Khách vừa mua", "R:NAM", 3, today());
+        jdbc.sql("UPDATE campaign_proposal SET pick_order = 'NEWEST_PURCHASE' WHERE id = :id").param("id", id).update();
+        mvc.perform(post("/advisor/proposals/" + id + "/approve").with(user("admin")).with(csrf()))
+                .andExpect(redirectedUrlPattern("/campaigns/*"));
+        assertThat(pickedAges()).containsExactly(5, 5, 5);
+        // lọc độ mới mà không còn khách nào hợp thì báo rõ, không tạo chiến dịch
+        long id2 = proposal("Khách mua rất lâu", "R:NAM", 3, today());
+        jdbc.sql("UPDATE campaign_proposal SET min_days = 900 WHERE id = :id").param("id", id2).update();
+        mvc.perform(post("/advisor/proposals/" + id2 + "/approve").with(user("admin")).with(csrf()))
+                .andExpect(redirectedUrl("/advisor"))
+                .andExpect(flash().attribute("flashBad", containsString("cách chọn khách của đề xuất")));
+        assertThat(count("invitation_campaign")).isEqualTo(1);
+    }
+
     @Test
     void duyetTaoChienDichChuaDuyetTuGuiVaKhongCoTinNaoDi() throws Exception {
         long id = proposal("Rét đợt 1, miền Nam", "R:NAM", 5, today());
