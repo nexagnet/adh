@@ -167,6 +167,54 @@ class AdvisorSnapshotTest extends AbstractPostgresTest {
     }
 
     @Test
+    void ketQuaTheoBuocChiHienKhiDuKhachVaCoKetQuaDeXuatTruoc() {
+        long campaign = invites.createCampaign("Đợt đã gửi", null, 14, 6, "P:tphcm");
+        List<Long> inv = jdbc.sql("SELECT id FROM invitation WHERE campaign_id = :c ORDER BY id").param("c", campaign).query(Long.class).list();
+        // mới nhắn 3 khách: chưa đủ để kết luận
+        for (int i = 0; i < 3; i++) {
+            jdbc.sql("UPDATE invitation SET status = 'SENT', sent_at = now() WHERE id = :id").param("id", inv.get(i)).update();
+        }
+        var small = service.build().campaigns().getFirst();
+        assertThat(small.sent()).isEqualTo(3);
+        assertThat(small.friended()).isNull();
+        assertThat(small.joined()).isNull();
+        assertThat(small.optedOut()).isNull();
+        // nhắn đủ 6, 2 kết bạn, 1 vào nhóm, 1 đã từ chối
+        for (int i = 0; i < 6; i++) {
+            jdbc.sql("UPDATE invitation SET status = 'SENT', sent_at = now() WHERE id = :id").param("id", inv.get(i)).update();
+        }
+        jdbc.sql("UPDATE invitation SET friended_at = now() WHERE id IN (:ids)").param("ids", inv.subList(0, 2)).update();
+        jdbc.sql("UPDATE invitation SET joined_at = now() WHERE id = :id").param("id", inv.get(0)).update();
+        String phone = jdbc.sql("SELECT c.phone FROM invitation i JOIN customer c ON c.id = i.customer_id WHERE i.id = :id")
+                .param("id", inv.get(5)).query(String.class).single();
+        jdbc.sql("""
+                INSERT INTO suppression (phone_hash, reason, source, recorded_by) VALUES (encode(sha256(convert_to(:p, 'UTF8')), 'hex'), 'OPT_OUT', 'test', 'test')""")
+                .param("p", phone).update();
+        // một đề xuất AI đã triển khai thành chiến dịch này
+        long run = jdbc.sql("INSERT INTO advisor_run (created_by, status, snapshot_json) VALUES ('admin', 'OK', '{}') RETURNING id").query(Long.class).single();
+        jdbc.sql("""
+                INSERT INTO campaign_proposal (run_id, title, area, batch_size, start_on, end_on, window_from, window_to, daily_cap, reasons,
+                    confidence, state, decided_by, decided_at, campaign_id)
+                VALUES (:r, 'Đề xuất cũ', 'P:tphcm', 6, CURRENT_DATE, CURRENT_DATE + 3, '09:00', '11:00', 10, '["x"]'::jsonb, 0.55,
+                    'APPROVED', 'admin', now() - interval '2 days', :c)""").param("r", run).param("c", campaign).update();
+
+        AdvisorSnapshot s = service.build();
+        var c = s.campaigns().getFirst();
+        assertThat(c.sent()).isEqualTo(6);
+        assertThat(c.friended()).isEqualTo(2L);
+        assertThat(c.joined()).isEqualTo(1L);
+        assertThat(c.optedOut()).isEqualTo(1L);
+        assertThat(s.pastProposals()).hasSize(1);
+        var past = s.pastProposals().getFirst();
+        assertThat(past.confidence()).isEqualTo(0.55);
+        assertThat(past.daysAgo()).isEqualTo(2);
+        assertThat(past.sent()).isEqualTo(6);
+        assertThat(past.friended()).isEqualTo(2);
+        assertThat(past.optedOut()).isEqualTo(1);
+        assertThat(s.toJson()).doesNotContain("Đề xuất cũ").doesNotContain("Đợt đã gửi").doesNotContain(phone);
+    }
+
+    @Test
     void jsonGuiChoAiKhongCoDuLieuCaNhan() {
         forecast("tphcm", 24.0, 34.0, 6.0);
         invites.createCampaign("Thử", "Chào {ten}", 14, 2);

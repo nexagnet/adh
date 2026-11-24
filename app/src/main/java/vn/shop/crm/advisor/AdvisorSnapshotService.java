@@ -11,6 +11,8 @@ import vn.shop.crm.geo.VnGeo;
 import vn.shop.crm.invite.InviteService;
 import vn.shop.crm.map.Forecast;
 import vn.shop.crm.map.WeatherService;
+import vn.shop.crm.performance.CampaignPerformance;
+import vn.shop.crm.performance.PerformanceService;
 import vn.shop.crm.zalo.ZaloAutoSettings;
 import vn.shop.crm.zalo.ZaloMessageService;
 
@@ -50,11 +52,13 @@ public class AdvisorSnapshotService {
     private final ZaloMessageService messages;
     private final ZaloAutoSettings autoSettings;
     private final InviteService invites;
+    private final PerformanceService performance;
     private final Clock clock;
 
     public AdvisorSnapshotService(JdbcClient jdbc, ContactService contacts, WeatherService weather,
                                   ZaloMessageService messages, ZaloAutoSettings autoSettings, InviteService invites,
-                                  Clock clock) {
+                                  PerformanceService performance, Clock clock) {
+        this.performance = performance;
         this.jdbc = jdbc;
         this.contacts = contacts;
         this.weather = weather;
@@ -145,7 +149,9 @@ public class AdvisorSnapshotService {
 
         AdvisorSnapshot.Overall overall = new AdvisorSnapshot.Overall(total.customers, total.oneTime, total.eligible,
                 total.awaiting, unknown.customers, hidden, total.funnel());
-        return new AdvisorSnapshot(today.toString(), calendar, limits, overall, areas, slots(), campaigns());
+        Map<Long, CampaignPerformance> perf = new LinkedHashMap<>();
+        performance.anonymized().campaigns().forEach(c -> perf.put(c.id(), c));
+        return new AdvisorSnapshot(today.toString(), calendar, limits, overall, areas, slots(), campaigns(perf), pastProposals(perf, now));
     }
 
     private AdvisorSnapshot.Area area(SubRegion sub, Acc acc, List<Map.Entry<Province, Acc>> provinces,
@@ -317,12 +323,18 @@ public class AdvisorSnapshotService {
     static final int MAX_CAMPAIGNS = 10;
     static final int CAMPAIGN_RECENT_DAYS = 30;
 
-    /** Chiến dịch còn khách chờ hoặc mới tạo trong {@link #CAMPAIGN_RECENT_DAYS} ngày: chỉ ngày, khung giờ và số đếm, không tên chiến dịch, không khách. */
-    private List<AdvisorSnapshot.CampaignInfo> campaigns() {
+    /** Chiến dịch có ít hơn chừng này khách đã nhắn thì kết quả (kết bạn, vào nhóm, từ chối, mua) bị ẩn: quá ít để kết luận và để không suy ngược ra từng khách. */
+    static final int MIN_RESULT_SENT = 5;
+
+    /** Chiến dịch còn khách chờ hoặc mới tạo trong {@link #CAMPAIGN_RECENT_DAYS} ngày: ngày, khung giờ, số đếm và kết quả theo bước, không tên chiến dịch, không khách. */
+    private List<AdvisorSnapshot.CampaignInfo> campaigns(Map<Long, CampaignPerformance> perf) {
+        Map<Long, Long> optedOut = contacts.optedOutAfterInviteByCampaign();
         return jdbc.sql("""
-                        SELECT k.geo_scope, k.auto_send_approved_at IS NOT NULL AS approved, k.start_on, k.end_on, k.window_from, k.window_to,
+                        SELECT k.id, k.geo_scope, k.auto_send_approved_at IS NOT NULL AS approved, k.start_on, k.end_on, k.window_from, k.window_to,
                                k.daily_cap, count(i.id) AS total, count(i.id) FILTER (WHERE i.status = 'READY') AS ready,
-                               count(i.id) FILTER (WHERE i.sent_at IS NOT NULL) AS sent
+                               count(i.id) FILTER (WHERE i.sent_at IS NOT NULL) AS sent,
+                               count(i.id) FILTER (WHERE i.friended_at IS NOT NULL) AS friended,
+                               count(i.id) FILTER (WHERE i.joined_at IS NOT NULL) AS joined
                         FROM invitation_campaign k LEFT JOIN invitation i ON i.campaign_id = k.id
                         GROUP BY k.id
                         HAVING count(i.id) FILTER (WHERE i.status = 'READY') > 0 OR k.created_at >= now() - make_interval(days => :days)
@@ -330,13 +342,49 @@ public class AdvisorSnapshotService {
                 .param("days", CAMPAIGN_RECENT_DAYS).param("n", MAX_CAMPAIGNS)
                 .query((rs, i) -> {
                     long ready = rs.getLong("ready");
+                    long sent = rs.getLong("sent");
                     String state = ready == 0 ? "XONG" : rs.getBoolean("approved") ? "DANG_GUI" : "CHUA_DUYET";
                     String scope = rs.getString("geo_scope");
+                    boolean enough = sent >= MIN_RESULT_SENT;
+                    CampaignPerformance p = perf.get(rs.getLong("id"));
                     return new AdvisorSnapshot.CampaignInfo(scope == null || scope.isBlank() ? "ALL" : scope, state,
                             str(rs.getObject("start_on", LocalDate.class)), str(rs.getObject("end_on", LocalDate.class)),
                             str(rs.getObject("window_from", java.time.LocalTime.class)), str(rs.getObject("window_to", java.time.LocalTime.class)),
-                            (Integer) rs.getObject("daily_cap"), rs.getLong("total"), ready, rs.getLong("sent"));
+                            (Integer) rs.getObject("daily_cap"), rs.getLong("total"), ready, sent,
+                            enough ? rs.getLong("friended") : null, enough ? rs.getLong("joined") : null,
+                            enough ? optedOut.getOrDefault(rs.getLong("id"), 0L) : null,
+                            enough && p != null && !p.masked() ? p.buyers() : null);
                 }).list();
+    }
+
+    /** Số đề xuất đã triển khai báo cho AI, tối đa. */
+    static final int MAX_PAST = 10;
+
+    /** Kết quả các đề xuất AI trước đây đã được triển khai thành chiến dịch (cần đủ khách đã nhắn mới có kết quả). */
+    private List<AdvisorSnapshot.PastProposal> pastProposals(Map<Long, CampaignPerformance> perf, LocalDateTime now) {
+        Map<Long, Long> optedOut = contacts.optedOutAfterInviteByCampaign();
+        return jdbc.sql("""
+                        SELECT p.campaign_id, p.confidence, p.decided_at,
+                               count(i.id) FILTER (WHERE i.sent_at IS NOT NULL) AS sent,
+                               count(i.id) FILTER (WHERE i.friended_at IS NOT NULL) AS friended,
+                               count(i.id) FILTER (WHERE i.joined_at IS NOT NULL) AS joined
+                        FROM campaign_proposal p JOIN invitation i ON i.campaign_id = p.campaign_id
+                        WHERE p.state = 'APPROVED' AND p.campaign_id IS NOT NULL
+                        GROUP BY p.id ORDER BY p.decided_at DESC LIMIT :n""")
+                .param("n", MAX_PAST)
+                .query((rs, i) -> {
+                    long sent = rs.getLong("sent");
+                    if (sent < MIN_RESULT_SENT) {
+                        return null;
+                    }
+                    long cid = rs.getLong("campaign_id");
+                    CampaignPerformance p = perf.get(cid);
+                    OffsetDateTime decided = rs.getObject("decided_at", OffsetDateTime.class);
+                    int daysAgo = decided == null ? 0 : (int) java.time.temporal.ChronoUnit.DAYS.between(decided.toLocalDate(), now.toLocalDate());
+                    return new AdvisorSnapshot.PastProposal(rs.getBigDecimal("confidence").doubleValue(), daysAgo, sent,
+                            rs.getLong("friended"), rs.getLong("joined"), optedOut.getOrDefault(cid, 0L),
+                            p != null && !p.masked() ? p.buyers() : null);
+                }).list().stream().filter(java.util.Objects::nonNull).toList();
     }
 
     private static String str(Object o) {

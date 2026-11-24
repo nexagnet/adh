@@ -191,6 +191,26 @@ class AdvisorWebTest extends AbstractPostgresTest {
     }
 
     @Test
+    void trangHienKetQuaThatCuaDeXuatDaTrienKhai() throws Exception {
+        long id = proposal("Rét đợt 1, miền Nam", "R:NAM", 6, today());
+        mvc.perform(get("/advisor").with(user("admin"))).andExpect(content().string(not(containsString("Kết quả các đề xuất đã triển khai"))));
+        mvc.perform(post("/advisor/proposals/" + id + "/approve").with(user("admin")).with(csrf()));
+        mvc.perform(get("/advisor").with(user("admin")))
+                .andExpect(content().string(containsString("Kết quả các đề xuất đã triển khai")))
+                .andExpect(content().string(containsString("Chưa đủ khách đã nhắn để kết luận")));
+        List<Long> inv = jdbc.sql("SELECT id FROM invitation ORDER BY id").query(Long.class).list();
+        for (Long i : inv) {
+            jdbc.sql("UPDATE invitation SET status = 'SENT', sent_at = now() WHERE id = :id").param("id", i).update();
+        }
+        jdbc.sql("UPDATE invitation SET friended_at = now() WHERE id IN (:ids)").param("ids", inv.subList(0, 2)).update();
+        mvc.perform(get("/advisor").with(user("admin")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("2 (33%)")))
+                .andExpect(content().string(not(containsString("Chưa đủ khách đã nhắn để kết luận"))))
+                .andExpect(content().string(not(containsString("Exception"))));
+    }
+
+    @Test
     void duyetAmLayKhachMuaGanDayNhatTruocKhiDeXuatYeuCau() throws Exception {
         setAges();
         long id = proposal("Khách vừa mua", "R:NAM", 3, today());

@@ -154,6 +154,17 @@ Chốt an toàn (mã chặn, không dựa vào lời hứa của AI hay người
 8. **PR 8:** trang chiến dịch chia 4 tab (**đã làm**: `?tab=tong-quan|lich|tin|nhom`, lưu xong vẫn về đúng tab). Gỡ các chỗ cấu hình trùng ở `/zalo`, `/test-runs`, `/today` (theo kế hoạch dọn giao diện đã duyệt) **chưa làm**, chỉ làm sau khi tự gửi chạy ổn trên thật.
 9. Sau đó (cần duyệt thêm): AI gợi ý nội dung từng lần theo đợt; đề xuất "thử nghiệm" chia khung giờ để có lịch sử so sánh; lịch sử từng chiến dịch (phễu theo bước và khung giờ) đưa vào bản tổng hợp để AI học từ kết quả; chạy hằng ngày chỉ để sinh đề xuất (vẫn người duyệt).
 
+### 6a. Nâng cấp ngày 24/11/2026 (PR #122 và #127 đến #13x; chủ dự án: "làm toàn bộ theo đề xuất, không cần tôi chốt")
+
+- **Mô hình và suy nghĩ sâu (chỉ lượt đề xuất):** theo api-docs.deepseek.com (24/11/2026) chỉ có `deepseek-flash` và `deepseek-v4-pro`; lượt đề xuất dùng `deepseek-v4-pro` (`APP_AI_ADVISOR_MODEL`, rỗng = dùng `APP_AI_MODEL`) với `thinking: enabled` (`APP_AI_ADVISOR_THINKING`, mặc định bật), 16000 token đầu ra gồm token suy nghĩ, chờ tối đa 120 giây. Các lượt AI khác không đổi.
+- **Triển khai:** nút "Triển khai" tạo chiến dịch theo đề xuất, bật sẵn hoãn khi mưa, hạn lời mời tính tới hết ngày kết thúc cộng 14 ngày (trước đó 14 ngày từ lúc tạo nên lời mời có thể hết hạn trước ngày gửi).
+- **Biết chiến dịch đang chạy (#127):** `campaigns` trong số liệu (khu vực, trạng thái, ngày, số đếm; không tên). Mã bỏ đề xuất trùng khu vực và thời gian với chiến dịch còn khách chờ, và đề xuất có `batch_size` lớn hơn hạn mức ngày x số ngày gửi.
+- **Thêm núm (#128, V49):** `weekdays`, `pick_order` (`OLDEST_APPROVED`, `NEWEST_PURCHASE`, `OLDEST_PURCHASE`), `min_days_since_purchase`, `max_days_since_purchase` (tùy chọn); `ContactService.Pick` chỉ làm hẹp tập khách.
+- **Nhóm hàng (#129, V50):** `ProductGroup` phân loại GẦN ĐÚNG tên hàng thành `AO_DIEU_HOA`, `PIN`, `PHU_KIEN_KHAC`, `CHUA_RO`; số liệu `products` theo vùng (chỉ số); đề xuất `product_group` để chỉ mời khách đã mua nhóm đó. Chủ dự án chưa chốt cách phân nhóm nên đây là phương án tạm theo từ khóa; sửa danh sách từ khóa ở `ProductGroup` nếu sai.
+- **Thời tiết nhiều ngày (#130, V51):** `weather_forecast.daily` từ chuỗi MET Norway (khoảng 9 ngày), `weather.outlook` trong số liệu; ngày bắt đầu ngoài vùng có dự báo thì độ tin cậy bị chặn 0,65.
+- **Kết quả thật và độ chính xác:** `campaigns[].friended/joined/opted_out/buyers` (chỉ khi đã nhắn từ 5 khách, quá nhỏ thì null) và `past_proposals` (độ tin cậy lúc đó cùng phễu thật của các đề xuất đã triển khai) để AI tự soi; trang `/advisor` có bảng "Kết quả các đề xuất đã triển khai" so với các chiến dịch khác.
+- **Chưa làm:** đề xuất số lần gửi (chuỗi tin nhắc) và ngưỡng tự dừng riêng; chia A/B; so doanh thu theo đơn qua nhóm (chờ chốt tiền tố `NHOM-`).
+
 ## 7. Điều cần người dùng biết
 
 **Câu hỏi mở cần chủ dự án chốt (chưa chặn PR 1):** (a) nhóm hàng (áo điều hòa / pin / phụ kiện) gán thế nào: AI phân loại tên hàng một lần rồi lưu nhóm vào khách (đúng quy tắc "ngôn ngữ tự nhiên thì dùng AI", chỉ gửi tên hàng đã che), hay người dùng khai báo bảng từ khóa; (b) có muốn thử A/B từ đợt đầu hay chờ có lịch sử; (c) ngưỡng tự dừng khi khách từ chối nhiều (đề xuất 5% trong 20 tin đầu).

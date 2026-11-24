@@ -218,6 +218,18 @@ public class ContactService {
                 + " AND s.reason = 'OPT_OUT' AND s.lifted_at IS NULL) GROUP BY 1");
     }
 
+    /** Số khách đã được nhắn trong từng chiến dịch mà nay đang nằm trong sổ từ chối (còn hiệu lực), theo mã chiến dịch. */
+    public java.util.Map<Long, Long> optedOutAfterInviteByCampaign() {
+        java.util.Map<Long, Long> out = new java.util.LinkedHashMap<>();
+        jdbc.sql("SELECT i.campaign_id AS k, count(DISTINCT c.id) AS n FROM customer c "
+                        + "JOIN invitation i ON i.customer_id = c.id AND i.sent_at IS NOT NULL "
+                        + "WHERE EXISTS (SELECT 1 FROM suppression s WHERE s.phone_hash = " + SUPPRESSED_HASH
+                        + " AND s.reason = 'OPT_OUT' AND s.lifted_at IS NULL) GROUP BY 1")
+                .query((rs, i) -> java.util.Map.entry(rs.getLong("k"), rs.getLong("n"))).list()
+                .forEach(e -> out.put(e.getKey(), e.getValue()));
+        return out;
+    }
+
     private java.util.Map<String, Long> countsByProvince(String sql) {
         java.util.Map<String, Long> out = new java.util.LinkedHashMap<>();
         jdbc.sql(sql).query((rs, i) -> java.util.Map.entry(rs.getString("p"), rs.getLong("n"))).list()

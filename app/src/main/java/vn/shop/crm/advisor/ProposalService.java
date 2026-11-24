@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -117,13 +118,43 @@ public class ProposalService {
     public record RunDetail(Run run, String snapshotJson, String aiOutput) {
     }
 
+    /** Kết quả thật của một đề xuất đã triển khai (chiến dịch đã tạo từ đề xuất): để biết AI đoán trúng hay trượt. */
+    public record Outcome(long proposalId, String title, String areaLabel, int confidencePercent, long campaignId,
+                          long sent, long friended, long joined, long optedOut, Long buyers) {
+        /** Chiến dịch có ít hơn chừng này khách đã nhắn thì chưa kết luận được. */
+        public static final int MIN_SENT = 5;
+
+        public boolean enough() {
+            return sent >= MIN_SENT;
+        }
+
+        public Double friendedPercent() {
+            return sent == 0 ? null : 100.0 * friended / sent;
+        }
+
+        public Double joinedPercent() {
+            return sent == 0 ? null : 100.0 * joined / sent;
+        }
+
+        public Double refusalPercent() {
+            return sent == 0 ? null : 100.0 * optedOut / sent;
+        }
+    }
+
+    /** Kết quả các đề xuất đã triển khai và mốc so sánh: tỉ lệ chung của các chiến dịch KHÔNG tạo từ đề xuất AI. */
+    public record Track(List<Outcome> outcomes, long baselineSent, Double baselineFriendedPercent, Double baselineJoinedPercent) {
+    }
+
     private final JdbcClient jdbc;
     private final ContactService contacts;
     private final InviteService invites;
     private final CampaignPolicy policy;
     private final Clock clock;
+    private final vn.shop.crm.performance.PerformanceService performance;
 
-    ProposalService(JdbcClient jdbc, ContactService contacts, InviteService invites, CampaignPolicy policy, Clock clock) {
+    ProposalService(JdbcClient jdbc, ContactService contacts, InviteService invites, CampaignPolicy policy, Clock clock,
+                    vn.shop.crm.performance.PerformanceService performance) {
+        this.performance = performance;
         this.policy = policy;
         this.jdbc = jdbc;
         this.contacts = contacts;
@@ -159,6 +190,36 @@ public class ProposalService {
                                (SELECT count(*) FROM campaign_proposal p WHERE p.run_id = r.id) AS proposals
                         FROM advisor_run r ORDER BY r.id DESC LIMIT""" + " " + RECENT_RUNS)
                 .query(this::mapRun).list();
+    }
+
+    /** Kết quả thật của các đề xuất đã triển khai (mới nhất trước) và mốc so sánh. Chỉ số đếm, không khách nào. */
+    public Track track() {
+        Map<Long, Long> optedOut = contacts.optedOutAfterInviteByCampaign();
+        Map<Long, vn.shop.crm.performance.CampaignPerformance> perf = new java.util.HashMap<>();
+        performance.anonymized().campaigns().forEach(c -> perf.put(c.id(), c));
+        List<Outcome> outcomes = jdbc.sql("""
+                        SELECT p.id, p.title, p.area, p.confidence, p.campaign_id,
+                               count(i.id) FILTER (WHERE i.sent_at IS NOT NULL) AS sent,
+                               count(i.id) FILTER (WHERE i.friended_at IS NOT NULL) AS friended,
+                               count(i.id) FILTER (WHERE i.joined_at IS NOT NULL) AS joined
+                        FROM campaign_proposal p LEFT JOIN invitation i ON i.campaign_id = p.campaign_id
+                        WHERE p.state = 'APPROVED' AND p.campaign_id IS NOT NULL
+                        GROUP BY p.id ORDER BY p.decided_at DESC NULLS LAST, p.id DESC LIMIT 20""")
+                .query((rs, n) -> {
+                    long cid = rs.getLong("campaign_id");
+                    var cp = perf.get(cid);
+                    return new Outcome(rs.getLong("id"), rs.getString("title"), areaLabel(rs.getString("area")),
+                            (int) Math.round(rs.getBigDecimal("confidence").doubleValue() * 100), cid, rs.getLong("sent"),
+                            rs.getLong("friended"), rs.getLong("joined"), optedOut.getOrDefault(cid, 0L),
+                            cp != null && !cp.masked() ? cp.buyers() : null);
+                }).list();
+        long[] base = jdbc.sql("""
+                        SELECT count(i.id) FILTER (WHERE i.sent_at IS NOT NULL), count(i.id) FILTER (WHERE i.friended_at IS NOT NULL),
+                               count(i.id) FILTER (WHERE i.joined_at IS NOT NULL)
+                        FROM invitation i
+                        WHERE NOT EXISTS (SELECT 1 FROM campaign_proposal p WHERE p.campaign_id = i.campaign_id AND p.state = 'APPROVED')""")
+                .query((rs, n) -> new long[]{rs.getLong(1), rs.getLong(2), rs.getLong(3)}).single();
+        return new Track(outcomes, base[0], base[0] == 0 ? null : 100.0 * base[1] / base[0], base[0] == 0 ? null : 100.0 * base[2] / base[0]);
     }
 
     public Optional<RunDetail> run(long id) {

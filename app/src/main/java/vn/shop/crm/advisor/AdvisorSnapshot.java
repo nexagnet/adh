@@ -19,11 +19,18 @@ public record AdvisorSnapshot(
         Overall overall,
         List<Area> areas,
         List<Slot> sendSlots,
-        List<CampaignInfo> campaigns) {
+        List<CampaignInfo> campaigns,
+        List<PastProposal> pastProposals) {
 
     /** Bản không có danh sách chiến dịch (dùng trong test và khi chưa có chiến dịch nào). */
     public AdvisorSnapshot(String generatedOn, Calendar calendar, Limits limits, Overall overall, List<Area> areas, List<Slot> sendSlots) {
-        this(generatedOn, calendar, limits, overall, areas, sendSlots, List.of());
+        this(generatedOn, calendar, limits, overall, areas, sendSlots, List.of(), List.of());
+    }
+
+    /** Bản không có kết quả các đề xuất trước (dùng trong test). */
+    public AdvisorSnapshot(String generatedOn, Calendar calendar, Limits limits, Overall overall, List<Area> areas, List<Slot> sendSlots,
+                           List<CampaignInfo> campaigns) {
+        this(generatedOn, calendar, limits, overall, areas, sendSlots, campaigns, List.of());
     }
 
     private static final JsonMapper JSON = JsonMapper.builder()
@@ -105,10 +112,23 @@ public record AdvisorSnapshot(
      * CHUA_DUYET (còn khách chờ nhưng chưa duyệt tự gửi) hoặc XONG (hết khách chờ).
      */
     public record CampaignInfo(String scope, String state, String startOn, String endOn, String windowFrom, String windowTo,
-                               Integer dailyCap, long total, long ready, long sent) {
+                               Integer dailyCap, long total, long ready, long sent, Long friended, Long joined, Long optedOut, Long buyers) {
+        /** Bản không có kết quả theo bước (dùng trong test). */
+        public CampaignInfo(String scope, String state, String startOn, String endOn, String windowFrom, String windowTo,
+                            Integer dailyCap, long total, long ready, long sent) {
+            this(scope, state, startOn, endOn, windowFrom, windowTo, dailyCap, total, ready, sent, null, null, null, null);
+        }
+
         public boolean open() {
             return "DANG_GUI".equals(state) || "CHUA_DUYET".equals(state);
         }
+    }
+
+    /**
+     * Kết quả của một đề xuất AI trước đây đã được triển khai thành chiến dịch, để AI tự soi độ chính xác của mình: độ tin cậy lúc đó và phễu thật.
+     * {@code buyers}: số khách mua sau khi vào nhóm, null nếu chiến dịch quá nhỏ (ẩn để không suy ngược ra từng khách).
+     */
+    public record PastProposal(double confidence, int daysAgo, long sent, long friended, long joined, long optedOut, Long buyers) {
     }
 
     /** Chuỗi JSON đưa cho AI (khóa dạng snake_case). */

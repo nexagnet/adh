@@ -33,6 +33,7 @@ class AdvisorController {
         model.addAttribute("open", proposals.open());
         model.addAttribute("decided", proposals.decided());
         model.addAttribute("runs", proposals.runs());
+        model.addAttribute("track", proposals.track());
         return "advisor";
     }
 
