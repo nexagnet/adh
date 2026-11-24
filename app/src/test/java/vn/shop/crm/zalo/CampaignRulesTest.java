@@ -180,7 +180,9 @@ class CampaignRulesTest extends AbstractPostgresTest {
         forecast(province, 8.0, "heavyrain", 8); // 8 giờ nữa: ngoài cửa sổ 3 giờ
         assertThat(rain.rainyProvinces()).isEmpty();
         forecast(province, 8.0, "heavyrain", 1);
-        jdbc.sql("UPDATE weather_forecast SET fetched_at = now() - interval '2 days'").update();
+        // "Quá cũ" tính theo đồng hồ test (RainHold dùng đồng hồ ứng dụng), không theo now() thật của cơ sở dữ liệu: đồng hồ test đứng yên ở 23/11
+        // nên now() - 2 ngày chỉ đúng vào những giờ thật nhất định rồi hỏng dần theo ngày tháng.
+        jdbc.sql("UPDATE weather_forecast SET fetched_at = :t").param("t", java.sql.Timestamp.from(clock.instant().minus(Duration.ofDays(2)))).update();
         assertThat(rain.rainyProvinces()).isEmpty(); // dự báo quá cũ
         assertThat(sender.step()).isEqualTo(Step.INVITE_SENT);
     }
