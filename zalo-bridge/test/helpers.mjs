@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Bridge } from '../src/bridge.mjs';
-import { EventBuffer } from '../src/events.mjs';
+import { EventBuffer, InboxBuffer } from '../src/events.mjs';
 import { AddLedger, MessageLedger } from '../src/guard.mjs';
 import { SessionStore } from '../src/session-store.mjs';
 import { FakeAdapter } from '../src/fake-adapter.mjs';
@@ -40,6 +40,7 @@ export function setup({ env = {}, adapterOpts = {}, start = true } = {}) {
       friendLedger: new MessageLedger(path.join(dir, 'friend-requests.json'), config.sessionKey),
       groupLedger: new AddLedger(path.join(dir, 'group-creates.json')),
       events: new EventBuffer({ now: () => clock.t }),
+      inbox: new InboxBuffer({ now: () => clock.t, file: path.join(dir, 'inbox.enc'), key: config.sessionKey }),
       now: () => clock.t,
       log: (m) => logs.push(m),
     });

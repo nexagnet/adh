@@ -1092,7 +1092,7 @@ test('tin riêng: cắt 500 ký tự, xác nhận (after) thì bỏ tin cũ, qu�
   const after = c.bridge.inboxMessages(first[0].seq);
   assert.deepEqual(after.map((m) => m.text), ['tin hai']);
   assert.deepEqual(c.bridge.inboxMessages(0).map((m) => m.text), ['tin hai']);
-  c.clock.t += 7 * 3600 * 1000;
+  c.clock.t += 25 * 3600 * 1000;
   assert.deepEqual(c.bridge.inboxMessages(0), []);
   c.cleanup();
 });
@@ -1416,4 +1416,80 @@ test('BR-01: mã số thứ tự sự kiện kết bạn không quay lại sau k
   const b = second.push({ uid: '2', phone: null });
   assert.ok(b > a, 'seq mới phải lớn hơn seq cũ mà Adh đã nhớ');
   assert.deepEqual(second.after(a).map((e) => e.uid), ['2']);
+});
+
+// ---------- không mất tin riêng của khách (cầu dao chỉ chặn GỬI, tin lưu bền) ----------
+
+test('tin riêng: cầu dao nhảy vì lỗi thường thì VẪN nhận tin (chỉ chặn gửi)', async () => {
+  const c = setup({ env: { BRIDGE_INBOX_ENABLED: 'true' } });
+  await c.bridge.start();
+  await loginAndListen(c);
+  await c.bridge.sendMessage({ kind: 'INVITE', uid: '777', text: 'Chào' });
+  c.bridge.trip('SYSTEM_ERROR:UNKNOWN');
+  assert.equal(c.bridge.status().state, 'TRIPPED');
+  assert.equal(c.adapter.listening, true);
+  c.adapter.emitMessage('777', 'Ok');
+  assert.deepEqual(c.bridge.inboxMessages(0).map((m) => m.text), ['Ok']);
+  assert.equal((await c.bridge.sendMessage({ kind: 'REPLY', uid: '777', text: 'x' })).code, 'NOT_ACTIVE');
+  c.cleanup();
+});
+
+test('tin riêng: lỗi phiên, Zalo hạn chế hay dừng tay thì đóng hẳn, không nhận', async () => {
+  for (const reason of ['SESSION_LOST', 'RESTRICTED:Z1', 'STOP', 'KICKED', 'DUPLICATE_CONNECTION']) {
+    const c = setup({ env: { BRIDGE_INBOX_ENABLED: 'true' } });
+    await c.bridge.start();
+    await loginAndListen(c);
+    await c.bridge.sendMessage({ kind: 'INVITE', uid: '777', text: 'Chào' });
+    c.bridge.trip(reason);
+    assert.equal(c.adapter.listening, false, reason);
+    c.adapter.emitMessage('777', 'Ok');
+    assert.deepEqual(c.bridge.inboxMessages(0), [], reason);
+    c.cleanup();
+  }
+});
+
+test('tin riêng: tắt cờ nghe tin thì cầu dao đóng hẳn như cũ', async () => {
+  const c = setup();
+  await c.bridge.start();
+  await loginAndListen(c);
+  c.bridge.trip('LIMIT');
+  assert.equal(c.adapter.listening, false);
+  c.cleanup();
+});
+
+test('tin riêng: khởi động lại khi đang dừng gửi (lỗi thường) thì nối lại chỉ để nhận, vẫn TRIPPED, tin chưa lấy không mất', async () => {
+  const c = setup({ env: { BRIDGE_INBOX_ENABLED: 'true' } });
+  await c.bridge.start();
+  await loginAndListen(c);
+  await c.bridge.sendMessage({ kind: 'INVITE', uid: '777', text: 'Chào' });
+  c.adapter.emitMessage('777', 'tin trước khi dừng');
+  c.bridge.trip('MSG_LIMIT');
+  c.adapter.stopListening();
+  const b2 = c.rebuild();
+  await b2.start();
+  await flush();
+  await flush();
+  assert.equal(b2.status().state, 'TRIPPED');
+  assert.equal(c.adapter.listening, true);
+  assert.deepEqual(b2.inboxMessages(0).map((m) => m.text), ['tin trước khi dừng']); // tin lưu bền qua khởi động lại
+  c.adapter.emitMessage('777', 'Ok');
+  assert.deepEqual(b2.inboxMessages(0).map((m) => m.text), ['tin trước khi dừng', 'Ok']);
+  assert.equal((await b2.sendMessage({ kind: 'REPLY', uid: '777', text: 'x' })).code, 'NOT_ACTIVE');
+  c.cleanup();
+});
+
+test('tin riêng: tệp hộp thư mã hóa, không có chữ rõ, xác nhận thì xóa khỏi tệp', async () => {
+  const { readFileSync } = await import('node:fs');
+  const c = setup({ env: { BRIDGE_INBOX_ENABLED: 'true' } });
+  await c.bridge.start();
+  await loginAndListen(c);
+  await c.bridge.sendMessage({ kind: 'INVITE', uid: '777', text: 'Chào' });
+  c.adapter.emitMessage('777', 'noi dung bi mat');
+  const raw = readFileSync(path.join(c.dir, 'inbox.enc'), 'utf8');
+  assert.ok(!raw.includes('noi dung bi mat') && !raw.includes('777'));
+  const seq = c.bridge.inboxMessages(0)[0].seq;
+  c.bridge.inboxMessages(seq);
+  const b2 = c.rebuild();
+  assert.deepEqual(b2.inboxMessages(0), []);
+  c.cleanup();
 });

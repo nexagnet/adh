@@ -99,13 +99,26 @@ public class ZaloInboxService implements ZaloTickHook {
         poll();
     }
 
-    /** Trả số tin đã xử lý. */
+    /**
+     * Lý do dừng khiến KHÔNG nên nhận tin nữa (phiên, tài khoản, Zalo hạn chế, người bấm Dừng ngay hay Đăng xuất). Mọi lý do khác (hạn mức, khung giờ, lỗi lạ)
+     * chỉ chặn GỬI: vẫn đọc và ghi nhận tin khách nhắn tới, để cầu dao nhảy không làm mất tin. Khớp với {@code isSoftTrip} ở cầu nối.
+     */
+    static boolean hardTrip(String reason) {
+        return reason != null && reason.matches("^(STOP|SESSION_LOST|RESTRICTED|DUPLICATE_CONNECTION|KICKED|RECONNECT_FAILED|LEDGER_CORRUPT|CRASH_LOOP|INTERRUPTED|DUNG_TAY|DANG_XUAT)(:.*)?$");
+    }
+
+    /** Trả số tin đã xử lý. Cầu dao chỉ chặn việc GỬI; việc nhận tin vẫn chạy (trừ khi người bấm Dừng ngay hay mất phiên). */
     public int poll() {
-        if (!running() || !cfg.effectiveMode().listens() || cfg.tripped()) {
+        if (!running() || !cfg.props().enabled() || !cfg.chosenMode().listens()) {
+            return 0;
+        }
+        if (cfg.tripped() && hardTrip(cfg.trippedReason())) {
             return 0;
         }
         ZaloGateway.Status st = gateway.status();
-        if (st.state() != ZaloGateway.State.LISTENING || !Boolean.TRUE.equals(st.accountOk())) {
+        boolean listening = st.state() == ZaloGateway.State.LISTENING && Boolean.TRUE.equals(st.accountOk());
+        boolean receiveOnly = st.state() == ZaloGateway.State.TRIPPED && !hardTrip(st.tripReason()) && !Boolean.FALSE.equals(st.accountOk());
+        if (!listening && !receiveOnly) {
             return 0;
         }
         long cursor = cursor();

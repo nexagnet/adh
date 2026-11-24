@@ -42,7 +42,7 @@ const bridge = new Bridge({
   friendLedger: new MessageLedger(path.join(config.dataDir, 'friend-requests.json'), config.sessionKey),
   groupLedger: new AddLedger(path.join(config.dataDir, 'group-creates.json')),
   events: new EventBuffer(),
-  inbox: new InboxBuffer(),
+  inbox: new InboxBuffer({ file: path.join(config.dataDir, 'inbox.enc'), key: config.sessionKey }),
   log,
 });
 await bridge.start();
