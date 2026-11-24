@@ -272,9 +272,13 @@
         <form class="formrow" th:action="@{/zalo/group-limits}" method="post">
             <label class="field">Khách chờ tối thiểu để tạo nhóm <input type="number" name="minCustomers" th:value="${groupMin}" min="2" th:max="${groupProps.maxMembers}"></label>
             <label class="field">Mục tiêu số khách mỗi nhóm mới <input type="number" name="targetCustomers" th:value="${groupTarget}" min="5" th:max="${groupProps.maxTargetCustomers}"></label>
+            <label class="field">Trần mềm số khách mỗi nhóm <input type="number" name="softCap" th:value="${groupSoftCap}" min="5" max="50"></label>
+            <label class="field">Khách dư lẻ chờ quá (ngày) thì gộp lên nhóm cùng vùng, miền <input type="number" name="mergeUpDays" th:value="${groupMergeDays}" min="1" max="60"></label>
+            <label class="field">Chờ quá (ngày) thì khu vực chỉ cần 2 khách là lập nhóm <input type="number" name="relaxDays" th:value="${groupRelaxDays}" min="1" max="60"></label>
+            <label class="field">Chờ quá (ngày) thì báo mẹ <input type="number" name="alertDays" th:value="${groupAlertDays}" min="1" max="90"></label>
             <button type="submit" class="btn">Lưu</button>
         </form>
-        <p class="hint">Không giới hạn số nhóm tạo mỗi ngày; chỉ có khung giờ 08:00 đến 20:00 và khoảng nghỉ cố định giữa hai lần tạo. Số khách được nhắn mỗi ngày vẫn có hạn mức riêng ở mục tự gửi tin. Mục tiêu khoảng 5 KHÁCH mỗi nhóm (không tính tài khoản phụ và mẹ phó nhóm, nên nhóm thật khoảng 7 thành viên). Khách dư lẻ (khu vực quá ít khách để lập nhóm mới) được thêm vào nhóm gần đó còn dưới trần mềm (mục tiêu cộng 3 khách) thay vì chờ mãi. Nhóm đã có không đổi mục tiêu; sửa riêng từng nhóm ở trang Nhóm Zalo.</p>
+        <p class="hint">Không giới hạn số nhóm tạo mỗi ngày; chỉ có khung giờ 08:00 đến 20:00 và khoảng nghỉ cố định giữa hai lần tạo. Số khách được nhắn mỗi ngày vẫn có hạn mức riêng ở mục tự gửi tin. Mục tiêu khoảng 5 KHÁCH mỗi nhóm (không tính tài khoản phụ và mẹ phó nhóm, nên nhóm thật khoảng 7 thành viên). Khách dư lẻ (khu vực quá ít khách để lập nhóm mới) được thêm vào nhóm còn dưới trần mềm (mặc định 8 khách): mới đồng ý thì chỉ vào nhóm cùng tỉnh, chờ quá số ngày đã đặt thì được gộp lên nhóm cùng vùng hoặc miền. Nhóm đã có không đổi mục tiêu; sửa riêng từng nhóm ở trang Nhóm Zalo.</p>
         <p class="hint bad" th:if="${longWaiting > 0}"><strong th:text="${longWaiting}">2</strong> khách đã kết bạn mà chưa vào được nhóm nào: chờ quá <span th:text="${longWaitingDays}">14</span> ngày (khu vực quá ít khách để tạo nhóm) hoặc chưa rõ khu vực quá 2 ngày. Hãy chọn tỉnh cho họ, tạo nhóm tay hoặc gửi link nhóm gần nhất.</p>
         <div class="table-wrap">
             <table data-filter>

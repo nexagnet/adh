@@ -13,6 +13,9 @@ public class ZaloGroupSettings {
     static final String MODE = "zalo.group.mode";
     static final String MIN = "zalo.group.min_customers";
     static final String TARGET = "zalo.group.target_customers";
+    static final String D_MERGE = "zalo.group.merge_up_days";
+    static final String D_RELAX = "zalo.group.relax_days";
+    static final String D_ALERT = "zalo.group.alert_days";
     static final String LAST_PLAN = "zalo.group.last_plan_at";
     public static final String A_GROUP = "TAO_NHOM";
 
@@ -87,6 +90,34 @@ public class ZaloGroupSettings {
         int oldMin = minCustomers();
         settings.set(MIN, Integer.toString(minCustomers), by);
         auto.log(ZaloAutoSettings.A_CONFIG, null, null, "TAO_NHOM_NGUONG " + minCustomers, "CU " + oldMin, by);
+    }
+
+    /** Khách dư lẻ chờ quá số ngày này thì được gộp lên nhóm cùng vùng hoặc miền (mới đồng ý chỉ vào nhóm cùng tỉnh). */
+    public int mergeUpDays() {
+        return Math.max(1, Math.min(60, intSetting(D_MERGE, props.mergeUpAfterDays())));
+    }
+
+    /** Chờ quá số ngày này thì khu vực chỉ cần 2 khách là tạo nhóm, và được ưu tiên. */
+    public int relaxDays() {
+        return Math.max(mergeUpDays(), Math.min(60, intSetting(D_RELAX, props.relaxAfterDays())));
+    }
+
+    /** Chờ quá số ngày này thì báo mẹ xử lý. */
+    public int alertDays() {
+        return Math.max(relaxDays(), Math.min(90, intSetting(D_ALERT, props.alertAfterDays())));
+    }
+
+    public void setDays(int mergeUp, int relax, int alert, String by) {
+        if (mergeUp < 1 || relax < mergeUp || alert < relax || alert > 90) {
+            throw new ImportException("Số ngày phải tăng dần: gộp lên vùng (từ 1 ngày), rồi nới ngưỡng xuống 2 khách, rồi báo mẹ (tối đa 90 ngày).");
+        }
+        String old = mergeUpDays() + "/" + relaxDays() + "/" + alertDays();
+        settings.set(D_MERGE, Integer.toString(mergeUp), by);
+        settings.set(D_RELAX, Integer.toString(relax), by);
+        settings.set(D_ALERT, Integer.toString(alert), by);
+        if (!old.equals(mergeUp + "/" + relax + "/" + alert)) {
+            auto.log(ZaloAutoSettings.A_CONFIG, null, null, "TAO_NHOM_NGAY " + mergeUp + "/" + relax + "/" + alert, "CU " + old, by);
+        }
     }
 
     Instant lastPlanAt() {

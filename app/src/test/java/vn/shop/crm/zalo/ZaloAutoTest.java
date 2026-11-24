@@ -47,6 +47,7 @@ class ZaloAutoTest extends AbstractPostgresTest {
     @Autowired InviteService invites;
     @Autowired ZaloAutoService zalo;
     @Autowired ZaloAutoSettings cfg;
+    @Autowired ZaloGroupSettings groupSettings;
     @Autowired FakeZaloGateway fake;
     @Autowired ZaloTestClock clock;
 
@@ -140,9 +141,13 @@ class ZaloAutoTest extends AbstractPostgresTest {
     // ---------- 24/11/2026: nhóm khoảng 5 khách, trần mềm 8 cho khách dư lẻ ----------
 
     private long smallGroupAt(int actual) {
+        return smallGroupAt(actual, "P:ha-noi");
+    }
+
+    private long smallGroupAt(int actual, String scope) {
         groups.setStatus(north, GroupStatus.PAUSED);
         groups.setStatus(south, GroupStatus.PAUSED);
-        long g = groups.create("Nhóm nhỏ miền Bắc", "https://zalo.me/g/nho", 5, "R:BAC");
+        long g = groups.create("Nhóm nhỏ", "https://zalo.me/g/nho", 5, scope);
         groups.setStatus(g, GroupStatus.OPEN);
         groups.setZaloGroupId(g, "4004");
         groups.recount(g, actual);
@@ -159,6 +164,38 @@ class ZaloAutoTest extends AbstractPostgresTest {
         assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.ADDED);
         assertThat(fake.adds).singleElement().satisfies(a -> assertThat(a[1]).isEqualTo("4004"));
         assertThat(groups.find(g).orElseThrow().actual()).isEqualTo(6);
+    }
+
+    @Test
+    void khachDuLeMoiDongYChiVaoNhomCungTinhChoQuaSoNgayMoiGopLenVung() {
+        mode(ZaloMode.AUTO);
+        smallGroupAt(5, "R:BAC"); // nhóm cấp miền, không phải nhóm cùng tỉnh
+        sent(1);
+        friend(1, 1);
+        zalo.poll();
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.NO_GROUP);
+        assertThat(fake.adds).isEmpty();
+        clock.set(LocalDateTime.of(2026, 11, 24, 10, 30)); // đã quá 3 ngày kể từ lúc kết bạn (21/11 10:00), vẫn trong khung giờ gửi
+        jdbc.sql("UPDATE invitation SET friended_at = TIMESTAMPTZ '2026-11-21 10:00:00+07' WHERE id = :id").param("id", inv(1)).update();
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.ADDED);
+        assertThat(fake.adds).singleElement().satisfies(a -> assertThat(a[1]).isEqualTo("4004"));
+    }
+
+    @Test
+    void soNgayGopLenVungChinhDuocOTrangZalo() {
+        mode(ZaloMode.AUTO);
+        groupSettings.setDays(1, 2, 5, "mẹ");
+        assertThat(groupSettings.mergeUpDays()).isEqualTo(1);
+        assertThat(groupSettings.alertDays()).isEqualTo(5);
+        assertThatThrownBy(() -> groupSettings.setDays(5, 3, 9, "mẹ")).isInstanceOf(ImportException.class);
+        groups.setSoftCap(6, "mẹ");
+        assertThat(groups.softCap()).isEqualTo(6);
+        assertThatThrownBy(() -> groups.setSoftCap(4, "mẹ")).isInstanceOf(ImportException.class);
+        smallGroupAt(6);
+        sent(1);
+        friend(1, 1);
+        zalo.poll();
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.NO_GROUP); // đã chạm trần mềm 6
     }
 
     @Test

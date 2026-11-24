@@ -93,8 +93,12 @@ public class ZaloAutoController {
             model.addAttribute("groupChosen", gs.chosenMode());
             model.addAttribute("groupMin", gs.minCustomers());
             model.addAttribute("groupTarget", gs.targetCustomers());
-            model.addAttribute("longWaiting", service.longWaitingCount(gs.props().alertAfterDays()));
-            model.addAttribute("longWaitingDays", gs.props().alertAfterDays());
+            model.addAttribute("longWaiting", service.longWaitingCount(gs.alertDays()));
+            model.addAttribute("longWaitingDays", gs.alertDays());
+            model.addAttribute("groupSoftCap", groupMaker.softCap());
+            model.addAttribute("groupMergeDays", gs.mergeUpDays());
+            model.addAttribute("groupRelaxDays", gs.relaxDays());
+            model.addAttribute("groupAlertDays", gs.alertDays());
             model.addAttribute("groupProps", gs.props());
             model.addAttribute("deputyCurrent", deputy.current());
             model.addAttribute("deputyCandidate", deputy.candidate().orElse(null));
@@ -143,10 +147,20 @@ public class ZaloAutoController {
 
     @PostMapping("/group-limits")
     public String groupLimits(@RequestParam int minCustomers, @RequestParam(required = false) Integer targetCustomers,
+                              @RequestParam(required = false) Integer softCap, @RequestParam(required = false) Integer mergeUpDays,
+                              @RequestParam(required = false) Integer relaxDays, @RequestParam(required = false) Integer alertDays,
                               Principal user, RedirectAttributes redirect) {
         requireEnabled();
         ZaloGroupSettings gs = groupMaker.settings();
-        gs.setLimits(minCustomers, targetCustomers == null ? gs.targetCustomers() : targetCustomers, by(user));
+        int target = targetCustomers == null ? gs.targetCustomers() : targetCustomers;
+        int cap = softCap == null ? groupMaker.softCap() : softCap;
+        if (cap < target) {
+            throw new vn.shop.crm.common.ImportException("Trần mềm không được thấp hơn mục tiêu số khách mỗi nhóm.");
+        }
+        gs.setLimits(minCustomers, target, by(user));
+        groupMaker.setSoftCap(cap, by(user));
+        gs.setDays(mergeUpDays == null ? gs.mergeUpDays() : mergeUpDays, relaxDays == null ? gs.relaxDays() : relaxDays,
+                alertDays == null ? gs.alertDays() : alertDays, by(user));
         redirect.addFlashAttribute("flash", "Đã lưu ngưỡng và sức chứa nhóm.");
         return "redirect:/zalo#tao-nhom";
     }

@@ -63,9 +63,9 @@ app:
   grouping:
     # Cho phép xếp khách vào nhóm của miền khác khi không còn nhóm nào hợp (mặc định không).
     allow-other-region: false
-    # Trần mềm của nhóm (24/11/2026): nhóm được nhận thêm tới "mục tiêu + số này" KHÁCH khi có khách đồng ý trễ hoặc khách dư lẻ không đủ lập nhóm mới.
-    # Số khách không tính tài khoản phụ và mẹ phó nhóm. 0 = không vượt mục tiêu.
-    soft-overflow: 3
+    # Trần mềm của nhóm (24/11/2026): nhóm được nhận tới ngần này KHÁCH khi có khách đồng ý trễ hoặc khách dư lẻ không đủ lập nhóm mới.
+    # Số khách không tính tài khoản phụ và mẹ phó nhóm. Chỉnh được ở trang Zalo (cài đặt trong cơ sở dữ liệu thắng giá trị này).
+    soft-cap: 8
   map:
     # Nền bản đồ: ô bản đồ công cộng của OpenStreetMap (miễn phí, không cần khóa, dành cho lượng dùng nhỏ như trang quản trị này).
     # Muốn đổi sang máy chủ ô bản đồ khác (tự dựng hoặc dịch vụ có gói miễn phí) thì đặt APP_MAP_TILE_URL và app.map.tile-attribution.
