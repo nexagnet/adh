@@ -50,7 +50,7 @@ services:
       APP_ZALO_BRIDGE_URL: http://zalo-bridge:3100
       APP_ALERT_WEBHOOK_URL: ${APP_ALERT_WEBHOOK_URL:-}
       APP_ZALO_BRIDGE_KEY: ${APP_ZALO_BRIDGE_KEY:-}
-      APP_ZALO_AUTO_MAX_DAILY: ${APP_ZALO_AUTO_MAX_DAILY:-100}
+      APP_ZALO_AUTO_MAX_DAILY: ${APP_ZALO_AUTO_MAX_DAILY:-300}
       APP_ZALO_GROUP_DEPUTY_ID: ${ZALO_DEPUTY_ID:-}
       # CHẾ ĐỘ THỬ (23/11/2026): mặc định (false) hệ thống chỉ được liên hệ các số thử khai báo ở trang Zalo. Chỉ đặt true (trong .env trên
       # máy chủ, rồi tạo lại container app) khi đã thử xong và muốn nhắn khách thật. Không có nút bật trên giao diện.
@@ -88,7 +88,7 @@ services:
       SESSION_KEY: ${ZALO_SESSION_KEY:-}
       # Mã Zalo của TÀI KHOẢN PHỤ. Đăng nhập bằng tài khoản khác sẽ bị từ chối và đăng xuất.
       ZALO_ACCOUNT_ID: ${ZALO_ACCOUNT_ID:-}
-      APP_ZALO_AUTO_MAX_DAILY: ${APP_ZALO_AUTO_MAX_DAILY:-100}
+      APP_ZALO_AUTO_MAX_DAILY: ${APP_ZALO_AUTO_MAX_DAILY:-300}
       BRIDGE_PERSON_ERROR_CODES: ${ZALO_PERSON_ERROR_CODES:-}
     volumes:
       - zalo-bridge-data:/data

@@ -569,20 +569,20 @@ class ZaloAutoTest extends AbstractPostgresTest {
     @Test
     void hanMucMacDinhLaChuShopChot() {
         var l = cfg.limits();
-        assertThat(l.daily()).isEqualTo(50);
-        assertThat(l.hourly()).isEqualTo(5);
+        assertThat(l.daily()).isEqualTo(150);
+        assertThat(l.hourly()).isEqualTo(15);
         assertThat(l.gapMinutes()).isEqualTo(2);
     }
 
     @Test
     void chinhHanMucKhongVuotTranCungVaGhiNhatKy() {
-        assertThatThrownBy(() -> cfg.setLimits(101, 5, 2, "mẹ")).hasMessageContaining("100");
-        assertThatThrownBy(() -> cfg.setLimits(50, 11, 2, "mẹ")).isInstanceOf(ImportException.class);
+        assertThatThrownBy(() -> cfg.setLimits(301, 5, 2, "mẹ")).hasMessageContaining("300");
+        assertThatThrownBy(() -> cfg.setLimits(50, 31, 2, "mẹ")).isInstanceOf(ImportException.class);
         assertThatThrownBy(() -> cfg.setLimits(50, 5, 0, "mẹ")).isInstanceOf(ImportException.class);
         cfg.setLimits(30, 4, 3, "mẹ");
         assertThat(cfg.limits()).isEqualTo(new ZaloAutoSettings.Limits(30, 4, 3));
         assertThat(cfg.recentLog(5)).anyMatch(l -> "CAU_HINH".equals(l.action()) && l.result().startsWith("HAN_MUC 30/4/3")
-                && l.code().startsWith("CU 50/5/2"));
+                && l.code().startsWith("CU 150/15/2"));
     }
 
     @Test

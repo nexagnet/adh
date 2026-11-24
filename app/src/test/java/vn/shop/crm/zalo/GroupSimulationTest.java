@@ -201,6 +201,7 @@ class GroupSimulationTest extends AbstractPostgresTest {
 
     @Test
     void ct02_tamMuoiKhachVeMotLucVuotTranNgay_vaoTheoThuTuKetBanSangNgaySau() {
+        auto.setLimits(50, 5, 2, "test"); // mặc định đã nâng lên 150/ngày và 15/giờ (24/11/2026); ở đây hạ lại để kiểm cơ chế vượt trần chuyển sang ngày sau
         Map<String, Integer> m = new java.util.LinkedHashMap<>();
         m.put("Hà Nội", 80);
         importCustomers(m);

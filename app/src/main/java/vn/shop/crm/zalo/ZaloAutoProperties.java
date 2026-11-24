@@ -19,12 +19,12 @@ public record ZaloAutoProperties(
         @DefaultValue("") String bridgeKey,
         @DefaultValue("07:00") LocalTime windowStart,
         @DefaultValue("22:00") LocalTime windowEnd,
-        @DefaultValue("50") int defaultDaily,
-        @DefaultValue("5") int defaultHourly,
+        @DefaultValue("150") int defaultDaily,
+        @DefaultValue("15") int defaultHourly,
         @DefaultValue("2") int defaultGapMinutes,
         /* Trần cứng: trang quản trị không cho chỉnh vượt các số này. */
-        @DefaultValue("100") int maxDaily,
-        @DefaultValue("10") int maxHourly,
+        @DefaultValue("300") int maxDaily,
+        @DefaultValue("30") int maxHourly,
         /* Khoảng cách tối thiểu giữa hai lần thêm mà trang quản trị cho đặt (không cho đặt thấp hơn). */
         @DefaultValue("2") int minGapFloorMinutes,
         /* D18: tự gửi tin cho khách. Khung giờ hẹp hơn khung giờ thêm nhóm, hạn mức nhỏ, khoảng nghỉ cố định (không ngẫu nhiên). */

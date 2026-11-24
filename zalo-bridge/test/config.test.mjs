@@ -17,7 +17,7 @@ test('chế độ thật phải khai báo mã tài khoản phụ', () => {
 
 test('trần cứng của cầu nối gấp đôi trần của Adh; khung giờ 07:00-22:00', () => {
   const c = loadConfig(makeEnv('/tmp/x'));
-  assert.equal(c.hardDaily, 200);
+  assert.equal(c.hardDaily, 600);
   assert.equal(c.windowStartMin, 7 * 60);
   assert.equal(c.windowEndMin, 22 * 60);
   assert.equal(loadConfig({ ...makeEnv('/tmp/x'), APP_ZALO_AUTO_MAX_DAILY: '30' }).hardDaily, 60);

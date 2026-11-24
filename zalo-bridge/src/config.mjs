@@ -37,7 +37,7 @@ export function loadConfig(env = process.env) {
     throw new ConfigError('ZALO_ACCOUNT_ID phải là mã Zalo (chỉ chữ số) của TÀI KHOẢN PHỤ đã khai báo');
   }
 
-  const maxDaily = int(env, 'APP_ZALO_AUTO_MAX_DAILY', 100, 1, 10000);
+  const maxDaily = int(env, 'APP_ZALO_AUTO_MAX_DAILY', 300, 1, 10000);
   return {
     mode,
     host: env.BRIDGE_HOST ?? '0.0.0.0',
