@@ -56,7 +56,7 @@ class WarrantyPageTest extends AbstractPostgresTest {
     @Test
     void congTacTatMacDinhVaChiChuBatTatDuoc() throws Exception {
         assertThat(warranty.enabled()).isFalse();
-        mvc.perform(get("/zalo/reply").with(user("admin").roles("OWNER")))
+        mvc.perform(get("/zalo/reply").param("tab", "bat-tat").with(user("admin").roles("OWNER")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Phân loại bảo hành và khiếu nại")))
                 .andExpect(content().string(containsString("không bao giờ tự gửi gì cho khách")));
@@ -64,10 +64,10 @@ class WarrantyPageTest extends AbstractPostgresTest {
                 .andExpect(status().isForbidden());
         assertThat(warranty.enabled()).isFalse();
         mvc.perform(post("/zalo/reply/warranty").with(user("admin").roles("OWNER")).with(csrf()).param("enabled", "true"))
-                .andExpect(redirectedUrl("/zalo/reply#bao-hanh"));
+                .andExpect(redirectedUrl("/zalo/reply?tab=bat-tat#bao-hanh"));
         assertThat(warranty.enabled()).isTrue();
         mvc.perform(post("/zalo/reply/warranty").with(user("admin").roles("OWNER")).with(csrf()).param("enabled", "false"))
-                .andExpect(redirectedUrl("/zalo/reply#bao-hanh"));
+                .andExpect(redirectedUrl("/zalo/reply?tab=bat-tat#bao-hanh"));
         assertThat(warranty.enabled()).isFalse();
     }
 
