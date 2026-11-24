@@ -1,6 +1,6 @@
 # Bàn giao cho AI làm tiếp: chạy Chiến dịch thử và những gì phải biết trước khi đụng vào repo
 
-Viết ngày 23/11/2026 (sau PR #89, `main` ở commit gộp #89). Dành cho AI hoặc người vào làm tiếp mà **không đọc được lịch sử trò chuyện**. Chủ dự án (Phùng Việt) nói: "bàn giao mọi thứ lên repo, để AI khác làm Chiến dịch thử". File này là **cửa vào duy nhất** cho việc đó; nó trỏ sang các file chi tiết, không chép lại hết.
+Viết ngày 23/11/2026 (sau PR #89), cập nhật ngày 24/11/2026 (sau PR #125; bản tóm tắt mới nhất ở `CLAUDE.md` mục 0). Dành cho AI hoặc người vào làm tiếp mà **không đọc được lịch sử trò chuyện**. Chủ dự án (Phùng Việt) nói: "bàn giao mọi thứ lên repo, để AI khác làm Chiến dịch thử". File này là **cửa vào duy nhất** cho việc đó; nó trỏ sang các file chi tiết, không chép lại hết.
 
 **Thứ tự đọc:** (1) `CLAUDE.md` (quy tắc, quyết định D18 đến D21, máy chủ); (2) file này; (3) `docs/HUONG-DAN-CHAY-THU-TOAN-DIEN.md` (hướng dẫn từng bước cho chủ shop); (4) `docs/BAN-GIAO.md` mục 0 (nhất là 0.8, luồng D21). Khi hai nơi mâu thuẫn: `CLAUDE.md` thắng, rồi tới file này, rồi `BAN-GIAO.md` mục 0. Mục 1 đến 10 của `BAN-GIAO.md` đã cũ.
 
@@ -17,8 +17,8 @@ Trả lời chủ dự án **bằng tiếng Việt, ngắn gọn, dễ hiểu ch
 
 ## 2. Trạng thái `main` (kiểm lại bằng `git log` và CI trước khi tin)
 
-- `main` đã gộp tới **PR #89**; **không có PR nào đang mở**; số test xem kết quả CI (đừng tin con số cũ ở tài liệu khác). `#25` đóng không gộp (lỗi thời).
-- **Migration:** số cuối **`V43`**, số mới là **`V44`**. Trước khi mở PR có migration: gộp `main` vào nhánh rồi `ls app/src/main/resources/db/migration`. Hai PR chạy song song từng lấy trùng số bốn lần (22/11 làm `main` đỏ 397 test). Không đổi tên migration đã gộp (máy chủ có thể đã chạy, sai checksum). Bảng mới phải thêm vào danh sách TRUNCATE của `AbstractPostgresTest`.
+- `main` đã gộp tới **PR #125** (24/11/2026; xem `CLAUDE.md` mục 0 và `BAN-GIAO.md` 0.2 cho danh sách PR #90 đến #125); kiểm lại PR đang mở bằng GitHub; số test xem kết quả CI (đừng tin con số cũ ở tài liệu khác). `#25` đóng không gộp (lỗi thời).
+- **Migration:** số cuối **`V48`**, số mới là **`V49`**. Trước khi mở PR có migration: gộp `main` vào nhánh rồi `ls app/src/main/resources/db/migration`. Hai PR chạy song song từng lấy trùng số bốn lần (22/11 làm `main` đỏ 397 test). Không đổi tên migration đã gộp (máy chủ có thể đã chạy, sai checksum). Bảng mới phải thêm vào danh sách TRUNCATE của `AbstractPostgresTest`.
 - Các PR đáng biết sau #74 (xem `git log` cho đủ): #76 và #79 (V36) AI đề xuất chiến dịch bước 1 và 2; #77 (V32) AI trả lời nhận hồ sơ khách; **#78 (V33) chế độ thử**; #80 dọn phần thừa an toàn; #81 (V34) cảnh báo sức khỏe tài khoản Zalo phụ; #82 trang hiệu quả chiến dịch `/performance`; #83 (V35) bảo hành và khiếu nại; #84 tài liệu; #85 trang `/advisor`; #86 (V37) lịch và nhịp riêng của chiến dịch; #87 (V38) cấu hình gửi mời nhiều lần; #88 (V39) và #89 (V40) gửi tin nhắc lần 2 và 3.
 - **D21 (AI đề xuất chiến dịch):** bước 1 đến 5b xong; **còn bước 6, 7, 8** (mục 7 bên dưới). Chi tiết ở `BAN-GIAO.md` mục 0.8 và `docs/THIET-KE-AI-DE-XUAT-CHIEN-DICH.md`.
 
@@ -53,7 +53,7 @@ Mỗi bước nói rõ **ai làm**. Dừng ngay ở bước nào thấy lạ; đ
 
 **Bước 1: chủ dự án (hoặc người SSH) chuẩn bị máy chủ** (AI chỉ hướng dẫn, không tự làm)
 - Máy chủ phải có **bản compose mới**: `~/adh/infra/docker-compose.shared.yml` trên máy chủ **chậm so với `main`** vì cron chỉ kéo ảnh Docker (mục 6). Cần kiểm có dòng `APP_ZALO_LIVE: ${APP_ZALO_LIVE:-false}` và trần `APP_ZALO_AUTO_MSG_MAX_DAILY` 50. Nếu thiếu, cần cập nhật thư mục (hỏi chủ dự án trước khi sửa cron hay tạo lại container).
-- Đặt `APP_SHOP_NAME` (đang là "Cửa hàng", vào Tin 1 và chữ ký "Trợ lý AI của ...").
+- Đặt `APP_SHOP_NAME` (đang là "Cửa hàng", vào Tin 1 ("em bên shop ... ạ"); chữ ký đã bỏ 24/11).
 - Cờ AI và đọc tin riêng (theo báo cáo 23/11 đã bật cho bộ nối, cờ đọc tin riêng và cờ AI với `deepseek-flash`; **kiểm lại**, vì chưa có người xác nhận).
 - **Không tạo lại container bộ nối trước khi đọc log** (log cũ mất theo container).
 
@@ -79,8 +79,8 @@ Mỗi bước nói rõ **ai làm**. Dừng ngay ở bước nào thấy lạ; đ
 Chỉ làm khi chủ dự án **báo thử xong**. Một PR, review backend kỹ, ghi vào mô tả PR. Danh sách chính thức ở `HUONG-DAN-CHAY-THU-TOAN-DIEN.md` mục 7 và `docs/GIAO-DIEN-LAM-LAI.md`; dưới đây là các chỗ đã **soát lại ngày 23/11/2026** (một số chỗ ở tài liệu cũ chưa đúng):
 
 1. **Chiến dịch thử: ĐÃ XÓA (24/11/2026, V45; `TestMode` đã bỏ truy vấn `test_target`).**
-2. **Bảng:** `test_run` và `test_target` được **tạo ở V14** (`V14__campaign_scope_test_run.sql`); V22 chỉ **thêm cột** vào `test_run`. Migration mới (số kế tiếp, lúc viết là `V44`) phải `DROP TABLE test_target, test_run`. Bỏ hai tên bảng khỏi danh sách TRUNCATE ở `AbstractPostgresTest`.
-3. **Bẫy:** `app/src/main/java/vn/shop/crm/safety/TestMode.java` (khoảng dòng 122) còn truy vấn `FROM test_target`. **Phải sửa trước khi bỏ bảng**, nếu không chế độ thử sẽ lỗi lúc chạy. Chạy `grep -rn "test_target\|test_run\|testrun" app/src` để bắt hết.
+2. **Bảng `test_run` và `test_target`: ĐÃ BỎ ở V45** (24/11/2026), `TestMode` đã bỏ truy vấn `test_target`. Chỉ cần `grep -rn "test_target\|test_run\|testrun" app/src` để chắc không còn sót.
+3. (Bẫy cũ về `TestMode` đã hết.)
 4. **Màn nhắn tay:** "Lô nhắn hôm nay" (`/today`, `TodayController`, `today.html`, `TodayQueueTest`), "Chờ vào nhóm" (`/friends`, `FriendsController`, `friends.html`, `FriendQueueTest`, `FriendFlowTest`), mục menu của hai màn này, mục nhắn tay ở khối "Việc cần làm hôm nay" của Tổng quan; các nút Đã nhắn, Đã kết bạn, Đã vào nhóm, Đã gửi link nhóm, Khách đã rời nhóm, Khách từ chối bấm tay (`POST /campaigns/{id}/invitations/{id}/...`), "Xuất danh sách để mẹ gửi tay"; xem lại nút "Chạy thử (không gửi gì)" (`/campaigns/{id}/dry-run`). Dọn chữ cũ "mẹ gửi tay, hệ thống không tự gửi" (ví dụ chú thích Tin 2 trong `InviteService`).
 5. **Giữ:** `/zalo`, `/zalo/reply`, `/handoffs`, `/campaigns`, `/contacts`, `/groups` và gán mã nhóm `/zalo/groups` (cố ý hai trang liên kết qua lại), `/customers`, `/privacy`, `/print`, `/map`, `/bot`, `/advisor`, `/performance`.
 6. Sau khi gộp: cập nhật `CLAUDE.md` mục 3, 4a, 7 (bỏ câu "đừng xóa sớm", số migration), `BAN-GIAO.md` mục 0.6, và file này.
@@ -90,10 +90,12 @@ Chỉ làm khi chủ dự án **báo thử xong**. Một PR, review backend kỹ
 
 **Mã chưa làm (D21):**
 - **PR 4 phần còn dở** (PR nhỏ riêng): phạm vi khách mở rộng (nhiều khu vực, độ mới lần mua), tăng dần theo ngày bằng bậc thang cố định, thử A/B. (**Đã làm 23/11, V41:** ngày trong tuần được gửi, hoãn khi mưa lớn, tự dừng khi khách từ chối từ 5% sau 20 tin: xem `docs/THIET-KE-AI-DE-XUAT-CHIEN-DICH.md` mục 6, PR 4.) Mỗi núm mới đi qua `CampaignPolicy.effective`/`blocker` và **chỉ làm chặt hơn** trần hệ thống.
-- **PR 6 (đã làm một phần, V42):** nhóm đích riêng của chiến dịch (`CampaignGroupTarget`): "chỉ gửi link nhóm", tắt gom vào nhóm tự tạo, Tin 2 riêng. **Chưa làm:** ghim một nhóm cố định cho chiến dịch và mẫu tên nhóm riêng (đề xuất tạo nhóm hiện gom khách của mọi chiến dịch theo khu vực, nên cần thiết kế thêm). **PR 7 (đã làm, V43):** nấc khách quay lại riêng của chiến dịch (chỉ chặt hơn hệ thống; tự nhận khách mới đã nằm ở trang chiến dịch từ V30).
+- **PR 6 (đã làm một phần, V42):** nhóm đích riêng của chiến dịch (`CampaignGroupTarget`): tắt gom vào nhóm tự tạo; phần "chỉ gửi link nhóm" và Tin 2 riêng đã bị bỏ cùng Tin 2 ở V47. **Chưa làm:** ghim một nhóm cố định cho chiến dịch và mẫu tên nhóm riêng (đề xuất tạo nhóm hiện gom khách của mọi chiến dịch theo khu vực, nên cần thiết kế thêm). **PR 7 (đã làm, V43):** nấc khách quay lại riêng của chiến dịch (chỉ chặt hơn hệ thống; tự nhận khách mới đã nằm ở trang chiến dịch từ V30).
 - **PR 8:** phần gom trang chiến dịch thành 4 tab (`?tab=tong-quan|lich|tin|nhom`) **ĐÃ làm** (chỉ giao diện). Phần còn lại, gỡ cấu hình trùng ở `/zalo`, `/test-runs`, `/today`, **chỉ làm sau khi tự gửi chạy ổn trên thật** và sau khi dọn ở mục 6.
 - Đưa `PerformanceService.anonymized()` vào `AdvisorSnapshot` (dùng nhãn phạm vi và số, **không bao giờ tên chiến dịch**).
 - Job dọn `advisor_run.snapshot_json` / `ai_output` (bảng lớn dần, chưa có job dọn).
+
+**Việc chủ dự án tự làm (24/11/2026):** đổi tên và ảnh đại diện của tài khoản Zalo phụ trên điện thoại; tạo chiến dịch thật đầu tiên với Tin 1 mới và bỏ tạm dừng; đặt `APP_ZALO_LIVE=true` (dự kiến từ khoảng 19:45 giờ Việt Nam ngày 24/11, chưa xác nhận); bật `APP_AI_ADVISOR_ENABLED=true` khi muốn thử `/advisor`. Phiên Claude trên máy chủ có thể bị chặn quyền sửa `.env`.
 
 **Chờ chủ dự án quyết (đừng tự quyết):**
 - **Cách phân biệt đơn qua nhóm** cho `/performance`: đề xuất ghi mã đơn bán trong nhóm bắt đầu bằng **`NHOM-`** rồi đặt tiền tố `NHOM` ở trang. Chủ dự án **chưa trả lời**; mặc định đang coi mọi đơn sau khi vào nhóm là đơn qua nhóm (ước tính). Doanh thu chỉ có khi đã nhập file đối soát J&T thật; không có đơn TikTok trong hệ thống.
