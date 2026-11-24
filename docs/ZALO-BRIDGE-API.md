@@ -31,6 +31,7 @@ Tin nhắn RIÊNG (1-1, dạng văn bản, không phải của chính tài kho�
 Chỉ có khi đặt `BRIDGE_INBOX_ENABLED=true` ở cầu nối; tắt thì cầu nối **không đăng ký nghe tin nhắn** và trả `{ "enabled": false, "messages": [] }`. Cầu nối lọc bằng sổ gửi tin của chính nó (băm HMAC): tin của người chưa từng nhận tin của hệ thống bị bỏ ngay, không lưu, không ghi log. Không đọc tin nhóm, tệp, ảnh hay lịch sử cũ. Tin giữ **trong bộ nhớ** tối đa 6 giờ và 300 tin, cắt còn 500 ký tự, bỏ khi Adh xác nhận (`seq` ≤ `after`); nội dung, mã Zalo không bao giờ vào log. Adh che dữ liệu (`PiiMasker`) rồi mới nhờ AI gắn nhãn.
 
 ### `POST /groups/{zaloGroupId}/members`  body `{"uid": "123456789"}`
+Kết quả có thể là `GROUP_ERROR` (24/11/2026): Zalo báo lỗi của CẢ NHÓM (nhóm không còn, không đủ quyền...). Chỉ khi mã lỗi nằm trong `BRIDGE_GROUP_ERROR_CODES` (mặc định rỗng, điền sau khi chạy thật); không làm cầu nối dừng, Adh tạm dừng đúng nhóm đó.
 Cả hai mã chỉ gồm chữ số (≤ 32). Trả:
 ```json
 { "outcome": "OK" }
@@ -79,6 +80,9 @@ Tra tên và ảnh đại diện của **đúng một** số điện thoại (s�
 - `PERSON_ERROR`: `BAD_PHONE`, `NOT_FOUND` (không có Zalo hoặc không cho tìm bằng số). Không làm cầu dao nhảy.
 - `RATE_LIMITED`: quá `BRIDGE_PROFILE_LOOKUPS_PER_HOUR` lần mỗi giờ (mặc định 5, tối đa 20; tính cả lần lỗi). `RESTRICTED` mã `WINDOW` ngoài 07:00–22:00 (không dừng), `NOT_ACTIVE`; `SESSION_LOST`; `SYSTEM_ERROR` (`BUSY`, `NOT_CONNECTED`, lỗi lạ: cầu nối tự dừng).
 - Số điện thoại, mã Zalo và tên không vào log. Gọi `findUser` của thư viện vẫn chỉ ở một chỗ (`zca-adapter.mjs`).
+
+### `POST /friends/check` (24/11/2026, CHỈ ĐỌC)  body `{"uids":["123","456"]}` (tối đa 500 mã số)
+Trong số mã Adh hỏi, mã nào đang là bạn của tài khoản phụ. Trả `{"ok":true,"friends":["123"]}` hoặc `{"ok":false,"code":"WINDOW|BUSY|LIMIT|NOT_ACTIVE|LOGIN_REQUIRED|LIST_FAILED|BAD_INPUT"}`. Bộ nối đọc danh sách bạn bằng zca-js `getAllFriends` (chỉ lấy mã) nhưng KHÔNG BAO GIỜ trả mã ngoài danh sách hỏi, không ghi đĩa, không ghi log. Chốt chặn cố định: trong khung giờ; giữa hai lần đọc Zalo tối thiểu `BRIDGE_FRIEND_SYNC_MIN_SEC` (mặc định 600; trong khoảng đó trả từ bản đã đọc); tối đa `BRIDGE_FRIEND_SYNC_DAILY` (48) lần đọc mỗi ngày. Lỗi không làm cầu nối dừng.
 
 ## Đọc danh sách nhóm (chỉ đọc, chỉ trang quản trị gọi)
 ### `GET /groups`
