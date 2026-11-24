@@ -5,7 +5,10 @@
 
 <td th:fragment="status(r)">
     <span class="badge" th:if="${r.status == 'READY'}">Chưa gửi</span>
-    <span class="badge ok" th:if="${r.status == 'SENT'}">Đã gửi</span>
+    <span class="badge ok" th:if="${r.status == 'SENT' and (!r.tin1Blocked or r.tin1Resent)}">Đã gửi</span>
+    <span class="badge warn" th:if="${r.tin1Blocked and !r.tin1Resent and r.status != 'CANCELLED' and r.status != 'FAILED'}"
+          title="Zalo không cho gửi Tin 1 vì khách không nhận tin người lạ. Hệ thống kết bạn trước, khách đồng ý thì gửi lại Tin 1.">Chờ kết bạn để gửi lại Tin 1</span>
+    <span class="badge ok" th:if="${r.tin1Blocked and r.tin1Resent}">Đã gửi lại Tin 1</span>
     <span class="badge ok" th:if="${r.status == 'CLICKED'}">Đã bấm link</span>
     <span class="badge ok" th:if="${r.status == 'FRIENDED'}">Đã kết bạn</span>
     <span class="badge ok" th:if="${r.status == 'JOINED' and r.leftAt == null}">Đã vào nhóm</span>

@@ -37,6 +37,8 @@ public class ZaloInviteSender {
 
     private static final Logger log = LoggerFactory.getLogger(ZaloInviteSender.class);
     public static final String CHANNEL = "ZALO_AUTO";
+    /** Mã của cầu nối: Zalo từ chối Tin 1 vì người nhận không nhận tin của người lạ (Z122). */
+    static final String STRANGER_BLOCKED = "STRANGER_BLOCKED";
     /** Số lời mời xem xét mỗi nhịp để bỏ qua (và đóng) những khách không còn gửi được mà không làm tắc hàng. */
     private static final int SCAN = 25;
 
@@ -147,6 +149,11 @@ public class ZaloInviteSender {
         if (messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.INVITE, null, null).isPresent()) {
             return Step.BLOCKED;
         }
+        // Gửi lại Tin 1 cho khách đã kết bạn sau khi Zalo từ chối Tin 1 vì họ không nhận tin người lạ (Z122): đi trước Tin 1 của khách mới.
+        Step again = resendBlocked();
+        if (again != Step.NOTHING) {
+            return again;
+        }
         return sendNextInvite();
     }
 
@@ -205,12 +212,18 @@ public class ZaloInviteSender {
         }
     }
 
-    private Step sendInvite(Invite c) {
+    /** Nội dung Tin 1 của một lời mời (dùng cho cả lần gửi đầu và lần gửi lại). */
+    private String inviteText(Invite c) {
         String text = invites.render(c.template(), c.name(), invites.linkFor(c.token()), VnGeo.byCode(c.province()).orElse(null));
         // Chiến dịch nhiều lần gửi: MÃ tự thêm câu xin ngừng vào cuối mọi lần gửi, kể cả Tin 1 (không phụ thuộc người soạn có nhớ hay không).
         if (steps.plan(c.campaignId()).multiple() && !text.contains(CampaignSteps.STOP_FOOTER)) {
             text = text + "\n" + CampaignSteps.STOP_FOOTER;
         }
+        return text;
+    }
+
+    private Step sendInvite(Invite c) {
+        String text = inviteText(c);
         // khóa lời mời trước khi gọi: hai nhịp chồng nhau không thể gửi trùng một khách
         int claimed = jdbc.sql("""
                         UPDATE invitation SET status = 'SENT', sent_at = :at, sent_channel = :ch
@@ -268,6 +281,9 @@ public class ZaloInviteSender {
                     "Cầu nối báo đã gửi Tin 1 cho người này trước đó", c.template());
             return Step.FAILED_ONE;
         }
+        if (STRANGER_BLOCKED.equals(code) && d.uid() != null) {
+            return strangerBlocked(c, d.uid());
+        }
         String reason = "NOT_FOUND".equals(code)
                 ? "Không tìm thấy trên Zalo (số chưa có Zalo hoặc người này không cho tìm bằng số điện thoại)"
                 : "Zalo từ chối gửi cho người này (mã " + code + ")";
@@ -285,6 +301,115 @@ public class ZaloInviteSender {
         jdbc.sql("""
                         UPDATE invitation SET status = 'READY', sent_at = NULL, sent_channel = NULL
                         WHERE id = :id AND status = 'SENT' AND sent_channel = :ch""").param("id", c.id()).param("ch", CHANNEL).update();
+    }
+
+    /**
+     * Zalo từ chối Tin 1 vì người nhận không nhận tin nhắn của người lạ (Z122): lỗi RIÊNG người này, không dừng gì. Lời mời ở lại SENT cùng
+     * mã Zalo của họ để {@link ZaloFriendRequestSender} gửi lời mời kết bạn; Tin 1 chưa tới nên sổ bước 1 ghi FAILED (không kích hoạt tin nhắc).
+     * Khách đồng ý kết bạn thì {@link #resendBlocked} gửi lại Tin 1.
+     */
+    private Step strangerBlocked(Invite c, String uid) {
+        jdbc.sql("UPDATE invitation SET zalo_target_uid = :u, tin1_blocked_at = :at WHERE id = :id")
+                .param("u", uid).param("at", OffsetDateTime.now(clock)).param("id", c.id()).update();
+        recordTouch(c.id(), "FAILED");
+        sends.recordExternal(c.id(), c.campaignId(), c.customerId(), c.phone(), CHANNEL, "SKIPPED",
+                "Zalo không cho gửi Tin 1 vì khách không nhận tin người lạ (Z122); đã chuyển sang kết bạn trước, khách đồng ý thì gửi lại Tin 1", c.template());
+        return Step.FAILED_ONE;
+    }
+
+    private record Resend(Invite invite, String uid) {
+    }
+
+    /**
+     * Gửi lại Tin 1 cho khách đã đồng ý kết bạn sau khi Zalo từ chối Tin 1 (Z122), mỗi khách đúng một lần, cùng hạn mức, khoảng nghỉ và cầu dao
+     * như mọi tin. Chỉ khi khách chưa nhắn lại, chưa vào nhóm, chưa hết hạn, chiến dịch còn được duyệt và khách còn đủ điều kiện liên hệ.
+     * Giành chỗ (tin1_resent_at) TRƯỚC khi gọi: không rõ kết quả thì giữ nguyên, KHÔNG tự gửi lại. Gửi lỗi riêng người thì bỏ cuộc (khách vẫn
+     * được thêm vào nhóm như khách thường).
+     */
+    private Step resendBlocked() {
+        List<Resend> due = jdbc.sql("""
+                        SELECT i.id, i.campaign_id, i.customer_id, c.phone, c.name, c.province, i.token, i.expires_at, k.message_template, i.zalo_target_uid
+                        FROM invitation i JOIN customer c ON c.id = i.customer_id
+                        JOIN invitation_campaign k ON k.id = i.campaign_id
+                        WHERE i.tin1_blocked_at IS NOT NULL AND i.tin1_resent_at IS NULL AND i.friended_at IS NOT NULL
+                          AND i.status IN ('SENT', 'CLICKED', 'FRIENDED') AND i.zalo_target_uid IS NOT NULL
+                          AND i.inbound_at IS NULL AND i.joined_at IS NULL AND i.expires_at > :now AND k.auto_send_approved_at IS NOT NULL
+                        """ + testMode.onlyTestSql("c.phone") + " ORDER BY i.friended_at, i.id LIMIT :n")
+                .param("now", OffsetDateTime.now(clock)).param("n", SCAN)
+                .query((rs, n) -> new Resend(new Invite(rs.getLong("id"), rs.getLong("campaign_id"), rs.getLong("customer_id"),
+                        rs.getString("phone"), rs.getString("name"), rs.getString("province"), rs.getString("token"),
+                        rs.getObject("expires_at", OffsetDateTime.class), rs.getString("message_template")), rs.getString("zalo_target_uid")))
+                .list();
+        for (Resend r : due) {
+            Invite c = r.invite();
+            if (policy.blocker(c.campaignId()).isPresent()) {
+                continue;
+            }
+            if (!contacts.stillEligible(c.customerId())
+                    || InviteService.hasUnresolved(invites.render(c.template(), c.name(), invites.linkFor(c.token()), VnGeo.byCode(c.province()).orElse(null)))) {
+                jdbc.sql("UPDATE invitation SET tin1_resent_at = :at WHERE id = :id AND tin1_resent_at IS NULL")
+                        .param("at", OffsetDateTime.now(clock)).param("id", c.id()).update();
+                continue;
+            }
+            return resend(c, r.uid());
+        }
+        return Step.NOTHING;
+    }
+
+    private Step resend(Invite c, String uid) {
+        String text = inviteText(c);
+        int claimed = jdbc.sql("UPDATE invitation SET tin1_resent_at = :at WHERE id = :id AND tin1_resent_at IS NULL")
+                .param("at", OffsetDateTime.now(clock)).param("id", c.id()).update();
+        if (claimed == 0) {
+            return Step.NOTHING;
+        }
+        Delivery d;
+        try {
+            d = messages.sendByUid(ZaloMessageService.SCOPE_REAL, Kind.INVITE, c.id(), uid, text, null, null);
+        } catch (RuntimeException e) {
+            log.warn("Gửi lại Tin 1 báo lỗi: {}", e.getClass().getSimpleName());
+            resendUnknown(c, "LOI_HE_THONG");
+            return Step.TRIPPED;
+        }
+        switch (d.status()) {
+            case SENT -> {
+                recordTouch(c.id(), "SENT");
+                sends.recordExternal(c.id(), c.campaignId(), c.customerId(), c.phone(), CHANNEL, "SENT", "Tin 1 gửi lại sau khi khách đồng ý kết bạn", c.template());
+                contacts.event(c.customerId(), c.phone(), "INVITATION_SENT", "Gửi lại Tin 1 sau khi kết bạn");
+                return Step.INVITE_SENT;
+            }
+            case PERSON_ERROR -> {
+                String code = d.code() == null ? "LOI_NGUOI" : d.code();
+                sends.recordExternal(c.id(), c.campaignId(), c.customerId(), c.phone(), CHANNEL, "SKIPPED",
+                        "Không gửi lại được Tin 1 sau khi kết bạn (mã " + code + "); khách vẫn được xử lý như khách đã kết bạn", c.template());
+                return Step.FAILED_ONE;
+            }
+            case RETRY, BLOCKED -> {
+                releaseResend(c);
+                return Step.RETRY;
+            }
+            default -> {
+                if (d.certainlyNotSent()) {
+                    releaseResend(c);
+                } else {
+                    resendUnknown(c, d.code());
+                }
+                return Step.TRIPPED;
+            }
+        }
+    }
+
+    /** Chỉ dùng khi CHẮC CHẮN chưa chạm Zalo: trả chỗ để nhịp sau thử lại. */
+    private void releaseResend(Invite c) {
+        jdbc.sql("UPDATE invitation SET tin1_resent_at = NULL WHERE id = :id").param("id", c.id()).update();
+    }
+
+    /** Không biết Tin 1 gửi lại đã đi chưa: giữ chỗ (không bao giờ tự gửi lại), ghi để người kiểm tra trên Zalo. Lời mời vẫn là khách đã kết bạn. */
+    private void resendUnknown(Invite c, String code) {
+        recordTouch(c.id(), "UNKNOWN");
+        sends.recordExternal(c.id(), c.campaignId(), c.customerId(), c.phone(), CHANNEL, "FAILED",
+                "Không rõ Tin 1 gửi lại đã đi chưa (" + (code == null ? "lỗi" : code) + "). Hãy kiểm tra trên Zalo", c.template());
+        sends.evaluateAutoStop();
     }
 
     /** Ghi Tin 1 vào sổ đếm cứng (bước 1) để các tin nhắc tính khoảng cách và trần 3 lần từ một nguồn. */

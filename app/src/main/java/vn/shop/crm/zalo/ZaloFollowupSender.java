@@ -128,6 +128,7 @@ public class ZaloFollowupSender {
                         LEFT JOIN invitation_touch prev ON prev.invitation_id = i.id AND prev.step_no = s.step_no - 1
                         WHERE i.status = 'SENT' AND i.sent_channel = :ch AND i.zalo_target_uid IS NOT NULL
                           AND i.friended_at IS NULL AND i.joined_at IS NULL AND i.inbound_at IS NULL
+                          AND i.tin1_blocked_at IS NULL
                           AND i.expires_at > :now
                           AND k.auto_send_approved_at IS NOT NULL
                           AND (k.hold_on_rain = false OR c.province IS NULL OR NOT (c.province = ANY(:rainy)))
