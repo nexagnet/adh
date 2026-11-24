@@ -23,8 +23,6 @@ import vn.shop.crm.invite.InviteService;
 import vn.shop.crm.safety.TestMode;
 import vn.shop.crm.safety.ZaloSafetyProperties;
 import vn.shop.crm.shipping.Carrier;
-import vn.shop.crm.testrun.TestRunAutomation;
-import vn.shop.crm.testrun.TestRunService;
 import vn.shop.crm.zalo.ZaloGateway.AddResult;
 import vn.shop.crm.zalo.ZaloGateway.Outcome;
 import vn.shop.crm.zalo.ZaloInviteSender.Step;
@@ -82,8 +80,6 @@ class TestModeTest extends AbstractPostgresTest {
     @Autowired ZaloTestClock clock;
     @Autowired TestMode mode;
     @Autowired ReplyService replies;
-    @Autowired TestRunService testRuns;
-    @Autowired TestRunAutomation testRunAutomation;
     @Autowired ZaloAutoProperties autoProps;
     @Autowired WebApplicationContext context;
 
@@ -387,62 +383,6 @@ class TestModeTest extends AbstractPostgresTest {
     void traNguoiDeXacNhanPhoNhomVanDuocChoMeVaChiDoc() {
         link.findByPhone("84912345678");
         assertThat(fake.finds).containsExactly("84912345678");
-    }
-
-    // ---------- Chiến dịch thử ----------
-
-    private TestRunService.Config cfgFor() {
-        return new TestRunService.Config("Thử", null, null, 5, 120, north, true);
-    }
-
-    @Test
-    void chienDichThuTuChoiSoChuaKhaiBaoSoTrungKhachVaSoTuChoi() {
-        assertThatThrownBy(() -> testRuns.create(cfgFor(), List.of(new TestRunService.Entry("0900000099", null, null))))
-                .isInstanceOf(ImportException.class).hasMessageContaining("chưa có trong danh sách thử");
-        assertThatThrownBy(() -> testRuns.create(cfgFor(), List.of(new TestRunService.Entry("0900000001", null, null))))
-                .isInstanceOf(ImportException.class).hasMessageContaining("trùng một khách");
-        // số thử đã là khách (đã nhập đơn giả) cũng không dùng cho chạy thử: tránh nhắn hai lần
-        assertThatThrownBy(() -> testRuns.create(cfgFor(), List.of(new TestRunService.Entry("0900000004", null, null))))
-                .isInstanceOf(ImportException.class).hasMessageContaining("trùng một khách");
-        mode.add("0900000077", "Số sắp bị từ chối", "test");
-        jdbc.sql("INSERT INTO suppression (phone_hash, reason, recorded_by) VALUES (:h, 'OPT_OUT', 'test')")
-                .param("h", PhoneHash.of(phone(77))).update();
-        assertThatThrownBy(() -> testRuns.create(cfgFor(), List.of(new TestRunService.Entry("0900000077", null, null))))
-                .isInstanceOf(ImportException.class).hasMessageContaining("danh sách từ chối");
-        assertThat(count("SELECT count(*) FROM test_run")).isZero();
-        mode.add("0900000008", "Chạy thử", "test");
-        assertThat(testRuns.create(cfgFor(), List.of(new TestRunService.Entry("0900000008", "Tôi", null)))).isPositive();
-    }
-
-    @Test
-    void chienDichThuKiemLaiKhiBatDauNeuSoDaThanhKhach() {
-        mode.add("0900000008", "Chạy thử", "test");
-        long run = testRuns.create(cfgFor(), List.of(new TestRunService.Entry("0900000008", "Tôi", null)));
-        importRows(row(8)); // sau đó số này bị nhập thành khách
-        assertThatThrownBy(() -> testRuns.start(run)).isInstanceOf(ImportException.class).hasMessageContaining("trùng một khách");
-        assertThat(count("SELECT count(*) FROM test_run WHERE running")).isZero();
-    }
-
-    @Test
-    void tuDongHoaChienDichThuChiGuiSoThuKhaiBaoVaKhongPhaiKhach() {
-        mode.add("0900000008", "Chạy thử", "test");
-        long run = testRuns.create(cfgFor(), List.of(new TestRunService.Entry("0900000008", "Tôi", null)));
-        // một số đã nằm sẵn trong đợt (tạo từ trước khi có chế độ thử) nhưng chưa khai báo, và một số trùng khách thật
-        jdbc.sql("INSERT INTO test_target (run_id, phone) VALUES (:r, '+84900000099')").param("r", run).update();
-        jdbc.sql("INSERT INTO test_target (run_id, phone) VALUES (:r, :p)").param("r", run).param("p", phone(1)).update();
-        messages.setEnabled(true, "mẹ");
-        cfg.setMode(ZaloMode.AUTO, true, "mẹ");
-        // start() kiểm lại và sẽ từ chối; ở đây giả lập đợt đã ở trạng thái đang chạy từ trước khi có chế độ thử
-        assertThatThrownBy(() -> testRuns.start(run)).isInstanceOf(ImportException.class);
-        jdbc.sql("UPDATE test_run SET running = TRUE WHERE id = :id").param("id", run).update();
-        for (int i = 0; i < 6; i++) {
-            testRunAutomation.tick();
-            after(300);
-        }
-        assertThat(fake.messages).hasSize(1);
-        assertThat(fake.messages.get(0).phone()).isEqualTo("84900000008");
-        assertThat(count("SELECT count(*) FROM test_target WHERE phone IN ('+84900000099', '" + phone(1) + "') AND status = 'READY' AND last_code IS NULL"))
-                .isEqualTo(2);
     }
 
     // ---------- danh sách số thử ----------

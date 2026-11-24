@@ -15,7 +15,7 @@ Người dùng (chủ shop) chê giao diện "quá rác" và dặn bỏ các mà
 |---|---|---|
 | Tổng quan, Nhập đơn (+ chi tiết, chọn cột, xem trước), Trạng thái đơn, Danh sách mời, Chiến dịch mời, Yêu cầu của khách, In giấy giới thiệu, Bản đồ khách, Việc cần người thật xử lý, Tài khoản trợ lý AI, trang khách (`/moi`, `/i/{token}`) | Giữ | không đổi |
 | Khách mua 1 lần / từ 2 lần | Gộp thành **Khách hàng** | Xong (#46) |
-| **Chạy thử trên Zalo** (`/test-runs`) | **Giữ** tới khi chủ shop cấu hình xong chiến dịch thử và chạy thật, **sau đó xóa**. Chủ shop đã chốt: chiến dịch thử phải có trước khi chạy chiến dịch thật. Đừng xóa khi dọn màn lỗi thời. | Đã làm đẹp (#45); xóa sau |
+| **Chạy thử trên Zalo** (`/test-runs`) | **ĐÃ XÓA 24/11/2026 (V45)** theo lời chủ shop (thử bằng chiến dịch thật ở chế độ thử). | Đã làm đẹp (#45); xóa sau |
 | Zalo tài khoản phụ (`/zalo`) | Giữ, **luôn hiện trên menu** (nay là trung tâm điều khiển tự gửi, không còn là tùy chọn) | Xong |
 | Cài đặt gửi tin (`/sending`) | **Gộp** vào Zalo tài khoản phụ (hạn mức, giờ nhắn, tạm dừng) | Xong: mục "Tạm dừng, giới hạn gửi tay và nhật ký chiến dịch" cuối `/zalo`; `/sending` chuyển hướng sang đó |
 | Nhóm Zalo (`/groups`) + gán mã nhóm (`/zalo/groups`) | **Gộp một trang** (nhóm tự thêm và nhóm link phải là một) | Một nửa: `/groups` đã hiện trạng thái mã nhóm của từng nhóm và dẫn sang `/zalo/groups` để gán. Chưa nhét danh sách nhóm của tài khoản phụ vào chính `/groups` vì việc đó gọi bộ nối mỗi lần mở trang và `/zalo/**` chỉ dành cho OWNER (cần quyết định riêng) |
@@ -28,7 +28,7 @@ Người dùng (chủ shop) chê giao diện "quá rác" và dặn bỏ các mà
 ### Rà soát màn thừa lần cuối (23/11/2026, chủ dự án chọn "chỉ dọn phần trùng")
 
 Đã rà từng đường GET của ứng dụng: **không còn màn nào mồ côi** (mọi đường đều có liên kết từ menu hoặc từ trang khác). Không xóa màn nào, lý do:
-- `/test-runs`, `/today`, `/friends`, các nút nhắn tay, "Xuất danh sách để gửi tay": còn cần cho chạy thử; chỉ xóa sau khi chủ dự án báo chạy thử xong (xem `docs/BAN-GIAO-CHIEN-DICH-THU.md` mục 6, nhớ sửa `TestMode` đang đọc bảng `test_target`).
+- `/today`, `/friends`, các nút nhắn tay, "Xuất danh sách để gửi tay": chỉ xóa sau khi chủ dự án báo chạy thử xong (`/test-runs` đã xóa 24/11/2026).
 - `/groups` và `/zalo/groups`: hai trang liên kết qua lại, cố ý giữ để khỏi gọi bộ nối mỗi lần mở danh sách nhóm.
 - `/sending`: chỉ là đường chuyển hướng sang `/zalo#gui-tay` cho đường dẫn cũ, có test, giữ.
 - `/bot`: trang trợ lý trong nhóm (giai đoạn 2), có công tắc riêng, giữ.
@@ -39,7 +39,7 @@ Phần "dọn" thực hiện: sửa chú thích lỗi thời của Tin 2 trong `
 1. Sửa chữ lỗi thời theo D18 ("Hệ thống không tự gửi tin", "không đăng nhập Zalo", "mẹ gửi tay", "nhắn tay") ở: `campaigns.html`, `campaign-detail.html`, `today.html`, `sending.html`, `test-runs.html`, `test-run-detail.html`. Chỉ sửa sau khi chữ nghiệp vụ tự gửi được chốt (con số giãn cách, lô, hạn mức; Tin 2 có tự gửi không: xem file 03 mục 1I.11). Nhiều test kiểm chữ tiếng Việt cụ thể, sửa test theo.
 2. (Xong) `NavMenu`: mục Zalo tài khoản phụ luôn hiện; đã gỡ "Cài đặt gửi tin".
 3. (Cài đặt gửi tin đã gộp vào `zalo.html`.) Còn: gộp Nhóm Zalo + gán mã nhóm vào một trang (`groups.html`, `zalo-groups.html`). Hai việc này đụng file Zalo mà luồng backend đang sửa nên làm sau khi họ gộp, hoặc làm cùng họ.
-4. Đợt xóa màn nhắn tay (mục 2). Đợt xóa `/test-runs` sau khi chủ shop chạy chiến dịch thật.
+4. Đợt xóa màn nhắn tay (mục 2). `/test-runs` đã xóa 24/11/2026.
 5. Chưa rà bản điện thoại kỹ cho các trang: Nhập đơn (chọn cột, xem trước), Trạng thái đơn, Danh sách mời, Việc cần người thật xử lý, Tài khoản trợ lý AI, Yêu cầu của khách, In giấy giới thiệu, Zalo tài khoản phụ (`/zalo`). Chạy app cục bộ, chụp 390px, tìm chỗ tràn khung. Bảng nhiều cột đã tự thành thẻ; cần xem bảng nào nên giữ dạng bảng.
 6. Trang Tổng quan: khối "Việc cần làm hôm nay" còn mục nhắn tay (khách đã kết bạn chờ thêm vào nhóm); sửa khi bỏ màn nhắn tay.
 

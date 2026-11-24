@@ -10,7 +10,7 @@
             <h1>Chiến dịch mời vào nhóm</h1>
             <p class="hint">Mỗi chiến dịch gồm khách đã được duyệt (có thể chỉ một khu vực). Hệ thống tự gửi Tin 1 theo hạn mức ngày (tối đa 50 khách mỗi ngày, chỉ trong giờ gửi, nghỉ cố định giữa hai tin).
                 Mỗi khách chỉ được mời một lần trong đời; chiến dịch có thể cấu hình thêm tối đa hai tin nhắc. Chưa biết nên mời khu vực nào, lúc nào? Nhờ AI ở <a th:href="@{/advisor}">Đề xuất của AI</a>.
-                Muốn thử trước trên tài khoản Zalo thật bằng số của mình: <a th:href="@{/test-runs}">Chạy thử trên Zalo</a>. Xem kết quả từng đợt ở <a th:href="@{/performance}">Hiệu quả chiến dịch</a>.</p>
+                Muốn thử trước với số của mình: khai báo số thử ở <a th:href="@{/zalo#che-do-thu}">Zalo tài khoản phụ</a>, hệ thống chỉ nhắn các số đó. Xem kết quả từng đợt ở <a th:href="@{/performance}">Hiệu quả chiến dịch</a>.</p>
         </div>
         <div class="actions">
             <form th:action="@{/campaigns/pause-all}" method="post" th:unless="${paused}">
@@ -25,7 +25,7 @@
         <summary>Cách làm (tài khoản Zalo phụ)</summary>
         <ol>
             <li>Tạo chiến dịch (có thể chỉ chọn khách một miền, ví dụ trời rét thì chọn miền cần nhắn), hoặc duyệt một đề xuất ở <a th:href="@{/advisor}">Đề xuất của AI</a> để có sẵn khu vực, ngày, khung giờ và hạn mức ngày.</li>
-            <li>Chạy thử trước ở <a th:href="@{/test-runs}">Chạy thử trên Zalo</a> với vài số của chính bạn để xem tin có đến nơi không. Hệ thống đang ở chế độ thử thì chỉ nhắn các số thử đã khai báo ở <a th:href="@{/zalo#che-do-thu}">Zalo tài khoản phụ</a>.</li>
+            <li>Thử trước với vài số của chính bạn để xem tin có đến nơi không (tài khoản phụ tự nhắn Tin 1, tự gửi lời mời kết bạn, rồi tự thêm vào nhóm khi bạn đồng ý). Hệ thống đang ở chế độ thử thì chỉ nhắn các số thử đã khai báo ở <a th:href="@{/zalo#che-do-thu}">Zalo tài khoản phụ</a>.</li>
             <li>Vào trang chi tiết chiến dịch: đặt lịch và nhịp riêng (chỉ được chặt hơn giới hạn chung), chọn số lần gửi (1 đến 3), rồi bấm <em>Duyệt cho hệ thống tự gửi</em>. Hệ thống gửi Tin 1 một lần cho mỗi khách, trong giờ và hạn mức ngày đã đặt ở <a th:href="@{/zalo}">Zalo tài khoản phụ</a>. Khách nào đồng ý kết bạn thì tự được thêm vào nhóm Zalo cùng khu vực.</li>
             <li>Muốn khách mới nhập về tự vào chiến dịch (khỏi duyệt từng người): bấm <em>Bật tự nhận khách mới</em> ở trang chi tiết.</li>
             <li>Khách từ chối hoặc nhắn xin ngừng nhận tin thì trợ lý AI ghi sổ (xem lại ở <a th:href="@{/handoffs}">Việc cần người thật xử lý</a>, có nút Hoàn tác): số này không bao giờ được nhắn lại.</li>

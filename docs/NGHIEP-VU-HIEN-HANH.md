@@ -290,8 +290,8 @@ Dữ liệu trên máy chủ là **khách thật** (khoảng 636 khách, trong �
 - **Khai báo số thử TRƯỚC, nhập đơn giả SAU.** Số đã là khách hoặc nằm trong sổ từ chối bị từ chối khi khai báo.
 - Mọi trang quản trị có dải "Đang ở chế độ thử" ở đầu trang. Trang `/zalo` cho biết bao nhiêu khách thật đang được bảo vệ.
 - **Cố ý không có nút "chạy thật" trên web**, để một cú bấm nhầm không đưa tin tới khách thật. Chỉ bạn quyết bằng lời, rồi người quản máy chủ đặt biến và tạo lại container; trước đó nên **tạm dừng tất cả chiến dịch**, sau đó duyệt lại từng chiến dịch.
-- **Chiến dịch thử** (`/test-runs`): chạy qua bộ nối thật cho khoảng 3 số nhập tay (Nhóm A), hạn mức chỉ thấp hơn hạn mức chung. **Không kiểm phần AI** (số thử không phải khách trong hệ thống). **Phải chạy trước chiến dịch thật.** Xong thì xóa màn này.
-- **Mỗi số điện thoại chỉ nhận Tin 1 MỘT lần trong đời** (bộ nối nhớ). Nên chia số thành Nhóm A (Chiến dịch thử, 2 đến 3 số) và Nhóm B (khách giả để thử cả chuỗi và AI, ít nhất 5 số, mỗi số một vai: từ chối rồi quay lại; vào nhóm rồi hỏi ưu đãi; hỏi ngoài phạm vi; xin gặp người thật; im lặng), không dùng lẫn. Thứ tự và từng bước nằm ở `docs/HUONG-DAN-CHAY-THU-TOAN-DIEN.md`.
+- **Không còn "Chiến dịch thử" riêng (đã xóa 24/11/2026, V45).** Muốn thử thì khai báo số thử, bấm "Dựng khách thử" (tạo khách giả từ chính các số đó), rồi chạy **chiến dịch thật** chỉ gồm các số thử: đi đúng luồng thật (Tin 1, tự gửi lời mời kết bạn, khách đồng ý thì tự thêm vào nhóm, tự tạo nhóm), nên thử được cả phần AI. Chiến dịch thật chỉ chạm số thử vì hệ thống đang ở chế độ thử.
+- **Mỗi số điện thoại chỉ nhận Tin 1 MỘT lần trong đời** (bộ nối nhớ). Nên chia số cho các vai khi thử cả chuỗi và AI (ít nhất 5 số, mỗi số một vai: từ chối rồi quay lại; vào nhóm rồi hỏi ưu đãi; hỏi ngoài phạm vi; xin gặp người thật; im lặng), không dùng lẫn. Thứ tự và từng bước nằm ở `docs/HUONG-DAN-CHAY-THU-TOAN-DIEN.md`.
 - Khi thử, đặt hạn mức **5 khách/ngày**, nghỉ 120 giây. Mọi nấc AI để "Chỉ soạn nháp" / "Chỉ tạo việc" vài ngày trước khi sang Tự động.
 
 ### 4.14 Hiệu quả chiến dịch **[CHẠY ĐƯỢC phần đếm; tiền cần file đối soát]**
@@ -345,7 +345,7 @@ Trang `/performance`. Mỗi chiến dịch một dòng phễu: **đã mời → 
 
 **Giai đoạn 2 (máy lớn, [CHƯA LÀM], chưa có lời duyệt):** AI trả lời **trong nhóm** Zalo (có lõi `BotEngine` nhưng chưa có kênh thật), **đội bán hàng nhiều người** xử lý ngoại lệ (Chatwoot; cột `assigned_to`), tra cứu nhiều sản phẩm, tóm tắt việc. **Đừng code phần này khi chưa có lời duyệt mới.**
 
-**Sẽ xóa sau khi bạn báo "thử xong"** (một PR, kèm migration `V41`): Chiến dịch thử `/test-runs`, màn nhắn tay (Lô nhắn hôm nay `/today`, Chờ vào nhóm `/friends`, các nút Đã nhắn / Đã kết bạn / Đã vào nhóm / Đã gửi link nhóm / Khách đã rời nhóm / Khách từ chối bấm tay, "Xuất danh sách để mẹ gửi tay"). **Đừng xóa sớm.** Trang `/groups` và `/zalo/groups` cố ý giữ hai trang liên kết qua lại.
+**Sẽ xóa sau khi bạn báo "thử xong"** (một PR, kèm migration `V46`; Chiến dịch thử `/test-runs` đã xóa ở V45): màn nhắn tay (Lô nhắn hôm nay `/today`, Chờ vào nhóm `/friends`, các nút Đã nhắn / Đã kết bạn / Đã vào nhóm / Đã gửi link nhóm / Khách đã rời nhóm / Khách từ chối bấm tay, "Xuất danh sách để mẹ gửi tay"). **Đừng xóa sớm.** Trang `/groups` và `/zalo/groups` cố ý giữ hai trang liên kết qua lại.
 
 ---
 
@@ -399,7 +399,7 @@ Quy ước: khi hai nơi mâu thuẫn, **`CLAUDE.md` thắng**, rồi tới `doc
 7. **Tên nhóm:** bản cũ đề xuất `Pin ADH - Khu vực - 01`. **Đã chốt** `Áo điều hòa ADH - Khu vực - 01` (cửa hàng bán chủ yếu áo điều hòa).
 8. **Chữ "pin" và "mẹ gửi tay":** Tin 1 mặc định trong mã nay nói "sản phẩm" (không còn "pin"), nhưng nếu mẹ từng lưu bản Tin 1 cũ có chữ "pin" ở trang *Chiến dịch* thì bản lưu đó vẫn dùng; cần sửa tay. Một số chữ trong giao diện và chú thích mã còn ghi "mẹ gửi tay, hệ thống không tự gửi" (ví dụ chú thích Tin 2 trong mã mời); dọn cùng lúc xóa màn nhắn tay.
 9. **Khung giờ:** gửi tin 08:00 đến 20:00, nhưng **thêm vào nhóm** có khung giờ mặc định riêng 07:00 đến 22:00 trong cấu hình. Hai thứ tách nhau; nếu muốn thống nhất cần bạn quyết.
-10. **Số migration cần bỏ khi xóa Chiến dịch thử:** bản cũ ghi `V24` bỏ cột của `V22`. Đúng hiện nay: số mới là **`V41`**, bỏ cả hai bảng `test_run` và `test_target` (tạo ở `V14`), và phải **sửa `TestMode` trước** vì nó còn truy vấn `test_target`.
+10. **Chiến dịch thử đã xóa (24/11/2026):** migration `V45` bỏ hai bảng `test_run` và `test_target`; `TestMode` không còn truy vấn `test_target`.
 11. **Tài liệu thiết kế D21 ghi "PR 2 chưa có giao diện nên chưa dùng được từ web"**: đã cũ. Trang `/advisor` có từ PR 3 (#85).
 12. **Tài liệu `BAN-GIAO.md` mục 1 đến 10** đã cũ (ghi "chưa deploy", "không tự gửi tin"...). Đừng làm theo; đã thay bởi mục 0 của nó và `CLAUDE.md`.
 13. **Số liệu máy chủ** (khoảng 636 khách, 335 đã duyệt, công tắc nào đang bật) là theo báo cáo ngày 23/11, không phải kiểm trực tiếp; cần kiểm lại trên máy chủ trước khi tin.
@@ -412,13 +412,13 @@ Quy ước: khi hai nơi mâu thuẫn, **`CLAUDE.md` thắng**, rồi tới `doc
 
 1. **Chuẩn bị máy chủ:** đặt tên shop thật (`APP_SHOP_NAME`); kiểm file cấu hình trên máy chủ có dòng chế độ thử và trần 50 khách; kiểm các cờ AI và đọc tin riêng; **không tạo lại container bộ nối trước khi đọc log**.
 2. **Thử AI không cần Zalo:** điền Bảng thông tin cửa hàng, thử khoảng 30 câu ở "Thử một câu", đọc nháp.
-3. **Chiến dịch thử** với 2 đến 3 số (Nhóm A), đọc nhật ký bộ nối, điền `ZALO_PERSON_ERROR_CODES` bằng mã lỗi thật, cập nhật các mục "chưa kiểm chứng". Dừng ngay nếu cầu dao nhảy hay Zalo cảnh báo; đừng bấm "Mở lại" liên tục.
+3. **Chạy thử** một chiến dịch thật chỉ gồm các số thử (kết bạn tự động), đọc nhật ký bộ nối, điền `ZALO_PERSON_ERROR_CODES` bằng mã lỗi thật, cập nhật các mục "chưa kiểm chứng". Dừng ngay nếu cầu dao nhảy hay Zalo cảnh báo; đừng bấm "Mở lại" liên tục.
 4. **Khách giả** (Nhóm B, từ 5 số): từ chối rồi quay lại; vào nhóm rồi hỏi ưu đãi; ngoài phạm vi; xin gặp người thật; im lặng; thử **tự tạo nhóm với ít nhất 2 khách cùng tỉnh** (đây là lần **thử tay 1 nhóm thật** còn nợ); thử **tự nhận khách mới**; rồi mới chuyển nấc AI sang Tự động.
 5. **Thử tin nhắc lần 2 và 3** trên số thử (bốn tình huống: để yên thì nhận; kết bạn trước hạn thì không; nhắn riêng bất kỳ câu nào thì không; nhắn "dừng" thì AI ghi từ chối). Chỉ khi đúng cả bốn mới bật cho khách thật.
 6. **Thử AI đề xuất chiến dịch** (`/advisor`): đọc JSON đã gửi trước, đọc lý do, duyệt thử một đề xuất.
 7. **Chạy `--doi-soat` với J&T thật** (bạn đăng nhập J&T trong hồ sơ Edge riêng), báo chỗ lệch.
 8. Khi quyết chạy thật: tạm dừng tất cả chiến dịch → đặt `APP_ZALO_LIVE=true` → tạo lại container app → duyệt lại từng chiến dịch.
-9. **Báo "thử xong"** để dọn: xóa `/test-runs` và màn nhắn tay (kèm migration `V41`); xóa khách giả bằng nút "Xóa dữ liệu khách".
+9. **Báo "thử xong"** để dọn: xóa màn nhắn tay (kèm migration `V46`); xóa khách giả bằng nút "Xóa dữ liệu khách".
 10. **Tên miền thật**, rồi mới in giấy A5; thử in một tờ và quét QR bằng điện thoại.
 
 ### 10.2 Việc chưa làm (cần lời duyệt hoặc đang xếp hàng)

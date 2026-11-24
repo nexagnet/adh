@@ -192,7 +192,7 @@ class ZaloGatewayShapeTest {
     /** D18: khoảng cách giữa hai tin là CỐ ĐỊNH. Không dùng số ngẫu nhiên để rải thời gian gửi (không né phát hiện). */
     @Test
     void khongDungSoNgauNhienTrongMaGuiTin() throws IOException {
-        for (String dir : List.of("zalo", "testrun", "send", "inbox")) {
+        for (String dir : List.of("zalo", "send", "inbox")) {
             Path root = Path.of("src/main/java/vn/shop/crm", dir);
             try (Stream<Path> files = Files.walk(root)) {
                 for (Path f : files.filter(x -> x.toString().endsWith(".java")).toList()) {

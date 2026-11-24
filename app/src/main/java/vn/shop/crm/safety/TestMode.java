@@ -106,8 +106,7 @@ public class TestMode {
     }
 
     /**
-     * Mã Zalo này có thuộc một số thử không. Mã chỉ được biết qua lời mời của một khách (mã tra lúc gửi Tin 1 hoặc mã người kết bạn) hoặc qua
-     * một số của chiến dịch thử; mã lạ không thuộc ai thì KHÔNG (thất bại kín).
+     * Mã Zalo này có thuộc một số thử không. Mã chỉ được biết qua lời mời của một khách (mã tra lúc gửi Tin 1 hoặc mã người kết bạn); mã lạ không thuộc ai thì KHÔNG (thất bại kín).
      */
     public boolean uidAllowed(String uid) {
         if (live()) {
@@ -118,9 +117,8 @@ public class TestMode {
         }
         return jdbc.sql("""
                         SELECT EXISTS (SELECT 1 FROM invitation i JOIN customer c ON c.id = i.customer_id
-                                       WHERE (i.zalo_uid = :u OR i.zalo_target_uid = :u) AND c.phone IN %s)
-                            OR EXISTS (SELECT 1 FROM test_target t WHERE t.zalo_uid = :u AND t.phone IN %s)"""
-                        .formatted(ALLOWED, ALLOWED))
+                                       WHERE (i.zalo_uid = :u OR i.zalo_target_uid = :u) AND c.phone IN %s)"""
+                        .formatted(ALLOWED))
                 .param("u", uid).query(Boolean.class).single();
     }
 
@@ -202,25 +200,5 @@ public class TestMode {
             throw new ImportException("Số này không có trong danh sách thử.");
         }
         log.info("Đã xóa một số khỏi danh sách thử (bởi {})", by);
-    }
-
-    // ---------- kiểm cho Chiến dịch thử ----------
-
-    /**
-     * Số của Chiến dịch thử phải là số thử KHÔNG phải khách: từ chối số trùng một khách trong hệ thống (kể cả khách thật), số trong danh sách
-     * từ chối, và (ở chế độ thử) số chưa khai báo. Ném {@link ImportException} nói rõ lý do.
-     */
-    public void requireUsableForTestRun(String e164) {
-        if (jdbc.sql("SELECT EXISTS (SELECT 1 FROM customer WHERE phone = :p)").param("p", e164).query(Boolean.class).single()) {
-            throw new ImportException("Số " + PhoneNormalizer.toDisplay(e164) + " trùng một khách trong hệ thống nên không dùng cho chạy thử. "
-                    + "Chạy thử chỉ dùng số của bạn hoặc người quen, không phải khách.");
-        }
-        if (jdbc.sql("SELECT EXISTS (SELECT 1 FROM suppression WHERE phone_hash = :h)").param("h", PhoneHash.of(e164)).query(Boolean.class).single()) {
-            throw new ImportException("Số " + PhoneNormalizer.toDisplay(e164) + " nằm trong danh sách từ chối hoặc đã bị xóa theo yêu cầu nên không dùng cho chạy thử.");
-        }
-        if (testOnly() && !inAllowList(e164)) {
-            throw new ImportException("Số " + PhoneNormalizer.toDisplay(e164) + " chưa có trong danh sách thử. Hãy khai báo số này ở trang Zalo tài khoản phụ, "
-                    + "mục \"Chế độ thử\", rồi tạo lại.");
-        }
     }
 }
