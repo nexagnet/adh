@@ -30,7 +30,7 @@
         </ul>
         <p><span class="badge" th:classappend="${inboxRunning} ? 'ok' : 'warn'" th:text="${inboxRunning} ? 'Đọc tin riêng: đang bật' : 'Đọc tin riêng: đang tắt'">Đang tắt</span>
             <span class="badge" th:classappend="${sendEnabled} ? 'ok' : 'warn'" th:text="${sendEnabled} ? 'Tự gửi tin: đang bật' : 'Tự gửi tin: đang tắt'">Đang tắt</span>
-            <span class="sub-line" th:unless="${inboxRunning}">Cần bật cả ba công tắc ở máy chủ: APP_ZALO_INBOX_ENABLED, BRIDGE_INBOX_ENABLED ở cầu nối và APP_AI_ENABLED (kèm khóa và tên mô hình).</span></p>
+            <span class="sub-line" th:unless="${inboxRunning}">Chưa sẵn sàng: cần bật phần đọc tin riêng và AI ở máy chủ (nhờ người quản máy chủ, xem hướng dẫn chạy thử toàn diện).</span></p>
     </section>
 
     <section class="panel stack" id="bao-hanh">

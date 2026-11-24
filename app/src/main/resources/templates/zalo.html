@@ -8,11 +8,8 @@
     <header class="page-head">
         <div class="titles">
             <h1>Zalo tài khoản phụ</h1>
-            <p class="hint">Đây là <strong>một tài khoản Zalo phụ dùng chung</strong> cho mọi việc: gửi Tin 1 và tin nhắc, thêm khách vào nhóm, tạo nhóm, đọc tin riêng và trợ lý AI trả lời.
-                Không dùng tài khoản chốt đơn của mẹ. Khách đồng ý kết bạn thì hệ thống ghép với lời mời và (tùy nấc) tự thêm vào nhóm Zalo của khu vực;
-                nếu việc tự thêm lỗi thì khách nhận Tin 2 kèm link để tự bấm vào. Nhóm tự thêm và nhóm của link mời là <strong>cùng một nhóm</strong>.
-                Tài khoản bị Zalo khóa thì mọi việc dừng cùng lúc, nên các giới hạn dưới đây là chốt an toàn, đừng nới.
-                Lịch, nhịp và số lần gửi riêng của từng đợt đặt ở trang chiến dịch (chỉ được chặt hơn giới hạn chung ở đây).</p>
+            <p class="hint">Một tài khoản Zalo phụ dùng chung cho mọi việc: gửi tin mời, thêm khách vào nhóm, tạo nhóm và trợ lý AI. Không dùng tài khoản chốt đơn của mẹ.
+                Tài khoản bị Zalo khóa thì mọi việc dừng cùng lúc, nên các giới hạn dưới đây là chốt an toàn, đừng nới.</p>
         </div>
     </header>
 
@@ -41,11 +38,11 @@
         <div class="notice bad" th:if="${@testMode.live()}">
             <strong>Đang CHẠY THẬT</strong>
             Hệ thống có thể nhắn cho khách thật theo các chiến dịch đã duyệt. Danh sách thử bên dưới không còn giới hạn gì.
-            Muốn quay về chế độ thử, người quản máy chủ bỏ biến <code>APP_ZALO_LIVE</code> (hoặc đặt <code>false</code>) rồi khởi động lại ứng dụng.
+            Muốn quay về chế độ thử, nhờ người quản máy chủ đổi lại cấu hình rồi khởi động lại ứng dụng.
         </div>
         <p class="muted">Chỉ khai báo số của bạn hoặc người quen đã đồng ý nhận tin thử và có Zalo. Số đã là khách trong hệ thống hoặc nằm trong danh sách từ chối
             sẽ bị từ chối. Muốn thử bằng "khách giả" (nhập đơn giả), hãy khai báo số <strong>trước</strong>, rồi mới nhập đơn của số đó.
-            Chạy thật chỉ bật được bằng biến môi trường <code>APP_ZALO_LIVE=true</code> trên máy chủ, cố ý không có nút trên trang này.</p>
+            Chạy thật chỉ bật được ở máy chủ, cố ý không có nút trên trang này.</p>
         <th:block th:with="nums=${@testMode.numbers()}">
         <div class="table-wrap" th:if="${!nums.isEmpty()}">
             <table>
@@ -182,12 +179,12 @@
 
     <section class="panel stack" id="tu-gui">
         <h2>Tự gửi tin cho khách</h2>
-        <p class="hint">Hệ thống tự gửi <strong>Tin 1</strong> (mời kết bạn) cho khách của chiến dịch <strong>đã được bạn duyệt</strong>, mỗi khách <strong>đúng một lần</strong>,
-            và <strong>Tin 2</strong> (link nhóm) cho khách đã kết bạn mà không thêm được vào nhóm. Từng tin một, nghỉ một khoảng <strong>cố định</strong> giữa hai tin,
-            chỉ trong khung giờ <span th:text="${msg.windowStart}">08:00</span>–<span th:text="${msg.windowEnd}">20:00</span>, không bao giờ gửi cho người đã từ chối.
-            Zalo cảnh báo hoặc có lỗi lạ thì <strong>tự dừng</strong> (cầu dao) và chờ bạn bấm Mở lại. Hệ thống không làm gì để giống người thật gõ hay để né Zalo.
-            Hạn mức ngày tính theo <strong>số khách được nhắn chủ động</strong> (Tin 1 và các tin nhắc lần 2, 3), trần cứng <span th:text="${msg.maxDaily}">50</span> khách mỗi ngày (đổi ở cấu hình triển khai). Tin 2 và tin trả lời khách đã nhắn mình không tính vào số này, nhưng vẫn theo giờ gửi, khoảng nghỉ và cầu dao.
-            Mỗi chiến dịch có thể đặt giờ, hạn mức và khoảng nghỉ <strong>chặt hơn</strong> ở trang của nó, không bao giờ nới được các giới hạn này.</p>
+        <p class="hint">Hệ thống tự gửi <strong>Tin 1</strong> cho khách của chiến dịch <strong>đã được bạn duyệt</strong>, mỗi khách <strong>đúng một lần</strong>,
+            từng tin một, nghỉ <strong>cố định</strong> giữa hai tin, chỉ trong khung giờ <span th:text="${msg.windowStart}">08:00</span>–<span th:text="${msg.windowEnd}">20:00</span>,
+            không bao giờ gửi cho người đã từ chối. Zalo cảnh báo hoặc có lỗi lạ thì <strong>tự dừng</strong> (cầu dao) và chờ bạn bấm Mở lại.
+            Hạn mức ngày tính theo <strong>số khách được nhắn chủ động</strong> (Tin 1 và các tin nhắc lần 2, 3), trần cứng <span th:text="${msg.maxDaily}">50</span> khách mỗi ngày.
+            Tin trả lời khách đã nhắn mình không tính vào số này nhưng vẫn theo giờ gửi, khoảng nghỉ và cầu dao.
+            Mỗi chiến dịch có thể đặt chặt hơn ở trang của nó, không bao giờ nới được.</p>
         <p>Công tắc: <strong th:text="${msg.enabled ? 'ĐANG BẬT' : 'ĐANG TẮT'}">ĐANG TẮT</strong>
             · hôm nay đã nhắn <strong th:text="${msg.usedToday}">0</strong>/<strong th:text="${msg.limits.daily}">10</strong> khách
             · khoảng nghỉ <strong th:text="${msg.limits.gapSeconds}">120</strong> giây
@@ -307,12 +304,12 @@
 
     <section class="panel stack" id="tin-rieng">
         <h2>Nhận diện khách từ chối bằng AI</h2>
-        <p class="hint">Trợ lý AI đọc tin RIÊNG của người đã nhận Tin 1 hoặc Tin 2 để nhận ra khách bảo đừng nhắn nữa. AI rất chắc (từ
+        <p class="hint">Trợ lý AI đọc tin RIÊNG của người đã nhận Tin 1 để nhận ra khách bảo đừng nhắn nữa. AI rất chắc (từ
             <strong th:text="${#numbers.formatDecimal(inboxThreshold, 1, 2)}">0,80</strong>) thì tự ghi sổ từ chối, có nút Hoàn tác ở trang
             <a th:href="@{/handoffs}">Việc cần người thật xử lý</a>. AI không chắc hoặc lỗi thì tạm dừng mọi tin cho khách đó và báo mẹ. Hệ thống không trả lời khách,
             không đọc tin nhóm, không đọc tin người lạ; chỉ gửi cho AI văn bản đã che số điện thoại, không kèm tên hay mã Zalo.</p>
         <p><span class="badge" th:classappend="${inboxRunning} ? 'ok' : 'warn'" th:text="${inboxRunning} ? 'Đang bật' : 'Đang tắt'">Đang tắt</span>
-            <span class="sub-line" th:unless="${inboxRunning}">Bật cần cả ba công tắc ở máy chủ: APP_ZALO_INBOX_ENABLED, BRIDGE_INBOX_ENABLED ở cầu nối và APP_AI_ENABLED (kèm khóa và tên mô hình).</span></p>
+            <span class="sub-line" th:unless="${inboxRunning}">Chưa sẵn sàng: cần bật phần đọc tin riêng và AI ở máy chủ (nhờ người quản máy chủ, xem hướng dẫn chạy thử toàn diện).</span></p>
 
         <p class="hint">Trợ lý AI cũng có thể <strong>trả lời</strong> khách tự nhắn tới (tắt mặc định): <a th:href="@{/zalo/reply}">Trợ lý AI trả lời khách</a>.</p>
 

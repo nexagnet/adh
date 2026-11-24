@@ -22,7 +22,7 @@
     <div class="notice bad" th:if="${flashBad}" th:text="${flashBad}">Lỗi.</div>
     <div class="notice" th:unless="${enabled}">
         <strong>Tính năng đang tắt</strong>
-        Cần bật cả <code>APP_AI_ENABLED</code> và <code>APP_AI_ADVISOR_ENABLED</code> trên máy chủ. Các đề xuất đã có vẫn xem được.
+        Chưa sẵn sàng: cần bật AI và phần đề xuất ở máy chủ. Các đề xuất đã có vẫn xem được.
     </div>
     <p class="muted small" th:if="${enabled}" th:text="'Hôm nay đã nhờ AI ' + ${runsToday} + ' / ' + ${maxRuns} + ' lần.'">Hôm nay đã nhờ AI 0 / 5 lần.</p>
 
