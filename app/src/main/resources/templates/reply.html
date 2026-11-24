@@ -15,8 +15,18 @@
     </header>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
+    <nav class="tabs" aria-label="Các phần của trợ lý AI">
+        <a th:each="t : ${tabs}" th:href="@{/zalo/reply(tab=${t.key})}" th:text="${t.label}"
+           th:classappend="${t.key == tab} ? 'active'" th:attr="aria-current=${t.key == tab} ? 'page'">Hôm nay</a>
+    </nav>
 
-    <section class="panel stack">
+    <div class="stack">
+        <p><span class="badge" th:classappend="${inboxRunning} ? 'ok' : 'warn'" th:text="${inboxRunning} ? 'Đọc tin riêng: đang bật' : 'Đọc tin riêng: đang tắt'">Đang tắt</span>
+            <span class="badge" th:classappend="${sendEnabled} ? 'ok' : 'warn'" th:text="${sendEnabled} ? 'Tự gửi tin: đang bật' : 'Tự gửi tin: đang tắt'">Đang tắt</span>
+            <span class="sub-line" th:unless="${inboxRunning}">Chưa sẵn sàng: cần bật phần đọc tin riêng và AI ở máy chủ (nhờ người quản máy chủ, xem hướng dẫn chạy thử toàn diện).</span></p>
+    </div>
+
+    <section class="panel stack" th:if="${tab == 'nang-cao'}">
         <h2>Cách trợ lý làm việc</h2>
         <ul class="hint">
             <li>Mỗi tin khách: AI xem tin có nằm trong phạm vi không (nghi ngờ thì coi là ngoài phạm vi, cần chắc từ
@@ -28,12 +38,34 @@
                 số điện thoại, địa chỉ, mã vận đơn, thanh toán, mã Zalo, tên khách hay link nhóm. Khách từng từ chối không bao giờ được trả lời ở đây.</li>
             <li>Khách nhắn trước thì không giới hạn số câu trả lời (mỗi tin đến một câu trả lời); vẫn theo giờ gửi, khoảng nghỉ cố định, cầu dao và phanh khẩn cấp của bộ nối.</li>
         </ul>
-        <p><span class="badge" th:classappend="${inboxRunning} ? 'ok' : 'warn'" th:text="${inboxRunning} ? 'Đọc tin riêng: đang bật' : 'Đọc tin riêng: đang tắt'">Đang tắt</span>
-            <span class="badge" th:classappend="${sendEnabled} ? 'ok' : 'warn'" th:text="${sendEnabled} ? 'Tự gửi tin: đang bật' : 'Tự gửi tin: đang tắt'">Đang tắt</span>
-            <span class="sub-line" th:unless="${inboxRunning}">Chưa sẵn sàng: cần bật phần đọc tin riêng và AI ở máy chủ (nhờ người quản máy chủ, xem hướng dẫn chạy thử toàn diện).</span></p>
     </section>
 
-    <section class="panel stack" id="bao-hanh">
+    <section class="panel stack" id="tin-rieng" th:if="${tab == 'bat-tat'}">
+        <h2>Nhận diện khách từ chối bằng AI</h2>
+        <p class="hint">Trợ lý AI đọc tin RIÊNG của người đã nhận Tin 1 để nhận ra khách bảo đừng nhắn nữa. AI rất chắc (từ
+            <strong th:text="${#numbers.formatDecimal(inboxThreshold, 1, 2)}">0,80</strong>) thì tự ghi sổ từ chối, có nút Hoàn tác ở trang
+            <a th:href="@{/handoffs}">Việc cần người thật xử lý</a>. AI không chắc hoặc lỗi thì tạm dừng mọi tin cho khách đó và báo mẹ. Hệ thống không trả lời khách,
+            không đọc tin nhóm, không đọc tin người lạ; chỉ gửi cho AI văn bản đã che số điện thoại, không kèm tên hay mã Zalo.</p>
+        <h3>Khách từng từ chối nay nhắn lại muốn mua</h3>
+        <p class="hint">Số điện thoại và sổ từ chối <strong>không bao giờ bị xóa</strong>. Khi một khách từng từ chối <strong>tự nhắn tới</strong> và AI hiểu là muốn mua, mẹ thấy việc nổi bật
+            ở <a th:href="@{/handoffs}">Việc cần người thật xử lý</a> kèm đơn khách đã mua. Ở nấc Tự động, AI chắc từ
+            <strong th:text="${#numbers.formatDecimal(comebackThreshold, 1, 2)}">0,85</strong> thì hệ thống tự gỡ cờ (chỉ đánh dấu "đã gỡ" kèm giờ), đưa khách vào hàng chờ vào nhóm theo khu vực
+            và gửi <strong>một</strong> tin mẫu cố định (không do AI viết). Mỗi khách tối đa một lần tự gỡ trong 30 ngày, luôn có nút Hoàn tác, dùng chung hạn mức và cầu dao.
+            Hệ thống không bao giờ nhắn người chưa nhắn trước.</p>
+        <form class="stack" th:action="@{/zalo/comeback-mode}" method="post">
+            <label class="field" th:each="m : ${comebackModes}">
+                <input type="radio" name="mode" th:value="${m.name()}" th:checked="${m == comebackChosen}">
+                <span th:text="${m.label()}">Tắt</span>
+                <span class="sub-line" th:text="${m.hint()}">Mô tả</span>
+            </label>
+            <label class="field"><input type="checkbox" name="confirmedTested" value="true">
+                Tôi đã chạy nấc "Chỉ tạo việc" một thời gian và thấy các việc AI tạo là đúng (bắt buộc để bật nấc Tự động).</label>
+            <p class="sub-line" th:unless="${comebackTried}">Hãy chọn "Chỉ tạo việc" trước; nấc Tự động chỉ mở sau khi đã chạy nấc đó.</p>
+            <div><button type="submit" class="btn">Lưu nấc khách quay lại</button></div>
+        </form>
+    </section>
+
+    <section class="panel stack" id="bao-hanh" th:if="${tab == 'bat-tat'}">
         <h2>Phân loại bảo hành và khiếu nại</h2>
         <p class="hint">Khách đã nhận tin của hệ thống tự nhắn riêng <strong>báo lỗi hoặc phàn nàn</strong>: AI phân loại (sản phẩm lỗi, giao hàng, hỏi cách dùng, hoàn tiền), đánh dấu mức gấp
             (nguy cơ an toàn như nóng, phồng, chảy nước, mùi khét, cháy, chập điện là gấp), tóm tắt và soạn <strong>nháp</strong>. Hệ thống tạo một việc ở <a th:href="@{/handoffs}">Việc cần xử lý</a> kèm các đơn khách đã mua.
@@ -52,7 +84,7 @@
         </form>
     </section>
 
-    <section class="panel stack" id="nac">
+    <section class="panel stack" id="nac" th:if="${tab == 'bat-tat'}">
         <h2>Nấc</h2>
         <form class="stack" th:action="@{/zalo/reply/mode}" method="post">
             <label class="field" th:each="m : ${modes}">
@@ -67,7 +99,7 @@
         </form>
     </section>
 
-    <section class="panel stack" id="bang-thong-tin">
+    <section class="panel stack" id="bang-thong-tin" th:if="${tab == 'thong-tin'}">
         <h2>Bảng thông tin cửa hàng</h2>
         <p class="hint">Đây là <strong>nguồn duy nhất</strong> AI được dùng để trả lời. Con số nào AI nói ra phải có trong bảng này (ví dụ "10%"), nếu không câu bị chặn.
             Để trống ô bảo hành thì AI không nói gì cụ thể về bảo hành. Đừng ghi chính sách đổi trả của nền tảng khác.</p>
@@ -81,7 +113,7 @@
         </form>
     </section>
 
-    <section class="panel stack" id="ho-so">
+    <section class="panel stack" id="ho-so" th:if="${tab == 'nang-cao'}">
         <h2>Hồ sơ khách gửi cho AI</h2>
         <p class="hint">Khi soạn câu trả lời, AI nhận thêm hồ sơ của <strong>đúng khách đang nhắn</strong> (không bao giờ của khách khác) để trả lời đúng người: đúng nhóm theo khu vực,
             khách đã vào nhóm chưa, hàng khách đã mua. Chỉ các trường được tick dưới đây mới được gửi. Mọi chữ đều đã che số điện thoại. Bước phân loại phạm vi không nhận hồ sơ.
@@ -98,7 +130,7 @@
         <pre class="sub-line wrap" th:if="${!ctxSample.isEmpty()}" th:text="${ctxSample.block()}">- Khu vực: ...</pre>
     </section>
 
-    <section class="panel stack" id="thu">
+    <section class="panel stack" id="thu" th:if="${tab == 'thong-tin'}">
         <h2>Thử một câu</h2>
         <p class="hint">Gõ một câu khách có thể nhắn để xem trợ lý sẽ làm gì. Không lưu, không gửi gì cho ai; chỉ tốn một vài lượt AI. Hãy thử vài chục câu (cả câu trong và ngoài phạm vi,
             câu cố lừa AI) trước khi bật.</p>
@@ -114,7 +146,7 @@
         </div>
     </section>
 
-    <section class="stack" th:if="${!drafts.isEmpty()}" aria-label="Nháp trợ lý soạn">
+    <section class="stack" th:if="${tab == 'hom-nay' and !drafts.isEmpty()}" aria-label="Nháp trợ lý soạn">
         <h2>Nháp trợ lý soạn (chưa gửi)</h2>
         <p class="hint">Ở nấc "Chỉ soạn nháp" hệ thống <strong>không gửi</strong>. Người thật xem câu, tự trả lời khách trên Zalo nếu thấy đúng, rồi bấm "Đã xử lý".</p>
         <div class="job" th:each="r : ${drafts}">
@@ -133,7 +165,7 @@
         </div>
     </section>
 
-    <section class="stack" th:if="${!sent.isEmpty()}" aria-label="Câu trợ lý đã tự gửi">
+    <section class="stack" th:if="${tab == 'hom-nay' and !sent.isEmpty()}" aria-label="Câu trợ lý đã tự gửi">
         <h2>Câu trợ lý đã tự gửi (14 ngày gần đây)</h2>
         <div class="job" th:each="r : ${sent}">
             <div class="meta">

@@ -27,8 +27,11 @@ public class ReplyController {
     private final ZaloMessageService messages;
     private final ZaloInboxService inbox;
     private final WarrantyService warranty;
+    private final vn.shop.crm.inbox.ComebackService comebacks;
 
-    public ReplyController(ReplyService replies, ZaloMessageService messages, ZaloInboxService inbox, WarrantyService warranty) {
+    public ReplyController(ReplyService replies, ZaloMessageService messages, ZaloInboxService inbox, WarrantyService warranty,
+                           vn.shop.crm.inbox.ComebackService comebacks) {
+        this.comebacks = comebacks;
         this.replies = replies;
         this.messages = messages;
         this.inbox = inbox;
@@ -39,7 +42,24 @@ public class ReplyController {
         return p == null ? "admin" : p.getName();
     }
 
-    private void fill(Model model) {
+    public record Tab(String key, String label) {
+    }
+
+    static final java.util.List<Tab> TABS = java.util.List.of(new Tab("hom-nay", "Hôm nay"), new Tab("bat-tat", "Bật tắt"),
+            new Tab("thong-tin", "Thông tin cửa hàng"), new Tab("nang-cao", "Nâng cao"));
+
+    private static String tabOf(String tab) {
+        return TABS.stream().anyMatch(t -> t.key().equals(tab)) ? tab : "hom-nay";
+    }
+
+    private void fill(Model model, String tab) {
+        model.addAttribute("tabs", TABS);
+        model.addAttribute("tab", tabOf(tab));
+        model.addAttribute("inboxThreshold", inbox.threshold());
+        model.addAttribute("comebackModes", vn.shop.crm.inbox.ComebackService.Mode.values());
+        model.addAttribute("comebackChosen", comebacks.mode());
+        model.addAttribute("comebackTried", comebacks.tasksTried());
+        model.addAttribute("comebackThreshold", inbox.comebackThreshold());
         model.addAttribute("modes", ReplyService.Mode.values());
         model.addAttribute("chosen", replies.mode());
         model.addAttribute("tried", replies.draftTried());
@@ -59,8 +79,8 @@ public class ReplyController {
     }
 
     @GetMapping
-    public String page(Model model) {
-        fill(model);
+    public String page(@RequestParam(defaultValue = "hom-nay") String tab, Model model) {
+        fill(model, tab);
         return "reply";
     }
 
@@ -69,7 +89,7 @@ public class ReplyController {
                        Principal user, RedirectAttributes redirect) {
         replies.setMode(mode, confirmedTested, by(user));
         redirect.addFlashAttribute("flash", "Đã chuyển trợ lý trả lời sang nấc: " + mode.label() + ".");
-        return "redirect:/zalo/reply";
+        return "redirect:/zalo/reply?tab=bat-tat";
     }
 
     /** Công tắc phân loại bảo hành và khiếu nại (tắt mặc định). Phần này không bao giờ gửi gì cho khách. */
@@ -77,7 +97,7 @@ public class ReplyController {
     public String warranty(@RequestParam(defaultValue = "false") boolean enabled, Principal user, RedirectAttributes redirect) {
         warranty.setEnabled(enabled, by(user));
         redirect.addFlashAttribute("flash", enabled ? "Đã bật phân loại bảo hành và khiếu nại." : "Đã tắt phân loại bảo hành và khiếu nại.");
-        return "redirect:/zalo/reply#bao-hanh";
+        return "redirect:/zalo/reply?tab=bat-tat#bao-hanh";
     }
 
     @PostMapping("/info")
@@ -88,19 +108,19 @@ public class ReplyController {
         }
         replies.info().save(values, by(user));
         redirect.addFlashAttribute("flash", "Đã lưu bảng thông tin cửa hàng.");
-        return "redirect:/zalo/reply";
+        return "redirect:/zalo/reply?tab=thong-tin";
     }
 
     @PostMapping("/context")
     public String context(@RequestParam(name = "field", required = false) java.util.List<String> fields, Principal user, RedirectAttributes redirect) {
         replies.context().saveEnabled(fields == null ? java.util.Set.of() : new java.util.HashSet<>(fields), by(user));
         redirect.addFlashAttribute("flash", "Đã lưu các trường hồ sơ khách được gửi cho AI.");
-        return "redirect:/zalo/reply";
+        return "redirect:/zalo/reply?tab=nang-cao";
     }
 
     @PostMapping("/preview")
     public String preview(@RequestParam String text, Model model) {
-        fill(model);
+        fill(model, "thong-tin");
         model.addAttribute("sample", text);
         model.addAttribute("preview", replies.preview(text));
         return "reply";

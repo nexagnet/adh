@@ -219,7 +219,7 @@
             <button type="submit" class="btn">Lưu hạn mức lời mời</button>
         </form>
         <p class="hint">Chiến dịch chỉ được tự gửi sau khi bạn bấm <em>Duyệt cho hệ thống tự gửi</em> ở trang chi tiết chiến dịch (tự tạo, hoặc từ <a th:href="@{/advisor}">Đề xuất của AI</a>).
-            Chiến dịch gửi nhiều lần chỉ nhắc khi trợ lý AI đang đọc tin riêng để nghe được khách xin ngừng (mục "Nhận diện khách từ chối bằng AI" ở tab "Trợ lý AI").
+            Chiến dịch gửi nhiều lần chỉ nhắc khi trợ lý AI đang đọc tin riêng để nghe được khách xin ngừng (mục "Nhận diện khách từ chối bằng AI" ở trang <a th:href="@{/zalo/reply(tab=bat-tat)}">Trợ lý AI trả lời khách</a>).
             Muốn thử trước: khai báo số thử ở tab "Thử và nhật ký", rồi tạo chiến dịch thật (hệ thống chỉ nhắn các số thử đã khai báo). Kết quả từng đợt xem ở <a th:href="@{/performance}">Hiệu quả chiến dịch</a>.</p>
     </section>
 
@@ -311,35 +311,6 @@
         </div>
     </section>
 
-    <section th:if="${tab == 'ai'}" class="panel stack" id="tin-rieng">
-        <h2>Nhận diện khách từ chối bằng AI</h2>
-        <p class="hint">Trợ lý AI đọc tin RIÊNG của người đã nhận Tin 1 để nhận ra khách bảo đừng nhắn nữa. AI rất chắc (từ
-            <strong th:text="${#numbers.formatDecimal(inboxThreshold, 1, 2)}">0,80</strong>) thì tự ghi sổ từ chối, có nút Hoàn tác ở trang
-            <a th:href="@{/handoffs}">Việc cần người thật xử lý</a>. AI không chắc hoặc lỗi thì tạm dừng mọi tin cho khách đó và báo mẹ. Hệ thống không trả lời khách,
-            không đọc tin nhóm, không đọc tin người lạ; chỉ gửi cho AI văn bản đã che số điện thoại, không kèm tên hay mã Zalo.</p>
-        <p><span class="badge" th:classappend="${inboxRunning} ? 'ok' : 'warn'" th:text="${inboxRunning} ? 'Đang bật' : 'Đang tắt'">Đang tắt</span>
-            <span class="sub-line" th:unless="${inboxRunning}">Chưa sẵn sàng: cần bật phần đọc tin riêng và AI ở máy chủ (nhờ người quản máy chủ, xem hướng dẫn chạy thử toàn diện).</span></p>
-
-        <p class="hint">Trợ lý AI cũng có thể <strong>trả lời</strong> khách tự nhắn tới (tắt mặc định): <a th:href="@{/zalo/reply}">Trợ lý AI trả lời khách</a>.</p>
-
-        <h3>Khách từng từ chối nay nhắn lại muốn mua</h3>
-        <p class="hint">Số điện thoại và sổ từ chối <strong>không bao giờ bị xóa</strong>. Khi một khách từng từ chối <strong>tự nhắn tới</strong> và AI hiểu là muốn mua, mẹ thấy việc nổi bật
-            ở <a th:href="@{/handoffs}">Việc cần người thật xử lý</a> kèm đơn khách đã mua. Ở nấc Tự động, AI chắc từ
-            <strong th:text="${#numbers.formatDecimal(comebackThreshold, 1, 2)}">0,85</strong> thì hệ thống tự gỡ cờ (chỉ đánh dấu "đã gỡ" kèm giờ), đưa khách vào hàng chờ vào nhóm theo khu vực
-            và gửi <strong>một</strong> tin mẫu cố định (không do AI viết). Mỗi khách tối đa một lần tự gỡ trong 30 ngày, luôn có nút Hoàn tác, dùng chung hạn mức và cầu dao.
-            Hệ thống không bao giờ nhắn người chưa nhắn trước.</p>
-        <form class="stack" th:action="@{/zalo/comeback-mode}" method="post">
-            <label class="field" th:each="m : ${comebackModes}">
-                <input type="radio" name="mode" th:value="${m.name()}" th:checked="${m == comebackChosen}">
-                <span th:text="${m.label()}">Tắt</span>
-                <span class="sub-line" th:text="${m.hint()}">Mô tả</span>
-            </label>
-            <label class="field"><input type="checkbox" name="confirmedTested" value="true">
-                Tôi đã chạy nấc "Chỉ tạo việc" một thời gian và thấy các việc AI tạo là đúng (bắt buộc để bật nấc Tự động).</label>
-            <p class="sub-line" th:unless="${comebackTried}">Hãy chọn "Chỉ tạo việc" trước; nấc Tự động chỉ mở sau khi đã chạy nấc đó.</p>
-            <div><button type="submit" class="btn">Lưu nấc khách quay lại</button></div>
-        </form>
-    </section>
 
     <section th:if="${tab == 'nhom'}" id="cho-vao-nhom">
         <h2>Khách chờ vào nhóm</h2>

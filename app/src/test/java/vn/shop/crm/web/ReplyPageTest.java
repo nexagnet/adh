@@ -49,7 +49,7 @@ class ReplyPageTest extends AbstractPostgresTest {
     @Test
     void chiChuVaoDuocTrangVaThayBangThongTinMacDinh() throws Exception {
         mvc.perform(get("/zalo/reply")).andExpect(status().is3xxRedirection());
-        mvc.perform(get("/zalo/reply").with(user("admin").roles("OWNER")))
+        mvc.perform(get("/zalo/reply").param("tab", "thong-tin").with(user("admin").roles("OWNER")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Trợ lý AI trả lời khách")))
                 .andExpect(content().string(containsString("Bảng thông tin cửa hàng")))
@@ -61,12 +61,12 @@ class ReplyPageTest extends AbstractPostgresTest {
     @Test
     void luuNacVaBangThongTin() throws Exception {
         mvc.perform(post("/zalo/reply/mode").with(user("admin").roles("OWNER")).with(csrf()).param("mode", "DRAFT"))
-                .andExpect(redirectedUrl("/zalo/reply"));
+                .andExpect(redirectedUrl("/zalo/reply?tab=bat-tat"));
         assertThat(replies.mode()).isEqualTo(ReplyService.Mode.DRAFT);
         mvc.perform(post("/zalo/reply/mode").with(user("admin").roles("OWNER")).with(csrf()).param("mode", "AUTO"))
                 .andExpect(status().isBadRequest()); // chưa tick xác nhận
         mvc.perform(post("/zalo/reply/info").with(user("admin").roles("OWNER")).with(csrf()).param("warranty", "Bảo hành 6 tháng"))
-                .andExpect(redirectedUrl("/zalo/reply"));
+                .andExpect(redirectedUrl("/zalo/reply?tab=thong-tin"));
         assertThat(info.value("warranty")).isEqualTo("Bảo hành 6 tháng");
         assertThat(info.value("offer")).contains("10%"); // ô không gửi lên thì giữ nguyên
     }
@@ -112,15 +112,15 @@ class ReplyPageTest extends AbstractPostgresTest {
 
     @Test
     void trangCoKhoiHoSoKhachVaLuuDanhSachTruongDuocGui() throws Exception {
-        mvc.perform(get("/zalo/reply").with(user("admin").roles("OWNER")))
+        mvc.perform(get("/zalo/reply").param("tab", "nang-cao").with(user("admin").roles("OWNER")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Hồ sơ khách gửi cho AI")))
                 .andExpect(content().string(containsString("Khu vực của khách")))
                 .andExpect(content().string(containsString("mẫu giả")));
         mvc.perform(post("/zalo/reply/context").with(user("admin").roles("OWNER")).with(csrf()).param("field", "khu_vuc").param("field", "nhom"))
-                .andExpect(redirectedUrl("/zalo/reply"));
+                .andExpect(redirectedUrl("/zalo/reply?tab=nang-cao"));
         assertThat(replies.context().enabled()).extracting(vn.shop.crm.inbox.ReplyContext.Field::key).containsExactly("khu_vuc", "nhom");
-        mvc.perform(post("/zalo/reply/context").with(user("admin").roles("OWNER")).with(csrf())).andExpect(redirectedUrl("/zalo/reply"));
+        mvc.perform(post("/zalo/reply/context").with(user("admin").roles("OWNER")).with(csrf())).andExpect(redirectedUrl("/zalo/reply?tab=nang-cao"));
         assertThat(replies.context().enabled()).isEmpty();
         mvc.perform(post("/zalo/reply/context").with(csrf())).andExpect(status().is3xxRedirection()); // chưa đăng nhập
     }

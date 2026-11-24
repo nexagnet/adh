@@ -64,7 +64,7 @@ public class ZaloAutoController {
 
     static final java.util.List<Tab> TABS = java.util.List.of(
             new Tab("tinh-trang", "Tình trạng"), new Tab("gioi-han", "Giới hạn"), new Tab("nhom", "Nhóm"),
-            new Tab("ai", "Trợ lý AI"), new Tab("thu", "Thử và nhật ký"));
+            new Tab("thu", "Thử và nhật ký"));
 
     @GetMapping
     public String page(@RequestParam(defaultValue = "tinh-trang") String tab, Model model, HttpServletResponse response) {
@@ -113,11 +113,6 @@ public class ZaloAutoController {
             model.addAttribute("deputyCurrent", deputy.current());
             model.addAttribute("deputyCandidate", deputy.candidate().orElse(null));
             model.addAttribute("inboxRunning", inbox.running());
-            model.addAttribute("inboxThreshold", inbox.threshold());
-            model.addAttribute("comebackModes", vn.shop.crm.inbox.ComebackService.Mode.values());
-            model.addAttribute("comebackChosen", comebacks.mode());
-            model.addAttribute("comebackTried", comebacks.tasksTried());
-            model.addAttribute("comebackThreshold", inbox.comebackThreshold());
             model.addAttribute("groupMayNow", groupMaker.mayCreateNow());
             model.addAttribute("proposals", groupMaker.recent(10));
         }
@@ -141,7 +136,7 @@ public class ZaloAutoController {
         requireEnabled();
         comebacks.setMode(mode, confirmedTested, by(user));
         redirect.addFlashAttribute("flash", "Đã chuyển việc khách quay lại sang nấc: " + mode.label() + ".");
-        return "redirect:/zalo?tab=ai#tin-rieng";
+        return "redirect:/zalo/reply?tab=bat-tat#tin-rieng";
     }
 
     // ---------- tự tạo nhóm theo khu vực (D19) ----------
