@@ -83,8 +83,7 @@ public class NavMenu {
                 // Luôn hiện (D18): đây là trung tâm điều khiển tự gửi; khi bộ nối tắt, trang chỉ báo "đang tắt".
                 item("Zalo tài khoản phụ", "/zalo", "/zalo", zalo.attentionCount() + zaloHealth.openCriticalCount(), key),
                 item("Chờ vào nhóm", "/friends", "/friends", friendWaiting, key),
-                item("Lô nhắn hôm nay", "/today", "/today", 0, key),
-                item("Chạy thử trên Zalo", "/test-runs", "/test-runs", 0, key)));
+                item("Lô nhắn hôm nay", "/today", "/today", 0, key)));
         return List.of(
                 new Group("Khách hàng", List.of(
                         item("Tổng quan", "/", "/", 0, key),

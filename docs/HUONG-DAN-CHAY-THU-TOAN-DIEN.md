@@ -9,26 +9,21 @@ Tài liệu bổ sung (không thay thế): `docs/HUONG-DAN-THU-ZALO-TU-DONG.md` 
 Dữ liệu trên máy chủ là **khách thật**, nên từ 23/11/2026 hệ thống **luôn ở chế độ thử** trừ khi người quản máy chủ chủ động đổi, **kể cả khi công tắc tự gửi và các nấc tự động đang bật**:
 
 - Chỉ **các số bạn khai báo là số thử** (trang `/zalo`, mục **"Chế độ thử"**) mới được: nhận Tin 1 và Tin 2, được tự thêm vào nhóm, được đưa vào nhóm tự tạo, được chiến dịch tự nhận, được trợ lý AI nhận diện hay trả lời. Mọi khách khác bị chặn ở ba lớp: (1) danh sách mời, chiến dịch và hàng chờ chỉ có khách thử (khách thật không bị duyệt, không vào chiến dịch dù đã được duyệt từ trước); (2) mọi chỗ sắp gọi Zalo cho một khách đều kiểm lại; (3) đường nối duy nhất tới Zalo từ chối mọi số hay mã Zalo không thuộc số thử, và tin riêng của người không phải số thử bị bỏ ngay (nội dung không bao giờ tới AI).
-- **Chiến dịch thử** (`/test-runs`) chỉ nhận số đã khai báo, và **không bao giờ** nhận số trùng một khách trong hệ thống hay trong danh sách từ chối (kiểm lại cả lúc bấm Bắt đầu).
+- **Không còn màn "Chiến dịch thử" riêng (đã xóa 24/11/2026).** Thử = chạy chiến dịch THẬT ở chế độ thử: chỉ các số đã khai báo ở "Chế độ thử" được chạm.
 - Mọi trang quản trị có dải **"Đang ở chế độ thử"** ở đầu trang; trang `/zalo` cho biết bao nhiêu khách thật đang được bảo vệ và đã chặn bao nhiêu lần gọi.
 - **Chạy thật chỉ bật được bằng biến `APP_ZALO_LIVE=true`** trong `.env` trên máy chủ (rồi tạo lại container app). Cố ý **không có nút** trên web để một cú bấm nhầm không đưa tin tới khách thật. Chưa đặt biến này thì luôn là chế độ thử.
 - **Khai báo số thử TRƯỚC, nhập đơn giả SAU.** Số đã là khách trong hệ thống (có thể là khách thật) hoặc nằm trong danh sách từ chối thì bị từ chối khi khai báo.
 
-## 0. Hai cách thử, và vì sao cần cả hai
+## 0. Cách thử (từ 24/11/2026)
 
-| | Chiến dịch thử (`/test-runs`) | Khách giả như khách thật |
-|---|---|---|
-| Kiểm | Gửi Tin 1, kết bạn, tự thêm vào nhóm, Tin 2, cầu dao, hạn mức | Cả chuỗi thật: duyệt khách, chiến dịch, tự gửi, tự tạo nhóm, **AI nhận diện từ chối, AI trả lời, khách quay lại, tự nhận khách mới** |
-| Dữ liệu | Số nhập tay (phải khai báo ở "Chế độ thử"), nằm bảng riêng, không đụng khách thật; số trùng khách bị từ chối | Nhập vài đơn giả (số của bạn, đã khai báo ở "Chế độ thử" từ trước) vào danh sách khách; xóa sau khi thử |
-| AI | **Không chạy** (số thử không phải khách trong hệ thống) | Chạy đủ |
+Chỉ còn MỘT cách: khai báo các số thử, bấm **Dựng khách thử** (tạo khách giả từ chính các số đó, trạng thái "Giao thành công"), rồi chạy **chiến dịch thật** chỉ gồm các khách đó. Đi đúng luồng thật nên thử được cả chuỗi: duyệt khách, chiến dịch, Tin 1, **tài khoản phụ tự gửi lời mời kết bạn**, tự thêm vào nhóm, tự tạo nhóm, Tin 2, AI nhận diện từ chối, AI trả lời, khách quay lại, tự nhận khách mới. Số đã là khách thật bị từ chối khi khai báo, nên số thử phải khai báo TRƯỚC, nhập đơn giả SAU (hoặc dùng nút Dựng khách thử).
 
-Vì vậy muốn "test toàn diện" phải làm cả hai. Làm Chiến dịch thử trước (an toàn nhất), rồi mới đến khách giả.
+Chia số theo vai (mỗi số chỉ nhận Tin 1 một lần): hai số nhận chuỗi bình thường (kết bạn và vào nhóm), các số còn lại mỗi số một vai để thử AI.
 
 **Quy tắc quan trọng: mỗi số điện thoại chỉ nhận Tin 1 MỘT lần trong đời** (cầu nối nhớ mã Zalo của số đó và không gửi lại, kể cả bấm "Thử lại từ đầu"). Nên **chia danh sách số của bạn thành hai nhóm**, không dùng một số ở cả hai cách:
 
-- Nhóm A (Chiến dịch thử): 2 đến 3 số.
-- Cả hai nhóm đều phải **khai báo ở `/zalo`, mục "Chế độ thử"** trước khi dùng (mục 0A). Số Nhóm B sau đó mới được nhập thành đơn giả; số Nhóm A không được là khách.
-- Nhóm B (khách giả): ít nhất 5 số, vai trò ở mục 4. Càng nhiều số càng thử được nhiều tình huống.
+- Mọi số thử phải **khai báo ở `/zalo`, mục "Chế độ thử"** trước khi dùng (mục 0A), rồi mới nhập thành đơn giả hoặc bấm Dựng khách thử.
+- Ít nhất 5 số cho giai đoạn B, vai trò ở mục 4. Càng nhiều số càng thử được nhiều tình huống.
 - Muốn dùng lại một số cho Tin 1 thì phải nhờ người quản máy chủ xóa file nhớ của cầu nối (`messages.json` trong ổ dữ liệu bộ nối); đó là thao tác trên máy chủ, đừng tự làm.
 
 ## 1. Trả lời nhanh các câu hỏi
@@ -67,7 +62,7 @@ Triển khai bản mới (PR của hướng dẫn này) cũng sửa trần 50 kh
 Đăng nhập quản trị. Mọi thứ dưới đây tắt mặc định. Mọi lúc muốn dừng khẩn cấp: mục 6.
 
 **Bước 0: kiểm chuẩn bị (chưa gửi gì)**
-0. `/zalo`, mục **"Chế độ thử"**: đọc dải "Đang ở chế độ thử", rồi **khai báo toàn bộ số thử** của Nhóm A và Nhóm B (kèm ghi chú). Xem số "khách thật được bảo vệ" khớp với số khách trên máy chủ. Chưa khai báo số nào thì hệ thống chưa được nhắn cho ai.
+0. `/zalo`, mục **"Chế độ thử"**: đọc dải "Đang ở chế độ thử", rồi **khai báo toàn bộ số thử** (kèm ghi chú). Xem số "khách thật được bảo vệ" khớp với số khách trên máy chủ. Chưa khai báo số nào thì hệ thống chưa được nhắn cho ai.
 1. `/zalo`: tài khoản phụ báo "đang nghe" và đúng tài khoản.
 2. `/campaigns`, ô nội dung mặc định: đọc lại Tin 1. Tin 1 phải nói "sản phẩm" (không chỉ "pin"), có tên shop, ưu đãi mua qua nhóm rẻ hơn TikTok 10% và miễn ship. Nếu mẹ từng lưu bản cũ có chữ "pin" thì sửa tại đây.
 3. `/zalo/reply`, "Bảng thông tin cửa hàng": điền ưu đãi (giảm 10% so với TikTok, miễn ship), cách liên hệ bảo hành. Ô nào để trống thì AI không nói về việc đó.
@@ -78,19 +73,19 @@ Triển khai bản mới (PR của hướng dẫn này) cũng sửa trần 50 kh
 
 Chỉ gửi trong **08:00 đến 20:00**; ngoài giờ hệ thống tự chờ. Hạn mức: ở `/zalo` mục "Tự gửi tin cho khách", đặt **5 khách/ngày**, nghỉ **120 giây** cho đợt thử (trần thật là 50).
 
-### Giai đoạn A: Chiến dịch thử (Nhóm A, 2 đến 3 số)
+### Giai đoạn A: chiến dịch thật cho vài số thử đầu tiên (2 đến 3 số)
 
 1. `/zalo`, mục "Nấc hoạt động": chọn "Tự thêm trong hạn mức", bấm "Lưu nấc".
-2. Cùng trang, mục "Tự gửi tin cho khách": đặt hạn mức như trên, bấm "Bật tự gửi tin".
-3. Menu "Chạy thử trên Zalo" (`/test-runs`): nhập các số Nhóm A (đã khai báo ở "Chế độ thử"; tên, tỉnh tùy ý; số chưa khai báo hoặc trùng một khách sẽ bị từ chối), chọn nhóm đích là nhóm thử, bấm "Tạo chiến dịch thử", mở nó, bấm **Bắt đầu**.
-4. **Kỳ vọng:** mỗi hai phút một tin; chi tiết hiện "Đã nhắn". Trên điện thoại số thử nhận Tin 1 từ tài khoản phụ (người lạ). Việc **kết bạn làm bằng tay** (hệ thống cố ý không tự gửi hay nhận lời mời kết bạn): số thử bấm kết bạn rồi người cầm điện thoại tài khoản phụ chấp nhận, hoặc ngược lại; ghi lại chiều nào xảy ra để sửa chữ Tin 1 cho đúng.
-5. Khi đã là bạn: trong vài phút hệ thống **thêm vào nhóm thử**, rồi gửi **Tin 2**. Chi tiết hiện "Đã vào nhóm", "Đã gửi Tin 2".
+2. Cùng trang, mục "Tự gửi tin cho khách": đặt hạn mức như trên, bấm "Bật tự gửi tin". Hạn mức lời mời kết bạn mỗi ngày (mặc định 10) nằm ngay dưới đó.
+3. Khai báo các số thử ở "Chế độ thử", bấm **Dựng khách thử**, rồi ở "Khách hàng" duyệt các khách đó. Tạo chiến dịch (chỉ các khách thử vào được), bấm *Duyệt cho hệ thống tự gửi*.
+4. **Kỳ vọng:** mỗi hai phút một việc. Số thử nhận Tin 1 từ tài khoản phụ (người lạ); sau đó **tài khoản phụ tự gửi lời mời kết bạn** (câu ngắn). Người cầm số thử bấm đồng ý kết bạn. Không ai phải làm tay ở phía tài khoản phụ. Ghi lại nếu Zalo không cho gửi hoặc không phát sự kiện kết bạn.
+5. Khi đã là bạn: trong vài phút hệ thống **thêm vào nhóm** (cần nấc tạo nhóm đang bật nếu chưa có nhóm hợp: xem giai đoạn C), nếu lỗi riêng thì gửi **Tin 2**.
 6. Đọc "Nhật ký gần đây" ở `/zalo`. Gặp mã lỗi lạ: bộ nối tự dừng (cầu dao), **đừng bấm Mở lại liên tục**; báo người SSH đọc log và điền `ZALO_PERSON_ERROR_CODES`.
-7. Xong, bấm **Dừng** ở chiến dịch thử. **Tạo nhóm bằng tay chưa phải bước này** (xem giai đoạn C).
+7. Xong, bấm *Bỏ duyệt* ở chiến dịch.
 
 Nếu giai đoạn A không êm (lỗi lạ, Zalo cảnh báo), **dừng ở đây**, chưa sang B.
 
-### Giai đoạn B: Khách giả như khách thật (Nhóm B, ít nhất 5 số)
+### Giai đoạn B: Khách giả như khách thật (ít nhất 5 số)
 
 **Chuẩn bị file đơn giả** (làm trên máy bạn, không đưa lên GitHub): một file CSV đúng định dạng J&T, ví dụ cột `Mã vận đơn, Mã đơn hàng, Thời gian tạo, Người nhận, Số điện thoại người nhận, Địa chỉ nhận, Trạng thái` (mẫu: `fixtures/jt_sample.csv`). Mỗi số Nhóm B một dòng, mỗi dòng **một đơn, trạng thái "Giao thành công"** (đây là chữ bảng nhập đơn J&T hiểu sẵn; chữ khác như "Đã ký nhận" sẽ bị đánh dấu cần kiểm tra), mã vận đơn và mã đơn **khác nhau và không trùng đơn thật** (ví dụ bắt đầu bằng TEST), địa chỉ có tỉnh rõ (ví dụ "Quận 1, TP Hồ Chí Minh"). Ít nhất hai số cùng một tỉnh, tỉnh đó **thuộc miền chưa có nhóm nào còn chỗ** (để thử tự tạo nhóm). Giữ riêng một số (số cuối cùng) cho bước "tự nhận khách mới", không đưa vào file đầu.
 
@@ -182,7 +177,7 @@ Dùng một chiến dịch gửi cho số thử (khách giả hoặc nhóm B), c
 
 **Màn hình và mã sẽ xóa (tôi làm sau khi bạn báo thử xong; chưa xóa gì lúc này):**
 
-1. **Chiến dịch thử:** menu "Chạy thử trên Zalo" (`/test-runs`), gói `vn.shop.crm.testrun` (3 file), 2 mẫu `test-runs.html` và `test-run-detail.html`, `TestRunTest`, `TestRunAutomationTest`; thêm migration số kế tiếp (lúc viết là `V44`) bỏ bảng `test_run` và `test_target` (tạo ở V14, V22 chỉ thêm cột; sửa `safety/TestMode.java` trước vì còn dùng `test_target`; xem `docs/BAN-GIAO-CHIEN-DICH-THU.md` mục 6); gỡ chỗ cắm `ZaloFriendTap` / `addExternal` nếu không còn dùng.
+1. **Chiến dịch thử: ĐÃ XÓA (24/11/2026, V45).**
 2. **Màn nhắn tay:** "Lô nhắn hôm nay" (`/today`, `TodayController`, `today.html`, `TodayQueueTest`), "Chờ vào nhóm" (`/friends`, `FriendsController`, `friends.html`, `FriendQueueTest`, `FriendFlowTest`), mục menu của hai màn này, khối "Việc cần làm hôm nay" ở Tổng quan có mục nhắn tay.
 3. **Nút nhắn tay** ở chi tiết chiến dịch: Đã nhắn, Đã kết bạn, Đã vào nhóm, Đã gửi link nhóm, Khách đã rời nhóm, Khách từ chối bấm tay (các `POST /campaigns/{id}/invitations/{id}/...`), nút "Xuất danh sách để mẹ gửi tay", và xem lại nút "Chạy thử (không gửi gì)" (`/campaigns/{id}/dry-run`) xem còn cần không sau khi bỏ hàng đợi nhắn tay.
 
@@ -191,10 +186,10 @@ Dùng một chiến dịch gửi cho số thử (khách giả hoặc nhóm B), c
 ## 8. Việc bạn cần có trước khi bắt đầu (kiểm nhanh)
 
 - [ ] `APP_ZALO_LIVE` **chưa** đặt (hoặc `false`); trang `/zalo` có dải "Đang ở chế độ thử".
-- [ ] Mọi số thử (Nhóm A và Nhóm B) đã khai báo ở `/zalo`, mục "Chế độ thử".
+- [ ] Mọi số thử đã khai báo ở `/zalo`, mục "Chế độ thử".
 - [ ] Tài khoản phụ đã quét QR, trang `/zalo` báo đang nghe.
 - [ ] Khóa DeepSeek và tên mô hình đã đưa cho người SSH (không gửi qua chat).
-- [ ] Danh sách số điện thoại chia làm Nhóm A (2 đến 3) và Nhóm B (5 trở lên), tất cả đã đồng ý nhận tin thử và có Zalo, tắt hoặc bật "cho tìm bằng số điện thoại" theo ý muốn thử (số tắt tìm sẽ báo "không tìm thấy").
+- [ ] Danh sách số điện thoại (2 đến 3 số cho giai đoạn A, 5 số trở lên cho giai đoạn B), tất cả đã đồng ý nhận tin thử và có Zalo, tắt hoặc bật "cho tìm bằng số điện thoại" theo ý muốn thử (số tắt tìm sẽ báo "không tìm thấy").
 - [ ] Mẹ đã là bạn Zalo của tài khoản phụ và bật cho tìm bằng số điện thoại.
 - [ ] Một nhóm Zalo thử đã tạo (tài khoản phụ ở trong), đã gán mã ở `/groups`.
 - [ ] Không có ai đang nhập file J&T thật trong lúc thử.

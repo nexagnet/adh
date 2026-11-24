@@ -19,7 +19,7 @@
         <p th:if="${autoApproved}"><span class="badge ok">ĐÃ DUYỆT</span> Hệ thống tự gửi Tin 1 cho các khách "Chưa gửi" của chiến dịch này, từng khách <strong>một lần</strong>,
             theo hạn mức và khoảng nghỉ cố định ở trang <a th:href="@{/zalo}">Zalo tài khoản phụ</a>. Công tắc tự gửi tin hiện
             <strong th:text="${autoSwitch ? 'BẬT' : 'TẮT (chưa gửi gì)'}">TẮT</strong>.</p>
-        <p th:unless="${autoApproved}"><span class="badge">CHƯA DUYỆT</span> Chiến dịch này <strong>chưa được tự gửi</strong>. Hãy chạy <a th:href="@{/test-runs}">Chiến dịch thử</a> trước,
+        <p th:unless="${autoApproved}"><span class="badge">CHƯA DUYỆT</span> Chiến dịch này <strong>chưa được tự gửi</strong>. Hãy thử trước với số thử ở <a th:href="@{/zalo#che-do-thu}">Chế độ thử</a>,
             xem lại nội dung tin ở dưới rồi mới duyệt.</p>
         <div class="actions">
             <form th:action="@{/campaigns/{id}/auto-send/approve(id=${campaign.id})}" method="post" th:unless="${autoApproved}">

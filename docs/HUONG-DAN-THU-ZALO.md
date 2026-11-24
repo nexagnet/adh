@@ -1,5 +1,7 @@
 # Hướng dẫn thử trên tài khoản Zalo thật (chưa chạy chiến dịch thật)
 
+> **Đã lỗi thời (24/11/2026):** màn "Chạy thử trên Zalo" và việc nhắn tay, kết bạn tay đã bỏ. Tài khoản phụ nay tự nhắn Tin 1, tự gửi lời mời kết bạn và tự thêm vào nhóm. Cách thử hiện hành: [`HUONG-DAN-CHAY-THU-TOAN-DIEN.md`](HUONG-DAN-CHAY-THU-TOAN-DIEN.md).
+
 Dành cho chủ cửa hàng. Mục đích: thử cả quy trình **bằng số điện thoại của bạn hoặc người quen đã đồng ý**, trước khi nhắn khách thật.
 
 > **Cập nhật 23/11/2026 (D18):** chủ shop đã bỏ nguyên tắc "không tự gửi tin"; hệ thống sẽ tự gửi tin như người thật, gửi từ từ. Mới ghi tài liệu, **chưa có mã**; hướng dẫn dưới đây mô tả bản hiện tại (nhắn tay) và sẽ được sửa khi mã tự gửi gộp. Xem `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md` mục 1I.11.

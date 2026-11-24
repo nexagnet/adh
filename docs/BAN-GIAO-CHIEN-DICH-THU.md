@@ -10,9 +10,9 @@ Trả lời chủ dự án **bằng tiếng Việt, ngắn gọn, dễ hiểu ch
 
 ## 1. "Làm chiến dịch thử" nghĩa là gì (đọc kỹ, dễ hiểu nhầm)
 
-- **Mã của Chiến dịch thử đã có và đã gộp** (PR #49, trang `/test-runs`, gói `vn.shop.crm.testrun`, bộ nối Zalo thật). Việc còn lại **không phải viết thêm tính năng** mà là **chạy nó trên Zalo thật với vài số thử của chủ dự án**, đọc kết quả, sửa lỗi họ báo, rồi **xóa màn này**.
+- **Màn Chiến dịch thử đã XÓA (24/11/2026, V45).** Chủ dự án chốt: "làm đúng pilot: xóa toàn bộ giao diện và logic chiến dịch thử, làm thật trên 4 số tôi cung cấp". "Làm chiến dịch thử" nay nghĩa là chạy **chiến dịch thật ở chế độ thử** (chỉ các số đã khai báo ở "Chế độ thử" được chạm), qua luồng thật: Tin 1, tài khoản phụ **tự gửi lời mời kết bạn**, tự thêm vào nhóm, tự tạo nhóm. Việc còn lại là **chạy trên Zalo thật với các số thử**, đọc kết quả và sửa lỗi họ báo.
 - **Một AI chạy trên đám mây không tự chạy được.** AI không có tài khoản Zalo, không SSH được vào máy chủ (khóa không nằm ở đâu cả, root bị cấm), không có điện thoại để kết bạn. Người làm các bước thật là **chủ dự án** (bấm công tắc trên web, cầm điện thoại các số thử, chạy lệnh trên máy chủ hoặc nhờ người SSH). Vai trò của bạn là: **chuẩn bị, hướng dẫn từng bước nhỏ, đọc kết quả họ dán lại, tìm nguyên nhân, sửa mã bằng PR nhỏ, và cuối cùng dọn**. Một phiên Remote Control trên máy của người dùng từng chỉ nhận lệnh khi chính người dùng nhắn trực tiếp trong thread, không nhận qua điều phối.
-- **Nhắc lại giới hạn của phép thử:** Chiến dịch thử **không kiểm phần AI** (số thử không phải khách trong hệ thống). Phần AI (nhận diện từ chối, trả lời, khách quay lại, tự nhận khách mới, tin nhắc, AI đề xuất chiến dịch) thử ở giai đoạn B và các bước sau (mục 5).
+- **Phép thử nay đi đúng luồng thật** (khách thử là khách trong hệ thống, dựng bằng nút "Dựng khách thử"), nên thử được cả phần AI (nhận diện từ chối, trả lời, khách quay lại, tự nhận khách mới, tin nhắc, AI đề xuất chiến dịch) ở các bước sau (mục 5).
 - **Chưa thứ gì ở giai đoạn 1 từng chạy với Zalo thật hay DeepSeek thật.** Mọi thứ tự động đều tắt mặc định. Đừng nói "đã chạy được" cho tới khi chủ dự án báo kết quả thật.
 
 ## 2. Trạng thái `main` (kiểm lại bằng `git log` và CI trước khi tin)
@@ -42,7 +42,7 @@ Trả lời chủ dự án **bằng tiếng Việt, ngắn gọn, dễ hiểu ch
 - **Thứ tự bắt buộc:** khai báo số thử TRƯỚC, nhập đơn giả SAU. Số đã là khách hoặc nằm trong sổ từ chối bị từ chối khi khai báo. **Mỗi số điện thoại chỉ nhận Tin 1 một lần trong đời** (cầu nối nhớ trong `messages.json`); chia số thành Nhóm A (Chiến dịch thử, 2 đến 3 số) và Nhóm B (khách giả, từ 5 số), không dùng lẫn. Số đã "Xóa dữ liệu khách" vào danh sách chặn vĩnh viễn nên không dùng lại làm số thử.
 - Không nhập file J&T thật và không chạy tool Edge trong lúc thử, để số liệu không lẫn.
 
-## 5. Thứ tự việc nên làm cho Chiến dịch thử
+## 5. Thứ tự việc nên làm khi chạy thử
 
 Mỗi bước nói rõ **ai làm**. Dừng ngay ở bước nào thấy lạ; đừng đi tiếp để "cho xong".
 
@@ -57,7 +57,7 @@ Mỗi bước nói rõ **ai làm**. Dừng ngay ở bước nào thấy lạ; đ
 - Cờ AI và đọc tin riêng (theo báo cáo 23/11 đã bật cho bộ nối, cờ đọc tin riêng và cờ AI với `deepseek-flash`; **kiểm lại**, vì chưa có người xác nhận).
 - **Không tạo lại container bộ nối trước khi đọc log** (log cũ mất theo container).
 
-**Bước 2: Giai đoạn A, Chiến dịch thử `/test-runs` (Nhóm A, 2 đến 3 số)**: làm đúng `HUONG-DAN-CHAY-THU-TOAN-DIEN.md` mục 4, giai đoạn A. Tóm tắt: nấc "Tự thêm trong hạn mức"; bật tự gửi với hạn mức 5 khách/ngày và nghỉ 120 giây; tạo chiến dịch thử, chọn nhóm thử, **Bắt đầu**, chỉ trong 08:00 đến 20:00. Kết bạn làm **tay** (hệ thống cố ý không tự gửi hay nhận lời mời kết bạn); ghi lại chiều nào xảy ra để sửa chữ Tin 1 cho đúng.
+**Bước 2: Giai đoạn A, chiến dịch thật cho 2 đến 3 số thử**: làm đúng `HUONG-DAN-CHAY-THU-TOAN-DIEN.md` mục 4, giai đoạn A. Tóm tắt: nấc "Tự thêm trong hạn mức"; bật tự gửi với hạn mức 5 khách/ngày và nghỉ 120 giây; khai báo số thử, Dựng khách thử, duyệt chiến dịch, chỉ trong 08:00 đến 20:00. Kết bạn **tự động** (Tin 1 rồi lời mời kết bạn, trần mặc định 10 lời mời/ngày); ghi lại nếu Zalo từ chối lời mời hoặc không phát sự kiện kết bạn.
 - **Thu thập (người dùng dán lại, đã che số và nội dung):** nhật ký gần đây ở `/zalo`; nhật ký bộ nối trên máy chủ (không chứa số điện thoại hay nội dung); `findUid`/`sendText` của `zca-adapter.mjs` **chưa từng chạy với Zalo thật**, nên lỗi lạ rất có thể ở đó.
 - **Việc AI làm sau lần thử đầu:** (a) điền `ZALO_PERSON_ERROR_CODES` bằng mã lỗi thật chắc chắn là lỗi riêng một người (ví dụ "không tìm thấy"); mã lạ làm ngắt cầu dao, đó là chủ ý; (b) cập nhật các chỗ ghi "chưa kiểm chứng" (`BAN-GIAO.md` mục 1A và 0.x, `ZALO-BRIDGE-API.md`, `ADR-0002`) bằng kết quả thật; (c) sửa lỗi bằng PR nhỏ.
 - **Nếu cầu dao nhảy hay Zalo cảnh báo:** dừng, đừng bấm Mở lại liên tục, đừng đăng nhập đi đăng nhập lại, đọc lý do và log trước. Xem mục 5 (khi gặp lỗi) và mục 6 (dừng khẩn cấp từ nhẹ đến mạnh) của hướng dẫn chạy thử.
@@ -78,7 +78,7 @@ Mỗi bước nói rõ **ai làm**. Dừng ngay ở bước nào thấy lạ; đ
 
 Chỉ làm khi chủ dự án **báo thử xong**. Một PR, review backend kỹ, ghi vào mô tả PR. Danh sách chính thức ở `HUONG-DAN-CHAY-THU-TOAN-DIEN.md` mục 7 và `docs/GIAO-DIEN-LAM-LAI.md`; dưới đây là các chỗ đã **soát lại ngày 23/11/2026** (một số chỗ ở tài liệu cũ chưa đúng):
 
-1. **Chiến dịch thử:** xóa gói `app/src/main/java/vn/shop/crm/testrun/` (3 file: `TestRunAutomation`, `TestRunController`, `TestRunService`), mẫu `test-runs.html` và `test-run-detail.html`, test `app/src/test/java/vn/shop/crm/testrun/TestRunTest.java` và **`app/src/test/java/vn/shop/crm/zalo/TestRunAutomationTest.java`** (nằm ở gói `zalo`, không phải `testrun`). Gỡ liên kết `/test-runs` ở `campaigns.html`, `zalo.html`, `campaign-detail.html` và mục menu. Gỡ chỗ cắm `ZaloFriendTap` / `ZaloAutoService.addExternal` nếu không còn ai dùng.
+1. **Chiến dịch thử: ĐÃ XÓA (24/11/2026, V45; `TestMode` đã bỏ truy vấn `test_target`).**
 2. **Bảng:** `test_run` và `test_target` được **tạo ở V14** (`V14__campaign_scope_test_run.sql`); V22 chỉ **thêm cột** vào `test_run`. Migration mới (số kế tiếp, lúc viết là `V44`) phải `DROP TABLE test_target, test_run`. Bỏ hai tên bảng khỏi danh sách TRUNCATE ở `AbstractPostgresTest`.
 3. **Bẫy:** `app/src/main/java/vn/shop/crm/safety/TestMode.java` (khoảng dòng 122) còn truy vấn `FROM test_target`. **Phải sửa trước khi bỏ bảng**, nếu không chế độ thử sẽ lỗi lúc chạy. Chạy `grep -rn "test_target\|test_run\|testrun" app/src` để bắt hết.
 4. **Màn nhắn tay:** "Lô nhắn hôm nay" (`/today`, `TodayController`, `today.html`, `TodayQueueTest`), "Chờ vào nhóm" (`/friends`, `FriendsController`, `friends.html`, `FriendQueueTest`, `FriendFlowTest`), mục menu của hai màn này, mục nhắn tay ở khối "Việc cần làm hôm nay" của Tổng quan; các nút Đã nhắn, Đã kết bạn, Đã vào nhóm, Đã gửi link nhóm, Khách đã rời nhóm, Khách từ chối bấm tay (`POST /campaigns/{id}/invitations/{id}/...`), "Xuất danh sách để mẹ gửi tay"; xem lại nút "Chạy thử (không gửi gì)" (`/campaigns/{id}/dry-run`). Dọn chữ cũ "mẹ gửi tay, hệ thống không tự gửi" (ví dụ chú thích Tin 2 trong `InviteService`).
