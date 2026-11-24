@@ -55,6 +55,23 @@ class ZcaBridgeGatewayTest {
     }
 
     @Test
+    void doiChieuBanBeChiNhanLaiDungMaDaHoiVaChiGuiMaDaHoi() {
+        reply.set("{\"ok\":true,\"friends\":[\"501\",\"777\"]}");
+        ZaloGateway.FriendCheck r = gateway.friendsAmong(List.of("501", "502"));
+        assertThat(r.ok()).isTrue();
+        assertThat(r.friends()).containsExactly("501"); // mã 777 không được hỏi thì bỏ
+        assertThat(requests).containsExactly("POST /friends/check");
+        assertThat(bodies.get(0)).contains("501").contains("502");
+        reply.set("{\"ok\":false,\"code\":\"WINDOW\"}");
+        assertThat(gateway.friendsAmong(List.of("501"))).isEqualTo(ZaloGateway.FriendCheck.failed("WINDOW"));
+        // đầu vào sai thì không gọi cầu nối
+        int calls = requests.size();
+        assertThat(gateway.friendsAmong(List.of("abc")).code()).isEqualTo("BAD_INPUT");
+        assertThat(gateway.friendsAmong(List.of()).code()).isEqualTo("BAD_INPUT");
+        assertThat(requests).hasSize(calls);
+    }
+
+    @Test
     void trangThaiDocDuocVaGuiKhoaChung() {
         reply.set("""
                 {"state":"LISTENING","tripReason":null,"accountOk":true,"lastEventAt":"2026-11-22T03:00:00Z",

@@ -115,6 +115,33 @@ public class ZcaBridgeGateway implements ZaloLink {
     }
 
     @Override
+    public FriendCheck friendsAmong(List<String> uids) {
+        if (uids == null || uids.isEmpty() || uids.size() > 500 || !uids.stream().allMatch(u -> u != null && ZALO_ID.matcher(u).matches())) {
+            return FriendCheck.failed("BAD_INPUT");
+        }
+        try {
+            JsonNode n = call("POST", "/friends/check", JSON.writeValueAsString(java.util.Map.of("uids", uids)), 60);
+            if (!n.path("ok").asBoolean(false)) {
+                return FriendCheck.failed(safeCode(text(n, "code")) == null ? "FAILED" : safeCode(text(n, "code")));
+            }
+            java.util.Set<String> asked = new java.util.HashSet<>(uids);
+            List<String> out = new ArrayList<>();
+            for (JsonNode f : n.path("friends")) {
+                String uid = f.asString("");
+                if (asked.contains(uid)) { // chỉ nhận lại đúng những mã đã hỏi, bỏ mọi mã khác
+                    out.add(uid);
+                }
+            }
+            return FriendCheck.of(out);
+        } catch (Unreachable e) {
+            return FriendCheck.failed("BRIDGE_DOWN");
+        } catch (Exception e) {
+            log.warn("Không đối chiếu được bạn bè qua cầu nối: {}", e.getClass().getSimpleName());
+            return FriendCheck.failed("BRIDGE_ERROR");
+        }
+    }
+
+    @Override
     public AddResult addToGroup(String uid, String zaloGroupId) {
         if (uid == null || zaloGroupId == null || !ZALO_ID.matcher(uid).matches() || !ZALO_ID.matcher(zaloGroupId).matches()) {
             return AddResult.of(Outcome.PERSON_ERROR, "BAD_ID");

@@ -75,6 +75,7 @@ class ZaloAutoTest extends AbstractPostgresTest {
         invites.createCampaign("Đợt 1", "Chào {ten}, {cua_hang} tư vấn.", 14, 20);
         clock.set(LocalDateTime.of(2026, 11, 22, 10, 0));
         fake.reset();
+        zalo.resetFriendSync();
     }
 
     // ---------- tiện ích ----------
@@ -256,6 +257,102 @@ class ZaloAutoTest extends AbstractPostgresTest {
         jdbc.sql("UPDATE invitation SET friended_at = TIMESTAMPTZ '2026-11-19 10:00:00+07' WHERE id = :id").param("id", inv(2)).update();
         assertThat(zalo.longWaitingCount(14)).isEqualTo(2);
         assertThat(zalo.attentionCount()).isGreaterThanOrEqualTo(2);
+    }
+
+    // ---------- 24/11/2026: đối chiếu danh sách bạn (chỉ đọc) để bắt khách lỡ sự kiện ----------
+
+    private void target(int n) {
+        jdbc.sql("UPDATE invitation SET zalo_target_uid = :u WHERE id = :id").param("u", "70000000" + n).param("id", inv(n)).update();
+    }
+
+    @Test
+    void doiChieuBanBeBatKhachLoSuKienVaXepVaoHangDoi() {
+        mode(ZaloMode.AUTO);
+        sent(1);
+        sent(2);
+        target(1);
+        target(2);
+        fake.friends.add("700000001");
+        fake.friends.add("999999"); // người ngoài hệ thống cũng là bạn của tài khoản phụ
+        zalo.poll(); // không có sự kiện nào: bộ nối đã khởi động lại và mất sự kiện
+        assertThat(zalo.syncFriends()).isEqualTo(1);
+        assertThat(status(1)).isEqualTo("FRIENDED");
+        assertThat(addState(1)).isEqualTo("QUEUED");
+        assertThat(status(2)).isEqualTo("SENT"); // chưa là bạn: giữ nguyên
+        // chỉ hỏi về khách đã nhận Tin 1, không bao giờ hỏi hay lưu người ngoài hệ thống
+        assertThat(fake.lastAsked).containsExactlyInAnyOrder("700000001", "700000002");
+        assertThat(jdbc.sql("SELECT count(*) FROM invitation WHERE zalo_uid = '999999'").query(Long.class).single()).isZero();
+        // và khách này được thêm vào nhóm như khách có sự kiện
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.ADDED);
+    }
+
+    @Test
+    void doiChieuBanBeCoKhoangNghiNhungNoiLaiPhienThiDoiChieuNgay() {
+        mode(ZaloMode.AUTO);
+        sent(1);
+        target(1);
+        zalo.poll();
+        zalo.syncFriends();
+        assertThat(fake.friendChecks).isEqualTo(1);
+        clock.advance(Duration.ofMinutes(5));
+        zalo.poll();
+        zalo.syncFriends();
+        assertThat(fake.friendChecks).isEqualTo(1); // chưa tới 20 phút
+        clock.advance(Duration.ofMinutes(16));
+        zalo.poll();
+        zalo.syncFriends();
+        assertThat(fake.friendChecks).isEqualTo(2);
+        // cầu nối nối lại phiên (mốc phiên đổi): đối chiếu ngay, không đợi
+        fake.status = new ZaloGateway.Status(ZaloGateway.State.LISTENING, null, true, null, Instant.parse("2026-11-22T04:00:00Z"), null);
+        zalo.poll();
+        zalo.syncFriends();
+        assertThat(fake.friendChecks).isEqualTo(3);
+    }
+
+    @Test
+    void doiChieuBanBeKhongLamGiKhiKhongCoAiCanHoiHoacKhachDaTuChoi() {
+        mode(ZaloMode.AUTO);
+        sent(1);
+        zalo.poll();
+        assertThat(zalo.syncFriends()).isZero();
+        assertThat(fake.friendChecks).isZero(); // không có mã nào để hỏi thì không gọi cầu nối
+        target(1);
+        fake.friends.add("700000001");
+        contacts.suppress(jdbc.sql("SELECT customer_id FROM invitation WHERE id = :id").param("id", inv(1)).query(Long.class).single(), "test");
+        clock.advance(Duration.ofMinutes(30));
+        zalo.poll();
+        assertThat(zalo.syncFriends()).isZero();
+        assertThat(status(1)).isEqualTo("CANCELLED"); // khách đã từ chối: lời mời đã hủy, không bị đưa vào hàng đợi
+        assertThat(addState(1)).isNull();
+    }
+
+    @Test
+    void doiChieuBanBeChuaHoiDuocViLyDoTamThoiThiThuLaiONhipSau() {
+        mode(ZaloMode.AUTO);
+        sent(1);
+        target(1);
+        fake.friends.add("700000001");
+        fake.friendCheckError = "WINDOW";
+        zalo.poll();
+        assertThat(zalo.syncFriends()).isZero();
+        fake.friendCheckError = null;
+        zalo.poll();
+        assertThat(zalo.syncFriends()).isEqualTo(1); // không phải đợi 20 phút
+        assertThat(cfg.tripped()).isFalse();
+    }
+
+    @Test
+    void suKienDenSauKhiDaDoiChieuKhongGhiHaiLan() {
+        mode(ZaloMode.AUTO);
+        sent(1);
+        target(1);
+        fake.friends.add("700000001");
+        zalo.poll();
+        assertThat(zalo.syncFriends()).isEqualTo(1);
+        friend(1, 1); // sự kiện đến muộn
+        zalo.poll();
+        assertThat(jdbc.sql("SELECT count(*) FROM invitation WHERE zalo_uid = '700000001'").query(Long.class).single()).isEqualTo(1);
+        assertThat(addState(1)).isEqualTo("QUEUED");
     }
 
     // ---------- mặc định tắt ----------

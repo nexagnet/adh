@@ -70,6 +70,10 @@ export function loadConfig(env = process.env) {
     // Đọc tin nhắn RIÊNG gửi tới tài khoản (chỉ từ người đã nhận Tin 1 hoặc Tin 2 của hệ thống) để Adh nhận ra khách từ chối. TẮT mặc định:
     // tắt thì bộ nối không đăng ký nghe tin nhắn. Tin giữ trong bộ nhớ, không ghi đĩa, không ghi log.
     inboxEnabled: ['1', 'true'].includes(String(env.BRIDGE_INBOX_ENABLED ?? '').toLowerCase()),
+    // Đối chiếu danh sách bạn (24/11/2026, chủ shop duyệt, CHỈ ĐỌC): giữa hai lần đọc Zalo tối thiểu ngần này giây (trong khoảng đó trả từ bản đã đọc),
+    // tối đa mỗi ngày ngần này lần đọc. Chỉ trả lại những mã Adh hỏi và là bạn; không bao giờ trả cả danh sách.
+    friendSyncMinMs: int(env, 'BRIDGE_FRIEND_SYNC_MIN_SEC', 600, 300, 86400) * 1000,
+    friendSyncDaily: int(env, 'BRIDGE_FRIEND_SYNC_DAILY', 48, 1, 100),
     // Nối lại khi kết nối nghe đứt bất thường (đo thật: mã 1006 sau khoảng 40 phút).
     reconnectDelaysMs: [5000, 15000, 45000, 120000, 300000],
     reconnectMaxAttempts: int(env, 'BRIDGE_RECONNECT_MAX', 8, 1, 100),

@@ -81,6 +81,10 @@ export function createServer({ bridge, config, fake = null }) {
         const after = Number(url.searchParams.get('after') ?? '0');
         return send(200, { enabled: config.inboxEnabled, messages: bridge.inboxMessages(after) });
       }
+      if (route === 'POST /friends/check') {
+        const body = await readJson(req);
+        return send(200, await bridge.checkFriends(body.uids));
+      }
       if (route === 'GET /groups') return send(200, await bridge.listGroups());
       if (route === 'POST /groups') {
         const body = await readJson(req);

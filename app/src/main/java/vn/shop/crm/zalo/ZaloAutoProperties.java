@@ -39,7 +39,9 @@ public record ZaloAutoProperties(
         @DefaultValue("100") int msgMinGapSeconds,
         /* Lời mời kết bạn (24/11/2026): trần mỗi ngày mặc định thấp (10) vì Zalo dễ hạn chế tài khoản gửi kết bạn cho người lạ; trần cứng 50. 0 = tắt hẳn lời mời kết bạn. */
         @DefaultValue("10") int friendDefaultDaily,
-        @DefaultValue("50") int friendMaxDaily) {
+        @DefaultValue("50") int friendMaxDaily,
+        /* Đối chiếu danh sách bạn của tài khoản phụ (chỉ đọc, 24/11/2026): bao nhiêu phút một lần (và ngay khi cầu nối nối lại), tối thiểu 10. */
+        @DefaultValue("20") int friendSyncMinutes) {
 
     public ZaloAutoProperties {
         if (maxDaily < 1) {
@@ -56,6 +58,9 @@ public record ZaloAutoProperties(
         }
         if (msgMinGapSeconds < 30) {
             msgMinGapSeconds = 30;
+        }
+        if (friendSyncMinutes < 10) {
+            friendSyncMinutes = 10;
         }
         if (friendMaxDaily < 1) {
             friendMaxDaily = 1;

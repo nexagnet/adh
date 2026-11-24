@@ -102,10 +102,96 @@ public class ZaloAutoService {
             log.warn("Bộ nối Zalo gặp lỗi khi nghe sự kiện: {}", e.getClass().getSimpleName());
         }
         try {
+            syncFriends();
+        } catch (RuntimeException e) {
+            log.warn("Bộ nối Zalo gặp lỗi khi đối chiếu bạn bè: {}", e.getClass().getSimpleName());
+        }
+        try {
             addNext();
         } catch (RuntimeException e) {
             log.warn("Bộ nối Zalo gặp lỗi khi thêm người: {}", e.getClass().getSimpleName());
         }
+    }
+
+    // ---------- đối chiếu danh sách bạn (24/11/2026, chủ dự án duyệt: CHỈ ĐỌC, chỉ đối chiếu, không lưu bạn ngoài hệ thống) ----------
+
+    private Instant lastFriendSync;
+    private Instant friendSyncSession;
+
+    /** Cho test (bean dùng chung giữa các test, đồng hồ giả bị đặt lại): quên lần đối chiếu trước. */
+    void resetFriendSync() {
+        lastFriendSync = null;
+        friendSyncSession = null;
+    }
+
+    /**
+     * Bắt những khách ĐÃ nhận Tin 1 và đã thành bạn nhưng hệ thống lỡ sự kiện (cầu nối khởi động lại làm mất bộ nhớ sự kiện, Adh tắt lúc đó...).
+     * Hỏi cầu nối đúng những mã Zalo (tối đa 500) của khách đã nhận Tin 1 mà chưa được ghi "đã kết bạn"; cầu nối chỉ trả lại mã nào đang là bạn;
+     * rồi xử lý y hệt một sự kiện kết bạn (cùng điều kiện đủ điều kiện liên hệ, cùng đường xếp vào hàng thêm nhóm). Người ngoài hệ thống không
+     * bao giờ được hỏi hay lưu. Chạy mỗi {@code friendSyncMinutes} phút và ngay khi cầu nối nối lại phiên; ở chế độ thử chỉ xét số thử.
+     * Trả số khách vừa được ghi nhận.
+     */
+    public int syncFriends() {
+        if (!cfg.effectiveMode().listens()) {
+            return 0;
+        }
+        ZaloGateway.Status st = lastStatus;
+        if (st == null || st.state() != ZaloGateway.State.LISTENING || !Boolean.TRUE.equals(st.accountOk())) {
+            return 0;
+        }
+        Instant now = clock.instant();
+        boolean reconnected = !java.util.Objects.equals(st.sessionSince(), friendSyncSession);
+        if (!reconnected && lastFriendSync != null
+                && now.isBefore(lastFriendSync.plus(java.time.Duration.ofMinutes(cfg.props().friendSyncMinutes())))) {
+            return 0;
+        }
+        List<Map<String, Object>> pending = jdbc.sql("""
+                        SELECT i.id, i.zalo_target_uid FROM invitation i JOIN customer c ON c.id = i.customer_id
+                        WHERE i.status IN ('SENT', 'CLICKED') AND i.zalo_uid IS NULL AND i.zalo_target_uid IS NOT NULL
+                        """ + testMode.onlyTestSql("c.phone") + " ORDER BY i.sent_at NULLS LAST, i.id LIMIT 500").query().listOfRows();
+        lastFriendSync = now;
+        friendSyncSession = st.sessionSince();
+        List<String> uids = pending.stream().map(r -> String.valueOf(r.get("zalo_target_uid"))).filter(u -> u.matches("\\d{1,32}")).distinct().toList();
+        if (uids.isEmpty()) {
+            return 0;
+        }
+        ZaloGateway.FriendCheck r = gateway.friendsAmong(uids);
+        if (!r.ok()) {
+            if (List.of("WINDOW", "BUSY", "NOT_ACTIVE", "BRIDGE_DOWN").contains(r.code())) {
+                lastFriendSync = null; // chưa hỏi được vì lý do tạm thời: thử lại ở nhịp sau
+                friendSyncSession = null;
+            }
+            return 0;
+        }
+        int done = 0;
+        for (String uid : r.friends()) {
+            if (!uids.contains(uid)) {
+                continue; // cầu nối trả mã không hỏi: bỏ, không tin
+            }
+            Boolean ok = tx.execute(status -> reconcile(uid));
+            if (Boolean.TRUE.equals(ok)) {
+                done++;
+            }
+        }
+        return done;
+    }
+
+    /** Một mã đã là bạn mà hệ thống chưa biết: ghi nhận như sự kiện kết bạn. Gọi trong giao dịch. */
+    private boolean reconcile(String uid) {
+        Optional<Match> m = findMatchByTargetUid(uid);
+        if (m.isEmpty() || !m.get().matchable()) {
+            return false;
+        }
+        Match match = m.get();
+        if (!contacts.stillEligible(match.customerId())) {
+            cfg.log(ZaloAutoSettings.A_MATCH, match.invitationId(), null, "KHONG_DU_DIEU_KIEN", null, "system");
+            return false;
+        }
+        if (!attach(match.invitationId(), uid, "đối chiếu danh sách bạn")) {
+            return false;
+        }
+        cfg.log(ZaloAutoSettings.A_MATCH, match.invitationId(), null, "DOI_CHIEU", null, "system");
+        return true;
     }
 
     // ---------- nghe sự kiện kết bạn ----------

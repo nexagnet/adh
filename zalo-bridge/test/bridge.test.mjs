@@ -1232,3 +1232,58 @@ test('lời mời kết bạn: không ghi uid, số điện thoại hay nội du
   assert.ok(!c.logs.some((l) => l.includes('501') || l.includes('Câu bí mật') || l.includes('84900000001')));
   c.cleanup();
 });
+
+// ---------- 24/11/2026: đối chiếu danh sách bạn, chỉ đọc ----------
+
+test('đối chiếu bạn bè: chỉ trả lại mã Adh hỏi mà đã là bạn, không lộ người ngoài danh sách hỏi', async () => {
+  const c = setup();
+  await c.bridge.start();
+  await loginAndListen(c);
+  c.adapter.friends = new Set(['501', '502', '999']);
+  const r = await c.bridge.checkFriends(['501', '503', '999']);
+  assert.deepEqual(r, { ok: true, friends: ['501', '999'] });
+  assert.ok(!JSON.stringify(r).includes('502'));
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  assert.deepEqual(c.adapter.adds, []);
+  c.cleanup();
+});
+
+test('đối chiếu bạn bè: đầu vào sai, chưa nghe, ngoài khung giờ thì không đọc Zalo', async () => {
+  const c = setup();
+  await c.bridge.start();
+  assert.equal((await c.bridge.checkFriends(['501'])).ok, false); // chưa đăng nhập
+  await loginAndListen(c);
+  for (const bad of [null, [], ['abc'], [501], Array.from({ length: 501 }, (_, i) => String(i + 1))]) {
+    assert.deepEqual(await c.bridge.checkFriends(bad), { ok: false, code: 'BAD_INPUT' });
+  }
+  assert.equal(c.adapter.friendReads ?? 0, 0);
+  c.cleanup();
+});
+
+test('đối chiếu bạn bè: giữa hai lần đọc Zalo có khoảng nghỉ cố định (trả từ bản đã đọc) và có trần mỗi ngày', async () => {
+  const c = setup({ env: { BRIDGE_FRIEND_SYNC_DAILY: '2' } });
+  await c.bridge.start();
+  await loginAndListen(c);
+  c.adapter.friends = new Set(['501']);
+  await c.bridge.checkFriends(['501']);
+  c.adapter.friends = new Set(['501', '502']);
+  assert.deepEqual((await c.bridge.checkFriends(['502'])).friends, []); // vẫn trong khoảng nghỉ: bản cũ, không hỏi Zalo
+  assert.equal(c.adapter.friendReads, 1);
+  c.clock.t += 11 * 60_000; // qua khoảng nghỉ: được đọc lại và thấy người mới
+  assert.deepEqual((await c.bridge.checkFriends(['502'])).friends, ['502']);
+  assert.equal(c.adapter.friendReads, 2);
+  c.clock.t += 11 * 60_000; // trần 2 lần mỗi ngày
+  assert.deepEqual(await c.bridge.checkFriends(['502']), { ok: false, code: 'LIMIT' });
+  assert.equal(c.adapter.friendReads, 2);
+  c.cleanup();
+});
+
+test('đối chiếu bạn bè: lỗi đọc thì trả ok=false và KHÔNG làm cầu nối dừng', async () => {
+  const c = setup();
+  await c.bridge.start();
+  await loginAndListen(c);
+  c.adapter.friendError = new Error('gì đó lạ');
+  assert.deepEqual(await c.bridge.checkFriends(['501']), { ok: false, code: 'LIST_FAILED' });
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  c.cleanup();
+});
