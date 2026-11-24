@@ -19,7 +19,7 @@ import java.util.Set;
 @Service
 public class RefusalClassifier {
 
-    public enum Label { TU_CHOI, MUON_MUA, KHIEU_NAI, CAU_HOI, KHAC }
+    public enum Label { TU_CHOI, MUON_MUA, KHIEU_NAI, CAU_HOI, DONG_Y, KHAC }
 
     public enum Outcome {
         OK,
@@ -51,7 +51,9 @@ public class RefusalClassifier {
             3. MUON_MUA: khách nói rõ muốn mua hoặc đặt hàng, hoặc hỏi giá, còn hàng, thông số của MỘT sản phẩm cụ thể.
             4. CAU_HOI: khách hỏi thông tin. Hỏi CHUNG về nhóm Zalo, cách vào nhóm, ưu đãi, khuyến mãi, giảm giá, miễn ship, vì sao mua qua nhóm rẻ hơn \
             đều là CAU_HOI, KHÔNG phải MUON_MUA, vì khách chưa nói muốn mua gì và chưa nhắc sản phẩm nào.
-            5. KHAC: đồng ý, cảm ơn, chào, hoặc không rõ ý.
+            5. DONG_Y: khách đồng ý, chấp nhận lời mời vào nhóm hoặc xác nhận ngắn gọn ("ok", "vâng", "dạ", "được", "đồng ý", "ừ", "thêm mình vào nhóm đi"). \
+            Chỉ khi tin thật sự là lời đồng ý, không kèm câu hỏi hay yêu cầu khác.
+            6. KHAC: cảm ơn, chào, biểu tượng cảm xúc, hoặc không rõ ý.
             VÍ DỤ (tin của khách → nhãn đúng):
             "Không cần đâu, đừng nhắn nữa" → TU_CHOI
             "Thôi khỏi, tôi mua trên tiktok được rồi" → TU_CHOI
@@ -64,7 +66,10 @@ public class RefusalClassifier {
             "Có giảm giá không" → CAU_HOI
             "Vào nhóm có được ship free không" → CAU_HOI
             "Vào nhóm rồi mua có rẻ hơn tiktok thật không" → CAU_HOI
-            "Ok, thêm mình vào nhóm đi" → KHAC
+            "Ok" → DONG_Y
+            "Vâng ạ" → DONG_Y
+            "Được, đồng ý" → DONG_Y
+            "Ok, thêm mình vào nhóm đi" → DONG_Y
             "Cảm ơn shop" → KHAC
             confidence là số từ 0 đến 1 thể hiện bạn chắc đến đâu về nhãn đã chọn (không chắc thì cho thấp).
             Chỉ trả về đúng MỘT đối tượng JSON, không thêm chữ nào khác, ví dụ: {"intent":"KHAC","confidence":0.9}""";
