@@ -172,8 +172,8 @@ class ZaloAdminPageTest extends AbstractPostgresTest {
 
     @Test
     void hanMucKhongVuotTranCung() throws Exception {
-        mvc.perform(post("/zalo/limits").with(owner()).with(csrf()).param("daily", "101").param("hourly", "5").param("gap", "2"))
-                .andExpect(status().isBadRequest()).andExpect(content().string(containsString("từ 1 đến 100")));
+        mvc.perform(post("/zalo/limits").with(owner()).with(csrf()).param("daily", "301").param("hourly", "5").param("gap", "2"))
+                .andExpect(status().isBadRequest()).andExpect(content().string(containsString("từ 1 đến 300")));
         mvc.perform(post("/zalo/limits").with(owner()).with(csrf()).param("daily", "40").param("hourly", "4").param("gap", "3"))
                 .andExpect(status().is3xxRedirection());
         assertThat(cfg.limits()).isEqualTo(new ZaloAutoSettings.Limits(40, 4, 3));
