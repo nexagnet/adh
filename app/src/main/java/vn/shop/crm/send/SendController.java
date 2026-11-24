@@ -34,7 +34,7 @@ public class SendController {
     /** Trang cũ "Cài đặt gửi tin" đã gộp vào trang Zalo tài khoản phụ (D18); giữ đường dẫn cũ để dấu trang không chết. */
     @GetMapping("/sending")
     public String settings() {
-        return "redirect:/zalo#gui-tay";
+        return "redirect:/zalo?tab=thu#gui-tay";
     }
 
     @PostMapping("/campaigns/{id}/dry-run")

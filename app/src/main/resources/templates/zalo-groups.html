@@ -12,6 +12,7 @@
                 Chọn nhóm của Adh rồi bấm Gán để lưu mã nhóm. <a th:href="@{/groups}">Quay lại trang Nhóm Zalo</a> · <a th:href="@{/zalo}">Trang Zalo tài khoản phụ</a>.</p>
         </div>
     </header>
+    <nav th:replace="~{fragments :: groupTabs('zalo-groups')}"></nav>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
 

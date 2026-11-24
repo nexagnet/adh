@@ -58,9 +58,19 @@ public class ZaloAutoController {
         return p == null ? "system" : p.getName();
     }
 
+    /** Các tab của trang Zalo (chọn bằng {@code ?tab=}, không script); tab lạ thì về "Tình trạng". */
+    public record Tab(String key, String label) {
+    }
+
+    static final java.util.List<Tab> TABS = java.util.List.of(
+            new Tab("tinh-trang", "Tình trạng"), new Tab("gioi-han", "Giới hạn"), new Tab("nhom", "Nhóm"),
+            new Tab("ai", "Trợ lý AI"), new Tab("thu", "Thử và nhật ký"));
+
     @GetMapping
-    public String page(Model model, HttpServletResponse response) {
+    public String page(@RequestParam(defaultValue = "tinh-trang") String tab, Model model, HttpServletResponse response) {
         response.setHeader("Cache-Control", "no-store");
+        model.addAttribute("tabs", TABS);
+        model.addAttribute("tab", TABS.stream().anyMatch(t -> t.key().equals(tab)) ? tab : "tinh-trang");
         ZaloAutoSettings cfg = service.settings();
         boolean enabled = cfg.props().enabled();
         model.addAttribute("enabled", enabled);
@@ -120,7 +130,7 @@ public class ZaloAutoController {
         requireEnabled();
         service.settings().setMode(mode, confirmedTested, by(user));
         redirect.addFlashAttribute("flash", "Đã chuyển sang nấc: " + mode.label() + ".");
-        return "redirect:/zalo";
+        return "redirect:/zalo?tab=nhom";
     }
 
     // ---------- khách từng từ chối nhắn lại muốn mua (D19) ----------
@@ -131,7 +141,7 @@ public class ZaloAutoController {
         requireEnabled();
         comebacks.setMode(mode, confirmedTested, by(user));
         redirect.addFlashAttribute("flash", "Đã chuyển việc khách quay lại sang nấc: " + mode.label() + ".");
-        return "redirect:/zalo#tin-rieng";
+        return "redirect:/zalo?tab=ai#tin-rieng";
     }
 
     // ---------- tự tạo nhóm theo khu vực (D19) ----------
@@ -142,7 +152,7 @@ public class ZaloAutoController {
         requireEnabled();
         groupMaker.settings().setMode(mode, confirmedTested, by(user));
         redirect.addFlashAttribute("flash", "Đã chuyển việc tự tạo nhóm sang nấc: " + mode.label() + ".");
-        return "redirect:/zalo#tao-nhom";
+        return "redirect:/zalo?tab=nhom#tao-nhom";
     }
 
     @PostMapping("/group-limits")
@@ -162,7 +172,7 @@ public class ZaloAutoController {
         gs.setDays(mergeUpDays == null ? gs.mergeUpDays() : mergeUpDays, relaxDays == null ? gs.relaxDays() : relaxDays,
                 alertDays == null ? gs.alertDays() : alertDays, by(user));
         redirect.addFlashAttribute("flash", "Đã lưu ngưỡng và sức chứa nhóm.");
-        return "redirect:/zalo#tao-nhom";
+        return "redirect:/zalo?tab=nhom#tao-nhom";
     }
 
     // ---------- mẹ làm phó nhóm: nhập số điện thoại, xem tên và ảnh, xác nhận ----------
@@ -173,7 +183,7 @@ public class ZaloAutoController {
         ZaloDeputyService.LookupOutcome r = deputy.lookup(phone, by(user));
         redirect.addFlashAttribute("deputyMsg", r.message());
         redirect.addFlashAttribute("deputyStatus", r.status().name());
-        return "redirect:/zalo#pho-nhom";
+        return "redirect:/zalo?tab=nhom#pho-nhom";
     }
 
     @PostMapping("/deputy/confirm")
@@ -182,7 +192,7 @@ public class ZaloAutoController {
         deputy.confirm(by(user));
         redirect.addFlashAttribute("deputyMsg", "Đã lưu mẹ làm phó nhóm cho các nhóm tạo sau này. Nhớ kết bạn tài khoản phụ với mẹ trên Zalo nếu chưa.");
         redirect.addFlashAttribute("deputyStatus", "FOUND");
-        return "redirect:/zalo#pho-nhom";
+        return "redirect:/zalo?tab=nhom#pho-nhom";
     }
 
     @PostMapping("/deputy/cancel")
@@ -190,7 +200,7 @@ public class ZaloAutoController {
         requireEnabled();
         deputy.cancelCandidate(by(user));
         redirect.addFlashAttribute("deputyMsg", "Đã bỏ kết quả vừa tra. Nhập lại số điện thoại nếu cần.");
-        return "redirect:/zalo#pho-nhom";
+        return "redirect:/zalo?tab=nhom#pho-nhom";
     }
 
     @PostMapping("/deputy/clear")
@@ -198,7 +208,7 @@ public class ZaloAutoController {
         requireEnabled();
         deputy.clear(by(user));
         redirect.addFlashAttribute("deputyMsg", "Đã bỏ phó nhóm đã lưu. Nhóm tạo sau đó sẽ không có phó nhóm (trừ khi còn khai báo ZALO_DEPUTY_ID ở cấu hình triển khai).");
-        return "redirect:/zalo#pho-nhom";
+        return "redirect:/zalo?tab=nhom#pho-nhom";
     }
 
     @PostMapping("/group-proposals/{id}/approve")
@@ -206,7 +216,7 @@ public class ZaloAutoController {
         requireEnabled();
         groupMaker.approve(id, by(user));
         redirect.addFlashAttribute("flash", "Đã duyệt. Nhóm được tạo ở nhịp kế tiếp nếu đang trong giờ và còn trần mỗi ngày.");
-        return "redirect:/zalo#tao-nhom";
+        return "redirect:/zalo?tab=nhom#tao-nhom";
     }
 
     @PostMapping("/group-proposals/{id}/reject")
@@ -214,7 +224,7 @@ public class ZaloAutoController {
         requireEnabled();
         groupMaker.reject(id, by(user));
         redirect.addFlashAttribute("flash", "Đã từ chối đề xuất. Khu vực này không được đề xuất lại trong 24 giờ.");
-        return "redirect:/zalo#tao-nhom";
+        return "redirect:/zalo?tab=nhom#tao-nhom";
     }
 
     @PostMapping("/group-proposals/{id}/checked")
@@ -222,7 +232,7 @@ public class ZaloAutoController {
         requireEnabled();
         groupMaker.acknowledge(id, by(user));
         redirect.addFlashAttribute("flash", "Đã ghi nhận bạn kiểm tra trên Zalo. Bộ nối vẫn dừng cho tới khi bấm Mở lại.");
-        return "redirect:/zalo#tao-nhom";
+        return "redirect:/zalo?tab=nhom#tao-nhom";
     }
 
     @PostMapping("/group-proposals/{id}/deputy-retry")
@@ -232,7 +242,7 @@ public class ZaloAutoController {
         redirect.addFlashAttribute("flash", r.ok()
                 ? "Đã đặt mẹ làm phó nhóm."
                 : "Chưa đặt được mẹ làm phó nhóm (mã lỗi: " + (r.code() == null ? "không rõ" : r.code()) + "). Mã này đã ghi vào nhật ký. Có thể thử lại hoặc thêm tay trong Zalo.");
-        return "redirect:/zalo#tao-nhom";
+        return "redirect:/zalo?tab=nhom#tao-nhom";
     }
 
     @PostMapping("/limits")
@@ -241,7 +251,7 @@ public class ZaloAutoController {
         requireEnabled();
         service.settings().setLimits(daily, hourly, gap, by(user));
         redirect.addFlashAttribute("flash", "Đã lưu hạn mức.");
-        return "redirect:/zalo";
+        return "redirect:/zalo?tab=gioi-han";
     }
 
     /** Công tắc tự gửi tin cho khách (D18). Mặc định TẮT; bật/tắt ghi vào nhật ký. */
@@ -252,7 +262,7 @@ public class ZaloAutoController {
         redirect.addFlashAttribute("flash", on
                 ? "Đã BẬT tự gửi tin. Chỉ chiến dịch đã được duyệt mới được gửi, theo hạn mức và khoảng nghỉ dưới đây."
                 : "Đã TẮT tự gửi tin. Không có tin nào được gửi nữa.");
-        return "redirect:/zalo";
+        return "redirect:/zalo?tab=tinh-trang";
     }
 
     @PostMapping("/messages/limits")
@@ -260,7 +270,7 @@ public class ZaloAutoController {
         requireEnabled();
         messages.setLimits(daily, gap, by(user));
         redirect.addFlashAttribute("flash", "Đã lưu hạn mức tin.");
-        return "redirect:/zalo";
+        return "redirect:/zalo?tab=gioi-han";
     }
 
     @PostMapping("/messages/friend-limit")
@@ -268,7 +278,7 @@ public class ZaloAutoController {
         requireEnabled();
         messages.setFriendDaily(daily, by(user));
         redirect.addFlashAttribute("flash", daily == 0 ? "Đã TẮT lời mời kết bạn tự động." : "Đã lưu hạn mức lời mời kết bạn.");
-        return "redirect:/zalo";
+        return "redirect:/zalo?tab=gioi-han";
     }
 
     @PostMapping("/stop")
@@ -278,7 +288,7 @@ public class ZaloAutoController {
         redirect.addFlashAttribute("flash", ok
                 ? "Đã dừng bộ nối Zalo. Không có gì được thêm cho tới khi bấm Mở lại."
                 : "Adh đã chặn mọi việc thêm người, nhưng chưa báo được cho dịch vụ cầu nối (không gọi được). Hãy kiểm tra dịch vụ zalo-bridge.");
-        return "redirect:/zalo";
+        return "redirect:/zalo?tab=tinh-trang";
     }
 
     @PostMapping("/reopen")
@@ -287,7 +297,7 @@ public class ZaloAutoController {
         boolean ok = service.reopen(by(user), checked);
         redirect.addFlashAttribute("flash", ok ? "Đã mở lại, bộ nối đang nghe bằng phiên đã lưu."
                 : "Chưa mở lại được: cầu nối chưa nghe được (có thể cần quét lại mã QR hoặc không gọi được cầu nối). Vẫn đang dừng.");
-        return "redirect:/zalo";
+        return "redirect:/zalo?tab=tinh-trang";
     }
 
     @PostMapping("/logout")
@@ -297,7 +307,7 @@ public class ZaloAutoController {
         redirect.addFlashAttribute("flash", ok
                 ? "Đã đăng xuất tài khoản phụ khỏi bộ nối. Muốn dùng lại hãy quét mã QR."
                 : "Adh đã dừng bộ nối nhưng chưa xóa được phiên ở dịch vụ cầu nối (không gọi được). Hãy kiểm tra dịch vụ zalo-bridge.");
-        return "redirect:/zalo";
+        return "redirect:/zalo?tab=tinh-trang";
     }
 
     // ---------- quét QR ----------
@@ -365,7 +375,7 @@ public class ZaloAutoController {
         requireEnabled();
         service.approve(id, by(user));
         redirect.addFlashAttribute("flash", "Đã duyệt. Bộ nối sẽ thêm khách vào nhóm khi tới lượt trong hạn mức.");
-        return "redirect:/zalo";
+        return "redirect:/zalo?tab=nhom";
     }
 
     @PostMapping("/invitations/{id}/retry")
@@ -373,7 +383,7 @@ public class ZaloAutoController {
         requireEnabled();
         service.retry(id, by(user));
         redirect.addFlashAttribute("flash", "Đã đưa về chờ duyệt, hãy duyệt lại nếu muốn thử một lần nữa.");
-        return "redirect:/zalo";
+        return "redirect:/zalo?tab=nhom";
     }
 
     @PostMapping("/invitations/{id}/release")
@@ -381,7 +391,7 @@ public class ZaloAutoController {
         requireEnabled();
         service.release(id, by(user));
         redirect.addFlashAttribute("flash", "Đã bỏ khỏi hàng chờ của bộ nối. Mẹ thêm khách này tay trên Zalo.");
-        return "redirect:/zalo";
+        return "redirect:/zalo?tab=nhom";
     }
 
     @PostMapping("/manual/{eventId}/resolve")
@@ -390,7 +400,7 @@ public class ZaloAutoController {
         requireEnabled();
         service.resolve(eventId, invitationId, by(user));
         redirect.addFlashAttribute("flash", "Đã ghép. Khách này đi tiếp theo nấc hiện tại.");
-        return "redirect:/zalo";
+        return "redirect:/zalo?tab=nhom";
     }
 
     @PostMapping("/manual/{eventId}/dismiss")
@@ -398,6 +408,6 @@ public class ZaloAutoController {
         requireEnabled();
         service.dismiss(eventId, by(user));
         redirect.addFlashAttribute("flash", "Đã bỏ qua dòng này.");
-        return "redirect:/zalo";
+        return "redirect:/zalo?tab=nhom";
     }
 }
