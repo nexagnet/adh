@@ -139,7 +139,7 @@ public class AdvisorSnapshotService {
 
         AdvisorSnapshot.Overall overall = new AdvisorSnapshot.Overall(total.customers, total.oneTime, total.eligible,
                 total.awaiting, unknown.customers, hidden, total.funnel());
-        return new AdvisorSnapshot(today.toString(), calendar, limits, overall, areas, slots());
+        return new AdvisorSnapshot(today.toString(), calendar, limits, overall, areas, slots(), campaigns());
     }
 
     private AdvisorSnapshot.Area area(SubRegion sub, Acc acc, List<Map.Entry<Province, Acc>> provinces,
@@ -245,6 +245,36 @@ public class AdvisorSnapshotService {
                     dst.joined += e.getValue().joined;
                 });
         return out;
+    }
+
+    /** Số chiến dịch gần đây (hoặc còn khách chờ) báo cho AI, tối đa. */
+    static final int MAX_CAMPAIGNS = 10;
+    static final int CAMPAIGN_RECENT_DAYS = 30;
+
+    /** Chiến dịch còn khách chờ hoặc mới tạo trong {@link #CAMPAIGN_RECENT_DAYS} ngày: chỉ ngày, khung giờ và số đếm, không tên chiến dịch, không khách. */
+    private List<AdvisorSnapshot.CampaignInfo> campaigns() {
+        return jdbc.sql("""
+                        SELECT k.geo_scope, k.auto_send_approved_at IS NOT NULL AS approved, k.start_on, k.end_on, k.window_from, k.window_to,
+                               k.daily_cap, count(i.id) AS total, count(i.id) FILTER (WHERE i.status = 'READY') AS ready,
+                               count(i.id) FILTER (WHERE i.sent_at IS NOT NULL) AS sent
+                        FROM invitation_campaign k LEFT JOIN invitation i ON i.campaign_id = k.id
+                        GROUP BY k.id
+                        HAVING count(i.id) FILTER (WHERE i.status = 'READY') > 0 OR k.created_at >= now() - make_interval(days => :days)
+                        ORDER BY k.id DESC LIMIT :n""")
+                .param("days", CAMPAIGN_RECENT_DAYS).param("n", MAX_CAMPAIGNS)
+                .query((rs, i) -> {
+                    long ready = rs.getLong("ready");
+                    String state = ready == 0 ? "XONG" : rs.getBoolean("approved") ? "DANG_GUI" : "CHUA_DUYET";
+                    String scope = rs.getString("geo_scope");
+                    return new AdvisorSnapshot.CampaignInfo(scope == null || scope.isBlank() ? "ALL" : scope, state,
+                            str(rs.getObject("start_on", LocalDate.class)), str(rs.getObject("end_on", LocalDate.class)),
+                            str(rs.getObject("window_from", java.time.LocalTime.class)), str(rs.getObject("window_to", java.time.LocalTime.class)),
+                            (Integer) rs.getObject("daily_cap"), rs.getLong("total"), ready, rs.getLong("sent"));
+                }).list();
+    }
+
+    private static String str(Object o) {
+        return o == null ? null : o.toString();
     }
 
     /** Số tin đã nhắn và số khách kết bạn theo bốn khung giờ gửi (giờ Việt Nam); ngoài 08–20 dồn vào "khác". */

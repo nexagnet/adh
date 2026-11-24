@@ -155,4 +155,29 @@ class AdvisorSnapshotTest extends AbstractPostgresTest {
         assertThat(json).doesNotContainPattern("\\d{8,}");
         assertThat(json).doesNotContainPattern("\\d{3}[ .-]?\\d{3}[ .-]?\\d{3,4}");
     }
+
+    @Test
+    void baoChoAiCacChienDichDangChoMaKhongCoTenHayKhach() {
+        long id = invites.createCampaign("Chiến dịch BiMat ten rieng", null, 14, 3, "P:tphcm");
+        jdbc.sql("UPDATE invitation_campaign SET start_on = CURRENT_DATE, end_on = CURRENT_DATE + 5, daily_cap = 7 WHERE id = :id").param("id", id).update();
+
+        AdvisorSnapshot s = service.build();
+        assertThat(s.campaigns()).hasSize(1);
+        var c = s.campaigns().getFirst();
+        assertThat(c.scope()).isEqualTo("P:tphcm");
+        assertThat(c.state()).isEqualTo("CHUA_DUYET");
+        assertThat(c.open()).isTrue();
+        assertThat(c.total()).isEqualTo(3);
+        assertThat(c.ready()).isEqualTo(3);
+        assertThat(c.sent()).isZero();
+        assertThat(c.dailyCap()).isEqualTo(7);
+        assertThat(s.toJson()).doesNotContain("BiMat").doesNotContain("Chiến dịch");
+
+        jdbc.sql("UPDATE invitation_campaign SET auto_send_approved_at = now() WHERE id = :id").param("id", id).update();
+        assertThat(service.build().campaigns().getFirst().state()).isEqualTo("DANG_GUI");
+        jdbc.sql("UPDATE invitation SET status = 'SENT', sent_at = now() WHERE campaign_id = :id").param("id", id).update();
+        var done = service.build().campaigns().getFirst();
+        assertThat(done.state()).isEqualTo("XONG");
+        assertThat(done.sent()).isEqualTo(3);
+    }
 }

@@ -18,7 +18,13 @@ public record AdvisorSnapshot(
         Limits limits,
         Overall overall,
         List<Area> areas,
-        List<Slot> sendSlots) {
+        List<Slot> sendSlots,
+        List<CampaignInfo> campaigns) {
+
+    /** Bản không có danh sách chiến dịch (dùng trong test và khi chưa có chiến dịch nào). */
+    public AdvisorSnapshot(String generatedOn, Calendar calendar, Limits limits, Overall overall, List<Area> areas, List<Slot> sendSlots) {
+        this(generatedOn, calendar, limits, overall, areas, sendSlots, List.of());
+    }
 
     private static final JsonMapper JSON = JsonMapper.builder()
             .propertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE).build();
@@ -64,6 +70,18 @@ public record AdvisorSnapshot(
 
     /** Khung giờ nhắn (giờ Việt Nam): số tin đã nhắn và số khách kết bạn từ các tin đó. */
     public record Slot(String label, long sent, long friended) {
+    }
+
+    /**
+     * Một chiến dịch đang chạy hoặc mới chạy (không tên, không khách): để AI không đề xuất trùng khu vực và thời gian.
+     * {@code scope}: mã khu vực của chiến dịch ("ALL" nếu mọi nơi). {@code state}: DANG_GUI (đã duyệt tự gửi, còn khách chờ),
+     * CHUA_DUYET (còn khách chờ nhưng chưa duyệt tự gửi) hoặc XONG (hết khách chờ).
+     */
+    public record CampaignInfo(String scope, String state, String startOn, String endOn, String windowFrom, String windowTo,
+                               Integer dailyCap, long total, long ready, long sent) {
+        public boolean open() {
+            return "DANG_GUI".equals(state) || "CHUA_DUYET".equals(state);
+        }
     }
 
     /** Chuỗi JSON đưa cho AI (khóa dạng snake_case). */

@@ -45,6 +45,7 @@ public class CampaignAdvisor {
             - batch_size từ 1 đến min(eligible của khu vực đó, limits.max_campaign_size). daily_cap từ 1 đến limits.daily_customers. Đừng đề xuất vượt giới hạn.
             - start_date từ hôm nay (generated_on) trở đi, trong 30 ngày tới; end_date không quá 14 ngày kể từ start_date (YYYY-MM-DD).
             - window_from và window_to (HH:mm) nằm trong limits.window_from đến limits.window_to và rộng ít nhất 60 phút.
+            - campaigns là các chiến dịch đang chạy hoặc mới chạy (scope là khu vực, state DANG_GUI hoặc CHUA_DUYET nghĩa là còn khách chờ gửi). Không đề xuất chiến dịch trùng khu vực VÀ trùng thời gian với chiến dịch còn chờ gửi; hãy chọn khu vực khác hoặc ngày sau khi chiến dịch kia kết thúc. Chiến dịch XONG cho biết kết quả (sent là số khách đã nhắn).
             - Mỗi lý do phải dựa vào một con số hoặc sự kiện CÓ trong số liệu (ví dụ nhiệt độ dự báo, số khách đủ điều kiện, dịp sắp tới, mùa). Không bịa số liệu.
             - Nếu thiếu dữ liệu (chưa có lịch sử phản hồi, chưa có thời tiết) thì nói rõ trong risks và cho confidence thấp. Nếu không đủ cơ sở để đề xuất, trả proposals rỗng và giải thích ngắn ở skip_reason.
             - Gợi ý thông thường (không chắc chắn, chỉ dùng khi số liệu ủng hộ): trời nóng thì khách quan tâm áo điều hòa nhiều hơn; mưa lớn thì khách ít để ý tin nhắn; tránh sát ngày lễ lớn nếu khách bận.
