@@ -80,11 +80,12 @@ class ProposalValidatorTest {
         assertThat(p.confidence()).isEqualTo(0.6);
         assertThat(p.confidenceCapped()).isTrue();
         // đủ lịch sử và có thời tiết: giữ nguyên
-        var ok = ProposalValidator.validate(wrap(one("confidence", "0.95")), snapshot(30, true), TODAY).accepted().getFirst();
+        // (bắt đầu ngày mai, còn trong dự báo 48 giờ; bắt đầu xa hơn thì còn bị trần dự báo, xem test riêng)
+        var ok = ProposalValidator.validate(wrap(one("start_date", "\"2026-11-24\"", "confidence", "0.95")), snapshot(30, true), TODAY).accepted().getFirst();
         assertThat(ok.confidence()).isEqualTo(0.95);
         assertThat(ok.confidenceCapped()).isFalse();
         // đủ lịch sử nhưng khu vực chưa có dự báo: tối đa 0,7
-        var noWeather = ProposalValidator.validate(wrap(one("area", "\"S:DB_SONG_HONG\"", "batch_size", "10", "confidence", "0.95")),
+        var noWeather = ProposalValidator.validate(wrap(one("area", "\"S:DB_SONG_HONG\"", "batch_size", "10", "start_date", "\"2026-11-24\"", "confidence", "0.95")),
                 snapshot(30, true), TODAY).accepted().getFirst();
         assertThat(noWeather.confidence()).isEqualTo(0.7);
     }
@@ -234,5 +235,25 @@ class ProposalValidatorTest {
         rejected(one("product_group", "\"CHUA_RO\""), "product_group");
         rejected(one("product_group", "\"ao\""), "product_group");
         rejected(one("product_group", "1"), "product_group");
+    }
+
+    @Test
+    void ngayBatDauNgoaiVungCoDuBaoThiDoTinCayBiChanTran() {
+        var base = snapshot(100, true); // đủ lịch sử để chỉ còn trần theo dự báo
+        var weather = new AdvisorSnapshot.Weather(25, 35, 10, 100, List.of(
+                new AdvisorSnapshot.OutlookDay(0, 25, 35, 0), new AdvisorSnapshot.OutlookDay(1, 25, 35, 0),
+                new AdvisorSnapshot.OutlookDay(2, 25, 35, 0), new AdvisorSnapshot.OutlookDay(3, 25, 35, 0)));
+        var a = base.areas().getFirst();
+        var withOutlook = new AdvisorSnapshot.Area(a.code(), a.label(), a.region(), a.customers(), a.oneTime(), a.eligible(),
+                a.awaitingApproval(), a.newLast30Days(), a.recency(), a.funnel(), weather, a.topProvinces());
+        var snap = new AdvisorSnapshot(base.generatedOn(), base.calendar(), base.limits(), base.overall(),
+                List.of(withOutlook, base.areas().get(1)), base.sendSlots());
+        // 23/11 + 3 ngày = 26/11 còn trong dự báo (4 ngày: 0 đến 3): AI nói 0,9 và được chặn ở trần chung 1,0
+        var inside = ProposalValidator.validate(wrap(one("start_date", "\"2026-11-26\"", "end_date", "\"2026-12-03\"", "confidence", "0.9")), snap, TODAY);
+        assertThat(inside.accepted().getFirst().confidence()).isEqualTo(0.9);
+        // 27/11 đã ngoài vùng có dự báo: bị chặn ở 0,65
+        var outside = ProposalValidator.validate(wrap(one("start_date", "\"2026-11-27\"", "end_date", "\"2026-12-04\"", "confidence", "0.9")), snap, TODAY);
+        assertThat(outside.accepted().getFirst().confidence()).isEqualTo(ProposalValidator.CAP_BEYOND_FORECAST);
+        assertThat(outside.accepted().getFirst().confidenceCapped()).isTrue();
     }
 }

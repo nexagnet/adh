@@ -87,6 +87,44 @@ public class MetNoWeatherClient implements WeatherClient {
         return six.isNumber() ? round1(six.asDouble() / 6.0) : 0.0;
     }
 
+    private static final java.time.ZoneId VN = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
+    /** Ngày chỉ có một mốc đo (đầu hoặc cuối chuỗi dự báo) thì bỏ, vì không đủ để nói thấp nhất hay cao nhất. */
+    private static final int MIN_POINTS_PER_DAY = 2;
+    private static final int MAX_DAYS = 9;
+
+    /**
+     * Dự báo theo ngày (giờ Việt Nam) cho cả chuỗi MET Norway (khoảng 9 ngày): nhiệt độ thấp nhất/cao nhất từ các mốc đo và tổng mưa. Mưa lấy mốc 1 giờ
+     * nếu có, nếu không thì mốc 6 giờ (các mốc 6 giờ cách nhau 6 giờ nên không cộng trùng).
+     */
+    static java.util.List<Forecast.Day> daily(JsonNode series) {
+        java.util.Map<java.time.LocalDate, double[]> acc = new java.util.TreeMap<>(); // min, max, mưa, số mốc
+        for (JsonNode entry : series) {
+            JsonNode temp = entry.path("data").path("instant").path("details").path("air_temperature");
+            if (!temp.isNumber()) {
+                continue;
+            }
+            java.time.LocalDate day = OffsetDateTime.parse(entry.path("time").asString()).atZoneSameInstant(VN).toLocalDate();
+            double[] a = acc.computeIfAbsent(day, k -> new double[]{Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0, 0});
+            a[0] = Math.min(a[0], temp.asDouble());
+            a[1] = Math.max(a[1], temp.asDouble());
+            JsonNode one = entry.path("data").path("next_1_hours").path("details").path("precipitation_amount");
+            JsonNode six = entry.path("data").path("next_6_hours").path("details").path("precipitation_amount");
+            if (one.isNumber()) {
+                a[2] += one.asDouble();
+            } else if (six.isNumber()) {
+                a[2] += six.asDouble();
+            }
+            a[3]++;
+        }
+        java.util.List<Forecast.Day> out = new java.util.ArrayList<>();
+        for (var e : acc.entrySet()) {
+            if (e.getValue()[3] >= MIN_POINTS_PER_DAY && out.size() < MAX_DAYS) {
+                out.add(new Forecast.Day(e.getKey(), round1(e.getValue()[0]), round1(e.getValue()[1]), round1(e.getValue()[2])));
+            }
+        }
+        return out;
+    }
+
     /** Lấy nhiệt độ thấp nhất/cao nhất trong 48 giờ kể từ mốc đầu tiên và loại thời tiết gần nhất. */
     static Optional<Forecast> parse(String json, OffsetDateTime fetchedAt) {
         try {
@@ -131,7 +169,7 @@ public class MetNoWeatherClient implements WeatherClient {
             if (min == Double.POSITIVE_INFINITY) {
                 return Optional.empty();
             }
-            return Optional.of(new Forecast(min, max, symbol, fetchedAt, hours));
+            return Optional.of(new Forecast(min, max, symbol, fetchedAt, hours, daily(series)));
         } catch (Exception e) {
             return Optional.empty();
         }
