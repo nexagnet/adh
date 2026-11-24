@@ -68,6 +68,11 @@
             <label class="field">Ghi chú (tùy chọn) <input type="text" name="note" maxlength="100" placeholder="Số của tôi / bạn A"></label>
             <button type="submit" class="btn">Thêm số thử</button>
         </form>
+        <form th:if="${@testMode.testOnly()}" th:action="@{/zalo/test-numbers/seed}" method="post" class="stack">
+            <p class="muted"><strong>Dựng khách thử tự động:</strong> mỗi số thử chưa là khách được một đơn J&amp;T giả (mã vận đơn bắt đầu bằng JTTEST, tên "Khách thử N", cùng tỉnh Cần Thơ),
+                đi qua đúng đường nhập đơn thật, nên không cần tự nhập đơn. Không xóa hay sửa khách nào đã có. Sau đó bật tự nhận khách mới ở trang chiến dịch để hệ thống tự mời.</p>
+            <button type="submit" class="btn secondary">Dựng khách thử từ các số thử</button>
+        </form>
     </section>
 
     <div class="notice" th:unless="${enabled}">

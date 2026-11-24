@@ -76,10 +76,11 @@ class AiGateTest extends AbstractPostgresTest {
                 return now[0].instant();
             }
         };
+        AiUsage movingUsage = new AiUsage(jdbc, moving);
         AiGate gate = new AiGate((s, u, j) -> {
             calls.incrementAndGet();
             throw new AiClient.AiUnavailableException("lỗi");
-        }, props(true, 100), new AiUsage(jdbc, moving), moving);
+        }, props(true, 100), movingUsage, moving);
         for (int i = 0; i < AiGate.TRIP_AFTER; i++) {
             assertThat(gate.ask("s", "u", false)).isEmpty();
         }
@@ -91,7 +92,8 @@ class AiGateTest extends AbstractPostgresTest {
         assertThat(gate.status().paused()).isFalse();
         gate.ask("s", "u", false);
         assertThat(calls).hasValue(AiGate.TRIP_AFTER + 1);
-        assertThat(usage.failuresToday()).isEqualTo(AiGate.TRIP_AFTER + 1);
+        // đếm theo đồng hồ giả (không theo ngày thật, nếu không test hỏng mỗi khi qua ngày)
+        assertThat(movingUsage.failuresToday()).isEqualTo(AiGate.TRIP_AFTER + 1);
     }
 
     @Test
