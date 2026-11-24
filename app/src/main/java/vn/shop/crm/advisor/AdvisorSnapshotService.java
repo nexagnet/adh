@@ -380,7 +380,7 @@ public class AdvisorSnapshotService {
                     long cid = rs.getLong("campaign_id");
                     CampaignPerformance p = perf.get(cid);
                     OffsetDateTime decided = rs.getObject("decided_at", OffsetDateTime.class);
-                    int daysAgo = decided == null ? 0 : (int) java.time.temporal.ChronoUnit.DAYS.between(decided.toLocalDate(), now.toLocalDate());
+                    int daysAgo = decided == null ? 0 : (int) java.time.temporal.ChronoUnit.DAYS.between(decided.atZoneSameInstant(ZONE).toLocalDate(), now.toLocalDate());
                     return new AdvisorSnapshot.PastProposal(rs.getBigDecimal("confidence").doubleValue(), daysAgo, sent,
                             rs.getLong("friended"), rs.getLong("joined"), optedOut.getOrDefault(cid, 0L),
                             p != null && !p.masked() ? p.buyers() : null);

@@ -158,9 +158,36 @@ class RefusalDetectionTest extends AbstractPostgresTest {
         fake.pushInbound(uid(1), "đừng nhắn nữa");
         assertThat(svc.poll()).isZero();
         auto.setMode(ZaloMode.CONFIRM, false, "mẹ");
-        auto.trip("THU", "system");
+        auto.trip("DUNG_TAY", "system");
         assertThat(svc.poll()).isZero();
         assertThat(fake.inboxCalls).isZero();
+        assertThat(aiPrompts).isEmpty();
+    }
+
+    /** Cầu dao chỉ chặn GỬI: lỗi thường (hạn mức, khung giờ, lỗi lạ) thì vẫn nhận và ghi nhận tin khách nhắn tới, không để mất tin. */
+    @Test
+    void cauDaoLoiThuongVanNhanTinRiengChiChanGui() {
+        auto.trip("THU", "system");
+        aiAnswer.set(ai("TU_CHOI", 0.95));
+        fake.pushInbound(uid(1), "đừng nhắn nữa");
+        assertThat(svc.poll()).isEqualTo(1);
+        assertThat(suppressed(1)).isTrue();
+        // cầu nối cũng đang dừng gửi vì lỗi thường: vẫn đọc được hộp thư
+        fake.status = new ZaloGateway.Status(ZaloGateway.State.TRIPPED, "MSG_LIMIT", null, null, null, null);
+        fake.pushInbound(uid(2), "đừng nhắn nữa");
+        assertThat(svc.poll()).isEqualTo(1);
+        assertThat(suppressed(2)).isTrue();
+    }
+
+    @Test
+    void matPhienHoacDungTayHoacZaloHanCheThiKhongNhanTin() {
+        fake.pushInbound(uid(1), "đừng nhắn nữa");
+        for (String reason : List.of("SESSION_LOST:Z600", "RESTRICTED", "STOP", "KICKED", "DUPLICATE_CONNECTION", "DANG_XUAT")) {
+            fake.status = new ZaloGateway.Status(ZaloGateway.State.TRIPPED, reason, null, null, null, null);
+            assertThat(svc.poll()).as(reason).isZero();
+        }
+        fake.status = new ZaloGateway.Status(ZaloGateway.State.TRIPPED, "MSG_LIMIT", false, null, null, null);
+        assertThat(svc.poll()).isZero(); // sai tài khoản
         assertThat(aiPrompts).isEmpty();
     }
 
