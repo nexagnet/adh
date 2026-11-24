@@ -298,7 +298,7 @@ class ZcaBridgeGatewayTest {
     void taoNhomGuiDungBodyVaDocKetQuaChiLayNguoiTrongDanhSach() {
         reply.set("""
                 {"outcome":"OK","groupId":"9876","link":"https://zalo.me/g/abc","added":["111","999"],"failed":["222"],"deputy":"OK"}""");
-        var r = gateway.createGroup("Áo điều hòa ADH - Miền Nam - 01", List.of("111", "222"), "333");
+        var r = gateway.createGroup("Áo điều hòa ADH - Miền Nam - 01", List.of("111", "222"), "333", null);
         assertThat(requests).containsExactly("POST /groups");
         assertThat(keys).containsExactly("khoa-chung");
         assertThat(bodies.getFirst()).contains("\"name\":\"Áo điều hòa ADH - Miền Nam - 01\"").contains("\"members\":[\"111\",\"222\"]").contains("\"deputy\":\"333\"");
@@ -312,33 +312,33 @@ class ZcaBridgeGatewayTest {
 
     @Test
     void taoNhomDauVaoSaiThiKhongGoiCauNoi() {
-        assertThat(gateway.createGroup("", List.of("111"), null).code()).isEqualTo("BAD_NAME");
-        assertThat(gateway.createGroup("x", List.of(), null).code()).isEqualTo("BAD_MEMBERS");
-        assertThat(gateway.createGroup("x", List.of("1; DROP"), null).code()).isEqualTo("BAD_MEMBERS");
-        assertThat(gateway.createGroup("x", List.of("1", "2", "3", "4", "5", "6"), null).code()).isEqualTo("BAD_MEMBERS");
-        assertThat(gateway.createGroup("x", List.of("111"), "abc").code()).isEqualTo("BAD_DEPUTY");
+        assertThat(gateway.createGroup("", List.of("111"), null, null).code()).isEqualTo("BAD_NAME");
+        assertThat(gateway.createGroup("x", List.of(), null, null).code()).isEqualTo("BAD_MEMBERS");
+        assertThat(gateway.createGroup("x", List.of("1; DROP"), null, null).code()).isEqualTo("BAD_MEMBERS");
+        assertThat(gateway.createGroup("x", List.of("1", "2", "3", "4", "5", "6"), null, null).code()).isEqualTo("BAD_MEMBERS");
+        assertThat(gateway.createGroup("x", List.of("111"), "abc", null).code()).isEqualTo("BAD_DEPUTY");
         assertThat(requests).isEmpty();
     }
 
     @Test
     void taoNhomPhanLoaiChuaTaoVaKhongBiet() {
         reply.set("{\"outcome\":\"RATE_LIMITED\",\"retryAfterSec\":120}");
-        var limited = gateway.createGroup("x", List.of("111"), null);
+        var limited = gateway.createGroup("x", List.of("111"), null, null);
         assertThat(limited.outcome()).isEqualTo(ZaloGroupMaker.GroupOutcome.RATE_LIMITED);
         assertThat(limited.notCreated()).isTrue();
         assertThat(limited.retryAfterSeconds()).isEqualTo(120);
         reply.set("{\"outcome\":\"RESTRICTED\",\"code\":\"GROUP_LIMIT\"}");
-        assertThat(gateway.createGroup("x", List.of("111"), null).notCreated()).isTrue();
+        assertThat(gateway.createGroup("x", List.of("111"), null, null).notCreated()).isTrue();
         reply.set("{\"outcome\":\"SYSTEM_ERROR\",\"code\":\"NO_ACK\"}");
-        assertThat(gateway.createGroup("x", List.of("111"), null).notCreated()).isFalse();
+        assertThat(gateway.createGroup("x", List.of("111"), null, null).notCreated()).isFalse();
         reply.set("{\"outcome\":\"OK\",\"groupId\":\"abc\"}"); // thiếu mã nhóm hợp lệ: nhóm có thể đã tạo, dừng
-        var noId = gateway.createGroup("x", List.of("111"), null);
+        var noId = gateway.createGroup("x", List.of("111"), null, null);
         assertThat(noId.outcome()).isEqualTo(ZaloGroupMaker.GroupOutcome.SYSTEM_ERROR);
         assertThat(noId.notCreated()).isFalse();
         reply.set("{\"outcome\":\"UNREACHABLE\"}"); // cầu nối không được tự nói "không nối được"
-        assertThat(gateway.createGroup("x", List.of("111"), null).outcome()).isEqualTo(ZaloGroupMaker.GroupOutcome.SYSTEM_ERROR);
+        assertThat(gateway.createGroup("x", List.of("111"), null, null).outcome()).isEqualTo(ZaloGroupMaker.GroupOutcome.SYSTEM_ERROR);
         server.stop(0);
-        var down = gateway.createGroup("x", List.of("111"), null);
+        var down = gateway.createGroup("x", List.of("111"), null, null);
         assertThat(down.outcome()).isEqualTo(ZaloGroupMaker.GroupOutcome.UNREACHABLE);
         assertThat(down.notCreated()).isTrue();
     }
@@ -346,7 +346,7 @@ class ZcaBridgeGatewayTest {
     @Test
     void taoNhomLinkLaThiBoVaPhoNhomLaThiLaKhong() {
         reply.set("{\"outcome\":\"OK\",\"groupId\":\"9876\",\"link\":\"http://x\",\"added\":[],\"failed\":[\"111\"],\"deputy\":\"lạ\"}");
-        var r = gateway.createGroup("x", List.of("111"), null);
+        var r = gateway.createGroup("x", List.of("111"), null, null);
         assertThat(r.link()).isNull();
         assertThat(r.deputy()).isEqualTo("NONE");
     }
@@ -354,11 +354,11 @@ class ZcaBridgeGatewayTest {
     @Test
     void taoNhomDocMaLoiPhoNhomChiKhiLoi() {
         reply.set("{\"outcome\":\"OK\",\"groupId\":\"9876\",\"added\":[\"111\"],\"failed\":[],\"deputy\":\"FAILED\",\"deputyCode\":\"Z118\"}");
-        var r = gateway.createGroup("x", List.of("111"), "900");
+        var r = gateway.createGroup("x", List.of("111"), "900", null);
         assertThat(r.deputy()).isEqualTo("FAILED");
         assertThat(r.deputyCode()).isEqualTo("Z118");
         reply.set("{\"outcome\":\"OK\",\"groupId\":\"9876\",\"added\":[\"111\"],\"failed\":[],\"deputy\":\"OK\",\"deputyCode\":\"Z118\"}");
-        assertThat(gateway.createGroup("x", List.of("111"), "900").deputyCode()).isNull();
+        assertThat(gateway.createGroup("x", List.of("111"), "900", null).deputyCode()).isNull();
     }
 
     @Test

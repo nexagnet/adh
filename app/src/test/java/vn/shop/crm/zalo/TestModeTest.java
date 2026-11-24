@@ -355,10 +355,10 @@ class TestModeTest extends AbstractPostgresTest {
         assertThat(fake.adds).hasSize(1);
 
         // tạo nhóm: chỉ cần MỘT thành viên không phải số thử là không tạo
-        assertThat(link.createGroup("Nhóm", List.of("UT4", "UREAL"), null).outcome()).isEqualTo(ZaloGroupMaker.GroupOutcome.UNREACHABLE);
-        assertThat(link.createGroup("Nhóm", List.of("UT4", "UREAL"), null).notCreated()).isTrue();
+        assertThat(link.createGroup("Nhóm", List.of("UT4", "UREAL"), null, null).outcome()).isEqualTo(ZaloGroupMaker.GroupOutcome.UNREACHABLE);
+        assertThat(link.createGroup("Nhóm", List.of("UT4", "UREAL"), null, null).notCreated()).isTrue();
         assertThat(fake.creates).isEmpty();
-        assertThat(link.createGroup("Nhóm", List.of("UT4", "UT5"), null).outcome()).isEqualTo(ZaloGroupMaker.GroupOutcome.OK);
+        assertThat(link.createGroup("Nhóm", List.of("UT4", "UT5"), null, null).outcome()).isEqualTo(ZaloGroupMaker.GroupOutcome.OK);
         assertThat(fake.creates).hasSize(1);
 
         assertThat(mode.blockedCount()).isGreaterThanOrEqualTo(10);

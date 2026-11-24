@@ -103,9 +103,12 @@ export class ZcaAdapter {
     return `data:${type};base64,${buf.toString('base64')}`;
   }
 
-  /** Gửi MỘT tin văn bản cho MỘT người. Không đính kèm, không gửi lời mời kết bạn. */
-  async sendText(uid, text) {
-    return this.api.sendMessage({ msg: text }, uid, ThreadType.User);
+  /**
+   * Gửi MỘT tin văn bản cho MỘT người, hoặc (group = true) vào MỘT nhóm vừa tự tạo (tin chào đầu nhóm). Không đính kèm, không gửi lời mời
+   * kết bạn. Chỗ DUY NHẤT gọi sendMessage.
+   */
+  async sendText(id, text, group = false) {
+    return this.api.sendMessage({ msg: text }, id, group ? ThreadType.Group : ThreadType.User);
   }
 
   /** Gửi MỘT lời mời kết bạn (kèm câu ngắn) cho MỘT người đã nhận Tin 1. Chỗ DUY NHẤT gọi sendFriendRequest. Thành công trả chuỗi rỗng. */

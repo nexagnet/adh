@@ -247,11 +247,11 @@ public class ZcaBridgeGateway implements ZaloLink {
     // ---------- ZaloGroupMaker: việc thứ năm (D19), tạo MỘT nhóm ----------
 
     /** Mã cầu nối từ chối TRƯỚC khi chạm Zalo (xem bridge.mjs createGroup): chắc chắn chưa tạo nhóm nào. */
-    private static final java.util.Set<String> NOT_CREATED_CODES = java.util.Set.of("BAD_NAME", "BAD_MEMBERS", "BAD_DEPUTY", "LOGIN_REQUIRED",
+    private static final java.util.Set<String> NOT_CREATED_CODES = java.util.Set.of("BAD_NAME", "BAD_MEMBERS", "BAD_DEPUTY", "BAD_WELCOME", "LOGIN_REQUIRED",
             "NOT_ACTIVE", "NOT_CONNECTED", "BUSY", "WINDOW", "GROUP_LIMIT");
 
     @Override
-    public Created createGroup(String name, List<String> memberUids, String deputyUid) {
+    public Created createGroup(String name, List<String> memberUids, String deputyUid, String welcome) {
         if (name == null || name.isBlank() || name.length() > 100) {
             return Created.of(ZaloGroupMaker.GroupOutcome.PERSON_ERROR, "BAD_NAME", true);
         }
@@ -262,12 +262,18 @@ public class ZcaBridgeGateway implements ZaloLink {
         if (deputyUid != null && !ZALO_ID.matcher(deputyUid).matches()) {
             return Created.of(ZaloGroupMaker.GroupOutcome.PERSON_ERROR, "BAD_DEPUTY", true);
         }
+        if (welcome != null && (welcome.isBlank() || welcome.length() > 1500)) {
+            return Created.of(ZaloGroupMaker.GroupOutcome.PERSON_ERROR, "BAD_WELCOME", true);
+        }
         try {
             java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
             body.put("name", name);
             body.put("members", memberUids);
             if (deputyUid != null) {
                 body.put("deputy", deputyUid);
+            }
+            if (welcome != null) {
+                body.put("welcome", welcome);
             }
             JsonNode n = call("POST", "/groups", JSON.writeValueAsString(body), 120);
             ZaloGroupMaker.GroupOutcome outcome;
@@ -297,8 +303,14 @@ public class ZcaBridgeGateway implements ZaloLink {
             if (!"OK".equals(deputy) && !"FAILED".equals(deputy)) {
                 deputy = "NONE";
             }
+            String welcomeState = text(n, "welcome");
+            if (welcome == null) {
+                welcomeState = "NONE";
+            } else if (!"OK".equals(welcomeState) && !"SKIPPED".equals(welcomeState)) {
+                welcomeState = "FAILED"; // không rõ kết quả cũng coi là lỗi: không bao giờ gửi lại
+            }
             return new Created(outcome, null, groupId, link, uidList(n.path("added"), memberUids), uidList(n.path("failed"), memberUids),
-                    deputy, "FAILED".equals(deputy) ? safeCode(text(n, "deputyCode")) : null, 0, false);
+                    deputy, "FAILED".equals(deputy) ? safeCode(text(n, "deputyCode")) : null, 0, false, welcomeState);
         } catch (Unreachable e) {
             return Created.of(ZaloGroupMaker.GroupOutcome.UNREACHABLE, "BRIDGE_DOWN", true);
         } catch (TimedOut e) {

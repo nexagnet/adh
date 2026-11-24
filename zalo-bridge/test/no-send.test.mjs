@@ -35,7 +35,7 @@ test('findUser và sendMessage (D18) chỉ nằm trong bộ điều hợp thật
     }
   }
   // chỉ gửi văn bản thuần cho một người, không đính kèm
-  assert.match(code('zca-adapter.mjs'), /sendMessage\(\{ msg: text \}, uid, ThreadType\.User\)/);
+  assert.match(code('zca-adapter.mjs'), /sendMessage\(\{ msg: text \}, id, group \? ThreadType\.Group : ThreadType\.User\)/);
 });
 
 test('bộ điều hợp zca-js chỉ dùng đúng mười bốn thành phần của api (thêm getAllFriends chỉ đọc để đối chiếu, hai hàm chỉ đọc nhóm, findUser và sendMessage của D18, ba hàm tạo nhóm của D19, sendFriendRequest)', () => {

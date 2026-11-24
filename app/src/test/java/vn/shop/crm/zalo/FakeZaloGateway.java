@@ -55,6 +55,7 @@ public class FakeZaloGateway implements ZaloLink {
         phoneToUid.clear();
         uidSeq = 0;
         creates.clear();
+        welcomes.clear();
         uniqueGroupIds = false;
         deputyCalls.clear();
         deputyResults.clear();
@@ -90,6 +91,8 @@ public class FakeZaloGateway implements ZaloLink {
     }
 
     public final List<Create> creates = new ArrayList<>();
+    /** Tin chào đầu nhóm đã được yêu cầu cho từng lần tạo (null = không gửi). */
+    public final List<String> welcomes = new ArrayList<>();
     private final Deque<Created> createResults = new ArrayDeque<>();
     /** Mặc định: tạo OK, mã nhóm 5555, có link, mọi người vào được. */
     public Created defaultCreate;
@@ -101,8 +104,9 @@ public class FakeZaloGateway implements ZaloLink {
     }
 
     @Override
-    public Created createGroup(String name, List<String> memberUids, String deputyUid) {
+    public Created createGroup(String name, List<String> memberUids, String deputyUid, String welcome) {
         creates.add(new Create(name, List.copyOf(memberUids), deputyUid));
+        welcomes.add(welcome);
         if (!createResults.isEmpty()) {
             return createResults.poll();
         }
@@ -111,7 +115,7 @@ public class FakeZaloGateway implements ZaloLink {
         }
         String id = uniqueGroupIds ? String.valueOf(5555 + creates.size()) : "5555";
         return new Created(ZaloGroupMaker.GroupOutcome.OK, null, id, "https://zalo.me/g/fake" + id, List.copyOf(memberUids), List.of(),
-                deputyUid == null ? "NONE" : "OK", 0, false);
+                deputyUid == null ? "NONE" : "OK", null, 0, false, welcome == null ? "NONE" : "OK");
     }
 
     public record DeputyCall(String groupId, String uid) {

@@ -74,7 +74,7 @@ public class ManualZaloGateway implements ZaloLink {
     }
 
     @Override
-    public Created createGroup(String name, java.util.List<String> memberUids, String deputyUid) {
+    public Created createGroup(String name, java.util.List<String> memberUids, String deputyUid, String welcome) {
         return Created.of(ZaloGroupMaker.GroupOutcome.UNREACHABLE, "DISABLED", true);
     }
 
