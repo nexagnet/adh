@@ -198,7 +198,7 @@ class ReplyTest extends AbstractPostgresTest {
         says("Vào nhóm có mất phí không");
         assertThat(count("SELECT count(*) FROM reply_draft WHERE state = 'DRAFT'")).isEqualTo(1);
         assertThat(replies.drafts()).singleElement().satisfies(r -> {
-            assertThat(r.reply()).startsWith(GOOD).contains("Trợ lý AI của").contains("gặp người thật");
+            assertThat(r.reply()).startsWith(GOOD).doesNotContain("Trợ lý AI của");
             assertThat(r.inbound()).contains("mất phí");
         });
         assertThat(sender.step()).isFalse();
@@ -218,7 +218,7 @@ class ReplyTest extends AbstractPostgresTest {
             assertThat(m.kind()).isEqualTo(Kind.REPLY);
             assertThat(m.uid()).isEqualTo("60000001");
             assertThat(m.phone()).isNull();
-            assertThat(m.text()).startsWith(GOOD).contains("Trợ lý AI của").doesNotContain("Khach 1");
+            assertThat(m.text()).startsWith(GOOD).doesNotContain("Trợ lý AI của").doesNotContain("Khach 1");
         });
         assertThat(one("state")).isEqualTo("SENT");
         assertThat(count("SELECT count(*) FROM zalo_msg_log WHERE kind = 'REPLY' AND outcome = 'OK'")).isEqualTo(1);
@@ -447,7 +447,7 @@ class ReplyTest extends AbstractPostgresTest {
             "Pin 48V còn hàng không;CAU_HOI;0.6;NGOAI;0.9;HANDOFF;NGOAI_PHAM_VI",
             "Hàng nhận bị lỗi quạt không chạy;KHIEU_NAI;0.9;NGOAI;0.9;HANDOFF;KHACH_KHIEU_NAI",
             "Cho mình gặp người thật;KHAC;0.6;NGOAI;0.9;HANDOFF;NGOAI_PHAM_VI",
-            "Bạn là AI hay người thật vậy;KHAC;0.6;NGOAI;0.9;HANDOFF;NGOAI_PHAM_VI",
+            "Bạn là AI hay người thật vậy;KHAC;0.6;TRONG;0.9;DRAFT;",
             "ưu đãi sao;CAU_HOI;0.7;TRONG;0.7;HANDOFF;NGOAI_PHAM_VI"})
     void boCauMauDuongDiDungKhiAiGanNhanKhacNhau(String text, String intent, double intentConf, String sc, double scConf, String state, String reason) {
         replies.setMode(Mode.DRAFT, false, "mẹ");
@@ -474,14 +474,15 @@ class ReplyTest extends AbstractPostgresTest {
     }
 
     @Test
-    void khachHoiThangLaAiHayNguoiThiChuyenNguoiThatKhongTuTraLoiKhongGuiGi() {
+    void khachHoiThangLaAiHayNguoiThiDuocTraLoiThatLaTroLyAi() {
         autoOn();
-        scope.set(aiScope("NGOAI", 0.95));
+        compose.set(aiReply("Dạ em là trợ lý AI của shop ạ, bác cần gặp người thật cứ nhắn em nha."));
         says("Bạn là AI hay người thật vậy");
-        assertThat(one("state")).isEqualTo("HANDOFF");
-        assertThat(one("reply_text")).isNull();
-        assertThat(systems.stream().filter(s -> s.startsWith("Bạn là TRỢ LÝ AI")).count()).isZero(); // AI không soạn câu nào cho câu hỏi này
-        assertThat(fake.messages).isEmpty();
+        assertThat(one("state")).isEqualTo("READY");
+        assertThat(one("reply_text")).contains("trợ lý AI");
+        String compose = systems.stream().filter(s -> s.startsWith("Bạn là TRỢ LÝ AI")).findFirst().orElseThrow();
+        assertThat(compose).contains("trả lời thật là trợ lý AI của cửa hàng").contains("không né, không chối, không khẳng định mình là người");
+        assertThat(ReplyAssistant.SCOPE_SYSTEM).contains("(c) khách hỏi bạn là người hay máy/AI/bot: luôn TRONG");
     }
 
     @Test
@@ -499,11 +500,10 @@ class ReplyTest extends AbstractPostgresTest {
     }
 
     @Test
-    void moiCauTraLoiDeuKemChuKyTroLyAiNganGon() {
+    void moiCauTraLoiKhongKemChuKy() {
         replies.setMode(Mode.DRAFT, false, "mẹ");
         says("Ưu đãi như nào");
-        assertThat(one("reply_text")).endsWith("\n— Trợ lý AI của shop. Cần người thật, nhắn \"gặp người thật\".").doesNotContain("Shop sỉ");
-        assertThat(replies.signature().length()).isLessThan(70);
+        assertThat(one("reply_text")).isEqualTo(GOOD).doesNotContain("—").doesNotContain("Trợ lý AI của");
     }
 
     @Test
@@ -660,8 +660,8 @@ class ReplyTest extends AbstractPostgresTest {
     }
 
     @Test
-    void chuKyLuonNoiRoLaTroLyAi() {
-        assertThat(replies.signature()).contains("Trợ lý AI").doesNotContain("chủ shop").doesNotContain("mẹ");
+    void khongGanChuKyVaoCauTraLoi() {
+        assertThat(replies.signature()).isEmpty();
     }
 
     @Test

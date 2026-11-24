@@ -181,10 +181,13 @@ public class ReplyService {
         settings.set(MODE_KEY, mode.name(), by);
     }
 
-    /** Chữ ký cố định thêm vào MỌI câu trả lời: nói rõ là trợ lý AI và cho khách đường gặp người thật. */
+    /**
+     * Không gắn chữ ký vào câu trả lời (chủ dự án chốt 24/11/2026: bỏ dòng "Trợ lý AI của shop..." ở mọi tin). Giữ hàm này (rỗng) để các chỗ ghép câu
+     * không đổi. Giới hạn vẫn còn hiệu lực ở chỗ khác: AI KHÔNG BAO GIỜ nhận mình là người, nhân viên hay chủ shop ({@link ReplyValidator} chặn), và khách
+     * hỏi thẳng "bạn là AI hay người" thì được trả lời thật rằng đây là trợ lý AI (prompt phạm vi và prompt soạn câu).
+     */
     public String signature() {
-        // Một dòng ngắn: vẫn nói rõ là trợ lý AI và cách gặp người thật. Không kèm tên shop (dài, khách đã biết đang nhắn với shop nào).
-        return "\n— Trợ lý AI của shop. Cần người thật, nhắn \"gặp người thật\".";
+        return "";
     }
 
     // ---------- xử lý một tin đến ----------
