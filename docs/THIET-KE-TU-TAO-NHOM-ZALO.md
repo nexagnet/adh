@@ -17,7 +17,7 @@ Mỗi lần chạy (một lần mỗi 10 phút, chỉ trong 08:00 đến 20:00):
 1. Lấy các khách **đã kết bạn nhưng chưa có nhóm hợp khu vực**, gom theo tỉnh.
 2. Nếu hệ thống đã có nhóm đang nhận khách và còn chỗ ở đúng phạm vi đó (tỉnh, vùng hoặc miền) thì **không tạo**, để khách được thêm vào nhóm đó như bình thường.
 3. Tìm phạm vi **nhỏ nhất** còn đủ người chờ, kiểm từ nhỏ đến lớn: tỉnh, rồi vùng (nhiều tỉnh cạnh nhau), rồi miền. Phạm vi nào có **từ 3 khách chờ trở lên** (ngưỡng chỉnh được) thì chọn phạm vi đó. Tỉnh nhỏ, ít khách thì tự gộp lên vùng: không tạo nhóm 1 đến 2 người.
-4. Nhóm mới lấy tối đa 5 khách đang chờ đầu tiên (người kết bạn sớm nhất trước). Khách còn lại vào nhóm tiếp theo.
+4. Nhóm mới lấy tối đa 5 khách đang chờ đầu tiên (người kết bạn sớm nhất trước). Khách còn lại vào nhóm tiếp theo. **Cập nhật 24/11/2026:** chỉ đếm khách (không tính mẹ và tài khoản cửa hàng); khách dư lẻ vào nhóm cùng tỉnh còn dưới trần mềm 8, chờ 3 ngày thì gộp lên vùng rồi miền, chờ 7 ngày thì 2 khách cũng tạo nhóm, chờ 14 ngày thì báo mẹ (chỉnh ở `/zalo`). Thứ tự chọn nhóm cho khách mới: cùng tỉnh dưới 5, rồi cùng vùng, cùng miền dưới 5, rồi hàng chờ. Bản phân tích đầy đủ: `docs/CAY-TEST-KHO-NGO-VA-DANH-GIA-HOP-LY.md`.
 5. Tên nhóm: `Áo điều hòa ADH - <Khu vực> - <số thứ tự hai chữ số>`, ví dụ `Áo điều hòa ADH - Miền Nam - 01`; số thứ tự là số nhóm đã có ở phạm vi đó cộng một. (Đúng với đề xuất tên nhóm trong CLAUDE.md; bạn chưa chốt quy ước nên đổi được bằng một dòng cấu hình.)
 6. Sau khi tạo: bật link mời của nhóm, ghi **mã nhóm và link** vào Adh (nhóm mới ở trạng thái đang nhận khách), rồi khách chờ được thêm vào bằng đúng đường thêm người hiện có. Link mời vẫn để khách tự bấm khi việc thêm trực tiếp lỗi, như hiện nay.
 
@@ -40,7 +40,7 @@ Tôi đề xuất: **tài khoản của hệ thống là người tạo (trưở
 
 ## 5. Rủi ro (đã gộp một tài khoản, nên rủi ro cao hơn)
 
-1. **Tài khoản bị Zalo khóa** là rủi ro lớn nhất: giờ mất cả mời, thêm nhóm, tạo nhóm và (sau này) trợ lý. Tạo nhóm là hành động mà Zalo có thể coi bất thường nếu làm nhiều. Vì vậy trần mặc định thấp (1 nhóm một ngày), có nấc Xác nhận, và cầu dao.
+1. **Tài khoản bị Zalo khóa** là rủi ro lớn nhất: giờ mất cả mời, thêm nhóm, tạo nhóm và (sau này) trợ lý. Tạo nhóm là hành động mà Zalo có thể coi bất thường nếu làm nhiều. Vì vậy có nấc Xác nhận, khung giờ, khoảng nghỉ cố định và cầu dao (không còn trần số nhóm mỗi ngày từ 24/11/2026; trần chỉ đặt ở số khách nhắn mỗi ngày).
 2. **Nhóm có thể không tạo được ở thư viện không chính thức** (xem mục 6). Thất bại thì hệ thống rơi về cách cũ: mẹ tạo nhóm tay và dán link.
 3. **Khách chưa chắc đồng ý vào nhóm lúc được thêm trực tiếp**: giữ đường link mời làm dự phòng, như hiện nay.
 4. **Tạo nhầm phạm vi** (ví dụ gộp khách xa nhau): giảm bằng ngưỡng và thứ tự nhỏ đến lớn; mẹ thấy được lý do ("tạo nhóm vì có N khách chờ ở <khu vực>") và có nấc Xác nhận.
