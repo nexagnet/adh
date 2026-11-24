@@ -37,3 +37,8 @@ Chạy thử thật cho thấy AI hay hiểu sai câu hỏi chung về ưu đãi
 - **Nhãn MUON_MUA chỉ chuyển người thật ngay khi AI chắc từ 0,9** (`ReplyService.BUY_HANDOFF_MIN`); dưới đó bước phạm vi quyết, và nếu ngoài phạm vi thì vẫn chuyển người thật với lý do "muốn mua".
 - **Không ghép tin trước khi phân loại phạm vi**: bước phạm vi chỉ xét tin MỚI NHẤT (tin cũ trong nháp đã qua bước này). Khi soạn câu, các tin liên tiếp được tách thành "Tin 1, Tin 2 (mới nhất)" thay vì dính bằng dấu `|`. Việc đã chuyển người thật vẫn ghi tiếp tin mới vào cùng việc, không nhờ AI chen vào.
 - **Bộ câu mẫu** nằm trong `ReplyTest.boCauMauDuongDiDungKhiAiGanNhanKhacNhau`; dán cùng các câu đó vào ô "Thử một câu" ở `/zalo/reply` để thử với DeepSeek thật trước khi bật nấc Tự động.
+
+## Giọng trả lời và chuyện trợ lý AI luôn nói rõ mình là AI (24/11/2026)
+
+- Prompt soạn câu (`ReplyAssistant.COMPOSE_RULES`) viết lại: giọng như bạn nhân viên bán hàng nhắn Zalo (xưng "em", "Dạ... ạ"), **tối đa hai câu và dưới 250 ký tự**, chỉ trả lời đúng điều khách hỏi, kèm vài ví dụ về giọng và độ ngắn (nội dung thật vẫn chỉ lấy từ bảng thông tin cửa hàng). Chữ ký rút gọn: "— Trợ lý AI của <shop>. Cần người thật, anh/chị nhắn "gặp người thật" ạ."
+- **Không bao giờ giấu hay chối mình là AI.** Chủ dự án có đề nghị bỏ tiết lộ và để AI trả lời "như người thật"; phần đó KHÔNG làm, vì khách sẽ tin mình đang nói chuyện với người. Giữ nguyên: mọi câu có chữ ký trợ lý AI; `ReplyValidator` chặn "em là người", "em là nhân viên/chủ shop/mẹ"; khách hỏi thẳng "bạn là AI hay người thật" thì rơi vào NGOÀI phạm vi, chuyển người thật (không tự trả lời).

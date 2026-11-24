@@ -183,7 +183,7 @@ public class ReplyService {
 
     /** Chữ ký cố định thêm vào MỌI câu trả lời: nói rõ là trợ lý AI và cho khách đường gặp người thật. */
     public String signature() {
-        return "\n— Trợ lý AI của " + invites.shopName() + ". Cần gặp người thật, anh/chị cứ nhắn \"gặp người thật\" ạ.";
+        return "\n— Trợ lý AI của " + invites.shopName() + ". Cần người thật, anh/chị nhắn \"gặp người thật\" ạ.";
     }
 
     // ---------- xử lý một tin đến ----------

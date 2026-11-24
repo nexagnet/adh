@@ -447,6 +447,7 @@ class ReplyTest extends AbstractPostgresTest {
             "Pin 48V còn hàng không;CAU_HOI;0.6;NGOAI;0.9;HANDOFF;NGOAI_PHAM_VI",
             "Hàng nhận bị lỗi quạt không chạy;KHIEU_NAI;0.9;NGOAI;0.9;HANDOFF;KHACH_KHIEU_NAI",
             "Cho mình gặp người thật;KHAC;0.6;NGOAI;0.9;HANDOFF;NGOAI_PHAM_VI",
+            "Bạn là AI hay người thật vậy;KHAC;0.6;NGOAI;0.9;HANDOFF;NGOAI_PHAM_VI",
             "ưu đãi sao;CAU_HOI;0.7;TRONG;0.7;HANDOFF;NGOAI_PHAM_VI"})
     void boCauMauDuongDiDungKhiAiGanNhanKhacNhau(String text, String intent, double intentConf, String sc, double scConf, String state, String reason) {
         replies.setMode(Mode.DRAFT, false, "mẹ");
@@ -457,6 +458,49 @@ class ReplyTest extends AbstractPostgresTest {
         if (reason != null && !reason.isBlank()) {
             assertThat(one("reason")).isEqualTo(reason);
         }
+    }
+
+    @Test
+    void loiNhacSoanCauYeuCauNganGonTuNhienVaKhongBaoGioGiauLaAi() {
+        replies.setMode(Mode.DRAFT, false, "mẹ");
+        says("Ưu đãi như nào");
+        String compose = systems.stream().filter(s -> s.startsWith("Bạn là TRỢ LÝ AI")).findFirst().orElseThrow();
+        assertThat(compose).contains("THẬT NGẮN").contains("HAI câu").contains("dưới 250 ký tự").contains("bạn nhân viên bán hàng thân thiện")
+                .contains("Chỉ trả lời đúng chủ đề").contains("\"Ưu đãi như nào\" → \"Dạ");
+        assertThat(compose).contains("Không giả làm người hay chủ shop").contains("không tự đặt tên")
+                .contains("trả lời thật là trợ lý AI của cửa hàng").contains("không né, không chối, không khẳng định mình là người");
+    }
+
+    @Test
+    void khachHoiThangLaAiHayNguoiThiChuyenNguoiThatKhongTuTraLoiKhongGuiGi() {
+        autoOn();
+        scope.set(aiScope("NGOAI", 0.95));
+        says("Bạn là AI hay người thật vậy");
+        assertThat(one("state")).isEqualTo("HANDOFF");
+        assertThat(one("reply_text")).isNull();
+        assertThat(systems.stream().filter(s -> s.startsWith("Bạn là TRỢ LÝ AI")).count()).isZero(); // AI không soạn câu nào cho câu hỏi này
+        assertThat(fake.messages).isEmpty();
+    }
+
+    @Test
+    void cauAiTuNhanLaNguoiThatHoacChuShopBiChanKhongBaoGioGui() {
+        autoOn();
+        for (String lie : List.of("Dạ em là người thật đây ạ", "Dạ em là nhân viên của shop ạ", "Dạ em là chủ shop đây ạ")) {
+            jdbc.sql("DELETE FROM reply_draft").update();
+            compose.set(aiReply(lie));
+            says("Ưu đãi như nào");
+            assertThat(one("state")).isEqualTo("HANDOFF");
+            assertThat(one("reason")).isEqualTo("CAU_BI_CHAN");
+            assertThat(one("reply_text")).isNull();
+        }
+        assertThat(fake.messages).isEmpty();
+    }
+
+    @Test
+    void moiCauTraLoiDeuKemChuKyTroLyAiNganGon() {
+        replies.setMode(Mode.DRAFT, false, "mẹ");
+        says("Ưu đãi như nào");
+        assertThat(one("reply_text")).endsWith("Cần người thật, anh/chị nhắn \"gặp người thật\" ạ.").contains("— Trợ lý AI của");
     }
 
     @Test
