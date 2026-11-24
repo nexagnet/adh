@@ -56,23 +56,9 @@
         <input type="hidden" name="back" th:if="${back != null}" th:value="${back}">
         <button type="submit" class="btn danger">Khách từ chối</button>
     </form>
-    <details th:if="${r.status == 'FRIENDED' and r.groupLinkMessage != null}" class="stack">
-        <summary><strong>Gửi link nhóm cho khách tự bấm</strong></summary>
-        <textarea readonly rows="5" th:id="'gl-' + ${r.id}" th:text="${r.groupLinkMessage}">Chào ...</textarea>
-        <div class="actions">
-            <button type="button" class="btn secondary" data-copy-target="" th:attr="data-copy-target='gl-' + ${r.id}">Sao chép tin</button>
-            <form class="inline" method="post"
-                  th:action="@{/campaigns/{id}/invitations/{iid}/group-link-sent(id=${r.campaignId},iid=${r.id})}">
-                <input type="hidden" name="back" th:if="${back != null}" th:value="${back}">
-                <input type="hidden" name="groupId" th:value="${r.groupId}">
-                <button type="submit" class="btn">Đã gửi link nhóm</button>
-            </form>
-        </div>
-        <p class="muted small" th:if="${r.autoHold}">Bộ nối Zalo đang giữ khách này trong hàng thêm vào nhóm. Bấm <em>Đã gửi link nhóm</em> thì bộ nối thôi không thêm khách này nữa (khách tự vào bằng link).</p>
-    </details>
     <span class="muted small" th:if="${r.status == 'FRIENDED' and r.groupLinkSentAt != null}"
           th:text="'Đã gửi link nhóm ' + ${#temporals.format(r.groupLinkSentAt, 'dd/MM HH:mm')} + '. Khách vào nhóm thì bấm Đã vào nhóm.'">Đã gửi link nhóm</span>
-    <span class="muted small" th:if="${r.status == 'FRIENDED' and r.groupLinkMessage == null and r.groupLinkSentAt == null}">Chưa có nhóm còn chỗ để thêm hay gửi link. Hãy mở nhóm ở mục Nhóm Zalo.</span>
+    <span class="muted small" th:if="${r.status == 'FRIENDED' and r.groupLinkSentAt == null}">Chưa có nhóm còn chỗ để thêm. Hãy mở nhóm ở mục Nhóm Zalo.</span>
     <span class="muted" th:if="${r.status == 'READY'}">Chưa nhắn</span>
     <span class="muted" th:if="${r.status == 'JOINED' and r.leftAt == null}" th:text="'Xong ' + ${#temporals.format(r.joinedAt, 'dd/MM/yyyy')}">Xong</span>
     <form class="inline" method="post" th:if="${r.status == 'JOINED' and r.leftAt == null}"

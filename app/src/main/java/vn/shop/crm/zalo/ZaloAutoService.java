@@ -335,17 +335,13 @@ public class ZaloAutoService {
         ZaloMode mode = cfg.effectiveMode();
         String state = mode == ZaloMode.AUTO ? "QUEUED" : "WAITING_APPROVAL";
         // Kiểm trùng ngay trong câu lệnh: một lỗi vi phạm unique trong giao dịch làm Postgres hủy cả giao dịch.
-        // Chiến dịch chọn "chỉ gửi link nhóm" (D21 PR 6, chỉ chặt hơn hệ thống): KHÔNG xếp vào hàng thêm tự động; nếu đã duyệt tự gửi và
-        // công tắc tự gửi bật thì xếp Tin 2 (link nhóm) cho khách tự bấm, nhóm do bộ gửi chọn theo khu vực khi gửi.
         int n = jdbc.sql("""
                         UPDATE invitation i SET zalo_uid = :u, zalo_add_code = NULL, zalo_add_at = NULL,
-                               zalo_add_state = CASE WHEN i.group_link_sent_at IS NULL AND k.group_delivery IS NULL THEN CAST(:s AS TEXT) END,
-                               zalo_link_state = CASE WHEN k.group_delivery = 'LINK_ONLY' AND i.group_link_sent_at IS NULL AND i.zalo_link_state IS NULL
-                                                           AND k.auto_send_approved_at IS NOT NULL AND :msg THEN 'PENDING' ELSE i.zalo_link_state END
+                               zalo_add_state = CASE WHEN i.group_link_sent_at IS NULL THEN CAST(:s AS TEXT) END
                         FROM invitation_campaign k
                         WHERE k.id = i.campaign_id AND i.id = :id AND i.zalo_uid IS NULL
                           AND NOT EXISTS (SELECT 1 FROM invitation o WHERE o.zalo_uid = :u)""")
-                .param("u", uid).param("s", state).param("msg", messages.enabled()).param("id", invitationId).update();
+                .param("u", uid).param("s", state).param("id", invitationId).update();
         if (n == 0) {
             return false;
         }
@@ -440,8 +436,7 @@ public class ZaloAutoService {
     /** Người bấm thử lại một lần sau lỗi (không bao giờ tự thử lại). Quay về chờ duyệt. */
     public void retry(long invitationId, String by) {
         int n = jdbc.sql("""
-                        UPDATE invitation SET zalo_add_state = 'WAITING_APPROVAL', zalo_add_code = NULL,
-                               zalo_link_state = CASE WHEN zalo_link_state = 'PENDING' THEN NULL ELSE zalo_link_state END
+                        UPDATE invitation SET zalo_add_state = 'WAITING_APPROVAL', zalo_add_code = NULL
                         WHERE id = :id AND zalo_add_state = 'FAILED' AND status IN ('SENT', 'CLICKED', 'FRIENDED')""")
                 .param("id", invitationId).update();
         if (n == 0) {
@@ -453,8 +448,7 @@ public class ZaloAutoService {
     /** Thôi không để bộ nối thêm khách này nữa (người sẽ thêm tay). */
     public void release(long invitationId, String by) {
         jdbc.sql("""
-                        UPDATE invitation SET zalo_add_state = NULL, zalo_add_code = NULL,
-                               zalo_link_state = CASE WHEN zalo_link_state = 'PENDING' THEN NULL ELSE zalo_link_state END
+                        UPDATE invitation SET zalo_add_state = NULL, zalo_add_code = NULL
                         WHERE id = :id AND zalo_add_state IN ('WAITING_APPROVAL', 'QUEUED', 'FAILED')""")
                 .param("id", invitationId).update();
         cfg.log(ZaloAutoSettings.A_APPROVE, invitationId, null, "TU_XU_LY", null, by);
@@ -597,7 +591,6 @@ public class ZaloAutoService {
                 }
                 case PERSON_ERROR -> {
                     fail(t.invitationId(), r.code() == null ? "LOI_NGUOI" : r.code());
-                    queueLink(t.invitationId(), group.id());
                     return afterPersonError(group);
                 }
                 case GROUP_ERROR -> {
@@ -621,22 +614,6 @@ public class ZaloAutoService {
             tripAndStop("INTERRUPTED", true);
             return Step.TRIPPED;
         }
-    }
-
-    /**
-     * D18: thêm vào nhóm lỗi riêng người, và chiến dịch đã được duyệt cho hệ thống tự gửi tin, thì xếp Tin 2 (link của CHÍNH nhóm
-     * vừa thử thêm, nên nhóm thêm và nhóm qua link là một) để bộ gửi gửi cho khách. Chưa bật tự gửi thì người xử lý tay như cũ.
-     */
-    private void queueLink(long invitationId, long groupId) {
-        if (!messages.enabled()) {
-            return;
-        }
-        jdbc.sql("""
-                        UPDATE invitation i SET zalo_link_state = 'PENDING', reserved_group_id = :g,
-                               reserved_until = now() + make_interval(hours => :h)
-                        WHERE i.id = :id AND i.zalo_link_state IS NULL AND i.group_link_sent_at IS NULL
-                          AND EXISTS (SELECT 1 FROM invitation_campaign k WHERE k.id = i.campaign_id AND k.auto_send_approved_at IS NOT NULL)""")
-                .param("g", groupId).param("h", invites.reserveHours()).param("id", invitationId).update();
     }
 
     /** Bao nhiêu lần thêm liền lỗi riêng người, cùng MỘT nhóm, thì tạm dừng nhóm đó (nghi nhóm cài sai: chỉ quản trị viên được thêm...). */
@@ -829,14 +806,13 @@ public class ZaloAutoService {
 
     /**
      * Khách đã kết bạn mà chờ nhóm quá lâu (khu vực quá ít khách nên không tạo được nhóm) hoặc chưa rõ khu vực: cần mẹ quyết, ví dụ tạo nhóm
-     * tay hoặc chọn tỉnh. Không tính khách chiến dịch "chỉ gửi link nhóm" (họ tự bấm link) hay khách đã có nhóm.
+     * tay hoặc chọn tỉnh. Không tính khách đã có nhóm.
      */
     public long longWaitingCount(int days) {
         return jdbc.sql("""
                         SELECT count(*) FROM invitation i JOIN customer c ON c.id = i.customer_id
                         JOIN invitation_campaign k ON k.id = i.campaign_id
                         WHERE i.status = 'FRIENDED' AND i.zalo_uid IS NOT NULL AND i.group_id IS NULL AND i.group_link_sent_at IS NULL
-                          AND k.group_delivery IS NULL
                           AND (i.zalo_add_state IS NULL OR i.zalo_add_state IN ('WAITING_APPROVAL', 'QUEUED'))
                           AND (i.friended_at < :before OR c.province IS NULL OR c.province = '')
                           AND (i.friended_at IS NULL OR i.friended_at < :unknownAfter)""")

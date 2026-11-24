@@ -209,18 +209,6 @@ class ComebackTest extends AbstractPostgresTest {
     }
 
     @Test
-    void chienDichChiGuiLinkNhomThiTuDongHaXuongChiTaoViecVaTuDongTatThiVanTat() {
-        autoOn();
-        jdbc.sql("UPDATE invitation_campaign SET group_delivery = 'LINK_ONLY'").update();
-        assertThat(comebacks.effective(inv1Id())).isEqualTo(Mode.TASKS);
-        says("cho mình hỏi mua pin 48V");
-        assertThat(suppressed()).isTrue(); // không tự gỡ cờ, không tự thêm nhóm
-        assertThat(comebacks.tasks()).hasSize(1);
-        settings.set(ComebackService.MODE_KEY, "OFF", "test");
-        assertThat(comebacks.effective(inv1Id())).isEqualTo(Mode.OFF);
-    }
-
-    @Test
     void nacLaBiTuChoiVaChienDichKhongCoThiBaoLoi() {
         assertThatThrownBy(() -> Mode.ofCampaign("TUY_Y")).isInstanceOf(ImportException.class);
         assertThat(Mode.ofCampaign(" ")).isNull();

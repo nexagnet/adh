@@ -989,7 +989,8 @@ class ZaloAutoTest extends AbstractPostgresTest {
         mode(ZaloMode.AUTO);
         sent(1);
         invites.markFriended(inv(1)); // mẹ đã đánh dấu kết bạn tay trước khi sự kiện của bộ nối tới
-        invites.markGroupLinkSent(inv(1), north);
+        // dữ liệu cũ: khách từng được ghi "đã gửi link nhóm" (không còn đường ghi mới từ 24/11/2026)
+        jdbc.sql("UPDATE invitation SET group_link_sent_at = now(), group_id = :g WHERE id = :id").param("g", north).param("id", inv(1)).update();
 
         friend(1, 1);
         zalo.poll();

@@ -82,16 +82,11 @@
     </div>
     <div class="panel stack" th:if="${tab == 'nhom'}">
         <h2>Nhóm Zalo của chiến dịch</h2>
-        <p class="hint">Mặc định theo hệ thống: khách đồng ý kết bạn được tự thêm vào nhóm Zalo cùng khu vực (lỗi riêng người thì gửi link nhóm). Ở đây bạn chỉ có thể làm <strong>chặt hơn</strong>,
+        <p class="hint">Mặc định theo hệ thống: khách đồng ý kết bạn được tự thêm vào nhóm Zalo cùng khu vực (lỗi riêng người thì khách ở trạng thái lỗi để mẹ xử lý, hệ thống không tự gửi link). Ở đây bạn chỉ có thể làm <strong>chặt hơn</strong>,
             không nới. Nhóm do hệ thống tự tạo vẫn theo trang <a th:href="@{/zalo}">Zalo tài khoản phụ</a>.</p>
         <form th:action="@{/campaigns/{id}/group-target(id=${campaign.id})}" method="post" class="stack">
-            <label class="check"><input type="checkbox" name="linkOnly" value="true" th:checked="${groupTarget.linkOnly}">
-                Chỉ gửi link nhóm cho khách tự bấm vào (hệ thống KHÔNG tự thêm khách vào nhóm và không đưa khách vào nhóm mới tự tạo)</label>
             <label class="check"><input type="checkbox" name="allowCreation" value="true" th:checked="${groupTarget.allowCreation}">
                 Cho phép gom khách của chiến dịch vào nhóm mới do hệ thống tự tạo</label>
-            <label class="field">Nội dung tin gửi link nhóm riêng (để trống = dùng mẫu chung)
-                <textarea name="linkTemplate" rows="3" maxlength="800" th:text="${groupTarget.linkTemplate}" th:placeholder="${defaultGroupLinkTemplate}"></textarea></label>
-            <p class="hint">Tin này phải có {link_nhom} (link nhóm Zalo) hoặc {link}. Có thể dùng {ten}, {nhom}, {cua_hang}.</p>
             <div class="actions">
                 <button type="submit" class="btn">Lưu nhóm Zalo</button>
                 <button type="submit" class="btn secondary" name="reset" value="true" th:if="${groupTarget.any()}">Theo hệ thống (xóa cài đặt riêng)</button>
@@ -102,7 +97,7 @@
         <h2>Khách từng từ chối nhưng nhắn lại muốn mua</h2>
         <p class="hint">Nấc chung của hệ thống hiện là <strong th:text="${comebackSystem.label}">Tắt</strong> (đổi ở trang <a th:href="@{/zalo}">Zalo tài khoản phụ</a>).
             Ở đây bạn chỉ có thể làm <strong>chặt hơn</strong>: nấc có hiệu lực luôn là nấc thấp hơn giữa hệ thống và chiến dịch.
-            Chiến dịch chọn "chỉ gửi link nhóm" thì tối đa là "Chỉ tạo việc" (không tự thêm khách vào nhóm). Khách từng từ chối KHÔNG bao giờ được trả lời nội dung khác.</p>
+            Khách từng từ chối KHÔNG bao giờ được trả lời nội dung khác.</p>
         <form th:action="@{/campaigns/{id}/comeback(id=${campaign.id})}" method="post" class="stack">
             <label class="field">Nấc riêng của chiến dịch
                 <select name="mode">

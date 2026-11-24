@@ -182,24 +182,20 @@ public class ComebackService {
     }
 
     /**
-     * Nấc có hiệu lực cho khách của một lời mời: THẤP hơn của hệ thống và của chiến dịch; chiến dịch chọn "chỉ gửi link nhóm" (không tự thêm
-     * vào nhóm) thì tối đa là CHỈ TẠO VIỆC. Chiến dịch chỉ làm chặt hơn, không bao giờ nới.
+     * Nấc có hiệu lực cho khách của một lời mời: THẤP hơn của hệ thống và của chiến dịch. Chiến dịch chỉ làm chặt hơn, không bao giờ nới.
      */
     public Mode effective(long invitationId) {
         Mode result = mode();
         var row = jdbc.sql("""
-                        SELECT k.comeback_mode, k.group_delivery FROM invitation i JOIN invitation_campaign k ON k.id = i.campaign_id
+                        SELECT k.comeback_mode FROM invitation i JOIN invitation_campaign k ON k.id = i.campaign_id
                         WHERE i.id = :id""")
-                .param("id", invitationId).query((rs, n) -> new String[]{rs.getString(1), rs.getString(2)}).optional();
+                .param("id", invitationId).query((rs, n) -> rs.getString(1)).optional();
         if (row.isEmpty()) {
             return result;
         }
-        Mode own = Mode.ofCampaign(row.get()[0]);
+        Mode own = Mode.ofCampaign(row.get());
         if (own != null) {
             result = Mode.lower(result, own);
-        }
-        if ("LINK_ONLY".equals(row.get()[1])) {
-            result = Mode.lower(result, Mode.TASKS);
         }
         return result;
     }
