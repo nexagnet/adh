@@ -24,7 +24,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * CHUNG một công tắc, một hạn mức ngày, một khoảng nghỉ và một cầu dao.
  *
  * <p>Chốt chặn, tất cả công khai và cố định, KHÔNG có yếu tố ngẫu nhiên và không cố giống người thật: công tắc tắt/bật (mặc định
- * TẮT), nấc bộ nối không phải "Tắt" và cầu dao không nhảy, khung giờ (mặc định 08:00–20:00), hạn mức tin mỗi ngày (mặc định 10, trần
+ * TẮT), nấc bộ nối không phải "Tắt" và cầu dao không nhảy, khung giờ (mặc định 08:00–22:00), hạn mức tin mỗi ngày (mặc định 10, trần
  * cứng 25, tính cả Tin 1 và Tin 2, cả lần lỗi), khoảng nghỉ CỐ ĐỊNH giữa hai tin (mặc định 120 giây, sàn 100), mỗi lần chỉ MỘT
  * tin. Lỗi lạ, Zalo cảnh báo, mất phiên, không biết kết quả: cầu dao nhảy và giữ nguyên cho đến khi người bấm "Mở lại". Sổ
  * {@code zalo_msg_log} không chứa số điện thoại, tên, mã Zalo hay nội dung tin.

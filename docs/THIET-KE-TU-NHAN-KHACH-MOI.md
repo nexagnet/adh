@@ -10,7 +10,7 @@
 - `ZaloCampaignIntake`: `enable` (chỉ khi chiến dịch đã duyệt tự gửi), `disable`, `intake()` mỗi nhịp của `ZaloInviteSender.step()` (sau khi kiểm công tắc tự gửi và tạm dừng).
 - **Tiêu chí duyệt sẵn** (`ContactService.newCandidates`): `first_seen_at` từ lúc bật; một lần mua; không cần kiểm tra; chưa từ chối (dòng sổ còn hiệu lực); chưa có dòng cơ sở liên hệ nào (không bị chặn, chưa duyệt tay); chưa từng được mời; đúng khu vực (`geo_scope`) của chiến dịch. Khách được duyệt qua đúng câu lệnh duyệt cũ (kiểm lại điều kiện), ghi `recorded_by = chien-dich-tu-nhan`, có sự kiện `BASIS_APPROVED`.
 - Mỗi lời mời READY được tạo trong chiến dịch (`InviteService.addInvitations`), hạn dùng theo chiến dịch. Hàng chờ có trần: không quá `max-campaign` (300) và không quá hạn mức ngày x (số ngày link - 1), để khách không dồn đống rồi hết hạn. Mỗi nhịp nhận tối đa 50 khách.
-- **Không đổi gì ở phía gửi:** Tin 1 vẫn qua `ZaloMessageService` (công tắc, nấc, 08:00–20:00, nghỉ cố định, cầu dao, 50 khách/ngày) và mỗi khách đúng một Tin 1.
+- **Không đổi gì ở phía gửi:** Tin 1 vẫn qua `ZaloMessageService` (công tắc, nấc, 08:00–22:00, nghỉ cố định, cầu dao, 50 khách/ngày) và mỗi khách đúng một Tin 1.
 
 ## Không làm
 Không tự duyệt khách đã có trước lúc bật (mẹ có thể đang chủ ý giữ lại); không tự duyệt khách cần kiểm tra, từ chối hay bị chặn; không nhận khi đã bỏ duyệt, tạm dừng, hoặc công tắc tự gửi tắt.

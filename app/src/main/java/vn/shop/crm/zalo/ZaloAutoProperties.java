@@ -29,7 +29,7 @@ public record ZaloAutoProperties(
         @DefaultValue("2") int minGapFloorMinutes,
         /* D18: tự gửi tin cho khách. Khung giờ hẹp hơn khung giờ thêm nhóm, hạn mức nhỏ, khoảng nghỉ cố định (không ngẫu nhiên). */
         @DefaultValue("08:00") LocalTime msgWindowStart,
-        @DefaultValue("20:00") LocalTime msgWindowEnd,
+        @DefaultValue("22:00") LocalTime msgWindowEnd,
         @DefaultValue("10") int msgDefaultDaily,
         @DefaultValue("120") int msgDefaultGapSeconds,
         /* Trần cứng của số KHÁCH được nhắn chủ động mỗi ngày (chỉ Tin 1; Tin 2 và tin mẫu trả lời không tính, 23/11/2026: 50 khách/ngày)

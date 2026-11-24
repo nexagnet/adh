@@ -8,7 +8,7 @@ Ngày 23/11/2026, chủ dự án chốt: "tôi muốn AI tự sinh câu trả l�
 3. Các nhãn còn lại: AI phân loại phạm vi `TRONG`/`NGOAI`. Nghi ngờ là `NGOAI`; cần độ chắc từ 0,8 mới coi là trong phạm vi.
 4. AI soạn MỘT câu CHỈ từ **bảng thông tin cửa hàng** (nguồn duy nhất). Nếu bảng không đủ thì AI trả rỗng và việc chuyển người thật.
 5. `ReplyValidator` kiểm cứng (không dùng AI kiểm AI), rồi hệ thống thêm chữ ký "Trợ lý AI của <shop>" và cách gặp người thật.
-6. Nấc **Chỉ soạn nháp**: lưu nháp, KHÔNG gửi. Nấc **Tự động**: xếp hàng, `ZaloReplySender` gửi qua đường chung (công tắc, khung giờ 08:00–20:00, khoảng nghỉ cố định, cầu dao, phanh khẩn cấp của bộ nối). Mỗi tin đến một câu trả lời; không tự gửi lại khi lỗi không rõ.
+6. Nấc **Chỉ soạn nháp**: lưu nháp, KHÔNG gửi. Nấc **Tự động**: xếp hàng, `ZaloReplySender` gửi qua đường chung (công tắc, khung giờ 08:00–22:00, khoảng nghỉ cố định, cầu dao, phanh khẩn cấp của bộ nối). Mỗi tin đến một câu trả lời; không tự gửi lại khi lỗi không rõ.
 
 ## Bộ kiểm cứng
 Chặn: câu rỗng hoặc quá 500 ký tự; đường dẫn; số điện thoại, email, chuỗi số dài; **mọi con số không có trong bảng thông tin** (nên không bịa giá, phần trăm, thời hạn); nhắc nền tảng khác ngoài TikTok; hứa hẹn ("cam kết", "đảm bảo", "chắc chắn", tặng quà, mã giảm); đổi trả và hoàn tiền; chê hàng hoặc đối thủ; giả làm người hoặc chủ shop; xin địa chỉ, số điện thoại, mật khẩu, chuyển khoản. Các chữ "bảo hành", "còn hàng", "hết hàng", "tồn kho", "giá bán", "TikTok", đơn vị tiền chỉ được nhắc khi bảng thông tin cũng có chữ đó. Khớp không phân biệt dấu. Câu không qua kiểm thì không bao giờ gửi.

@@ -8,7 +8,7 @@ Toàn bộ phần mã đã được kiểm bằng test với **bộ nối giả*
 > **Cập nhật 23/11/2026 (D18 đến D20):** phần này từng viết "bộ nối chỉ làm ba việc". Nay bộ nối làm thêm: tìm người theo số điện thoại (`findUser`), gửi MỘT tin cho MỘT người (Tin 1, Tin 2), liệt kê nhóm, tạo nhóm, tra tên và ảnh một số (chọn mẹ làm phó nhóm), đọc tin riêng của người đã nhận tin hệ thống, và trả lời MỘT tin cho người vừa nhắn tới trong 24 giờ. Hướng dẫn chạy thử đầy đủ: `docs/HUONG-DAN-CHAY-THU-TOAN-DIEN.md`.
 
 - Bộ nối **không** nhận lời mời kết bạn, chỉ đối chiếu (chỉ đọc) xem khách đã nhận Tin 1 đã là bạn chưa chứ không đọc hay lưu bạn khác, không nhắn người chưa nhắn trước (trừ Tin 1 đã duyệt theo chiến dịch). Từ 24/11/2026 tài khoản phụ **tự gửi lời mời kết bạn** sau Tin 1 (một lời mời mỗi người, có trần riêng mỗi ngày); người đồng ý thì tự được thêm vào nhóm, không cần ai bấm tay.
-- **Không có cách nào làm cho giống người thật bấm** (không ngẫu nhiên giờ giấc, không đổi dấu vân tay thiết bị, không dùng proxy, không xoay tài khoản). Chỉ có giới hạn tốc độ, khoảng nghỉ cố định và khung giờ: gửi tin và tạo nhóm 08:00 đến 20:00; thêm vào nhóm 07:00 đến 22:00.
+- **Không có cách nào làm cho giống người thật bấm** (không ngẫu nhiên giờ giấc, không đổi dấu vân tay thiết bị, không dùng proxy, không xoay tài khoản). Chỉ có giới hạn tốc độ, khoảng nghỉ cố định và khung giờ: gửi tin 08:00 đến 22:00; tạo nhóm 08:00 đến 20:00; thêm vào nhóm 07:00 đến 22:00.
 - Khách chưa chấp nhận kết bạn thì không bị tác động. Người lạ kết bạn không lưu lại gì.
 - Gặp cảnh báo của Zalo, mất phiên đang lúc thêm người, lỗi lạ hoặc hết giờ chờ: **dừng ngay, không tự thử lại**. Chỉ người bấm "Mở lại" trên trang quản trị mới chạy tiếp.
 

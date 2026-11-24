@@ -282,7 +282,7 @@ class ReplyTest extends AbstractPostgresTest {
         autoOn();
         says("Vào nhóm có mất phí không");
         freshInbound();
-        clock.set(LocalDateTime.of(2026, 11, 22, 21, 0));
+        clock.set(LocalDateTime.of(2026, 11, 22, 23, 0));
         assertThat(sender.step()).isFalse();
         assertThat(fake.messages).isEmpty();
         assertThat(one("state")).isEqualTo("READY");

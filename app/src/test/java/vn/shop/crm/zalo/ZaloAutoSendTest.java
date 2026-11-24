@@ -215,7 +215,7 @@ class ZaloAutoSendTest extends AbstractPostgresTest {
         ready(ZaloMode.CONFIRM);
         clock.set(LocalDateTime.of(2026, 11, 22, 7, 59));
         assertThat(sender.step()).isEqualTo(Step.BLOCKED);
-        clock.set(LocalDateTime.of(2026, 11, 22, 20, 0));
+        clock.set(LocalDateTime.of(2026, 11, 22, 22, 0));
         assertThat(sender.step()).isEqualTo(Step.BLOCKED);
         clock.set(LocalDateTime.of(2026, 11, 22, 8, 0));
         assertThat(sender.step()).isEqualTo(Step.INVITE_SENT);

@@ -239,7 +239,7 @@ class CampaignPolicyTest extends AbstractPostgresTest {
         assertThat(sys.dailyCap()).isEqualTo(3);
         assertThat(sys.gapSeconds()).isEqualTo(600);
         assertThat(sys.windowFrom()).isEqualTo(LocalTime.of(8, 0));
-        assertThat(sys.windowTo()).isEqualTo(LocalTime.of(20, 0));
+        assertThat(sys.windowTo()).isEqualTo(LocalTime.of(22, 0));
     }
 
     @Test
@@ -248,7 +248,7 @@ class CampaignPolicyTest extends AbstractPostgresTest {
         policy.saveClamped(campaign, raw(TODAY, TODAY.plusDays(5), LocalTime.of(6, 0), LocalTime.of(23, 0), 40, null), "mẹ");
         var r = policy.load(campaign);
         assertThat(r.windowFrom()).isEqualTo(LocalTime.of(8, 0));
-        assertThat(r.windowTo()).isEqualTo(LocalTime.of(20, 0));
+        assertThat(r.windowTo()).isEqualTo(LocalTime.of(22, 0));
         assertThat(r.dailyCap()).isEqualTo(5);
         assertThat(r.gapSeconds()).isNull();
         // khung giờ sau khi kẹp mà quá hẹp thì bỏ khung giờ riêng, theo hệ thống

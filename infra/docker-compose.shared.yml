@@ -57,6 +57,8 @@ services:
       APP_ZALO_LIVE: ${APP_ZALO_LIVE:-false}
       # Tự gửi tin (D18): trần cứng số KHÁCH được nhắn chủ động mỗi ngày (Tin 1) mà trang quản trị được phép đặt. Công tắc mặc định TẮT.
       APP_ZALO_AUTO_MSG_MAX_DAILY: ${APP_ZALO_AUTO_MSG_MAX_DAILY:-50}
+      APP_ZALO_AUTO_MSG_WINDOW_END: ${APP_ZALO_AUTO_MSG_WINDOW_END:-22:00}
+      APP_ZALO_AUTO_MSG_WINDOW_START: ${APP_ZALO_AUTO_MSG_WINDOW_START:-08:00}
       # AI (DeepSeek) nhận diện khách từ chối (D19). MẶC ĐỊNH TẮT; cần cả ba cờ: APP_AI_ENABLED, APP_ZALO_INBOX_ENABLED và BRIDGE_INBOX_ENABLED ở bộ nối.
       # Khóa API chỉ đặt trong file .env trên máy chủ (không vào repo, log hay PR); tên mô hình do chủ shop đặt.
       APP_AI_ENABLED: ${APP_AI_ENABLED:-false}
