@@ -294,17 +294,9 @@ public class ZaloGroupCreationService implements ZaloTickHook {
         if (!mayCreateNow()) {
             return Step.WAIT;
         }
-        ZaloGateway.Status st = gateway.status();
-        if (st.state() == ZaloGateway.State.TRIPPED) {
-            tripAndStop("BRIDGE_" + (st.tripReason() == null ? "TRIPPED" : st.tripReason()));
-            return Step.TRIPPED;
-        }
-        if (Boolean.FALSE.equals(st.accountOk())) {
-            tripAndStop("ACCOUNT_MISMATCH");
-            return Step.TRIPPED;
-        }
-        if (!st.listening() || !Boolean.TRUE.equals(st.accountOk())) {
-            return Step.UNREACHABLE; // chưa chắc đúng tài khoản phụ thì không tạo gì
+        Step blocked = gatewayBlocker();
+        if (blocked != null) {
+            return blocked;
         }
         Map<String, Object> row = jdbc.sql("SELECT scope, group_name FROM zalo_group_proposal WHERE id = :id AND state = 'APPROVED'")
                 .param("id", id).query((rs, n) -> Map.<String, Object>of("scope", rs.getString("scope"),
@@ -360,6 +352,132 @@ public class ZaloGroupCreationService implements ZaloTickHook {
         }
     }
 
+    /** Cầu nối chưa sẵn sàng hoặc đã ngắt: trả bước phải dừng ở đó (đã ngắt cầu dao nếu cần); null = được phép gọi Zalo. */
+    private Step gatewayBlocker() {
+        ZaloGateway.Status st = gateway.status();
+        if (st.state() == ZaloGateway.State.TRIPPED) {
+            tripAndStop("BRIDGE_" + (st.tripReason() == null ? "TRIPPED" : st.tripReason()));
+            return Step.TRIPPED;
+        }
+        if (Boolean.FALSE.equals(st.accountOk())) {
+            tripAndStop("ACCOUNT_MISMATCH");
+            return Step.TRIPPED;
+        }
+        if (!st.listening() || !Boolean.TRUE.equals(st.accountOk())) {
+            return Step.UNREACHABLE; // chưa chắc đúng tài khoản phụ thì không tạo gì
+        }
+        return null;
+    }
+
+    // ---------- nhóm thử của Chiến dịch thử ----------
+
+    /** Mã khu vực đánh dấu đề xuất do Chiến dịch thử tự tạo (không phải khu vực thật). */
+    static final String TEST_SCOPE = "TEST";
+
+    /** Kết quả tạo nhóm thử: {@code groupId} là mã nhóm trong Adh (chỉ khi CREATED), {@code added} là mã Zalo đã vào nhóm. */
+    public record TestGroup(Step step, Long groupId, List<String> added, String code) {
+        static TestGroup of(Step step) {
+            return new TestGroup(step, null, List.of(), null);
+        }
+    }
+
+    /** Việc tự tạo nhóm đang bật (nấc Xác nhận hoặc Tự động)? Chiến dịch thử chỉ được tự tạo nhóm khi bật. */
+    public boolean enabled() {
+        return cfg.effectiveMode() != ZaloGroupMode.OFF;
+    }
+
+    /**
+     * CHỈ cho Chiến dịch thử: tạo MỘT nhóm Zalo gồm các số thử đã kết bạn (người dùng bấm Bắt đầu chiến dịch thử là lời duyệt, nên không
+     * chờ duyệt thêm từng nhóm). Cùng chốt chặn như tạo nhóm thật: việc tự tạo nhóm phải đang bật, khung giờ, trần nhóm mỗi ngày (nhóm thử
+     * cũng tính), khoảng nghỉ cố định, cầu dao dùng chung, không tự thử lại khi không rõ kết quả. Nhóm thử được ghi ở trạng thái Đã đóng
+     * nên không bao giờ được cấp cho khách thật. Ở chế độ thử, {@code SafeZaloLink} từ chối nếu có mã Zalo không thuộc số thử.
+     */
+    public TestGroup createForTestRun(List<String> uids) {
+        if (cfg.effectiveMode() == ZaloGroupMode.OFF) {
+            return TestGroup.of(Step.NOT_ACTIVE);
+        }
+        if (uids == null || uids.isEmpty() || !lock.tryLock()) {
+            return TestGroup.of(Step.NOTHING);
+        }
+        try {
+            if (count("SELECT count(*) FROM zalo_group_proposal WHERE state = 'CREATING'") > 0) {
+                tripAndStop("TAO_NHOM_INTERRUPTED");
+                return TestGroup.of(Step.TRIPPED);
+            }
+            if (!mayCreateNow()) {
+                return TestGroup.of(Step.WAIT);
+            }
+            Step blocked = gatewayBlocker();
+            if (blocked != null) {
+                return TestGroup.of(blocked);
+            }
+            int seq = jdbc.sql("SELECT count(*) FROM zalo_group_proposal WHERE scope = :s").param("s", TEST_SCOPE)
+                    .query(Integer.class).single() + 1;
+            String name = cfg.props().groupName("Thử", seq);
+            // Ghi TRƯỚC khi gọi Zalo (như tạo nhóm thật): sập giữa chừng thì dòng CREATING còn lại, lần sau dừng thay vì thử lại.
+            long id = jdbc.sql("""
+                            INSERT INTO zalo_group_proposal (scope, group_name, reason, waiting_count, state, decided_by, decided_at,
+                                                             started_at, created_at)
+                            VALUES (:scope, :name, :reason, :n, 'CREATING', 'chien-dich-thu', :now, :now, :now) RETURNING id""")
+                    .param("scope", TEST_SCOPE).param("name", name)
+                    .param("reason", "Nhóm thử do Chiến dịch thử tự tạo cho " + uids.size() + " số thử đã kết bạn")
+                    .param("n", uids.size()).param("now", now()).query(Long.class).single();
+            ZaloGroupMaker.Created r = maker.createGroup(name, uids, deputyFor(uids));
+            if (r.outcome() == ZaloGroupMaker.GroupOutcome.UNREACHABLE || r.outcome() == ZaloGroupMaker.GroupOutcome.RATE_LIMITED
+                    || (r.notCreated() && r.outcome() == ZaloGroupMaker.GroupOutcome.SYSTEM_ERROR)) {
+                // chắc chắn chưa tạo gì: bỏ dòng ghi trước, không tính trần ngày, thử lại nhịp sau
+                jdbc.sql("DELETE FROM zalo_group_proposal WHERE id = :id").param("id", id).update();
+                return TestGroup.of(Step.UNREACHABLE);
+            }
+            try {
+                switch (r.outcome()) {
+                    case OK -> {
+                        long groupId = recordTestGroup(id, name, r);
+                        auto.log(ZaloGroupSettings.A_GROUP, null, null, "OK_THU", null, "system");
+                        return new TestGroup(Step.CREATED, groupId, List.copyOf(r.added()), null);
+                    }
+                    case PERSON_ERROR -> {
+                        String code = r.code() == null ? "DAU_VAO_SAI" : r.code();
+                        finish(id, "FAILED", code);
+                        auto.log(ZaloGroupSettings.A_GROUP, null, null, "PERSON_ERROR", r.code(), "system");
+                        return new TestGroup(Step.FAILED, null, List.of(), code);
+                    }
+                    default -> {
+                        String code = r.outcome().name() + (r.code() == null ? "" : "_" + r.code());
+                        finish(id, "FAILED", code);
+                        auto.log(ZaloGroupSettings.A_GROUP, null, null, r.outcome().name(), r.code(), "system");
+                        tripAndStop(r.outcome().name() + (r.code() == null ? "" : ":" + r.code()));
+                        return new TestGroup(Step.TRIPPED, null, List.of(), code);
+                    }
+                }
+            } catch (RuntimeException e) {
+                log.warn("Lỗi sau khi gọi Zalo tạo nhóm thử: {}", e.getClass().getSimpleName());
+                tripAndStop("TAO_NHOM_INTERRUPTED");
+                return TestGroup.of(Step.TRIPPED);
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /** Ghi nhóm thử vào Adh ở trạng thái Đã đóng (không bao giờ cấp cho khách thật) và đóng đề xuất. Trả mã nhóm trong Adh. */
+    private long recordTestGroup(long proposalId, String name, ZaloGroupMaker.Created r) {
+        String link = safeLink(r.link());
+        return tx.execute(s -> {
+            long groupId = groups.create(name, link, 5);
+            groups.setZaloGroupId(groupId, r.groupId());
+            groups.setStatus(groupId, GroupStatus.CLOSED);
+            jdbc.sql("UPDATE zalo_group SET note = :n WHERE id = :id")
+                    .param("n", "Nhóm thử do Chiến dịch thử tự tạo. Không dùng cho khách thật.").param("id", groupId).update();
+            jdbc.sql("""
+                            UPDATE zalo_group_proposal SET state = 'DONE', finished_at = :now, group_id = :g, added_count = :a,
+                                   link_ok = :l, deputy_state = :d WHERE id = :id""")
+                    .param("now", now()).param("g", groupId).param("a", r.added().size()).param("l", link != null)
+                    .param("d", r.deputy()).param("id", proposalId).update();
+            return groupId;
+        });
+    }
+
     /** Chỉ những khách còn đủ điều kiện ngay lúc tạo: vẫn là "đã kết bạn", chưa vào nhóm, còn đồng ý nhận tin. */
     private List<Member> eligibleMembers(long proposalId) {
         List<Member> out = new ArrayList<>();
@@ -380,8 +498,12 @@ public class ZaloGroupCreationService implements ZaloTickHook {
     }
 
     private String deputyUid(List<Member> members) {
+        return deputyFor(members.stream().map(Member::uid).toList());
+    }
+
+    private String deputyFor(List<String> uids) {
         String d = deputies.effectiveUid();
-        if (d.isEmpty() || !d.matches("\\d{1,32}") || members.stream().anyMatch(m -> m.uid().equals(d))) {
+        if (d.isEmpty() || !d.matches("\\d{1,32}") || uids.contains(d)) {
             return null;
         }
         return d;
@@ -461,7 +583,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
                         SELECT p.*, (SELECT count(*) FROM zalo_group_proposal_member m WHERE m.proposal_id = p.id) AS members
                         FROM zalo_group_proposal p ORDER BY p.id DESC LIMIT :n""").param("n", limit)
                 .query((rs, n) -> new Proposal(rs.getLong("id"), rs.getString("scope"),
-                        GeoArea.parse(rs.getString("scope")).map(GeoArea::label).orElse("Khu vực lạ"), rs.getString("group_name"),
+                        TEST_SCOPE.equals(rs.getString("scope")) ? "Nhóm thử" : GeoArea.parse(rs.getString("scope")).map(GeoArea::label).orElse("Khu vực lạ"), rs.getString("group_name"),
                         rs.getString("reason"), rs.getInt("waiting_count"), rs.getString("state"),
                         rs.getObject("created_at", OffsetDateTime.class).atZoneSameInstant(zone).toLocalDateTime(),
                         rs.getString("decided_by"), rs.getString("result_code"), rs.getInt("members"),

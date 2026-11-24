@@ -40,6 +40,7 @@ class TestRunAutomationTest extends AbstractPostgresTest {
     @Autowired ZaloAutoService zalo;
     @Autowired ZaloMessageService messages;
     @Autowired ZaloAutoSettings cfg;
+    @Autowired ZaloGroupSettings groupCfg;
     @Autowired AppSettings appSettings;
     @Autowired FakeZaloGateway fake;
     @Autowired ZaloTestClock clock;
@@ -87,9 +88,77 @@ class TestRunAutomationTest extends AbstractPostgresTest {
     }
 
     @Test
-    void batDauCanCoNhomDich() {
+    void khongChonNhomDichVanBatDauDuocKhiBatTuTaoNhom() {
         long run = tests.create(new Config("Không nhóm", "Chào {ten}", "x", 5, 120, null, true), List.of(new Entry("0900000001", null, null)));
-        assertThatThrownBy(() -> tests.start(run)).isInstanceOf(ImportException.class).hasMessageContaining("nhóm đích");
+        // tự tạo nhóm đang tắt: báo rõ cách bật, không bắt tạo nhóm tay
+        assertThatThrownBy(() -> tests.start(run)).isInstanceOf(ImportException.class).hasMessageContaining("Tự tạo nhóm Zalo");
+        groupCfg.setMode(ZaloGroupMode.CONFIRM, false, "mẹ");
+        tests.start(run);
+        assertThat(count("SELECT count(*) FROM test_run WHERE running")).isEqualTo(1);
+    }
+
+    @Test
+    void khongCoNhomDichThiTuTaoNhomThuKhiDuNguoiKetBanRoiThemVaoNhom() {
+        long run = tests.create(new Config("Tự tạo", "Chào {ten}, {cua_hang} mời bạn. {link}", "Vào nhóm: {link_nhom}", 5, 120, null, false),
+                List.of(new Entry("0900000001", "A", null), new Entry("0900000002", "B", null)));
+        on();
+        groupCfg.setMode(ZaloGroupMode.CONFIRM, false, "mẹ");
+        tests.start(run);
+        automation.tick();
+        clock.advance(Duration.ofSeconds(121));
+        automation.tick(); // hai Tin 1
+        List<String> uids = fake.phoneToUid.values().stream().sorted().toList();
+        assertThat(uids).hasSize(2);
+
+        fake.pushAdd(uids.get(0), null, 1);
+        zalo.poll();
+        clock.advance(Duration.ofSeconds(121));
+        automation.tick(); // mới 1 người kết bạn, đợt có 2 số: chờ thêm, chưa tạo nhóm
+        assertThat(fake.creates).isEmpty();
+
+        fake.pushAdd(uids.get(1), null, 2);
+        zalo.poll();
+        clock.advance(Duration.ofSeconds(121));
+        automation.tick();
+        assertThat(fake.creates).hasSize(1);
+        assertThat(fake.creates.get(0).members()).containsExactlyInAnyOrderElementsOf(uids);
+        assertThat(fake.creates.get(0).name()).contains("Thử");
+        assertThat(status("0001")).isEqualTo("JOINED");
+        assertThat(status("0002")).isEqualTo("JOINED");
+        Long gid = jdbc.sql("SELECT zalo_group_id FROM test_run WHERE id = :id").param("id", run).query(Long.class).single();
+        assertThat(gid).isNotNull();
+        // nhóm thử đã đóng: không bao giờ cấp cho khách thật; không tính số khách của nhóm
+        assertThat(groups.find(gid).orElseThrow().status()).isEqualTo(GroupStatus.CLOSED);
+        assertThat(groups.find(gid).orElseThrow().actual()).isZero();
+        assertThat(count("SELECT count(*) FROM zalo_group_proposal WHERE scope = 'TEST' AND state = 'DONE'")).isEqualTo(1);
+        // không tạo nhóm lần hai
+        clock.advance(Duration.ofSeconds(121));
+        automation.tick();
+        assertThat(fake.creates).hasSize(1);
+    }
+
+    @Test
+    void tuTaoNhomLoiThiDanhDauLoiVaKhongTuThuLai() {
+        long run = tests.create(new Config("Tự tạo", "Chào {ten}", "x", 5, 120, null, false),
+                List.of(new Entry("0900000001", "A", null), new Entry("0900000002", "B", null)));
+        on();
+        groupCfg.setMode(ZaloGroupMode.CONFIRM, false, "mẹ");
+        tests.start(run);
+        automation.tick();
+        clock.advance(Duration.ofSeconds(121));
+        automation.tick();
+        List<String> uids = fake.phoneToUid.values().stream().sorted().toList();
+        fake.pushAdd(uids.get(0), null, 1);
+        fake.pushAdd(uids.get(1), null, 2);
+        zalo.poll();
+        fake.willCreate(ZaloGroupMaker.Created.of(ZaloGroupMaker.GroupOutcome.PERSON_ERROR, "KHONG_DU_NGUOI", false));
+        clock.advance(Duration.ofSeconds(121));
+        automation.tick();
+        assertThat(fake.creates).hasSize(1);
+        assertThat(count("SELECT count(*) FROM test_target WHERE add_state = 'FAILED'")).isEqualTo(2);
+        clock.advance(Duration.ofSeconds(121));
+        automation.tick();
+        assertThat(fake.creates).hasSize(1);
     }
 
     @Test

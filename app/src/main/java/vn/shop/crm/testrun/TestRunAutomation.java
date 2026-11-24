@@ -12,6 +12,7 @@ import vn.shop.crm.safety.TestMode;
 import vn.shop.crm.zalo.ZaloAutoService;
 import vn.shop.crm.zalo.ZaloFriendTap;
 import vn.shop.crm.zalo.ZaloGateway;
+import vn.shop.crm.zalo.ZaloGroupCreationService;
 import vn.shop.crm.zalo.ZaloMessageService;
 import vn.shop.crm.zalo.ZaloMessageService.Delivery;
 import vn.shop.crm.zalo.ZaloMessenger.Kind;
@@ -46,10 +47,12 @@ public class TestRunAutomation implements ZaloFriendTap, ZaloTickHook {
     private final GroupService groups;
     private final InviteService invites;
     private final TestMode testMode;
+    private final ZaloGroupCreationService creation;
 
     public TestRunAutomation(JdbcClient jdbc, ZaloMessageService messages, ZaloAutoService zalo, GroupService groups, InviteService invites,
-                             TestMode testMode) {
+                             TestMode testMode, ZaloGroupCreationService creation) {
         this.testMode = testMode;
+        this.creation = creation;
         this.jdbc = jdbc;
         this.messages = messages;
         this.zalo = zalo;
@@ -89,7 +92,7 @@ public class TestRunAutomation implements ZaloFriendTap, ZaloTickHook {
         boolean messaged = false;
         for (RunRow run : runs) {
             if (!added) {
-                added = tryAdd(run);
+                added = run.groupId() == null ? tryCreateGroup(run) : tryAdd(run);
             }
             if (!messaged) {
                 messaged = tryMessage(run);
@@ -99,6 +102,45 @@ public class TestRunAutomation implements ZaloFriendTap, ZaloTickHook {
 
     private static String scope(RunRow run) {
         return "TEST:" + run.id();
+    }
+
+    /**
+     * Đợt thử chưa chọn nhóm đích: khi đủ số thử đã kết bạn (2 số, hoặc ít hơn nếu đợt chỉ có ít số hơn) thì hệ thống TỰ TẠO một nhóm
+     * thử (qua {@link ZaloGroupCreationService#createForTestRun}, cùng chốt chặn tạo nhóm thật) rồi gán làm nhóm đích của đợt.
+     * Người đã vào nhóm lúc tạo được ghi "đã vào nhóm"; người chưa vào được ở lại để nhịp sau thêm bằng đường thêm người thường.
+     * Tạo nhóm lỗi thì KHÔNG tự thử lại: các số chờ được đánh dấu lỗi thêm nhóm. Trả true nếu đã dùng một lượt gọi Zalo.
+     */
+    private boolean tryCreateGroup(RunRow run) {
+        List<Target> ready = targets(run.id(), "status = 'FRIENDED' AND zalo_uid IS NOT NULL AND add_state IS NULL");
+        long total = jdbc.sql("SELECT count(*) FROM test_target WHERE run_id = :r").param("r", run.id()).query(Long.class).single();
+        if (ready.isEmpty() || ready.size() < Math.min(2, total)) {
+            return false;
+        }
+        ZaloGroupCreationService.TestGroup r = creation.createForTestRun(ready.stream().map(Target::uid).toList());
+        switch (r.step()) {
+            case CREATED -> {
+                jdbc.sql("UPDATE test_run SET zalo_group_id = :g WHERE id = :id").param("g", r.groupId()).param("id", run.id()).update();
+                for (Target t : ready) {
+                    if (r.added().contains(t.uid())) {
+                        jdbc.sql("""
+                                        UPDATE test_target SET status = 'JOINED', add_state = 'ADDED', group_id = :g, joined_at = now(),
+                                                               last_code = NULL WHERE id = :id""")
+                                .param("g", r.groupId()).param("id", t.id()).update();
+                    }
+                }
+                return true;
+            }
+            case FAILED, TRIPPED -> {
+                for (Target t : ready) {
+                    jdbc.sql("UPDATE test_target SET add_state = 'FAILED', last_code = :c WHERE id = :id")
+                            .param("c", r.code() == null ? "KHONG_RO" : r.code()).param("id", t.id()).update();
+                }
+                return true;
+            }
+            default -> {
+                return false; // chưa tới lượt (tính năng tắt, trần ngày, giờ, bộ nối chưa sẵn sàng): thử lại nhịp sau
+            }
+        }
     }
 
     /** Thêm một số thử đã kết bạn vào nhóm đích. Trả true nếu đã dùng một lượt thêm (kể cả lỗi). */
@@ -148,14 +190,18 @@ public class TestRunAutomation implements ZaloFriendTap, ZaloTickHook {
     }
 
     private Optional<Target> target(long runId, String cond) {
+        return targets(runId, cond).stream().findFirst();
+    }
+
+    private List<Target> targets(long runId, String cond) {
         // Số thử không bao giờ trùng khách trong hệ thống (kể cả khách nhập sau khi tạo đợt), và ở chế độ thử phải nằm trong danh sách thử.
         return jdbc.sql("SELECT id, phone, name, province, zalo_uid FROM test_target WHERE run_id = :r AND " + cond
                         + " AND NOT EXISTS (SELECT 1 FROM customer c WHERE c.phone = test_target.phone)"
-                        + testMode.onlyTestSql("test_target.phone") + " ORDER BY id LIMIT 1")
+                        + testMode.onlyTestSql("test_target.phone") + " ORDER BY id")
                 .param("r", runId)
                 .query((rs, n) -> new Target(rs.getLong("id"), rs.getString("phone"), rs.getString("name"), rs.getString("province"),
                         rs.getString("zalo_uid")))
-                .optional();
+                .list();
     }
 
     private boolean sendInvite(RunRow run, Target t) {

@@ -45,7 +45,7 @@
             <div class="formrow">
                 <label class="field grow">Nhóm đích
                     <select name="zaloGroupId">
-                        <option value="">Chưa chọn</option>
+                        <option value="">Hệ thống tự tạo nhóm thử</option>
                         <option th:each="g : ${groups}" th:value="${g.id}" th:text="${g.name}" th:selected="${run.zaloGroupId != null and run.zaloGroupId == g.id}">Nhóm</option>
                     </select></label>
                 <label class="field">Tối đa tin mỗi ngày
