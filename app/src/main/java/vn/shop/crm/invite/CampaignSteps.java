@@ -130,6 +130,9 @@ public class CampaignSteps {
         if (tpl.length() > InviteService.MAX_TEMPLATE) {
             throw new ImportException("Nội dung tin quá dài (tối đa " + InviteService.MAX_TEMPLATE + " ký tự).");
         }
+        InviteService.checkTemplate(tpl).ifPresent(msg -> {
+            throw new ImportException(msg);
+        });
         long sent = jdbc.sql("SELECT count(*) FROM invitation WHERE campaign_id = :id AND sent_at IS NOT NULL").param("id", campaignId)
                 .query(Long.class).single();
         if (sent > 0) {

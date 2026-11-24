@@ -20,7 +20,16 @@ const MAX_DEPUTY_TRIES_PER_DAY = 10;
 const REPLY_WINDOW_MS = 24 * 3600 * 1000; // WELCOME và REPLY chỉ trả lời người vừa nhắn trong khoảng này
 const MAX_REPLYABLE = 500;
 const MAX_FRIEND_TEXT = 150; // lời mời kết bạn của Zalo chỉ nhận câu ngắn
+const MAX_PARTS = 4; // Tin 1 tối đa bấy nhiêu tin ngắn gửi liền (phần dư gộp vào phần cuối)
 const MAX_TEXT = 1000; // ký tự; tin mời của shop chỉ vài trăm ký tự
+
+/** Tách Tin 1 thành các tin ngắn theo dòng (bỏ dòng trống); quá MAX_PARTS thì gộp phần dư vào phần cuối. Không có xuống dòng thì là một tin. */
+function splitParts(text) {
+  const lines = String(text).split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+  if (lines.length === 0) return [String(text)];
+  if (lines.length <= MAX_PARTS) return lines;
+  return [...lines.slice(0, MAX_PARTS - 1), lines.slice(MAX_PARTS - 1).join('\n')];
+}
 
 function withTimeout(promise, ms) {
   let timer;
@@ -466,18 +475,38 @@ export class Bridge {
             return { outcome: 'PERSON_ERROR', code: 'DUPLICATE', uid };
           }
         }
-        const result = await withTimeout(this.adapter.sendText(uid, text), this.config.addTimeoutMs);
+        // Tin 1 (INVITE) có nhiều dòng thì gửi thành vài tin ngắn liền nhau cho CÙNG khách, cách nhau khoảng CỐ ĐỊNH partGapMs; đây vẫn là MỘT
+        // lần Tin 1 (một dòng sổ, một lần tính hạn mức và khoảng nghỉ giữa các khách). Các loại tin khác luôn là một tin.
+        const parts = kind === 'INVITE' ? splitParts(text) : [text];
+        const result = await withTimeout(this.adapter.sendText(uid, parts[0]), this.config.addTimeoutMs);
         if (!result?.message) {
           // Zalo không xác nhận có tin: không biết đã gửi hay chưa, dừng thay vì đoán
           c = { outcome: 'SYSTEM_ERROR', code: 'NO_ACK' };
         } else {
           if (!isReply) this.msgLedger.markSent(kind, uid); // WELCOME và REPLY có thể lặp ở lần nhắn sau (Adh giữ quy tắc 30 ngày)
           c = { outcome: 'OK' };
+          // Phần đầu đã tới tay khách và đã ghi sổ: các phần sau lỗi thì dừng cầu dao nhưng KHÔNG báo lỗi gửi (không bao giờ gửi lại phần đầu).
+          for (let i = 1; i < parts.length; i++) {
+            try {
+              if (this.config.partGapMs > 0) await new Promise((r) => setTimeout(r, this.config.partGapMs));
+              const more = await withTimeout(this.adapter.sendText(uid, parts[i]), this.config.addTimeoutMs);
+              if (!more?.message) {
+                c = { outcome: 'OK', code: 'PARTIAL', trip: 'SYSTEM_ERROR:NO_ACK' };
+                break;
+              }
+            } catch (e) {
+              const k = classifyError(e, this.config.personErrorCodes);
+              c = { outcome: 'OK', code: 'PARTIAL', trip: k.outcome === 'PERSON_ERROR' ? null : (k.code ? `${k.outcome}:${k.code}` : k.outcome) };
+              break;
+            }
+          }
         }
       } catch (e) {
         c = classifyError(e, this.config.personErrorCodes);
       }
-      if (c.outcome !== 'OK' && c.outcome !== 'PERSON_ERROR') {
+      if (c.trip) {
+        this.trip(c.trip); // lỗi ở phần sau của Tin 1 (phần đầu đã gửi)
+      } else if (c.outcome !== 'OK' && c.outcome !== 'PERSON_ERROR') {
         this.trip(c.code ? `${c.outcome}:${c.code}` : c.outcome);
       } else {
         this.stateFile.write({});

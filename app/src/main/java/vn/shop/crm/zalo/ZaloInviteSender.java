@@ -185,6 +185,12 @@ public class ZaloInviteSender {
                 closeUnsendable(c, "Không còn đủ điều kiện liên hệ");
                 continue;
             }
+            if (InviteService.hasUnresolved(invites.render(c.template(), c.name(), invites.linkFor(c.token()),
+                    VnGeo.byCode(c.province()).orElse(null)))) {
+                // Mẫu tin còn dấu {...} chưa thay được: không gửi, không đổi trạng thái; người sửa mẫu ở trang chiến dịch.
+                log.warn("Chiến dịch {} có mẫu Tin 1 còn chỗ điền chưa thay được; bỏ qua, không gửi", c.campaignId());
+                continue;
+            }
             return sendInvite(c);
         }
         return Step.NOTHING;

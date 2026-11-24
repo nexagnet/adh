@@ -103,6 +103,11 @@ public class ZaloFollowupSender {
                 close(t, "Không còn đủ điều kiện liên hệ");
                 continue;
             }
+            if (InviteService.hasUnresolved(invites.render(t.template(), t.name(), invites.linkFor(t.token()),
+                    VnGeo.byCode(t.province()).orElse(null)))) {
+                log.warn("Chiến dịch {} có tin nhắc còn chỗ điền chưa thay được; bỏ qua, không gửi", t.campaignId());
+                continue;
+            }
             return send(t);
         }
         return Step.NOTHING;
