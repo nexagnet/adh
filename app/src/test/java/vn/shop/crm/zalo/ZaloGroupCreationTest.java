@@ -201,7 +201,7 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
         friended(1, 2);
         assertThat(svc.step()).isEqualTo(Step.NOTHING);
         assertThat(proposals()).isZero();
-        cfg.setLimits(1, 2, "mẹ"); // đổi ngưỡng xuống 2 thì được
+        cfg.setLimits(2, "mẹ"); // đổi ngưỡng xuống 2 thì được
         later(15);
         assertThat(svc.step()).isEqualTo(Step.PROPOSED);
     }
@@ -230,25 +230,21 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
     // ---------- nấc tự động, trần, khoảng nghỉ, khung giờ ----------
 
     @Test
-    void tuDongTaoNgayNhungToiDaMotNhomMoiNgay() {
+    void tuDongKhongCoTranNhomMoiNgayChiCoKhungGioVaKhoangNghi() {
         mode(ZaloGroupMode.AUTO);
         friended(1, 2, 3, 4, 5, 6, 7, 8);
         assertThat(svc.step()).isEqualTo(Step.CREATED);
         assertThat(fake.creates).singleElement().satisfies(c -> assertThat(c.members()).hasSize(5));
         later(120);
-        // còn 3 khách chờ nhưng trần mỗi ngày là 1
-        assertThat(svc.step()).isEqualTo(Step.NOTHING);
-        assertThat(fake.creates).hasSize(1);
-        // sang ngày hôm sau thì tạo nhóm thứ hai cùng khu vực, số thứ tự 02
-        clock.set(LocalDateTime.of(2026, 11, 23, 9, 0));
+        // còn 3 khách chờ, KHÔNG có trần số nhóm mỗi ngày (24/11): hết khoảng nghỉ thì tạo nhóm thứ hai ngay trong ngày
         assertThat(svc.step()).isEqualTo(Step.CREATED);
+        assertThat(fake.creates).hasSize(2);
         assertThat(fake.creates.get(1).name()).isEqualTo("Áo điều hòa ADH - Cần Thơ - 02");
     }
 
     @Test
     void khoangNghiCoDinhGiuaHaiLanTaoTrongCungNgay() {
         mode(ZaloGroupMode.AUTO);
-        cfg.setLimits(2, 3, "mẹ");
         friended(1, 2, 3, 4, 5, 6, 7, 8);
         assertThat(svc.step()).isEqualTo(Step.CREATED);
         later(15);

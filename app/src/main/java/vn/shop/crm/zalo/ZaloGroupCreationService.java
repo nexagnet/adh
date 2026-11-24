@@ -31,7 +31,7 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * Tự tạo nhóm Zalo theo khu vực (D19, docs/THIET-KE-TU-TAO-NHOM-ZALO.md). Adh QUYẾT ĐỊNH ({@link GroupPlanner}); {@link ZaloGroupMaker}
  * chỉ là tay chân. Mỗi lần xét (mặc định 10 phút một lần, chỉ 08:00–20:00): nếu chưa có đề xuất nào đang mở thì tìm khu vực đủ khách chờ và
- * ghi MỘT đề xuất. Nấc xác nhận: mẹ duyệt thì mới tạo. Nấc tự động: tạo luôn, trong trần mỗi ngày. Cùng luật D18: tắt mặc định, trần thấp,
+ * ghi MỘT đề xuất. Nấc xác nhận: mẹ duyệt thì mới tạo. Nấc tự động: tạo luôn (không có trần số nhóm mỗi ngày). Cùng luật D18: tắt mặc định,
  * khoảng nghỉ cố định (không ngẫu nhiên hóa), cầu dao dùng chung với gửi tin và thêm người, lỗi không rõ kết quả thì đánh dấu thất bại và
  * KHÔNG tự thử lại. Không ghi tên khách, số điện thoại hay mã Zalo vào nhật ký.
  */
@@ -157,20 +157,17 @@ public class ZaloGroupCreationService implements ZaloTickHook {
         return !t.isBefore(cfg.props().windowStart()) && t.isBefore(cfg.props().windowEnd());
     }
 
-    private int startedToday() {
-        Instant start = clock.instant().atZone(clock.getZone()).toLocalDate().atStartOfDay(clock.getZone()).toInstant();
-        return jdbc.sql("SELECT count(*) FROM zalo_group_proposal WHERE started_at >= :s")
-                .param("s", OffsetDateTime.ofInstant(start, ZoneOffset.UTC)).query(Integer.class).single();
-    }
-
     private Instant lastStarted() {
         return jdbc.sql("SELECT max(started_at) FROM zalo_group_proposal").query(OffsetDateTime.class).optional()
                 .map(OffsetDateTime::toInstant).orElse(null);
     }
 
-    /** Còn được tạo một nhóm ngay lúc này không: trong khung giờ, còn trần ngày, đủ khoảng nghỉ cố định. */
+    /**
+     * Còn được tạo một nhóm ngay lúc này không: trong khung giờ và đủ khoảng nghỉ cố định. Không có trần số nhóm mỗi ngày (chủ dự án chốt
+     * 24/11/2026); khung 08:00 đến 20:00 và khoảng nghỉ 60 phút tự giới hạn tối đa 12 nhóm mỗi ngày.
+     */
     public boolean mayCreateNow() {
-        if (!inWindow() || startedToday() >= cfg.daily()) {
+        if (!inWindow()) {
             return false;
         }
         Instant last = lastStarted();
@@ -178,7 +175,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
     }
 
     private Optional<Long> planIfDue(ZaloGroupMode mode) {
-        if (!inWindow() || startedToday() >= cfg.daily()) {
+        if (!inWindow()) {
             return Optional.empty();
         }
         Instant last = cfg.lastPlanAt();
@@ -261,7 +258,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
 
     // ---------- hành động của người ở trang quản trị ----------
 
-    /** Mẹ duyệt một đề xuất (nấc xác nhận). Nhóm được tạo ở nhịp kế tiếp nếu còn trần mỗi ngày, đúng giờ và đủ khoảng nghỉ. */
+    /** Mẹ duyệt một đề xuất (nấc xác nhận). Nhóm được tạo ở nhịp kế tiếp nếu đúng giờ và đủ khoảng nghỉ. */
     public void approve(long id, String by) {
         if (cfg.chosenMode() == ZaloGroupMode.OFF) {
             throw new ImportException("Việc tự tạo nhóm đang tắt.");

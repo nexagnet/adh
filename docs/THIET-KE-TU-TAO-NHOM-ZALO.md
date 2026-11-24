@@ -26,7 +26,7 @@ Mỗi lần chạy (một lần mỗi 10 phút, chỉ trong 08:00 đến 20:00):
 ## 3. Hộp an toàn (cùng tinh thần D18, không né phát hiện)
 
 - **Tắt mặc định.** Có ba nấc trên trang Zalo: Tắt, **Xác nhận** (mẹ bấm duyệt từng nhóm; mặc định khi bật), Tự động. Nên chạy Xác nhận cho vài nhóm đầu trước khi cho Tự động.
-- Trần cứng: tối đa **1 nhóm mới mỗi ngày** (chỉnh được đến 3), khoảng nghỉ cố định giữa hai lần tạo, chỉ 08:00 đến 20:00, **không ngẫu nhiên hóa thời gian**.
+- Không có trần số nhóm mới mỗi ngày (chủ dự án chốt 24/11/2026; bản đầu ghi "1 nhóm mỗi ngày, chỉnh đến 3"), khoảng nghỉ cố định giữa hai lần tạo, chỉ 08:00 đến 20:00, **không ngẫu nhiên hóa thời gian**.
 - **Cầu dao dùng chung** với việc gửi tin: lỗi lạ hoặc Zalo cảnh báo thì dừng cả tạo nhóm lẫn gửi tin. Tạo nhóm lỗi không rõ kết quả thì đánh dấu thất bại và **không tự thử lại**, báo mẹ kiểm tra.
 - Tên nhóm cố định theo mẫu (không ngẫu nhiên), không ảnh đại diện giả, không nhân bản tài khoản.
 - Chỉ tạo nhóm cho khách **đã kết bạn và đã đồng ý** vào nhóm; không bao giờ kéo người lạ.

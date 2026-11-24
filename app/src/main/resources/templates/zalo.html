@@ -263,17 +263,17 @@
                 <span th:text="${m.label()}">Tắt</span>
                 <span class="sub-line" th:if="${m.name() == 'OFF'}">Không đề xuất, không tạo nhóm nào.</span>
                 <span class="sub-line" th:if="${m.name() == 'CONFIRM'}">Hệ thống chỉ đề xuất; mẹ bấm Duyệt thì mới tạo. Nên chạy nấc này cho vài nhóm đầu.</span>
-                <span class="sub-line" th:if="${m.name() == 'AUTO'}">Tự tạo khi đủ điều kiện, trong trần mỗi ngày. Chỉ bật sau khi đã thử tay một nhóm thật.</span>
+                <span class="sub-line" th:if="${m.name() == 'AUTO'}">Tự tạo khi đủ điều kiện (không giới hạn số nhóm mỗi ngày). Chỉ bật sau khi đã thử tay một nhóm thật.</span>
             </label>
             <label class="field"><input type="checkbox" name="confirmedTested" value="true">
                 Tôi đã thử tay một nhóm thật (1 nhóm, 2 số của tôi) và thấy hoạt động đúng (bắt buộc để bật nấc tự động).</label>
             <div><button type="submit" class="btn">Lưu nấc tạo nhóm</button></div>
         </form>
         <form class="formrow" th:action="@{/zalo/group-limits}" method="post">
-            <label class="field">Số nhóm mới mỗi ngày <input type="number" name="daily" th:value="${groupDaily}" min="1" th:max="${groupProps.maxDaily}"></label>
             <label class="field">Khách chờ tối thiểu để tạo nhóm <input type="number" name="minCustomers" th:value="${groupMin}" min="2" th:max="${groupProps.maxMembers}"></label>
-            <button type="submit" class="btn">Lưu giới hạn</button>
+            <button type="submit" class="btn">Lưu ngưỡng</button>
         </form>
+        <p class="hint">Không giới hạn số nhóm tạo mỗi ngày; chỉ có khung giờ 08:00 đến 20:00 và khoảng nghỉ cố định giữa hai lần tạo. Số khách được nhắn mỗi ngày vẫn có hạn mức riêng ở mục tự gửi tin.</p>
         <div class="table-wrap">
             <table data-filter>
                 <tr><th>Lúc</th><th>Khu vực và tên nhóm</th><th>Lý do</th><th>Trạng thái</th><th></th></tr>

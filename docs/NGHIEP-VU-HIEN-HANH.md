@@ -199,7 +199,7 @@ Khi có khách đã kết bạn mà **chưa có nhóm hợp khu vực**, hệ th
 - **Cách chọn phạm vi:** xét từ nhỏ đến lớn: tỉnh, rồi vùng, rồi miền. Phạm vi nhỏ nhất có **từ 3 khách chờ** (chỉnh được từ 2) thì chọn. Tỉnh ít khách thì tự gộp lên vùng, không tạo nhóm 1 đến 2 người. Nhóm mới lấy tối đa 5 khách chờ lâu nhất.
 - **Tên nhóm (chốt 23/11):** `Áo điều hòa ADH - <Khu vực> - <số thứ tự>`, ví dụ `Áo điều hòa ADH - Miền Nam - 01`. Không dùng tiền tố "Pin" vì cửa hàng bán chủ yếu áo điều hòa.
 - **Ba nấc:** Tắt / **Xác nhận** (chủ shop bấm duyệt từng nhóm; mặc định khi bật) / Tự động (chỉ mở sau khi đã chạy Xác nhận và tick xác nhận đã thử).
-- **Giới hạn:** tối đa **1 nhóm mới mỗi ngày** (chỉnh tới 3), nghỉ cố định **60 phút** giữa hai lần, chỉ 08:00 đến 20:00, không ngẫu nhiên, dùng chung cầu dao với gửi tin, **lỗi không rõ thì không tự thử lại**.
+- **Giới hạn:** **không có trần số nhóm mới mỗi ngày** (chốt 24/11/2026), nghỉ cố định **60 phút** giữa hai lần, chỉ 08:00 đến 20:00, không ngẫu nhiên, dùng chung cầu dao với gửi tin, **lỗi không rõ thì không tự thử lại**.
 - **Tài khoản cửa hàng là người tạo (chủ nhóm); mẹ là phó nhóm.** Bạn chọn mẹ bằng **số điện thoại của mẹ** ở trang `/zalo`: bộ nối tra tên và ảnh (chỉ được khi mẹ bật cho tìm bằng số; trần 5 lần mỗi giờ ở bộ nối, 8 lần mỗi ngày và nghỉ 60 giây ở Adh), bạn nhìn đúng người rồi bấm xác nhận. **Adh không lưu số điện thoại**, chỉ lưu mã Zalo, tên và ảnh. Mẹ phải là bạn Zalo của tài khoản phụ trước. Hệ thống **không** đăng nhập hay cấu hình gì tài khoản của mẹ.
 - **Phải thử tay 1 nhóm thật với 2 số của bạn** trước khi bật cho khách thật. Nhiều chuyện chưa biết: số thành viên tối thiểu để tạo nhóm, độ dài tên, giới hạn số nhóm tạo mỗi ngày, mã lỗi.
 - Nếu tạo nhóm tự động thất bại, đường cũ vẫn còn: người tạo nhóm tay rồi dán link vào Adh.
@@ -365,7 +365,7 @@ Trang `/performance`. Mỗi chiến dịch một dòng phễu: **đã mời → 
 | Thêm vào nhóm | mặc định 50 người/ngày, 5/giờ, cách 2 phút; trần 100/ngày; giờ mặc định 07:00 đến 22:00 |
 | Mục tiêu một nhóm | khoảng 5 khách (không tính mẹ và tài khoản cửa hàng) |
 | Giữ chỗ nhóm cho khách vừa kết bạn | 24 giờ |
-| Tự tạo nhóm | 1 nhóm/ngày (tới 3), nghỉ 60 phút, từ 3 khách chờ (chỉnh từ 2), tối đa 5 khách lúc tạo |
+| Tự tạo nhóm | không trần nhóm/ngày, nghỉ 60 phút, từ 3 khách chờ (chỉnh từ 2), tối đa 5 khách lúc tạo |
 | "Không phản hồi" | 14 ngày sau Tin 1 |
 | AI ghi sổ từ chối | chắc từ 0,8 |
 | AI tự gỡ cờ khách quay lại | chắc từ 0,85, tối đa 1 lần/khách/30 ngày |

@@ -64,7 +64,6 @@ export function loadConfig(env = process.env) {
     friendDaily: int(env, 'BRIDGE_FRIEND_DAILY', 50, 1, 100),
     // Tạo nhóm Zalo (D19): trần cứng của CHÍNH cầu nối là 3 nhóm mỗi ngày (Adh mặc định 1), khoảng nghỉ CỐ ĐỊNH tối thiểu giữa hai lần tạo.
     // Vượt trần ngày thì cầu nối tự dừng; tạo sớm hơn khoảng nghỉ thì chỉ bị từ chối (RATE_LIMITED). Không ngẫu nhiên hóa.
-    groupDaily: int(env, 'BRIDGE_GROUP_DAILY', 3, 1, 3),
     groupGapMs: int(env, 'BRIDGE_GROUP_GAP_SEC', 300, 300, 86400) * 1000,
     // Tra tên và ảnh của MỘT số điện thoại để xác nhận mẹ làm phó nhóm: tối đa mỗi giờ (công khai, cố định); quá thì bị từ chối, không dừng.
     profileLookupsPerHour: int(env, 'BRIDGE_PROFILE_LOOKUPS_PER_HOUR', 5, 0, 20),

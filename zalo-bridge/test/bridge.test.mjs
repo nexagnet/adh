@@ -793,20 +793,19 @@ test('tạo nhóm: khoảng nghỉ cố định, tạo sớm hơn thì RATE_LIMI
   c.cleanup();
 });
 
-test('tạo nhóm: vượt trần ngày thì cầu nối tự dừng (cầu dao), không tạo thêm', async () => {
-  const c = await ready({ BRIDGE_GROUP_DAILY: '2' });
-  for (const n of ['A', 'B']) {
+test('tạo nhóm: không có trần số nhóm mỗi ngày, chỉ có khoảng nghỉ cố định (chủ dự án chốt 24/11/2026)', async () => {
+  const c = await ready();
+  for (const n of ['A', 'B', 'C', 'D', 'E']) {
     assert.equal((await c.bridge.createGroup({ name: n, members: ['601'] })).outcome, 'OK');
     c.clock.t += GROUP_GAP;
   }
-  assert.deepEqual(await c.bridge.createGroup({ name: 'C', members: ['601'] }), { outcome: 'RESTRICTED', code: 'GROUP_LIMIT' });
-  assert.equal(c.bridge.status().state, 'TRIPPED');
-  assert.equal(c.adapter.created.length, 2);
+  assert.equal(c.adapter.created.length, 5);
+  assert.equal(c.bridge.status().state, 'LISTENING');
   c.cleanup();
 });
 
-test('tạo nhóm: trần cứng của cầu nối không cho đặt quá 3 mỗi ngày hay nghỉ dưới 300 giây', () => {
-  assert.throws(() => setup({ env: { BRIDGE_GROUP_DAILY: '4' } }), /BRIDGE_GROUP_DAILY/);
+test('tạo nhóm: cầu nối không còn biến BRIDGE_GROUP_DAILY; nghỉ dưới 300 giây vẫn bị từ chối', () => {
+  assert.doesNotThrow(() => setup({ env: { BRIDGE_GROUP_DAILY: '4' } }));
   assert.throws(() => setup({ env: { BRIDGE_GROUP_GAP_SEC: '60' } }), /BRIDGE_GROUP_GAP_SEC/);
 });
 
