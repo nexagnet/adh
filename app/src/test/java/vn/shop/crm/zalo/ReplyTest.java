@@ -205,6 +205,62 @@ class ReplyTest extends AbstractPostgresTest {
         assertThat(fake.messages).isEmpty();
     }
 
+    // ---------- khách đồng ý ngắn ("Ok", "Vâng") ----------
+
+    @Test
+    void khachDongYChuaKetBanThiNhacBamChapNhan() {
+        autoOn();
+        label.set(aiLabel("DONG_Y", 0.95));
+        says("Ok");
+        assertThat(one("state")).isEqualTo("READY");
+        assertThat(one("reply_text")).isEqualTo(ReplyService.AGREE_NOT_FRIEND).doesNotContain("Trợ lý AI");
+        assertThat(systems.stream().filter(sy -> sy.startsWith("Bạn là TRỢ LÝ AI") || sy.startsWith("Bạn chỉ làm một việc: xem")).count()).isZero();
+        freshInbound();
+        assertThat(sender.step()).isTrue();
+        assertThat(fake.messages).singleElement().satisfies(m -> assertThat(m.text()).isEqualTo(ReplyService.AGREE_NOT_FRIEND));
+    }
+
+    @Test
+    void khachDongYDaLaBanThiBaoSeThemVaoNhom() {
+        autoOn();
+        jdbc.sql("UPDATE invitation SET friended_at = now() WHERE customer_id = :c").param("c", cust(1)).update();
+        label.set(aiLabel("DONG_Y", 0.9));
+        says("Vâng ạ");
+        assertThat(one("reply_text")).isEqualTo(ReplyService.AGREE_FRIEND);
+    }
+
+    @Test
+    void khachDongYNacNhapChiLuuNhapKhongGui() {
+        replies.setMode(Mode.DRAFT, false, "mẹ");
+        label.set(aiLabel("DONG_Y", 0.9));
+        says("Được");
+        assertThat(one("state")).isEqualTo("DRAFT");
+        assertThat(sender.step()).isFalse();
+        assertThat(fake.messages).isEmpty();
+    }
+
+    @Test
+    void khachDongYNhungAiKhongChacHoacDaVaoNhomThiKhongTraLoiCauDongY() {
+        autoOn();
+        label.set(aiLabel("DONG_Y", 0.5));
+        scope.set(aiScope("NGOAI", 0.95));
+        says("Ok");
+        assertThat(one("state")).isEqualTo("HANDOFF"); // không đủ chắc: đi đường cũ, người thật xem
+        jdbc.sql("DELETE FROM reply_draft").update();
+        jdbc.sql("UPDATE invitation SET status = 'JOINED', joined_at = now() WHERE customer_id = :c").param("c", cust(1)).update();
+        label.set(aiLabel("DONG_Y", 0.95));
+        says("Ok");
+        assertThat(count("SELECT count(*) FROM reply_draft")).isZero(); // đã vào nhóm: chỉ ghi nhận, không trả lời
+    }
+
+    @Test
+    void khachTuChoiThiDongYKhongLamTraLoi() {
+        autoOn();
+        label.set(aiLabel("TU_CHOI", 0.95));
+        says("Ok đừng nhắn nữa");
+        assertThat(count("SELECT count(*) FROM reply_draft WHERE state = 'READY'")).isZero();
+    }
+
     // ---------- tự động ----------
 
     @Test

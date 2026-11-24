@@ -263,6 +263,16 @@ public class ReplyService {
         if (label == Label.TU_CHOI) {
             return handoff(s, Reason.KHACH_TU_CHOI, null, v.confidence(), text, at);
         }
+        if (label == Label.DONG_Y && v.confidence() >= SCOPE_MIN && s.invitationId() != null) {
+            // Khách đồng ý ngay sau Tin 1 ("Ok", "Vâng"): trả lời MỘT câu ngắn cố định theo tình trạng, không cần AI soạn thêm (không có gì để bịa).
+            Optional<String> ack = agreementReply(s.invitationId());
+            if (ack.isEmpty()) {
+                return Result.NONE; // đã vào nhóm rồi: tin đồng ý chỉ được ghi nhận, không cần trả lời
+            }
+            Mode mode = mode();
+            insert(s, mode == Mode.AUTO ? "READY" : "DRAFT", null, null, v.confidence(), text, ack.get() + signature(), null, at);
+            return mode == Mode.AUTO ? Result.QUEUED : Result.DRAFTED;
+        }
         boolean wantsToBuy = label == Label.MUON_MUA;
         if (wantsToBuy && v.confidence() >= BUY_HANDOFF_MIN) {
             return handoff(s, Reason.KHACH_MUON_MUA, null, v.confidence(), text, at);
@@ -281,6 +291,21 @@ public class ReplyService {
         String state = mode == Mode.AUTO ? "READY" : "DRAFT";
         insert(s, state, null, null, p.confidence, text, p.reply + signature(), p.fields, at);
         return mode == Mode.AUTO ? Result.QUEUED : Result.DRAFTED;
+    }
+
+    public static final String AGREE_NOT_FRIEND = "Dạ vâng ạ, bác bấm Chấp nhận lời mời kết bạn của em, em thêm bác vào nhóm liền ạ.";
+    public static final String AGREE_FRIEND = "Dạ vâng ạ, em sẽ thêm bác vào nhóm sớm ạ.";
+
+    /** Câu trả lời cho khách đồng ý: chưa kết bạn thì nhắc bấm Chấp nhận, đã là bạn thì báo sẽ thêm vào nhóm; đã vào nhóm rồi thì không trả lời. */
+    private Optional<String> agreementReply(long invitationId) {
+        record St(String status, boolean friended) {
+        }
+        St st = jdbc.sql("SELECT status, friended_at IS NOT NULL AS f FROM invitation WHERE id = :id").param("id", invitationId)
+                .query((rs, n) -> new St(rs.getString("status"), rs.getBoolean("f"))).optional().orElse(null);
+        if (st == null || "JOINED".equals(st.status())) {
+            return Optional.empty();
+        }
+        return Optional.of(st.friended() ? AGREE_FRIEND : AGREE_NOT_FRIEND);
     }
 
     /** Kết quả của chuỗi phân loại phạm vi, soạn câu, kiểm cứng. {@code reply} khác null nghĩa là có câu dùng được (chưa kèm chữ ký). */

@@ -257,7 +257,7 @@ public class ComebackService {
             return task(c, Reason.AI_SAI_KHUON, null, null, text);
         }
         Label label = v.label();
-        if (label == Label.TU_CHOI || label == Label.KHAC) {
+        if (label == Label.TU_CHOI || label == Label.KHAC || label == Label.DONG_Y) {
             return Result.IGNORED; // vẫn từ chối (hoặc không liên quan): giữ cờ, không làm gì, không trả lời
         }
         if (label != Label.MUON_MUA) {

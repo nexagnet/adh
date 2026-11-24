@@ -18,6 +18,7 @@ class RefusalClassifierTest {
         assertThat(v.confidence()).isEqualTo(0.85);
         assertThat(RefusalClassifier.parse("{\"confidence\":1,\"intent\":\"KHAC\"}").outcome()).isEqualTo(Outcome.OK);
         assertThat(RefusalClassifier.parse("{\"intent\":\"MUON_MUA\",\"confidence\":0}").outcome()).isEqualTo(Outcome.OK);
+        assertThat(RefusalClassifier.parse("{\"intent\":\"DONG_Y\",\"confidence\":0.9}").label()).isEqualTo(Label.DONG_Y);
     }
 
     @Test
