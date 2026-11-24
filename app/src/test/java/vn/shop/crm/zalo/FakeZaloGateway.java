@@ -52,6 +52,8 @@ public class FakeZaloGateway implements ZaloLink {
         phoneToUid.clear();
         uidSeq = 0;
         creates.clear();
+        deputyCalls.clear();
+        deputyResults.clear();
         createResults.clear();
         defaultCreate = null;
         finds.clear();
@@ -103,6 +105,21 @@ public class FakeZaloGateway implements ZaloLink {
         }
         return new Created(ZaloGroupMaker.GroupOutcome.OK, null, "5555", "https://zalo.me/g/fake5555", List.copyOf(memberUids), List.of(),
                 deputyUid == null ? "NONE" : "OK", 0, false);
+    }
+
+    public record DeputyCall(String groupId, String uid) {
+    }
+
+    public final List<DeputyCall> deputyCalls = new ArrayList<>();
+    public final java.util.ArrayDeque<DeputyResult> deputyResults = new java.util.ArrayDeque<>();
+
+    @Override
+    public DeputyResult setDeputy(String groupId, String deputyUid) {
+        deputyCalls.add(new DeputyCall(groupId, deputyUid));
+        if (!deputyResults.isEmpty()) {
+            return deputyResults.poll();
+        }
+        return new DeputyResult(ZaloGroupMaker.GroupOutcome.OK, null, "OK");
     }
 
     // ---------- tra người để xác nhận mẹ (D19) ----------

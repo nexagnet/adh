@@ -106,7 +106,7 @@ test('POST /people/lookup (D19) cần khóa, tra đúng một số, số sai kh�
 
 test('danh sách đường được phép là cố định', () => {
   assert.deepEqual(ROUTES, [
-    'GET /healthz', 'GET /status', 'GET /events', 'GET /inbox', 'GET /groups', 'POST /groups', 'POST /groups/{id}/members', 'POST /messages', 'POST /friend-requests', 'POST /people/lookup', 'POST /session/login', 'GET /session/login',
+    'GET /healthz', 'GET /status', 'GET /events', 'GET /inbox', 'GET /groups', 'POST /groups', 'POST /groups/{id}/members', 'POST /groups/{id}/deputy', 'POST /messages', 'POST /friend-requests', 'POST /people/lookup', 'POST /session/login', 'GET /session/login',
     'POST /session/logout', 'POST /session/stop', 'POST /session/resume',
   ]);
 });
@@ -151,6 +151,19 @@ test('POST /groups (D19) cần khóa, tạo đúng một nhóm, body sai không 
   const ok = await s.call('POST', '/groups', { body: { name: 'Áo điều hòa ADH - Miền Nam - 01', members: ['111', '222'], deputy: '333' } });
   assert.equal(ok.json.outcome, 'OK');
   assert.equal(s.c.adapter.created.length, 1);
+  await s.close();
+});
+
+test('POST /groups/{id}/deputy (đặt lại phó nhóm) cần khóa, sai mã bị từ chối, đúng thì đặt một phó nhóm; không có đường đổi/xóa phó nhóm', async () => {
+  const s = await boot();
+  assert.equal((await s.call('POST', '/groups/9001/deputy', { key: '', body: { uid: '900' } })).status, 401);
+  assert.deepEqual((await s.call('POST', '/groups/abc/deputy', { body: { uid: '900' } })).json, { outcome: 'PERSON_ERROR', code: 'BAD_ID' });
+  assert.deepEqual((await s.call('POST', '/groups/9001/deputy', { body: {} })).json, { outcome: 'PERSON_ERROR', code: 'BAD_ID' });
+  assert.deepEqual((await s.call('POST', '/groups/9001/deputy', { body: { uid: '900' } })).json, { outcome: 'OK', deputy: 'OK' });
+  assert.deepEqual(s.c.adapter.deputies, [{ uid: '900', groupId: '9001' }]);
+  for (const [m, p] of [['GET', '/groups/9001/deputy'], ['DELETE', '/groups/9001/deputy'], ['PUT', '/groups/9001/deputy']]) {
+    assert.equal((await s.call(m, p, { body: m === 'GET' ? undefined : { uid: '900' } })).status, 404, `${m} ${p}`);
+  }
   await s.close();
 });
 

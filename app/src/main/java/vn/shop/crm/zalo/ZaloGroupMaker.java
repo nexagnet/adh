@@ -29,14 +29,41 @@ public interface ZaloGroupMaker {
      * @param added      mã Zalo của những người Zalo xác nhận đã vào nhóm
      * @param failed     những người chưa vào được
      * @param deputy     OK, FAILED hoặc NONE
+     * @param deputyCode mã lỗi Zalo thật (dạng Z118) khi đặt phó nhóm lỗi; null nếu không có
      * @param notCreated cầu nối CHẮC CHẮN chưa tạo gì (từ chối trước khi chạm Zalo); false = đã tạo hoặc không biết
      */
     record Created(GroupOutcome outcome, String code, String groupId, String link, List<String> added, List<String> failed,
-                   String deputy, int retryAfterSeconds, boolean notCreated) {
+                   String deputy, String deputyCode, int retryAfterSeconds, boolean notCreated) {
+        public Created(GroupOutcome outcome, String code, String groupId, String link, List<String> added, List<String> failed,
+                       String deputy, int retryAfterSeconds, boolean notCreated) {
+            this(outcome, code, groupId, link, added, failed, deputy, null, retryAfterSeconds, notCreated);
+        }
+
         public static Created of(GroupOutcome outcome, String code, boolean notCreated) {
             return new Created(outcome, code, null, null, List.of(), List.of(), "NONE", 0, notCreated);
         }
     }
+
+    /**
+     * Kết quả đặt lại phó nhóm cho nhóm đã tạo.
+     * @param deputy OK hoặc FAILED (mọi kết quả khác OK đều coi là FAILED)
+     * @param code   mã lỗi (mã Zalo thật dạng Z118 hoặc mã của cầu nối như WINDOW)
+     */
+    record DeputyResult(GroupOutcome outcome, String code, String deputy) {
+        public static DeputyResult of(GroupOutcome outcome, String code) {
+            return new DeputyResult(outcome, code, "FAILED");
+        }
+
+        public boolean ok() {
+            return outcome == GroupOutcome.OK && "OK".equals(deputy);
+        }
+    }
+
+    /**
+     * Đặt lại MỘT phó nhóm (mẹ) cho một nhóm đã tạo: cầu nối thêm mẹ vào nhóm nếu chưa có (Zalo chỉ cho đặt phó nhóm với người đang trong nhóm)
+     * rồi đặt phó nhóm. Không bao giờ ném lỗi.
+     */
+    DeputyResult setDeputy(String groupId, String deputyUid);
 
     /** Tạo nhóm. Không bao giờ ném lỗi. {@code deputyUid} có thể null. */
     Created createGroup(String name, List<String> memberUids, String deputyUid);

@@ -122,6 +122,18 @@ public class TestMode {
                 .param("u", uid).query(Boolean.class).single();
     }
 
+    /** Mã nhóm Zalo này là nhóm Adh đã ghi (do chính hệ thống tạo hoặc người gán); ở chế độ chạy thật thì luôn đúng. */
+    public boolean ownGroup(String zaloGroupId) {
+        if (live()) {
+            return true;
+        }
+        if (zaloGroupId == null || zaloGroupId.isBlank()) {
+            return false;
+        }
+        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM zalo_group WHERE zalo_group_id = :g)").param("g", zaloGroupId)
+                .query(Boolean.class).single();
+    }
+
     /**
      * Mã Zalo này có chắc chắn KHÔNG phải của một khách THẬT không (dùng để loại tin riêng). Ở chế độ thử, mã không thuộc số thử bị coi là
      * khách thật hoặc người lạ: không đọc, không đưa cho AI.
