@@ -55,24 +55,30 @@ public class DeepSeekClient implements AiClient {
 
     @Override
     public String complete(String system, String user, boolean json) {
-        return call(system, user, json, maxTokens, timeout);
+        return call(system, user, json, maxTokens, timeout, model, false);
     }
 
     @Override
     public String complete(String system, String user, boolean json, Options options) {
-        int tokens = Math.max(50, Math.min(options.maxOutputTokens(), Options.HARD_MAX_TOKENS));
-        Duration t = Duration.ofSeconds(Math.max(2, Math.min(options.timeoutSeconds(), Options.HARD_MAX_TIMEOUT)));
-        return call(system, user, json, tokens, t);
+        boolean think = options.thinking();
+        int tokens = Math.max(50, Math.min(options.maxOutputTokens(), think ? Options.HARD_MAX_TOKENS_THINKING : Options.HARD_MAX_TOKENS));
+        Duration t = Duration.ofSeconds(Math.max(2, Math.min(options.timeoutSeconds(),
+                think ? Options.HARD_MAX_TIMEOUT_THINKING : Options.HARD_MAX_TIMEOUT)));
+        String m = options.model() != null && MODEL_NAME.matcher(options.model()).matches() ? options.model() : model;
+        return call(system, user, json, tokens, t, m, think);
     }
 
-    private String call(String system, String user, boolean json, int maxTokens, Duration timeout) {
+    private static final java.util.regex.Pattern MODEL_NAME = java.util.regex.Pattern.compile("[A-Za-z0-9._:-]{1,64}");
+
+    private String call(String system, String user, boolean json, int maxTokens, Duration timeout, String model, boolean think) {
         Map<String, Object> body = new java.util.LinkedHashMap<>();
         body.put("model", model);
         body.put("messages", List.of(Map.of("role", "system", "content", system), Map.of("role", "user", "content", user)));
         body.put("max_tokens", maxTokens);
         body.put("temperature", 0);
-        // Tắt chế độ "suy nghĩ sâu": phân loại và soạn câu ngắn không cần, và nó làm chậm cả lượt gọi lẫn hàng chờ trả lời.
-        body.put("thinking", Map.of("type", "disabled"));
+        // Mặc định tắt chế độ "suy nghĩ sâu": phân loại và soạn câu ngắn không cần, và nó làm chậm cả lượt gọi lẫn hàng chờ trả lời.
+        // Chỉ lượt đề xuất chiến dịch (người bấm chờ, ít lượt mỗi ngày) mới bật.
+        body.put("thinking", Map.of("type", think ? "enabled" : "disabled"));
         body.put("stream", false);
         if (json) {
             body.put("response_format", Map.of("type", "json_object"));

@@ -150,14 +150,26 @@ public class ProposalService {
                     + "Hãy duyệt thêm khách ở mục Danh sách mời, hoặc bỏ qua đề xuất này.");
         }
         String name = p.title().length() <= MAX_NAME ? p.title() : p.title().substring(0, MAX_NAME);
-        long campaignId = invites.createCampaign(name, null, EXPIRES_DAYS, count, p.area());
+        long campaignId = invites.createCampaign(name, null, expiresDaysFor(p, today()), count, p.area());
         // Lịch, khung giờ và hạn mức ngày AI đề xuất được đặt vào chiến dịch, nhưng luôn KẸP trong trần hệ thống (chỉ chặt hơn, không bao giờ nới).
         policy.saveClamped(campaignId, new CampaignPolicy.Raw(p.startOn(), p.endOn(), p.windowFrom(), p.windowTo(), p.dailyCap(), null), by);
+        // Cấu hình sẵn thêm: hoãn khi mưa lớn (chỉ HOÃN, không bao giờ gửi nhanh hơn hay nhiều hơn); ngày trong tuần và ngưỡng tự dừng theo hệ thống.
+        policy.saveExtra(campaignId, new CampaignPolicy.Extra(null, true, null), by);
         jdbc.sql("""
                         UPDATE campaign_proposal SET state = 'APPROVED', decided_by = :by, decided_at = now(), campaign_id = :cid
                         WHERE id = :id""")
                 .param("by", by).param("cid", campaignId).param("id", id).update();
         return campaignId;
+    }
+
+    /**
+     * Số ngày lời mời còn hạn. Lời mời tính hạn từ lúc TẠO chiến dịch, mà đề xuất có thể bắt đầu muộn tới 30 ngày sau: nếu để mặc định
+     * 14 ngày thì lời mời hết hạn trước khi tới ngày gửi và bị đóng "Link đã hết hạn" mà không gửi. Nên hạn = tới hết ngày kết thúc
+     * của đề xuất + {@link #EXPIRES_DAYS} ngày để khách kịp phản hồi (tối thiểu {@link #EXPIRES_DAYS}, tối đa 90 theo {@link InviteService}).
+     */
+    static int expiresDaysFor(Proposal p, LocalDate today) {
+        long untilEnd = Math.max(0, java.time.temporal.ChronoUnit.DAYS.between(today, p.endOn()));
+        return (int) Math.min(90, Math.max(EXPIRES_DAYS, untilEnd + EXPIRES_DAYS));
     }
 
     /** Bỏ qua, kèm lý do (không bắt buộc) để sau này đo AI đoán trúng hay trượt. */

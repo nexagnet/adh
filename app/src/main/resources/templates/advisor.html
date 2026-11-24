@@ -50,11 +50,11 @@
             </div>
             <p th:if="${!p.messageAngle.isEmpty()}"><strong>Gợi ý hướng nhấn khi soạn tin:</strong> <span th:text="${p.messageAngle}">Nhấn vào thời tiết</span>
                 <span class="muted small">(chỉ để bạn tham khảo; tin gửi khách vẫn là mẫu tin mặc định của cửa hàng)</span></p>
-            <p class="muted small">Khi duyệt, hệ thống tạo chiến dịch cho khách khu vực này và đặt ngày bắt đầu, khung giờ và hạn mức ngày như trên (luôn nằm trong giới hạn chung ở Zalo tài khoản phụ, nếu vượt thì tự hạ xuống). Bạn chỉnh lại được ở trang chiến dịch.
+            <p class="muted small">Bấm Triển khai: hệ thống tạo chiến dịch cho khách khu vực này, đặt sẵn ngày bắt đầu, khung giờ, hạn mức ngày như trên và bật "hoãn khi mưa lớn" (luôn nằm trong giới hạn chung ở Zalo tài khoản phụ, nếu vượt thì tự hạ xuống). Chiến dịch tạo ra chưa gửi tin nào cho đến khi bạn duyệt cho tự gửi ở trang chiến dịch, và bạn chỉnh lại được ở đó.
                 <a th:href="@{/advisor/runs/{id}(id=${p.runId})}">Xem số liệu đã gửi cho AI</a></p>
             <div class="formrow">
                 <form th:action="@{/advisor/proposals/{id}/approve(id=${p.id})}" method="post">
-                    <button type="submit" class="btn">Duyệt và tạo chiến dịch</button>
+                    <button type="submit" class="btn">Triển khai</button>
                 </form>
                 <form th:action="@{/advisor/proposals/{id}/reject(id=${p.id})}" method="post" class="formrow">
                     <label class="field grow2">Lý do bỏ qua (không bắt buộc)
