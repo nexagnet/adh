@@ -143,6 +143,30 @@ class AdvisorSnapshotTest extends AbstractPostgresTest {
     }
 
     @Test
+    void duBaoNhieuNgayTrungBinhTheoSoKhach() {
+        java.time.LocalDate today = java.time.LocalDate.now(AdvisorSnapshotService.ZONE);
+        // TP.HCM (12 khách): hôm nay 24-34, mưa 12 mm; ngày mai 25-35, không mưa. Bình Dương (5 khách): chỉ có hôm nay 26-36, mưa 2 mm.
+        String hcmDaily = "[[\"" + today + "\",24.0,34.0,12.0],[\"" + today.plusDays(1) + "\",25.0,35.0,0.0]]";
+        String bdDaily = "[[\"" + today + "\",26.0,36.0,2.0]]";
+        jdbc.sql("""
+                INSERT INTO weather_forecast (province, min_temp, max_temp, symbol, hourly, daily, expires_at)
+                VALUES ('tphcm', 24, 34, 'cloudy', '[]'::jsonb, CAST(:d AS jsonb), now() + interval '3 hours'),
+                       ('binh-duong', 26, 36, 'cloudy', '[]'::jsonb, CAST(:b AS jsonb), now() + interval '3 hours')""")
+                .param("d", hcmDaily).param("b", bdDaily).update();
+        var w = service.build().areas().getFirst().weather();
+        assertThat(w.outlook()).hasSize(2);
+        assertThat(w.coverageDays()).isEqualTo(2);
+        var d0 = w.outlook().get(0);
+        assertThat(d0.inDays()).isZero();
+        assertThat(d0.avgMinTemp()).isEqualTo(24.6);   // (12*24 + 5*26) / 17
+        assertThat(d0.avgMaxTemp()).isEqualTo(34.6);
+        assertThat(d0.rainyPercent()).isEqualTo(71);    // 12/17 khách ở tỉnh có ngày mưa từ 10 mm
+        var d1 = w.outlook().get(1);
+        assertThat(d1.avgMinTemp()).isEqualTo(25.0);    // chỉ TP.HCM có dự báo ngày mai
+        assertThat(d1.rainyPercent()).isZero();
+    }
+
+    @Test
     void jsonGuiChoAiKhongCoDuLieuCaNhan() {
         forecast("tphcm", 24.0, 34.0, 6.0);
         invites.createCampaign("Thử", "Chào {ten}", 14, 2);

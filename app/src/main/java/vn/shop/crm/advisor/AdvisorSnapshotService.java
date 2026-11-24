@@ -163,11 +163,11 @@ public class AdvisorSnapshotService {
         return new AdvisorSnapshot.Area(GeoArea.sub(sub).code(), sub.label(), sub.region().label(), acc.customers,
                 acc.oneTime, acc.eligible, acc.awaiting, acc.new30,
                 new AdvisorSnapshot.Recency(acc.r30, acc.r90, acc.r180, acc.rOld, acc.rUnknown), acc.funnel(),
-                weatherOf(provinces, forecasts), top, new AdvisorSnapshot.Products(acc.gShirt, acc.gBattery, acc.gOther, acc.gUnknown));
+                weatherOf(provinces, forecasts, java.time.LocalDate.now(clock.withZone(ZONE))), top, new AdvisorSnapshot.Products(acc.gShirt, acc.gBattery, acc.gOther, acc.gUnknown));
     }
 
     /** Trung bình theo số khách của từng tỉnh; null nếu chưa có dự báo nào cho vùng này. */
-    private static AdvisorSnapshot.Weather weatherOf(List<Map.Entry<Province, Acc>> provinces, Map<String, Forecast> forecasts) {
+    private static AdvisorSnapshot.Weather weatherOf(List<Map.Entry<Province, Acc>> provinces, Map<String, Forecast> forecasts, LocalDate today) {
         double weightAll = 0;
         double weightWith = 0;
         double weightedMin = 0;
@@ -192,7 +192,47 @@ public class AdvisorSnapshotService {
             return null;
         }
         return new AdvisorSnapshot.Weather(round1(weightedMin / weightWith), round1(weightedMax / weightWith),
-                (int) Math.round(100 * weightRainy / weightWith), (int) Math.round(100 * weightWith / weightAll));
+                (int) Math.round(100 * weightRainy / weightWith), (int) Math.round(100 * weightWith / weightAll),
+                outlook(provinces, forecasts, today));
+    }
+
+    /** Một ngày có tổng mưa từ mức này (mm) thì coi là ngày mưa đáng kể. */
+    static final double RAIN_DAY_MM = 10.0;
+    static final int OUTLOOK_DAYS = 9;
+
+    /** Dự báo từng ngày kể từ hôm nay, trung bình theo số khách; ngày nào chưa có tỉnh nào dự báo thì bỏ, và dừng ở ngày đầu tiên thiếu. */
+    private static List<AdvisorSnapshot.OutlookDay> outlook(List<Map.Entry<Province, Acc>> provinces, Map<String, Forecast> forecasts,
+                                                            LocalDate today) {
+        List<AdvisorSnapshot.OutlookDay> out = new ArrayList<>();
+        for (int d = 0; d < OUTLOOK_DAYS; d++) {
+            LocalDate date = today.plusDays(d);
+            double w = 0;
+            double min = 0;
+            double max = 0;
+            double rainy = 0;
+            for (Map.Entry<Province, Acc> e : provinces) {
+                Forecast f = forecasts.get(e.getKey().code());
+                double weight = e.getValue().customers;
+                if (f == null || weight == 0) {
+                    continue;
+                }
+                Forecast.Day day = f.daily().stream().filter(x -> x.date().equals(date)).findFirst().orElse(null);
+                if (day == null) {
+                    continue;
+                }
+                w += weight;
+                min += weight * day.minTemp();
+                max += weight * day.maxTemp();
+                if (day.rain() >= RAIN_DAY_MM) {
+                    rainy += weight;
+                }
+            }
+            if (w == 0) {
+                break;
+            }
+            out.add(new AdvisorSnapshot.OutlookDay(d, round1(min / w), round1(max / w), (int) Math.round(100 * rainy / w)));
+        }
+        return out;
     }
 
     private static double round1(double v) {

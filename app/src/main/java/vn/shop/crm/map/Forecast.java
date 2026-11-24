@@ -12,7 +12,15 @@ import java.util.List;
  *
  * @param hourly số liệu theo giờ (có thể rỗng với dự báo lưu từ bản cũ)
  */
-public record Forecast(double minTemp, double maxTemp, String symbol, OffsetDateTime fetchedAt, List<Hour> hourly) {
+public record Forecast(double minTemp, double maxTemp, String symbol, OffsetDateTime fetchedAt, List<Hour> hourly, List<Day> daily) {
+
+    /** Một ngày (giờ Việt Nam) trong dự báo nhiều ngày: nhiệt độ thấp nhất/cao nhất (°C) và tổng lượng mưa (mm). */
+    public record Day(java.time.LocalDate date, double minTemp, double maxTemp, double rain) {
+    }
+
+    public Forecast(double minTemp, double maxTemp, String symbol, OffsetDateTime fetchedAt, List<Hour> hourly) {
+        this(minTemp, maxTemp, symbol, fetchedAt, hourly, List.of());
+    }
 
     /** Một mốc giờ: nhiệt độ (°C), lượng mưa trong giờ đó (mm), độ phủ mây (%) và mã biểu tượng của MET Norway. */
     public record Hour(long epoch, double temp, double rain, int cloud, String symbol) {
@@ -22,6 +30,7 @@ public record Forecast(double minTemp, double maxTemp, String symbol, OffsetDate
 
     public Forecast {
         hourly = hourly == null ? List.of() : List.copyOf(hourly);
+        daily = daily == null ? List.of() : List.copyOf(daily);
     }
 
     public Forecast(double minTemp, double maxTemp, String symbol, OffsetDateTime fetchedAt) {
@@ -35,6 +44,30 @@ public record Forecast(double minTemp, double maxTemp, String symbol, OffsetDate
             rows.add(java.util.Arrays.asList(h.epoch(), h.temp(), h.rain(), h.cloud(), h.symbol()));
         }
         return JSON.writeValueAsString(rows);
+    }
+
+    static String dailyToJson(List<Day> days) {
+        List<List<Object>> rows = new ArrayList<>();
+        for (Day d : days) {
+            rows.add(java.util.Arrays.asList(d.date().toString(), d.minTemp(), d.maxTemp(), d.rain()));
+        }
+        return JSON.writeValueAsString(rows);
+    }
+
+    /** Đọc lại chuỗi do {@link #dailyToJson} ghi; dữ liệu thiếu hoặc hỏng thì trả rỗng. */
+    static List<Day> dailyFromJson(String json) {
+        List<Day> out = new ArrayList<>();
+        if (json == null || json.isBlank()) {
+            return out;
+        }
+        try {
+            for (JsonNode row : JSON.readTree(json)) {
+                out.add(new Day(java.time.LocalDate.parse(row.get(0).asString()), row.get(1).asDouble(), row.get(2).asDouble(), row.get(3).asDouble()));
+            }
+        } catch (Exception e) {
+            return new ArrayList<>();
+        }
+        return out;
     }
 
     /** Đọc lại chuỗi do {@link #hourlyToJson} ghi; dữ liệu hỏng thì trả rỗng, không làm hỏng trang. */

@@ -157,24 +157,24 @@ public class WeatherService {
     }
 
     private boolean isFresh(String code) {
-        return jdbc.sql("SELECT count(*) FROM weather_forecast WHERE province = :p AND expires_at > now() AND hourly IS NOT NULL")
+        return jdbc.sql("SELECT count(*) FROM weather_forecast WHERE province = :p AND expires_at > now() AND hourly IS NOT NULL AND daily IS NOT NULL")
                 .param("p", code).query(Long.class).single() > 0;
     }
 
     private void store(String code, WeatherClient.Result r) {
         jdbc.sql("""
-                        INSERT INTO weather_forecast (province, min_temp, max_temp, symbol, hourly, fetched_at, expires_at)
-                        VALUES (:p, :min, :max, :sym, CAST(:hourly AS jsonb), now(), :exp)
+                        INSERT INTO weather_forecast (province, min_temp, max_temp, symbol, hourly, daily, fetched_at, expires_at)
+                        VALUES (:p, :min, :max, :sym, CAST(:hourly AS jsonb), CAST(:daily AS jsonb), now(), :exp)
                         ON CONFLICT (province) DO UPDATE SET min_temp = EXCLUDED.min_temp, max_temp = EXCLUDED.max_temp,
-                            symbol = EXCLUDED.symbol, hourly = EXCLUDED.hourly, fetched_at = now(),
+                            symbol = EXCLUDED.symbol, hourly = EXCLUDED.hourly, daily = EXCLUDED.daily, fetched_at = now(),
                             expires_at = EXCLUDED.expires_at""")
                 .param("p", code).param("min", r.forecast().minTemp()).param("max", r.forecast().maxTemp())
-                .param("hourly", Forecast.hourlyToJson(r.forecast().hourly()))
+                .param("hourly", Forecast.hourlyToJson(r.forecast().hourly())).param("daily", Forecast.dailyToJson(r.forecast().daily()))
                 .param("sym", r.forecast().symbol(), java.sql.Types.VARCHAR).param("exp", r.expiresAt()).update();
     }
 
     public Optional<Forecast> forecast(String code) {
-        return jdbc.sql("SELECT min_temp, max_temp, symbol, fetched_at, hourly::text AS hourly FROM weather_forecast "
+        return jdbc.sql("SELECT min_temp, max_temp, symbol, fetched_at, hourly::text AS hourly, daily::text AS daily FROM weather_forecast "
                         + "WHERE province = :p")
                 .param("p", code)
                 .query((rs, i) -> row(rs))
@@ -183,7 +183,7 @@ public class WeatherService {
 
     public Map<String, Forecast> allForecasts() {
         Map<String, Forecast> out = new LinkedHashMap<>();
-        jdbc.sql("SELECT province, min_temp, max_temp, symbol, fetched_at, hourly::text AS hourly FROM weather_forecast")
+        jdbc.sql("SELECT province, min_temp, max_temp, symbol, fetched_at, hourly::text AS hourly, daily::text AS daily FROM weather_forecast")
                 .query((rs, i) -> Map.entry(rs.getString("province"), row(rs)))
                 .list().forEach(e -> out.put(e.getKey(), e.getValue()));
         return out;
@@ -191,7 +191,8 @@ public class WeatherService {
 
     private static Forecast row(java.sql.ResultSet rs) throws java.sql.SQLException {
         return new Forecast(rs.getDouble("min_temp"), rs.getDouble("max_temp"), rs.getString("symbol"),
-                rs.getObject("fetched_at", OffsetDateTime.class), Forecast.hourlyFromJson(rs.getString("hourly")));
+                rs.getObject("fetched_at", OffsetDateTime.class), Forecast.hourlyFromJson(rs.getString("hourly")),
+                Forecast.dailyFromJson(rs.getString("daily")));
     }
 
     /** Tỉnh có nhiều khách (từ ngưỡng cấu hình) mà dự báo lạnh/nóng bất thường. Sắp theo số khách giảm dần. */

@@ -36,6 +36,8 @@ final class ProposalValidator {
     static final int MIN_HISTORY_SENT = 30;
     static final double CAP_NO_HISTORY = 0.6;
     static final double CAP_NO_WEATHER = 0.7;
+    /** Ngày bắt đầu nằm ngoài những ngày đã có dự báo thời tiết thì độ tin cậy bị chặn trần (lý do dựa vào thời tiết không kiểm chứng được). */
+    static final double CAP_BEYOND_FORECAST = 0.65;
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final Set<String> TOP_KEYS = Set.of("proposals", "skip_reason");
@@ -277,6 +279,8 @@ final class ProposalValidator {
         }
         if (a.get().weather() == null) {
             ceiling = Math.min(ceiling, CAP_NO_WEATHER);
+        } else if (ChronoUnit.DAYS.between(today, start) >= a.get().weather().coverageDays()) {
+            ceiling = Math.min(ceiling, CAP_BEYOND_FORECAST);
         }
         boolean capped = confidence > ceiling;
         return new AdvisorProposal(title, area, batch, start, end, from, to, cap, angle, reasons, risks,

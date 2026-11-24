@@ -56,7 +56,20 @@ public record AdvisorSnapshot(
     }
 
     /** Dự báo 48 giờ tới, trung bình theo số khách của từng tỉnh trong vùng. {@code rainyPercent}: % khách ở tỉnh có mưa đáng kể. */
-    public record Weather(double avgMinTemp, double avgMaxTemp, int rainyPercent, int coveragePercent) {
+    public record Weather(double avgMinTemp, double avgMaxTemp, int rainyPercent, int coveragePercent, List<OutlookDay> outlook) {
+        /** Bản không có dự báo nhiều ngày (chỉ 48 giờ). */
+        public Weather(double avgMinTemp, double avgMaxTemp, int rainyPercent, int coveragePercent) {
+            this(avgMinTemp, avgMaxTemp, rainyPercent, coveragePercent, List.of());
+        }
+
+        /** Số ngày tới (kể từ hôm nay, hôm nay là 0) có dự báo; không có dự báo nhiều ngày thì coi là 2 ngày (48 giờ). */
+        public int coverageDays() {
+            return outlook.isEmpty() ? 2 : outlook.getLast().inDays() + 1;
+        }
+    }
+
+    /** Dự báo một ngày sắp tới, trung bình theo số khách của các tỉnh trong vùng có dự báo ngày đó. {@code rainyPercent}: % khách ở tỉnh có tổng mưa ngày từ 10 mm. */
+    public record OutlookDay(int inDays, double avgMinTemp, double avgMaxTemp, int rainyPercent) {
     }
 
     public record ProvinceInfo(String code, String name, long customers, long eligible, Integer minTemp, Integer maxTemp) {
