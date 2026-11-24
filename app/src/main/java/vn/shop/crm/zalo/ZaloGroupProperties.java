@@ -26,6 +26,9 @@ public record ZaloGroupProperties(
            Chủ dự án chốt 24/11/2026: khoảng 5 người mỗi nhóm; vượt vài người cũng được (trần mềm, xem app.grouping.soft-overflow ở GroupService). */
         @DefaultValue("5") int targetCustomers,
         @DefaultValue("100") int maxTargetCustomers,
+        /* Khách dư: chờ từ bấy nhiêu ngày thì khu vực chỉ cần 2 khách là tạo nhóm và được ưu tiên; chờ từ alertAfterDays thì báo mẹ. */
+        @DefaultValue("7") int relaxAfterDays,
+        @DefaultValue("14") int alertAfterDays,
         /* Bao lâu thì xét đề xuất một lần (phút). */
         @DefaultValue("10") int planEveryMinutes,
         /* Mẫu tên nhóm: %s là tên khu vực, %02d là số thứ tự. Sai mẫu thì dùng mẫu mặc định. */
@@ -52,6 +55,12 @@ public record ZaloGroupProperties(
         }
         if (targetCustomers < 5 || targetCustomers > maxTargetCustomers) {
             targetCustomers = Math.min(5, maxTargetCustomers);
+        }
+        if (relaxAfterDays < 1) {
+            relaxAfterDays = 7;
+        }
+        if (alertAfterDays < relaxAfterDays) {
+            alertAfterDays = Math.max(14, relaxAfterDays);
         }
         if (planEveryMinutes < 1) {
             planEveryMinutes = 1;
