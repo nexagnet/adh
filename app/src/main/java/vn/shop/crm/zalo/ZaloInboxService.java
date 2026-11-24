@@ -49,6 +49,13 @@ public class ZaloInboxService implements ZaloTickHook {
     private final ReplyService replies;
     /** Phần phân loại bảo hành và khiếu nại; null nghĩa là không có (các bài test dựng tay). */
     private final WarrantyService warranty;
+    /** Thả tim tin không cần đáp; null nghĩa là không có (các bài test dựng tay). */
+    private ZaloReactionSender reactions;
+
+    @Autowired(required = false)
+    void setReactions(ZaloReactionSender reactions) {
+        this.reactions = reactions;
+    }
 
     public ZaloInboxService(ZaloInboxProperties props, ZaloInboxReader reader, ZaloGateway gateway, ZaloAutoSettings cfg,
                             AppSettings settings, RefusalClassifier classifier, RefusalReviewService reviews,
@@ -241,6 +248,9 @@ public class ZaloInboxService implements ZaloTickHook {
             }
             ReplyService.Result r = replies.handle(s, v, text, m.at());
             cfg.log(A_INBOX, s.invitationId(), null, "TRA_LOI_" + r.name(), null, "system");
+            if (r == ReplyService.Result.REACT && reactions != null) {
+                reactions.react(s.invitationId(), m.seq(), s.uid()); // tin không cần đáp: thả tim vào đúng tin này, không gửi chữ
+            }
         } catch (RuntimeException e) {
             log.warn("Không xử lý được việc trả lời một tin riêng: {}", e.getClass().getSimpleName());
         }

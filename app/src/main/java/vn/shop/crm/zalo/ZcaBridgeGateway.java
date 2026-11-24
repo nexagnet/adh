@@ -244,6 +244,32 @@ public class ZcaBridgeGateway implements ZaloLink {
         }
     }
 
+    /** Thả tim vào một tin đến (cầu nối kiểm lại: bật đọc tin riêng, tin trong 24 giờ, một lần mỗi tin, khung giờ, khoảng nghỉ, cầu dao). */
+    @Override
+    public Reacted heart(long seq, String uid) {
+        if (seq <= 0 || uid == null || !ZALO_ID.matcher(uid).matches()) {
+            return Reacted.failed("BAD_INPUT", true);
+        }
+        try {
+            JsonNode n = call("POST", "/reactions", JSON.writeValueAsString(java.util.Map.of("seq", seq)), 30);
+            String outcome = n.path("outcome").asString("");
+            if ("OK".equals(outcome)) {
+                return Reacted.done();
+            }
+            String code = safeCode(text(n, "code"));
+            boolean notSent = "RATE_LIMITED".equals(outcome) || (code != null && NOT_SENT_CODES.contains(code))
+                    || "NOT_REACTABLE".equals(code) || "REACT_LIMIT".equals(code) || "WINDOW".equals(code);
+            return Reacted.failed(code == null ? (outcome.isBlank() ? "BAD_REPLY" : outcome) : code, notSent);
+        } catch (Unreachable e) {
+            return Reacted.failed("BRIDGE_DOWN", true);
+        } catch (TimedOut e) {
+            return Reacted.failed("TIMEOUT", false);
+        } catch (Exception e) {
+            log.warn("Lỗi khi thả tim qua cầu nối: {}", e.getClass().getSimpleName());
+            return Reacted.failed("BRIDGE_ERROR", false);
+        }
+    }
+
     // ---------- ZaloGroupMaker: việc thứ năm (D19), tạo MỘT nhóm ----------
 
     /** Mã cầu nối từ chối TRƯỚC khi chạm Zalo (xem bridge.mjs createGroup): chắc chắn chưa tạo nhóm nào. */

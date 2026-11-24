@@ -84,6 +84,21 @@
         </form>
     </section>
 
+    <section class="panel stack" id="tha-tim" th:if="${tab == 'bat-tat'}">
+        <h2>Thả tim tin không cần đáp</h2>
+        <p>Khi khách chỉ nhắn lời cảm ơn hoặc biểu tượng cảm xúc, AI xác định không cần trả lời thì hệ thống thả tim vào đúng tin đó trên Zalo, không nhắn chữ. Lời đồng ý như "Ok", "Vâng" vẫn được trả lời như cũ.</p>
+        <ul class="muted">
+            <li>Chỉ hoạt động ở nấc "Tự động" bên dưới, và theo đúng công tắc tự gửi, khung giờ, nút Dừng ngay và cầu dao.</li>
+            <li>Mỗi tin một lần, không tính vào số khách được nhắn mỗi ngày. Khách đã từ chối không bao giờ được thả tim.</li>
+            <li>Tắt thả tim thì tin cảm ơn lại được trả lời ngắn một câu như trước.</li>
+        </ul>
+        <form class="stack" th:action="@{/zalo/reply/react}" method="post">
+            <label class="field"><input type="radio" name="enabled" value="true" th:checked="${reactOn}"> <span>Bật thả tim</span></label>
+            <label class="field"><input type="radio" name="enabled" value="false" th:checked="${!reactOn}"> <span>Tắt</span></label>
+            <div><button type="submit" class="btn">Lưu</button></div>
+        </form>
+    </section>
+
     <section class="panel stack" id="nac" th:if="${tab == 'bat-tat'}">
         <h2>Nấc</h2>
         <form class="stack" th:action="@{/zalo/reply/mode}" method="post">

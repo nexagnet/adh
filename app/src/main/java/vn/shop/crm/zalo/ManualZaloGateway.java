@@ -92,4 +92,9 @@ public class ManualZaloGateway implements ZaloLink {
     public List<Inbound> inbound(long afterSeq) {
         return List.of();
     }
+
+    @Override
+    public Reacted heart(long seq, String uid) {
+        return Reacted.failed("DISABLED", true);
+    }
 }

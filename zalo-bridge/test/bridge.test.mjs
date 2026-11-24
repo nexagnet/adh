@@ -1097,6 +1097,50 @@ test('tin riêng: cắt 500 ký tự, xác nhận (after) thì bỏ tin cũ, qu�
   c.cleanup();
 });
 
+// ---------- thả tim tin khách (24/11/2026) ----------
+
+test('thả tim: chỉ thả vào tin riêng đã nhận, một lần mỗi tin, khoảng nghỉ cố định, tin lạ bị từ chối', async () => {
+  const c = setup({ env: { BRIDGE_INBOX_ENABLED: 'true' } });
+  await c.bridge.start();
+  await loginAndListen(c);
+  await c.bridge.sendMessage({ kind: 'INVITE', uid: '777', text: 'Chào' });
+  c.adapter.emitMessage('777', 'Cảm ơn');
+  c.adapter.emitMessage('777', 'tin hai');
+  const [a, b] = c.bridge.inboxMessages(0);
+  assert.deepEqual(await c.bridge.react({ seq: 999999 }), { outcome: 'PERSON_ERROR', code: 'NOT_REACTABLE' });
+  assert.deepEqual(await c.bridge.react({ seq: a.seq }), { outcome: 'OK' });
+  assert.equal(c.adapter.hearts.length, 1);
+  assert.equal(c.adapter.hearts[0].uid, '777');
+  assert.deepEqual(await c.bridge.react({ seq: a.seq }), { outcome: 'PERSON_ERROR', code: 'NOT_REACTABLE' });
+  assert.equal((await c.bridge.react({ seq: b.seq })).outcome, 'RATE_LIMITED');
+  c.clock.t += 4000;
+  assert.equal((await c.bridge.react({ seq: b.seq })).outcome, 'OK');
+  assert.ok(!c.logs.join('\n').includes('777'));
+  c.cleanup();
+});
+
+test('thả tim: tắt đọc tin riêng thì từ chối; quá 24 giờ thì từ chối; lỗi lạ thì dừng cầu dao', async () => {
+  const off = setup();
+  await off.bridge.start();
+  await loginAndListen(off);
+  assert.deepEqual(await off.bridge.react({ seq: 1 }), { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' });
+  off.cleanup();
+  const c = setup({ env: { BRIDGE_INBOX_ENABLED: 'true' } });
+  await c.bridge.start();
+  await loginAndListen(c);
+  await c.bridge.sendMessage({ kind: 'INVITE', uid: '777', text: 'Chào' });
+  c.adapter.emitMessage('777', 'ok');
+  const [m] = c.bridge.inboxMessages(0);
+  c.clock.t += 25 * 3600 * 1000;
+  assert.equal((await c.bridge.react({ seq: m.seq })).code, 'NOT_REACTABLE');
+  c.adapter.emitMessage('777', 'ok 2');
+  const m2 = c.bridge.inboxMessages(0).at(-1);
+  c.adapter.heartError = new Error('lạ');
+  assert.equal((await c.bridge.react({ seq: m2.seq })).outcome, 'SYSTEM_ERROR');
+  assert.equal(c.bridge.status().state, 'TRIPPED');
+  c.cleanup();
+});
+
 // ---------- tin mẫu trả lời người đã nhắn trước (WELCOME, D19) ----------
 
 test('WELCOME: chỉ theo mã Zalo, cần bật đọc tin riêng và người đó phải vừa nhắn tới; phone hoặc người chưa nhắn đều bị từ chối trước khi chạm Zalo', async () => {

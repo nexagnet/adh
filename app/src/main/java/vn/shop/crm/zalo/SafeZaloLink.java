@@ -140,6 +140,17 @@ public final class SafeZaloLink implements ZaloLink {
         return List.copyOf(kept);
     }
 
+    // ---------- ZaloReactor ----------
+
+    @Override
+    public Reacted heart(long seq, String uid) {
+        if (!mode.uidAllowed(uid)) {
+            mode.noteBlocked("THA_TIM");
+            return Reacted.failed(CODE, true);
+        }
+        return inner.heart(seq, uid);
+    }
+
     // ---------- ZaloSession ----------
 
     @Override

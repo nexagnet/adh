@@ -74,6 +74,7 @@ public class ReplyController {
         model.addAttribute("ctxFields", ReplyContext.Field.values());
         model.addAttribute("ctxOn", replies.context().enabled());
         model.addAttribute("ctxSample", replies.context().sample());
+        model.addAttribute("reactOn", replies.reactEnabled());
         model.addAttribute("warrantyOn", warranty.enabled());
         model.addAttribute("warrantyOpen", warranty.openCount());
     }
@@ -98,6 +99,14 @@ public class ReplyController {
         warranty.setEnabled(enabled, by(user));
         redirect.addFlashAttribute("flash", enabled ? "Đã bật phân loại bảo hành và khiếu nại." : "Đã tắt phân loại bảo hành và khiếu nại.");
         return "redirect:/zalo/reply?tab=bat-tat#bao-hanh";
+    }
+
+    /** Công tắc thả tim tin khách mà AI xác định không cần đáp (mặc định bật; chỉ có tác dụng ở nấc Tự động). */
+    @PostMapping("/react")
+    public String react(@RequestParam(defaultValue = "false") boolean enabled, Principal user, RedirectAttributes redirect) {
+        replies.setReactEnabled(enabled, by(user));
+        redirect.addFlashAttribute("flash", enabled ? "Đã bật thả tim tin khách không cần đáp." : "Đã tắt thả tim; tin cảm ơn sẽ được trả lời ngắn như trước.");
+        return "redirect:/zalo/reply?tab=bat-tat#tha-tim";
     }
 
     @PostMapping("/info")
