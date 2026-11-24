@@ -110,7 +110,7 @@ class NavMenuTest extends AbstractPostgresTest {
                     .andExpect(content().string(containsString("aria-label=\"Các phần của chiến dịch\"")))
                     .andExpect(content().string(containsString("Đề xuất của AI")));
         }
-        for (String path : new String[]{"/groups", "/friends", "/zalo/groups"}) {
+        for (String path : new String[]{"/groups", "/friends"}) {
             mvc.perform(get(path).with(owner)).andExpect(status().isOk())
                     .andExpect(content().string(containsString("aria-label=\"Các phần của nhóm Zalo\"")))
                     .andExpect(content().string(containsString("Chờ vào nhóm")));

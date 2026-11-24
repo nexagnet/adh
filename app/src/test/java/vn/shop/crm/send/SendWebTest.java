@@ -77,7 +77,7 @@ class SendWebTest extends AbstractPostgresTest {
         mvc.perform(post("/campaigns/" + camp + "/dry-run").with(owner).with(csrf()))
                 .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/campaigns/" + camp));
 
-        mvc.perform(get("/zalo").with(owner))
+        mvc.perform(get("/zalo").param("tab", "thu").with(owner))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Tạm dừng và nhật ký gửi")))
                 .andExpect(content().string(containsString("Chạy thử")))
@@ -87,7 +87,7 @@ class SendWebTest extends AbstractPostgresTest {
     @Test
     void trangSendingCuChuyenSangTrangZalo() throws Exception {
         mvc.perform(get("/sending").with(user("admin").roles("OWNER")))
-                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/zalo#gui-tay"));
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/zalo?tab=thu#gui-tay"));
     }
 
     @Test

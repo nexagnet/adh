@@ -776,3 +776,8 @@ pre.wrap { white-space: pre-wrap; overflow-wrap: anywhere; margin: 6px 0 0; }
 .nav details.nav-more > summary::after { content: "▾"; margin-left: 8px; }
 .nav details.nav-more:not([open]) > summary::after { content: "▸"; }
 .nav details.nav-more { display: flex; flex-direction: column; gap: 4px; }
+
+/* Thanh an toàn của trang Zalo: luôn hiện trên mọi tab */
+.safety-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 8px 0; }
+.safety-bar form { margin: 0; }
+@media (max-width: 700px) { .safety-bar form, .safety-bar .btn { width: 100%; } }

@@ -26,7 +26,7 @@
         <strong>Đang ở chế độ thử</strong>
         Hệ thống chỉ được nhắn tin, thêm nhóm, tạo nhóm, tự nhận khách và để AI trả lời với những số điện thoại đã khai báo là số thử.
         Khách thật được bảo vệ, kể cả khi công tắc tự gửi đang bật.
-        <a th:href="@{/zalo#che-do-thu}">Xem danh sách số thử</a>
+        <a th:href="@{/zalo(tab=thu)}">Xem danh sách số thử</a>
     </div>
 </div>
 <div th:fragment="zaloAlert" th:with="za=${@zaloAutoService.alert().orElse(null)}, zh=${@zaloHealthService.open()}">
@@ -40,15 +40,15 @@
         <a th:href="@{/zalo}">Mở trang Zalo tài khoản phụ</a>
     </div>
 </div>
-<nav th:fragment="campaignTabs(current)" class="tabs" aria-label="Các phần của chiến dịch">
+<div th:fragment="campaignTabs(current)" class="tabs" role="navigation" aria-label="Các phần của chiến dịch">
     <a th:href="@{/campaigns}" th:classappend="${current == 'campaigns'} ? 'active'" th:attr="aria-current=${current == 'campaigns'} ? 'page'">Chiến dịch</a>
     <a th:href="@{/advisor}" th:classappend="${current == 'advisor'} ? 'active'" th:attr="aria-current=${current == 'advisor'} ? 'page'">Đề xuất của AI<span th:if="${@navMenu.proposalBadge() > 0}" th:text="' (' + ${@navMenu.proposalBadge()} + ')'"></span></a>
-</nav>
-<nav th:fragment="groupTabs(current)" class="tabs" aria-label="Các phần của nhóm Zalo">
+</div>
+<div th:fragment="groupTabs(current)" class="tabs" role="navigation" aria-label="Các phần của nhóm Zalo">
     <a th:href="@{/groups}" th:classappend="${current == 'groups'} ? 'active'" th:attr="aria-current=${current == 'groups'} ? 'page'">Nhóm Zalo</a>
     <a th:href="@{/friends}" th:classappend="${current == 'friends'} ? 'active'" th:attr="aria-current=${current == 'friends'} ? 'page'">Chờ vào nhóm<span th:if="${@navMenu.friendBadge() > 0}" th:text="' (' + ${@navMenu.friendBadge()} + ')'"></span></a>
     <a th:href="@{/zalo/groups}" th:classappend="${current == 'zalo-groups'} ? 'active'" th:attr="aria-current=${current == 'zalo-groups'} ? 'page'">Gán mã nhóm Zalo</a>
-</nav>
+</div>
 <nav th:fragment="nav" class="nav" aria-label="Menu chính">
     <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Mở hoặc đóng menu">
     <div class="nav-bar">

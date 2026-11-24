@@ -402,7 +402,7 @@ class TestModeTest extends AbstractPostgresTest {
     @Test
     void trangZaloHienCheDoThuVaChiAdminKhaiBaoSo() throws Exception {
         MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
-        mvc.perform(get("/zalo").with(user("admin").roles("OWNER"))).andExpect(status().isOk())
+        mvc.perform(get("/zalo").param("tab", "thu").with(user("admin").roles("OWNER"))).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Chế độ thử")))
                 .andExpect(content().string(containsString("+84900000004")))
                 .andExpect(content().string(containsString("Đang ở chế độ thử")))
@@ -410,7 +410,7 @@ class TestModeTest extends AbstractPostgresTest {
         mvc.perform(get("/").with(user("admin").roles("OWNER"))).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Đang ở chế độ thử")));
         mvc.perform(post("/zalo/test-numbers").with(user("admin").roles("OWNER")).with(csrf()).param("phone", "0900000020").param("note", "Bạn C"))
-                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/zalo#che-do-thu"));
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/zalo?tab=thu#che-do-thu"));
         assertThat(mode.phoneAllowed("0900000020")).isTrue();
         // số đã là khách: lỗi tiếng Việt, không thêm
         mvc.perform(post("/zalo/test-numbers").with(user("admin").roles("OWNER")).with(csrf()).param("phone", "0900000001"))

@@ -32,20 +32,20 @@ public class TestModeController {
     public String add(@RequestParam String phone, @RequestParam(required = false) String note, Principal user, RedirectAttributes redirect) {
         mode.add(phone, note, by(user));
         redirect.addFlashAttribute("flash", "Đã thêm số thử.");
-        return "redirect:/zalo#che-do-thu";
+        return "redirect:/zalo?tab=thu#che-do-thu";
     }
 
     @PostMapping("/remove")
     public String remove(@RequestParam String phone, Principal user, RedirectAttributes redirect) {
         mode.remove(phone, by(user));
         redirect.addFlashAttribute("flash", "Đã xóa số khỏi danh sách thử.");
-        return "redirect:/zalo#che-do-thu";
+        return "redirect:/zalo?tab=thu#che-do-thu";
     }
 
     /** Dựng khách và đơn giả từ các số thử (chỉ ở chế độ thử). */
     @PostMapping("/seed")
     public String seed(RedirectAttributes redirect) {
         redirect.addFlashAttribute("flash", seeder.seed().message());
-        return "redirect:/zalo#che-do-thu";
+        return "redirect:/zalo?tab=thu#che-do-thu";
     }
 }

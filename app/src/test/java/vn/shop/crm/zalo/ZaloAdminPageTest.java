@@ -87,7 +87,7 @@ class ZaloAdminPageTest extends AbstractPostgresTest {
     @Test
     void trangKhongConHienGioiHanCuaDuongNhanTayLamLechVoiTuGui() throws Exception {
         // Giờ 07:00 đến 22:00, 20 tin mỗi ngày, 6 tin mỗi giờ là của đường nhắn tay cũ; tự gửi thật có giới hạn riêng.
-        mvc.perform(get("/zalo").with(owner())).andExpect(status().isOk())
+        mvc.perform(get("/zalo").param("tab", "thu").with(owner())).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Tạm dừng và nhật ký gửi")))
                 .andExpect(content().string(containsString("Tạm dừng tất cả chiến dịch")))
                 .andExpect(content().string(not(containsString("Giờ được gửi"))))
@@ -185,7 +185,7 @@ class ZaloAdminPageTest extends AbstractPostgresTest {
                 .andExpect(status().isBadRequest());
         mvc.perform(post("/zalo/messages/friend-limit").with(owner()).with(csrf()).param("daily", "7"))
                 .andExpect(status().is3xxRedirection());
-        mvc.perform(get("/zalo").with(owner())).andExpect(status().isOk()).andExpect(content().string(containsString("tự gửi lời mời kết bạn")));
+        mvc.perform(get("/zalo").param("tab", "gioi-han").with(owner())).andExpect(status().isOk()).andExpect(content().string(containsString("tự gửi lời mời kết bạn")));
         mvc.perform(post("/zalo/messages/friend-limit").with(owner()).with(csrf()).param("daily", "0"))
                 .andExpect(status().is3xxRedirection());
     }
@@ -274,7 +274,7 @@ class ZaloAdminPageTest extends AbstractPostgresTest {
 
     @Test
     void trangZaloCoKhoiTuTaoNhomVaNutDuyetChiAdminBamDuoc() throws Exception {
-        mvc.perform(get("/zalo").with(owner())).andExpect(status().isOk())
+        mvc.perform(get("/zalo").param("tab", "nhom").with(owner())).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Tự tạo nhóm Zalo theo khu vực")))
                 .andExpect(content().string(containsString("Chưa có đề xuất nào")))
                 .andExpect(content().string(not(containsString("99887766"))));
@@ -301,8 +301,8 @@ class ZaloAdminPageTest extends AbstractPostgresTest {
         assertThat(fake.finds).isEmpty();
         mvc.perform(post("/zalo/deputy/lookup").param("phone", "abc").with(owner()).with(csrf())).andExpect(status().isBadRequest());
         var flash = mvc.perform(post("/zalo/deputy/lookup").param("phone", "0912345678").with(owner()).with(csrf()))
-                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/zalo#pho-nhom")).andReturn().getFlashMap();
-        String html = mvc.perform(get("/zalo").flashAttrs(flash).with(owner())).andExpect(status().isOk())
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/zalo?tab=nhom#pho-nhom")).andReturn().getFlashMap();
+        String html = mvc.perform(get("/zalo").param("tab", "nhom").flashAttrs(flash).with(owner())).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Mẹ làm phó nhóm")))
                 .andExpect(content().string(containsString("Mẹ Lan")))
                 .andExpect(content().string(containsString("src=\"" + avatar + "\"")))
@@ -311,7 +311,7 @@ class ZaloAdminPageTest extends AbstractPostgresTest {
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         assertThat(html).doesNotContain("4242").doesNotContain("912345678"); // không lộ mã Zalo hay số điện thoại
         mvc.perform(post("/zalo/deputy/confirm").with(owner()).with(csrf())).andExpect(status().is3xxRedirection());
-        mvc.perform(get("/zalo").with(owner())).andExpect(status().isOk())
+        mvc.perform(get("/zalo").param("tab", "nhom").with(owner())).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Đã xác nhận. Là phó nhóm của các nhóm tạo từ nay.")))
                 .andExpect(content().string(not(containsString("Có đúng là mẹ không?"))));
         mvc.perform(post("/zalo/deputy/clear").with(owner()).with(csrf())).andExpect(status().is3xxRedirection());
