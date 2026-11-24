@@ -8,9 +8,8 @@
     <header class="page-head">
         <div class="titles">
             <h1>Chiến dịch mời vào nhóm</h1>
-            <p class="hint">Mỗi chiến dịch gồm khách đã được duyệt (có thể chỉ một khu vực). Hệ thống tự gửi Tin 1 theo hạn mức ngày (tối đa 50 khách mỗi ngày, chỉ trong giờ gửi, nghỉ cố định giữa hai tin).
-                Mỗi khách chỉ được mời một lần trong đời; chiến dịch có thể cấu hình thêm tối đa hai tin nhắc. Chưa biết nên mời khu vực nào, lúc nào? Nhờ AI ở <a th:href="@{/advisor}">Đề xuất của AI</a>.
-                Muốn thử trước với số của mình: khai báo số thử ở <a th:href="@{/zalo(tab=thu)}">Zalo tài khoản phụ</a>, hệ thống chỉ nhắn các số đó. Xem kết quả từng đợt ở <a th:href="@{/performance}">Hiệu quả chiến dịch</a>.</p>
+            <p class="hint">Mỗi chiến dịch là một nhóm khách đã duyệt. Hệ thống tự gửi Tin 1 theo hạn mức và giờ gửi, mỗi khách một lần.
+                Chưa biết mời ai, lúc nào? Xem <a th:href="@{/advisor}">Đề xuất của AI</a>. Kết quả từng đợt ở <a th:href="@{/performance}">Hiệu quả chiến dịch</a>.</p>
         </div>
         <div class="actions">
             <form th:action="@{/campaigns/pause-all}" method="post" th:unless="${paused}">
