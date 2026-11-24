@@ -212,9 +212,14 @@ public class SendService {
                 skipped++;
                 continue;
             }
-            OutboundInvite invite = new OutboundInvite(c.id(), c.customerId(), c.phone(), c.name(),
-                    invites.render(c.template(), c.name(), invites.linkFor(c.token()),
-                            vn.shop.crm.geo.VnGeo.byCode(c.province()).orElse(null)),
+            String text = invites.render(c.template(), c.name(), invites.linkFor(c.token()),
+                    vn.shop.crm.geo.VnGeo.byCode(c.province()).orElse(null));
+            if (InviteService.hasUnresolved(text)) {
+                log(c, sender, "SKIPPED", "Mẫu tin còn chỗ điền chưa thay được", 0);
+                skipped++;
+                continue;
+            }
+            OutboundInvite invite = new OutboundInvite(c.id(), c.customerId(), c.phone(), c.name(), text,
                     invites.areaLabel(c.province()), invites.suggestGroupName(c.province()).orElse(""));
             if (!sender.realDelivery()) {
                 log(c, sender, "DRY_RUN", "Chạy thử: sẽ gửi", 0);

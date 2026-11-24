@@ -239,16 +239,32 @@ class FriendFlowTest extends AbstractPostgresTest {
     }
 
     @Test
-    void tinMoiMacDinhDienTenCuaHangVaMienCuaKhach() {
-        var nam = vn.shop.crm.geo.VnGeo.all().stream().filter(p -> p.region() == vn.shop.crm.geo.Region.NAM).findFirst().orElseThrow();
-        String tin1 = invites.render(InviteService.DEFAULT_TEMPLATE, "Lan", "https://x/i/t", nam);
-        assertThat(tin1).startsWith("Chào anh/chị Lan, em bên " + invites.shopName() + ".")
-                .contains("nhóm Zalo khách hàng Miền Nam để được hướng dẫn")
-                .contains("rẻ hơn mua qua tiktok 10% và được miễn ship")
+    void tinMoiMacDinhDienTenKhachVaKhongConChuTho() {
+        String tin1 = invites.render(InviteService.DEFAULT_TEMPLATE, "Lan", "https://x/i/t");
+        assertThat(tin1).startsWith("Dạ em chào bác Lan, em bên shop áo điều hòa Minh Hiệp ạ.")
+                .contains("giảm 10% so với TikTok, miễn ship")
+                .contains("bấm \"Chấp nhận\" lời mời kết bạn")
                 .doesNotContain("{");
-        // không có tên hoặc chưa rõ khu vực: không để lại chữ "bạn" thừa hay dấu ngoặc nhọn
+        // khách chưa có tên: bỏ hẳn chữ {ten}, không để "bạn" thừa hay dấu ngoặc nhọn
         String khongTen = invites.render(InviteService.DEFAULT_TEMPLATE, " ", "https://x/i/t");
-        assertThat(khongTen).startsWith("Chào anh/chị, em bên ").contains("khách hàng khu vực của mình").doesNotContain("{");
+        assertThat(khongTen).startsWith("Dạ em chào bác, em bên shop").doesNotContain("{");
+        assertThat(invites.render(InviteService.DEFAULT_TEMPLATE, null, "")).startsWith("Dạ em chào bác, em bên shop");
+        assertThat(InviteService.hasUnresolved(tin1)).isFalse();
+        assertThat(InviteService.hasUnresolved(khongTen)).isFalse();
+    }
+
+    @Test
+    void chiDienDuocChoDienVietKhacKieuVaChanChoDienLa() {
+        // {Tên}, {TEN}, { ten } đều là chỗ điền tên khách (trước đây chỉ đúng {ten} viết thường)
+        for (String slot : new String[]{"{ten}", "{Tên}", "{TEN}", "{ ten }", "{tên}"}) {
+            assertThat(invites.render("Chào bác " + slot + " ạ", "Lan", "")).isEqualTo("Chào bác Lan ạ");
+            assertThat(invites.render("Chào bác " + slot + " ạ", null, "")).isEqualTo("Chào bác ạ");
+        }
+        // chỗ điền lạ: lưu mẫu bị từ chối, và nếu lọt vào tin thì bị đánh dấu chưa thay
+        assertThat(InviteService.checkTemplate("Chào {tên_khách_hàng}")).isPresent();
+        assertThat(InviteService.checkTemplate(InviteService.DEFAULT_TEMPLATE)).isEmpty();
+        assertThat(InviteService.hasUnresolved(invites.render("Chào {xyz} ạ", "Lan", ""))).isTrue();
+        assertThatThrownBy(() -> invites.saveDefaultTemplate("Chào {tên_khách_hàng}")).hasMessageContaining("không dùng được");
     }
 
     @Test

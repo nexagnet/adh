@@ -28,22 +28,48 @@ import java.util.Optional;
 public class InviteService {
 
     /**
-     * Tin 1 (tin mời, gửi MỘT lần, người gửi dán tay): chủ shop chốt nội dung 22/11/2026. {mien} thành "Miền Trung"/"Miền Nam"... theo
-     * tỉnh của khách. Khách không cần bấm link: đồng ý kết bạn thì được thêm vào nhóm; không cần thì bỏ qua, không nhắn lại.
+     * Tin 1 (chủ shop chốt lại 24/11/2026): ngắn, xưng "em", gọi khách là "bác", nói rõ ưu đãi và cách vào nhóm. {ten} là tên khách
+     * (khách chưa có tên thì bỏ hẳn chữ này, thành "Dạ em chào bác, ..."). Khách đồng ý kết bạn thì được thêm vào nhóm; không cần thì bỏ qua.
      */
-    public static final String DEFAULT_TEMPLATE = "Chào anh/chị {ten}, em bên {cua_hang}. Anh/chị dùng sản phẩm shop gửi thấy ổn không ạ? "
-            + "Em mời mình vào nhóm Zalo khách hàng {mien} để được hướng dẫn sử dụng sản phẩm và nhận ưu đãi.\n"
-            + "Anh chị mua trực tiếp qua nhóm sẽ rẻ hơn mua qua tiktok 10% và được miễn ship đó ạ.\n"
-            + "Anh/chị đồng ý kết bạn, em sẽ thêm anh chị vào nhóm ạ. Không cần thì anh/chị bỏ qua, em sẽ không nhắn lại ạ.";
+    public static final String DEFAULT_TEMPLATE = "Dạ em chào bác {ten}, em bên shop áo điều hòa Minh Hiệp ạ.\n"
+            + "Bác từng mua áo bên em nên em mời bác vào nhóm khách hàng: mua trong nhóm giảm 10% so với TikTok, miễn ship ạ.\n"
+            + "Bác bấm \"Chấp nhận\" lời mời kết bạn của em, em thêm bác vào nhóm liền ạ. Bác chưa cần thì cứ bỏ qua nhé.";
 
-    /**
-     * Tin 1 cho chiến dịch gửi NHIỀU lần (D21): như {@link #DEFAULT_TEMPLATE} nhưng bỏ câu "em sẽ không nhắn lại ạ", vì còn tin nhắc thì câu đó sai.
-     * Chỉ là gợi ý để chủ shop xem và sửa; cách xin ngừng nhận tin do mã tự thêm vào cuối mỗi lần gửi (CampaignSteps.STOP_FOOTER).
-     */
-    public static final String MULTI_TEMPLATE = "Chào anh/chị {ten}, em bên {cua_hang}. Anh/chị dùng sản phẩm shop gửi thấy ổn không ạ? "
-            + "Em mời mình vào nhóm Zalo khách hàng {mien} để được hướng dẫn sử dụng sản phẩm và nhận ưu đãi.\n"
-            + "Anh chị mua trực tiếp qua nhóm sẽ rẻ hơn mua qua tiktok 10% và được miễn ship đó ạ.\n"
-            + "Anh/chị đồng ý kết bạn, em sẽ thêm anh chị vào nhóm ạ.";
+    /** Tin 1 cho chiến dịch gửi NHIỀU lần (D21): mẫu mặc định không có câu "sẽ không nhắn lại" nên dùng được cho cả hai. */
+    public static final String MULTI_TEMPLATE = DEFAULT_TEMPLATE;
+
+    /** Chỗ điền trong mẫu tin: {ten}, {Tên}, { TEN }... đều được (bỏ dấu, không phân biệt hoa thường). */
+    private static final java.util.regex.Pattern PLACEHOLDER = java.util.regex.Pattern.compile("\\{\\s*([^{}\\n]{1,40}?)\\s*}");
+    private static final java.util.regex.Pattern NAME_SLOT = java.util.regex.Pattern.compile("[ \\t]*\\{\\s*([^{}\\n]{1,40}?)\\s*}");
+
+    private static String slotKey(String raw) {
+        return FollowupValidator.fold(raw).replace(' ', '_');
+    }
+
+    private static boolean isNameKey(String k) {
+        return k.equals("ten") || k.equals("ten_khach");
+    }
+
+    private static boolean isKnownKey(String k) {
+        return isNameKey(k) || k.equals("cua_hang") || k.equals("link") || k.equals("mien");
+    }
+
+    /** Mẫu tin dùng chỗ điền lạ (ví dụ {tên_khách_hàng}) thì báo lỗi; rỗng là hợp lệ. */
+    public static java.util.Optional<String> checkTemplate(String template) {
+        java.util.regex.Matcher m = PLACEHOLDER.matcher(template == null ? "" : template);
+        while (m.find()) {
+            if (!isKnownKey(slotKey(m.group(1)))) {
+                return java.util.Optional.of("Mẫu tin có chỗ điền không dùng được: {" + m.group(1)
+                        + "}. Chỉ dùng {ten}, {cua_hang}, {mien}, {link}.");
+            }
+        }
+        return java.util.Optional.empty();
+    }
+
+    /** Tin đã ghép mà còn dấu {...} chưa thay thì KHÔNG được gửi. */
+    public static boolean hasUnresolved(String text) {
+        return text != null && PLACEHOLDER.matcher(text).find();
+    }
 
     static final String SETTING_TEMPLATE = "invite.template";
     static final int MAX_TEMPLATE = 800;
@@ -153,6 +179,9 @@ public class InviteService {
         if (tpl.length() > MAX_TEMPLATE) {
             throw new ImportException("Nội dung tin quá dài (tối đa " + MAX_TEMPLATE + " ký tự).");
         }
+        checkTemplate(tpl).ifPresent(msg -> {
+            throw new ImportException(msg);
+        });
         settings.set(SETTING_TEMPLATE, tpl, ContactService.actor());
     }
 
@@ -198,6 +227,9 @@ public class InviteService {
         if (tpl.length() > MAX_TEMPLATE) {
             throw new ImportException("Nội dung tin quá dài (tối đa " + MAX_TEMPLATE + " ký tự).");
         }
+        checkTemplate(tpl).ifPresent(msg -> {
+            throw new ImportException(msg);
+        });
         if (expiresDays < 1 || expiresDays > 90) {
             throw new ImportException("Link có hiệu lực từ 1 đến 90 ngày.");
         }
@@ -450,11 +482,29 @@ public class InviteService {
     /** Như trên, có tỉnh của khách để điền {mien} (Miền Bắc/Trung/Nam). */
     public String render(String template, String customerName, String link, vn.shop.crm.geo.Province province) {
         boolean noName = customerName == null || customerName.isBlank();
-        String who = noName ? "bạn" : customerName.strip();
+        String who = noName ? "" : customerName.strip();
         String region = province == null ? "khu vực của mình" : province.region().label();
-        // "Chào anh/chị {ten}" mà không có tên thì bỏ chữ "bạn" thừa
-        String t = noName ? template.replace("anh/chị {ten}", "anh/chị") : template;
-        return t.replace("{ten}", who).replace("{cua_hang}", shopName).replace("{link}", link).replace("{mien}", region);
+        // Khách chưa có tên: bỏ hẳn chỗ {ten} cùng khoảng trắng đứng trước ("Dạ em chào bác {ten}," thành "Dạ em chào bác,"), không để chữ thô.
+        java.util.regex.Matcher m = (noName ? NAME_SLOT : PLACEHOLDER).matcher(template);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            String key = slotKey(m.group(1));
+            String value;
+            if (isNameKey(key)) {
+                value = who;
+            } else if (key.equals("cua_hang")) {
+                value = shopName;
+            } else if (key.equals("link")) {
+                value = link == null ? "" : link;
+            } else if (key.equals("mien")) {
+                value = region;
+            } else {
+                value = m.group(); // chỗ điền lạ: để nguyên, bước kiểm hasUnresolved sẽ chặn không cho gửi
+            }
+            m.appendReplacement(out, java.util.regex.Matcher.quoteReplacement(value));
+        }
+        m.appendTail(out);
+        return out.toString();
     }
 
     // ---------- đường nhắn bằng tài khoản Zalo phụ (D13): người gửi tay đánh dấu từng bước ----------

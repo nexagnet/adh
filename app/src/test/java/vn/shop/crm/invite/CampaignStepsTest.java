@@ -138,7 +138,7 @@ class CampaignStepsTest extends AbstractPostgresTest {
                 .isInstanceOf(ImportException.class).hasMessageContaining("Tin 1");
         assertThat(steps.plan(old).maxTouches()).isEqualTo(1);
         // chiến dịch 1 lần vẫn dùng được mẫu cũ
-        assertThat(InviteService.DEFAULT_TEMPLATE).contains("em sẽ không nhắn lại");
+        assertThat(InviteService.DEFAULT_TEMPLATE).doesNotContain("không nhắn lại");
         // đổi Tin 1 sang mẫu gợi ý thì lưu được
         steps.saveFirstMessage(old, InviteService.MULTI_TEMPLATE, "mẹ");
         assertThat(InviteService.MULTI_TEMPLATE).doesNotContain("không nhắn lại");

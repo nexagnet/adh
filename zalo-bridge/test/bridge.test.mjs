@@ -522,6 +522,37 @@ test('gửi tin mời theo số: tìm đúng một số, gửi đúng một tin 
   c.cleanup();
 });
 
+test('Tin 1 nhiều dòng: gửi thành vài tin ngắn liền nhau cho CÙNG khách, phần đầu là lời chào; vẫn là MỘT lần Tin 1 (một dòng sổ, một lần tính khoảng nghỉ giữa khách)', async () => {
+  const c = await ready({ BRIDGE_PART_GAP_SEC: '0' });
+  const text = 'Dạ em chào bác Lan ạ.\nBác từng mua áo.\n\nBác bấm Chấp nhận nhé.';
+  const r = await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text });
+  assert.deepEqual(r, { outcome: 'OK', uid: '501' });
+  assert.deepEqual(c.adapter.sent.map((x) => x.text), ['Dạ em chào bác Lan ạ.', 'Bác từng mua áo.', 'Bác bấm Chấp nhận nhé.']);
+  assert.ok(c.adapter.sent.every((x) => x.uid === '501'));
+  // khách thứ hai vẫn phải chờ khoảng nghỉ giữa khách, và khách này không nhận Tin 1 lần nữa
+  const again = await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000002', text: 'x' });
+  assert.equal(again.outcome, 'RATE_LIMITED');
+  c.clock.t += 200000;
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', uid: '501', text: 'y' })).code, 'DUPLICATE');
+  c.cleanup();
+});
+
+test('Tin 1 nhiều dòng: quá 4 dòng thì gộp phần dư vào tin cuối; phần sau lỗi thì dừng cầu dao nhưng vẫn báo đã gửi (không gửi lại phần đầu)', async () => {
+  const c = await ready({ BRIDGE_PART_GAP_SEC: '0' });
+  const r = await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: '1\n2\n3\n4\n5' });
+  assert.equal(r.outcome, 'OK');
+  assert.deepEqual(c.adapter.sent.map((x) => x.text), ['1', '2', '3', '4\n5']);
+  c.cleanup();
+  const d = await ready({ BRIDGE_PART_GAP_SEC: '0' });
+  let n = 0;
+  const orig = d.adapter.sendText.bind(d.adapter);
+  d.adapter.sendText = async (uid, t) => (++n === 2 ? ((d.adapter.sendError = null), { message: null, attachment: [] }) : orig(uid, t));
+  const r2 = await d.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a\nb' });
+  assert.deepEqual(r2, { outcome: 'OK', code: 'PARTIAL', uid: '501' });
+  assert.equal(d.bridge.status().state, 'TRIPPED');
+  d.cleanup();
+});
+
 test('gửi tin theo mã Zalo (tin gửi link): không tìm số, trả uid', async () => {
   const c = await ready();
   const r = await c.bridge.sendMessage({ kind: 'LINK', uid: '777', text: 'Link nhóm' });
