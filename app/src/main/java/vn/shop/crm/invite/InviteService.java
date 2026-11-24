@@ -101,7 +101,7 @@ public class InviteService {
                                 String provinceName, long campaignId, String campaignName,
                                 LocalDateTime groupLinkSentAt, boolean autoHold,
                                 LocalDateTime reservedUntil, boolean overdue, boolean noReply, boolean waitingGroup,
-                                LocalDateTime leftAt, boolean tin1Blocked, boolean tin1Resent) {
+                                LocalDateTime leftAt, boolean tin1Blocked, boolean tin1Resent, String lastError) {
     }
 
     /** Kết quả đánh dấu "đã kết bạn": nhóm gợi ý và đã giữ chỗ, hoặc chưa có nhóm hợp (khách vào "chờ nhóm", R7). */
@@ -362,7 +362,7 @@ public class InviteService {
                                g.name AS group_name, g.invite_link AS group_link,
                                i.click_count, i.expires_at, i.sent_at, i.sent_channel, i.friended_at, i.joined_at,
                                i.group_link_sent_at, i.zalo_add_state, i.reserved_group_id, i.reserved_until, i.left_at,
-                               i.tin1_blocked_at, i.tin1_resent_at,
+                               i.tin1_blocked_at, i.tin1_resent_at, i.last_error,
                                k.id AS campaign_id, k.name AS campaign_name, k.message_template
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
                         JOIN invitation_campaign k ON k.id = i.campaign_id
@@ -428,7 +428,8 @@ public class InviteService {
                             "FRIENDED".equals(status) && groupName == null,
                             local(rs.getObject("left_at", OffsetDateTime.class)),
                             rs.getObject("tin1_blocked_at", OffsetDateTime.class) != null,
-                            rs.getObject("tin1_resent_at", OffsetDateTime.class) != null);
+                            rs.getObject("tin1_resent_at", OffsetDateTime.class) != null,
+                            rs.getString("last_error"));
                 }).list();
     }
 
