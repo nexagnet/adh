@@ -70,7 +70,7 @@ class ZaloGatewayShapeTest {
 
     @Test
     void taoNhomChiCoMotHamVaKhongCoViecNguyHiem() {
-        assertThat(names(ZaloGroupMaker.class)).containsExactly("createGroup");
+        assertThat(names(ZaloGroupMaker.class)).containsExactly("createGroup", "setDeputy");
         for (Class<?> c : List.of(ZaloGroupMaker.class, ZaloGroupCreationService.class, ZcaBridgeGateway.class)) {
             for (Method m : c.getDeclaredMethods()) {
                 String n = m.getName().toLowerCase();

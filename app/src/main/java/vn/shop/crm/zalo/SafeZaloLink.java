@@ -89,6 +89,16 @@ public final class SafeZaloLink implements ZaloLink {
         return inner.createGroup(name, memberUids, deputyUid);
     }
 
+    /** Ở chế độ thử chỉ đặt phó nhóm cho nhóm do chính Adh tạo (có mã nhóm Zalo trong bảng nhóm); mã lạ thì từ chối, chưa chạm Zalo. */
+    @Override
+    public DeputyResult setDeputy(String groupId, String deputyUid) {
+        if (!mode.ownGroup(groupId)) {
+            mode.noteBlocked("PHO_NHOM");
+            return DeputyResult.of(GroupOutcome.UNREACHABLE, CODE);
+        }
+        return inner.setDeputy(groupId, deputyUid);
+    }
+
     // ---------- ZaloPersonFinder ----------
 
     @Override

@@ -286,6 +286,7 @@ class ZaloAdminPageTest extends AbstractPostgresTest {
         mvc.perform(post("/zalo/group-mode").param("mode", "AUTO").with(owner()).with(csrf())) // thiếu tick đã thử tay
                 .andExpect(status().isBadRequest());
         mvc.perform(post("/zalo/group-proposals/999/approve").with(owner()).with(csrf())).andExpect(status().isBadRequest());
+        mvc.perform(post("/zalo/group-proposals/999/deputy-retry").with(owner()).with(csrf())).andExpect(status().isBadRequest());
     }
 
     @Test

@@ -271,7 +271,7 @@ public class ZcaBridgeGateway implements ZaloLink {
                 deputy = "NONE";
             }
             return new Created(outcome, null, groupId, link, uidList(n.path("added"), memberUids), uidList(n.path("failed"), memberUids),
-                    deputy, 0, false);
+                    deputy, "FAILED".equals(deputy) ? safeCode(text(n, "deputyCode")) : null, 0, false);
         } catch (Unreachable e) {
             return Created.of(ZaloGroupMaker.GroupOutcome.UNREACHABLE, "BRIDGE_DOWN", true);
         } catch (TimedOut e) {
@@ -279,6 +279,37 @@ public class ZcaBridgeGateway implements ZaloLink {
         } catch (Exception e) {
             log.warn("Lỗi khi tạo nhóm qua cầu nối: {}", e.getClass().getSimpleName());
             return Created.of(ZaloGroupMaker.GroupOutcome.SYSTEM_ERROR, "BRIDGE_ERROR", false);
+        }
+    }
+
+    @Override
+    public DeputyResult setDeputy(String groupId, String deputyUid) {
+        if (groupId == null || !ZALO_ID.matcher(groupId).matches() || deputyUid == null || !ZALO_ID.matcher(deputyUid).matches()) {
+            return DeputyResult.of(ZaloGroupMaker.GroupOutcome.PERSON_ERROR, "BAD_ID");
+        }
+        try {
+            JsonNode n = call("POST", "/groups/" + groupId + "/deputy", JSON.writeValueAsString(java.util.Map.of("uid", deputyUid)), 60);
+            ZaloGroupMaker.GroupOutcome outcome;
+            try {
+                outcome = ZaloGroupMaker.GroupOutcome.valueOf(n.path("outcome").asString(""));
+            } catch (IllegalArgumentException e) {
+                return DeputyResult.of(ZaloGroupMaker.GroupOutcome.SYSTEM_ERROR, "BAD_REPLY");
+            }
+            if (outcome == ZaloGroupMaker.GroupOutcome.UNREACHABLE) {
+                return DeputyResult.of(ZaloGroupMaker.GroupOutcome.SYSTEM_ERROR, "BAD_REPLY");
+            }
+            String code = safeCode(text(n, "code"));
+            if (outcome != ZaloGroupMaker.GroupOutcome.OK) {
+                return DeputyResult.of(outcome, code);
+            }
+            return new DeputyResult(outcome, code, "OK".equals(text(n, "deputy")) ? "OK" : "FAILED");
+        } catch (Unreachable e) {
+            return DeputyResult.of(ZaloGroupMaker.GroupOutcome.UNREACHABLE, "BRIDGE_DOWN");
+        } catch (TimedOut e) {
+            return DeputyResult.of(ZaloGroupMaker.GroupOutcome.SYSTEM_ERROR, "TIMEOUT");
+        } catch (Exception e) {
+            log.warn("Lỗi khi đặt phó nhóm qua cầu nối: {}", e.getClass().getSimpleName());
+            return DeputyResult.of(ZaloGroupMaker.GroupOutcome.SYSTEM_ERROR, "BRIDGE_ERROR");
         }
     }
 

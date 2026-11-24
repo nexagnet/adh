@@ -48,6 +48,7 @@ export const ROUTES = [
   'GET /groups',
   'POST /groups',
   'POST /groups/{id}/members',
+  'POST /groups/{id}/deputy',
   'POST /messages',
   'POST /friend-requests',
   'POST /people/lookup',
@@ -92,6 +93,11 @@ export function createServer({ bridge, config, fake = null }) {
         const uid = String(body.uid ?? '');
         if (!ZALO_ID.test(groupId) || !ZALO_ID.test(uid)) return send(200, { outcome: 'PERSON_ERROR', code: 'BAD_ID' });
         return send(200, await bridge.addMember(groupId, uid));
+      }
+      const dep = /^POST \/groups\/([^/]+)\/deputy$/.exec(route);
+      if (dep) {
+        const body = await readJson(req);
+        return send(200, await bridge.setDeputy({ groupId: decodeURIComponent(dep[1]), uid: body.uid }));
       }
       if (route === 'POST /messages') {
         const body = await readJson(req);

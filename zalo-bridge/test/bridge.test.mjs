@@ -702,8 +702,50 @@ test('tạo nhóm: tạo một nhóm với đúng các thành viên, bật link,
   const c = await ready();
   const r = await c.bridge.createGroup(NEW_GROUP);
   assert.deepEqual(r, { outcome: 'OK', groupId: '9001', link: 'https://zalo.me/g/fake9001', added: ['501', '502', '503'], failed: [], deputy: 'OK' });
-  assert.deepEqual(c.adapter.created, [{ name: 'Áo điều hòa ADH - Miền Nam - 01', members: ['501', '502', '503'] }]);
+  // mẹ (phó nhóm) vào nhóm ngay lúc tạo, vì Zalo chỉ cho đặt phó nhóm với người đang trong nhóm
+  assert.deepEqual(c.adapter.created, [{ name: 'Áo điều hòa ADH - Miền Nam - 01', members: ['501', '502', '503', '900'] }]);
+  assert.deepEqual(c.adapter.adds, []);
   assert.deepEqual(c.adapter.deputies, [{ uid: '900', groupId: '9001' }]);
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  c.cleanup();
+});
+
+test('tạo nhóm: mẹ chưa vào nhóm lúc tạo thì thêm vào trước rồi mới đặt phó nhóm', async () => {
+  const c = await ready();
+  c.adapter.createFailMembers = ['900'];
+  const r = await c.bridge.createGroup(NEW_GROUP);
+  assert.equal(r.deputy, 'OK');
+  assert.deepEqual(r.added, ['501', '502', '503']); // mẹ không bị tính là khách
+  assert.deepEqual(c.adapter.adds, [{ uid: '900', groupId: '9001' }]);
+  assert.deepEqual(c.adapter.deputies, [{ uid: '900', groupId: '9001' }]);
+  c.cleanup();
+});
+
+test('tạo nhóm: đặt phó nhóm lỗi thì báo kèm mã lỗi Zalo thật (không mã người) và ghi vào log', async () => {
+  const c = await ready();
+  c.adapter.deputyError = Object.assign(new Error('Không đặt được'), { code: 118 });
+  const r = await c.bridge.createGroup(NEW_GROUP);
+  assert.equal(r.outcome, 'OK');
+  assert.equal(r.deputy, 'FAILED');
+  assert.equal(r.deputyCode, 'Z118');
+  assert.ok(c.logs.join('\n').includes('mã Z118'));
+  assert.ok(!c.logs.join('\n').match(/900|9001/));
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  c.cleanup();
+});
+
+test('đặt lại phó nhóm: thêm mẹ vào nhóm rồi đặt phó nhóm; sai mã bị từ chối; lỗi trả mã; có trần mỗi ngày', async () => {
+  const c = await ready();
+  assert.deepEqual(await c.bridge.setDeputy({ groupId: 'abc', uid: '900' }), { outcome: 'PERSON_ERROR', code: 'BAD_ID' });
+  assert.deepEqual(await c.bridge.setDeputy({ groupId: '9001', uid: '9; rm' }), { outcome: 'PERSON_ERROR', code: 'BAD_ID' });
+  assert.deepEqual(c.adapter.deputies ?? [], []);
+  assert.deepEqual(await c.bridge.setDeputy({ groupId: '9001', uid: '900' }), { outcome: 'OK', deputy: 'OK' });
+  assert.deepEqual(c.adapter.adds, [{ uid: '900', groupId: '9001' }]);
+  assert.deepEqual(c.adapter.deputies, [{ uid: '900', groupId: '9001' }]);
+  c.adapter.deputyError = Object.assign(new Error('x'), { code: 118 });
+  assert.deepEqual(await c.bridge.setDeputy({ groupId: '9001', uid: '900' }), { outcome: 'OK', deputy: 'FAILED', code: 'Z118' });
+  for (let i = 0; i < 8; i++) await c.bridge.setDeputy({ groupId: '9001', uid: '900' });
+  assert.equal((await c.bridge.setDeputy({ groupId: '9001', uid: '900' })).outcome, 'RATE_LIMITED');
   assert.equal(c.bridge.status().state, 'LISTENING');
   c.cleanup();
 });

@@ -334,6 +334,37 @@ class ZcaBridgeGatewayTest {
         assertThat(r.deputy()).isEqualTo("NONE");
     }
 
+    @Test
+    void taoNhomDocMaLoiPhoNhomChiKhiLoi() {
+        reply.set("{\"outcome\":\"OK\",\"groupId\":\"9876\",\"added\":[\"111\"],\"failed\":[],\"deputy\":\"FAILED\",\"deputyCode\":\"Z118\"}");
+        var r = gateway.createGroup("x", List.of("111"), "900");
+        assertThat(r.deputy()).isEqualTo("FAILED");
+        assertThat(r.deputyCode()).isEqualTo("Z118");
+        reply.set("{\"outcome\":\"OK\",\"groupId\":\"9876\",\"added\":[\"111\"],\"failed\":[],\"deputy\":\"OK\",\"deputyCode\":\"Z118\"}");
+        assertThat(gateway.createGroup("x", List.of("111"), "900").deputyCode()).isNull();
+    }
+
+    @Test
+    void datLaiPhoNhomGuiDungDuongVaPhanLoai() {
+        assertThat(gateway.setDeputy("abc", "900").code()).isEqualTo("BAD_ID");
+        assertThat(gateway.setDeputy("9876", "9; rm").code()).isEqualTo("BAD_ID");
+        assertThat(requests).isEmpty();
+        reply.set("{\"outcome\":\"OK\",\"deputy\":\"OK\"}");
+        assertThat(gateway.setDeputy("9876", "900").ok()).isTrue();
+        assertThat(requests).containsExactly("POST /groups/9876/deputy");
+        assertThat(bodies.getFirst()).isEqualTo("{\"uid\":\"900\"}");
+        reply.set("{\"outcome\":\"OK\",\"deputy\":\"FAILED\",\"code\":\"Z118\"}");
+        var failed = gateway.setDeputy("9876", "900");
+        assertThat(failed.ok()).isFalse();
+        assertThat(failed.code()).isEqualTo("Z118");
+        reply.set("{\"outcome\":\"RATE_LIMITED\"}");
+        assertThat(gateway.setDeputy("9876", "900").outcome()).isEqualTo(ZaloGroupMaker.GroupOutcome.RATE_LIMITED);
+        reply.set("{\"outcome\":\"UNREACHABLE\"}");
+        assertThat(gateway.setDeputy("9876", "900").outcome()).isEqualTo(ZaloGroupMaker.GroupOutcome.SYSTEM_ERROR);
+        server.stop(0);
+        assertThat(gateway.setDeputy("9876", "900").outcome()).isEqualTo(ZaloGroupMaker.GroupOutcome.UNREACHABLE);
+    }
+
     // ---------- tra người để xác nhận mẹ (D19) ----------
 
     private static final String AVATAR = "data:image/png;base64,iVBORw0KGgo=";
