@@ -61,7 +61,7 @@ Phần "dọn" thực hiện: sửa chú thích lỗi thời của Tin 2 trong `
 
 ## Đơn giản hóa giao diện cấu hình (24/11/2026, PR #120 đến #125)
 
-Chủ dự án thấy các trang cấu hình rối, không tập trung. Kế hoạch gốc: `KE-HOACH-DON-GIAN-HOA-GIAO-DIEN-CAU-HINH.md` (trong thư mục dự án). Chỉ đổi giao diện, không đổi hành vi gửi tin, hạn mức, cầu dao, chế độ thử.
+Chủ dự án thấy các trang cấu hình rối, không tập trung. Kế hoạch gốc: `KE-HOACH-DON-GIAN-HOA-GIAO-DIEN-CAU-HINH.md` (cùng thư mục `docs/`). Chỉ đổi giao diện, không đổi hành vi gửi tin, hạn mức, cầu dao, chế độ thử.
 
 - **Thanh menu** chia nhóm "Hằng ngày", "Chiến dịch", "Cài đặt", và mục "Khác" gấp lại (`NavMenu`, `<details class="nav-more">`).
 - **`/zalo`** chia 4 tab chọn bằng `?tab=`: `tinh-trang` (mặc định), `gioi-han`, `nhom`, `thu`. Thanh an toàn (Dừng ngay, Tạm dừng tất cả) luôn hiện phía trên các tab. Mọi chuyển hướng sau khi lưu quay về đúng tab.
