@@ -1287,3 +1287,15 @@ test('đối chiếu bạn bè: lỗi đọc thì trả ok=false và KHÔNG làm
   assert.equal(c.bridge.status().state, 'LISTENING');
   c.cleanup();
 });
+
+test('BR-01: mã số thứ tự sự kiện kết bạn không quay lại sau khi bộ nối khởi động lại (Adh không bỏ lỡ sự kiện mới vì con trỏ cũ)', async () => {
+  const { EventBuffer } = await import('../src/events.mjs');
+  let t = Date.parse('2026-11-22T03:00:00Z');
+  const first = new EventBuffer({ now: () => t });
+  const a = first.push({ uid: '1', phone: null });
+  t += 5 * 3600_000; // bộ nối sập rồi khởi động lại sau năm giờ: bộ đệm mới, trống
+  const second = new EventBuffer({ now: () => t });
+  const b = second.push({ uid: '2', phone: null });
+  assert.ok(b > a, 'seq mới phải lớn hơn seq cũ mà Adh đã nhớ');
+  assert.deepEqual(second.after(a).map((e) => e.uid), ['2']);
+});
