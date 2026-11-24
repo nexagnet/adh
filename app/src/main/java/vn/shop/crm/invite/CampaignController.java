@@ -117,6 +117,7 @@ public class CampaignController {
         model.addAttribute("joinGroups", invites.joinableGroups());
         model.addAttribute("autoApproved", autoSender.approved(id));
         model.addAttribute("autoSwitch", messages.enabled());
+        model.addAttribute("nextSend", messages.nextSend());
         model.addAttribute("intake", intake.status(id));
         var raw = policy.load(id);
         model.addAttribute("sched", raw);

@@ -12,6 +12,8 @@ import vn.shop.crm.zalo.ZaloMessenger.Sent;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -239,6 +241,40 @@ public class ZaloMessageService {
     /** Số tin chủ động hôm nay (Tin 1 và tin nhắc của chiến dịch nhiều lần). Tin 2 và tin mẫu trả lời không tính vào hạn mức ngày. */
     public int usedToday(String scope) {
         return countSince(startOfDay(), scope, true);
+    }
+
+    /** Lần gửi tin chủ động kế tiếp: lúc dự kiến ({@code at}, rỗng nếu chưa biết) và lý do đang chờ ({@code reason}, rỗng nếu chỉ đang đếm khoảng nghỉ). */
+    public record NextSend(Instant at, String reason) {
+    }
+
+    /** Để hiện bộ đếm ngược trên giao diện. Chỉ đọc, không đổi gì. */
+    public NextSend nextSend() {
+        if (settings.paused()) {
+            return new NextSend(null, "Đang tạm dừng tất cả. Bỏ tạm dừng thì hệ thống gửi tiếp");
+        }
+        Optional<Block> b = blocker(SCOPE_REAL, Kind.INVITE, null, null);
+        Instant now = clock.instant();
+        if (b.isEmpty()) {
+            return new NextSend(now, null);
+        }
+        Limits l = limits();
+        switch (b.get()) {
+            case GAP -> {
+                Instant last = lastAt(null);
+                return new NextSend(last == null ? now : last.plusSeconds(l.gapSeconds()), null);
+            }
+            case DAILY_LIMIT, OUTSIDE_WINDOW -> {
+                LocalDateTime n = LocalDateTime.ofInstant(now, clock.getZone());
+                LocalTime ws = cfg.props().msgWindowStart();
+                boolean today = b.get() == Block.OUTSIDE_WINDOW && n.toLocalTime().isBefore(ws);
+                LocalDate day = today ? n.toLocalDate() : n.toLocalDate().plusDays(1);
+                return new NextSend(day.atTime(ws).atZone(clock.getZone()).toInstant(),
+                        b.get() == Block.DAILY_LIMIT ? "Đã đủ hạn mức ngày, tiếp tục vào ngày mai" : "Ngoài khung giờ gửi, tiếp tục khi mở khung giờ");
+            }
+            default -> {
+                return new NextSend(null, b.get().label());
+            }
+        }
     }
 
     public Quota quota() {
