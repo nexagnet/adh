@@ -27,7 +27,7 @@ public class ZaloGroupSettings {
 
     /** Tin chào đầu nhóm mặc định. Mỗi dòng là một đoạn ngắn; {link} được thay bằng link gian hàng. Không chê TikTok, không nhận là người. */
     public static final String DEFAULT_WELCOME = """
-            Dạ em là trợ lý AI của shop áo điều hòa Minh Hiệp, chào mừng cả nhà vào nhóm ạ.
+            Dạ em là nhân viên của shop áo điều hòa Minh Hiệp, chào mừng cả nhà vào nhóm ạ.
             Mua áo điều hòa và phụ kiện trong nhóm được giảm 10% so với TikTok, miễn ship ạ. Cả nhà cần hướng dẫn dùng áo thì cứ nhắn vào nhóm nhé.
             Cả nhà xem sản phẩm ở gian hàng của shop: {link}""";
     static final int MAX_WELCOME = 1000;
