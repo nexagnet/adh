@@ -252,7 +252,7 @@ class CampaignPolicyTest extends AbstractPostgresTest {
         assertThat(r.dailyCap()).isEqualTo(5);
         assertThat(r.gapSeconds()).isNull();
         // khung giờ sau khi kẹp mà quá hẹp thì bỏ khung giờ riêng, theo hệ thống
-        policy.saveClamped(campaign, raw(null, null, LocalTime.of(19, 30), LocalTime.of(23, 0), null, null), "mẹ");
+        policy.saveClamped(campaign, raw(null, null, LocalTime.of(21, 30), LocalTime.of(23, 0), null, null), "mẹ");
         assertThat(policy.load(campaign).windowFrom()).isNull();
         assertThat(policy.load(campaign).windowTo()).isNull();
     }
