@@ -56,7 +56,7 @@ export function loadConfig(env = process.env) {
     maxLookupsPerHour: int(env, 'BRIDGE_MAX_LOOKUPS_PER_HOUR', 60, 0, 1000),
     // Tin nhắn gửi cho khách (D18): trần cứng mỗi ngày và khoảng nghỉ CỐ ĐỊNH tối thiểu giữa hai tin. Công khai, không ngẫu nhiên hóa.
     // Vượt trần ngày thì cầu nối tự dừng; gửi quá sớm thì chỉ bị từ chối (RATE_LIMITED), Adh thử lại sau.
-    msgDaily: int(env, 'BRIDGE_MSG_DAILY', 150, 1, 400),
+    msgDaily: int(env, 'BRIDGE_MSG_DAILY', 150, 1, 1500),
     msgGapMs: int(env, 'BRIDGE_MSG_GAP_SEC', 90, 30, 3600) * 1000,
     // Tin 1 chia nhiều tin ngắn gửi liền cho CÙNG một khách: khoảng cách CỐ ĐỊNH giữa các phần (không ngẫu nhiên). Chỉ áp dụng giữa các phần của một Tin 1;
     // khoảng nghỉ giữa hai KHÁCH vẫn là msgGapMs. Đặt 0 chỉ để chạy thử.
@@ -66,7 +66,7 @@ export function loadConfig(env = process.env) {
     // Lời mời kết bạn (23/11/2026, chủ shop chốt "tài khoản phụ chủ động kết bạn"): chỉ gửi cho người ĐÃ nhận Tin 1 từ chính cầu nối này, mỗi người
     // một lời mời. Trần cứng mỗi ngày của CHÍNH cầu nối (Adh đặt thấp hơn, mặc định 10); dùng chung khoảng nghỉ cố định, khung giờ, phanh
     // khẩn cấp đếm mọi tin và cầu dao với phần gửi tin. Không ngẫu nhiên hóa.
-    friendDaily: int(env, 'BRIDGE_FRIEND_DAILY', 50, 1, 100),
+    friendDaily: int(env, 'BRIDGE_FRIEND_DAILY', 50, 1, 1000),
     // Mã lỗi Zalo của việc "người nhận không nhận tin nhắn từ người lạ" (mặc định 122, đo thật 24/11/2026): với Tin 1 thì đây là lỗi RIÊNG người đó
     // (không dừng cầu dao), cầu nối ghi nhớ "Tin 1 bị chặn" để vẫn được gửi lời mời kết bạn cho người này; Tin 1 sẽ gửi lại sau khi họ thành bạn.
     // Mã lỗi Zalo của việc không tìm thấy người theo số điện thoại (mặc định 212, ADR-0002): lỗi RIÊNG số đó, không dừng cầu dao; trả về như NOT_FOUND.
