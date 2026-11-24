@@ -192,6 +192,18 @@ public class ContactService {
                 + " AND NOT EXISTS (SELECT 1 FROM invitation i WHERE i.customer_id = c.id) GROUP BY 1");
     }
 
+    /** Một dòng hàng đã giao thành công của khách đủ điều kiện mời mà chưa từng được mời (chỉ để đếm theo nhóm hàng; không ra khỏi hệ thống). */
+    public record Purchase(String province, long customerId, String goods) {
+    }
+
+    public List<Purchase> eligibleNotInvitedPurchases() {
+        return jdbc.sql("SELECT coalesce(c.province, '') AS p, c.id AS id, s.goods AS goods FROM customer c "
+                        + "JOIN shipment s ON s.receiver_phone = c.phone AND s.canonical_status = 'DELIVERED' "
+                        + "WHERE c.id IN (SELECT c.id " + inviteFrom()
+                        + " AND NOT EXISTS (SELECT 1 FROM invitation i WHERE i.customer_id = c.id))")
+                .query((rs, n) -> new Purchase(rs.getString("p"), rs.getLong("id"), rs.getString("goods"))).list();
+    }
+
     /** Số khách "chờ duyệt" (ứng viên chưa có dòng cơ sở liên hệ nào) theo mã tỉnh; chuỗi rỗng = chưa rõ tỉnh. */
     public java.util.Map<String, Long> candidatesByProvince() {
         return countsByProvince("SELECT coalesce(c.province, '') AS p, count(*) AS n FROM customer c WHERE "
@@ -254,16 +266,23 @@ public class ContactService {
      * null là không giới hạn đầu đó). Chỉ LÀM HẸP tập khách đủ điều kiện, không bao giờ mở rộng: khách từ chối, bị chặn, cần kiểm tra vẫn bị loại.
      * Có lọc độ mới thì khách chưa rõ ngày mua không được chọn.
      */
-    public record Pick(String order, Integer minDays, Integer maxDays) {
+    public record Pick(String order, Integer minDays, Integer maxDays, ProductGroup product) {
+        public Pick(String order, Integer minDays, Integer maxDays) {
+            this(order, minDays, maxDays, null);
+        }
+
         public static final String OLDEST_APPROVED = "OLDEST_APPROVED";
         public static final String NEWEST_PURCHASE = "NEWEST_PURCHASE";
         public static final String OLDEST_PURCHASE = "OLDEST_PURCHASE";
-        public static final Pick NONE = new Pick(OLDEST_APPROVED, null, null);
+        public static final Pick NONE = new Pick(OLDEST_APPROVED, null, null, null);
 
         public Pick {
             order = order == null || order.isBlank() ? OLDEST_APPROVED : order;
             if (!List.of(OLDEST_APPROVED, NEWEST_PURCHASE, OLDEST_PURCHASE).contains(order)) {
                 throw new vn.shop.crm.common.ImportException("Thứ tự lấy khách không hợp lệ.");
+            }
+            if (product != null && !product.filterable()) {
+                throw new vn.shop.crm.common.ImportException("Nhóm hàng này không dùng để lọc khách.");
             }
             if ((minDays != null && minDays < 0) || (maxDays != null && maxDays < 0) || (minDays != null && maxDays != null && maxDays < minDays)) {
                 throw new vn.shop.crm.common.ImportException("Độ mới của lần mua không hợp lệ.");
@@ -271,13 +290,23 @@ public class ContactService {
         }
 
         public boolean any() {
-            return !OLDEST_APPROVED.equals(order) || minDays != null || maxDays != null;
+            return !OLDEST_APPROVED.equals(order) || minDays != null || maxDays != null || product != null;
         }
     }
 
     private static final String PURCHASE_DAY = "(now() AT TIME ZONE 'Asia/Ho_Chi_Minh')";
 
-    private static void appendPickFilter(StringBuilder sql, Pick pick) {
+    /** Các dòng tên hàng đang có trong đơn thuộc nhóm hàng này (để lọc khách đã mua nhóm đó). */
+    List<String> goodsOf(ProductGroup group) {
+        return jdbc.sql("SELECT DISTINCT goods FROM shipment WHERE goods IS NOT NULL AND btrim(goods) <> ''")
+                .query(String.class).list().stream().filter(g -> ProductGroup.of(g).contains(group)).toList();
+    }
+
+    private void appendPickFilter(StringBuilder sql, Pick pick) {
+        if (pick.product() != null) {
+            sql.append(" AND EXISTS (SELECT 1 FROM shipment ps WHERE ps.receiver_phone = c.phone AND ps.canonical_status = 'DELIVERED' "
+                    + "AND ps.goods = ANY(:pickGoods))");
+        }
         if (pick.minDays() != null) {
             sql.append(" AND c.last_order_on <= ").append(PURCHASE_DAY).append(" - make_interval(days => :minDays)");
         }
@@ -294,8 +323,11 @@ public class ContactService {
         };
     }
 
-    private static org.springframework.jdbc.core.simple.JdbcClient.StatementSpec bindPick(
+    private org.springframework.jdbc.core.simple.JdbcClient.StatementSpec bindPick(
             org.springframework.jdbc.core.simple.JdbcClient.StatementSpec spec, Pick pick) {
+        if (pick.product() != null) {
+            spec.param("pickGoods", goodsOf(pick.product()).toArray(new String[0]));
+        }
         if (pick.minDays() != null) {
             spec.param("minDays", pick.minDays());
         }

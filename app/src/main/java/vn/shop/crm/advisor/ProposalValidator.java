@@ -42,9 +42,10 @@ final class ProposalValidator {
     private static final Set<String> KEYS = Set.of("title", "area", "batch_size", "start_date", "end_date", "window_from",
             "window_to", "daily_cap", "message_angle", "reasons", "risks", "confidence");
     /** Khóa tùy chọn: thiếu thì lấy mặc định của hệ thống (mọi ngày, duyệt sớm nhất, không lọc độ mới lần mua). */
-    private static final Set<String> OPTIONAL_KEYS = Set.of("weekdays", "pick_order", "min_days_since_purchase", "max_days_since_purchase");
+    private static final Set<String> OPTIONAL_KEYS = Set.of("weekdays", "pick_order", "min_days_since_purchase", "max_days_since_purchase", "product_group");
     private static final Set<String> PICK_ORDERS = Set.of("OLDEST_APPROVED", "NEWEST_PURCHASE", "OLDEST_PURCHASE");
     static final int MAX_DAYS_SINCE_PURCHASE = 1100;
+    private static final Set<String> PRODUCT_GROUPS = Set.of("AO_DIEU_HOA", "PIN", "PHU_KIEN_KHAC");
     private static final Pattern TIME = Pattern.compile("\\d{2}:\\d{2}");
     private static final Pattern LINK = Pattern.compile(
             "(https?:|www\\.|zalo\\.me|\\b[a-z0-9-]+\\.(com|vn|net|me|org|info|app|link|ly|io)\\b|@[a-z0-9_.]{3,})");
@@ -261,6 +262,14 @@ final class ProposalValidator {
             return "max_days_since_purchase không được nhỏ hơn min_days_since_purchase";
         }
 
+        String productGroup = null;
+        if (n.has("product_group") && !n.get("product_group").isNull()) {
+            if (!n.get("product_group").isString() || !PRODUCT_GROUPS.contains(n.get("product_group").asString())) {
+                return "product_group chỉ nhận AO_DIEU_HOA, PIN, PHU_KIEN_KHAC hoặc null";
+            }
+            productGroup = n.get("product_group").asString();
+        }
+
         double confidence = n.get("confidence").asDouble();
         double ceiling = 1.0;
         if (snap.overall().funnel().sent() < MIN_HISTORY_SENT) {
@@ -271,7 +280,7 @@ final class ProposalValidator {
         }
         boolean capped = confidence > ceiling;
         return new AdvisorProposal(title, area, batch, start, end, from, to, cap, angle, reasons, risks,
-                Math.min(confidence, ceiling), capped, weekdays, pickOrder, minDays, maxDays);
+                Math.min(confidence, ceiling), capped, weekdays, pickOrder, minDays, maxDays, productGroup);
     }
 
     /** Hai khu vực có chung tỉnh nào không. "ALL" là mọi nơi, "U" là chưa rõ tỉnh. */

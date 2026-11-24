@@ -46,9 +46,10 @@ public class ProposalService {
                     LocalDate endOn, LocalTime windowFrom, LocalTime windowTo, int dailyCap, String messageAngle,
                     List<String> reasons, List<String> risks, double confidence, boolean confidenceCapped, String state,
                     String decidedBy, LocalDateTime decidedAt, String decisionNote, Long campaignId, LocalDateTime createdAt,
-                    Integer weekdays, String pickOrder, Integer minDays, Integer maxDays) {
+                    Integer weekdays, String pickOrder, Integer minDays, Integer maxDays, String productGroup) {
         public ContactService.Pick pick() {
-            return new ContactService.Pick(pickOrder, minDays, maxDays);
+            return new ContactService.Pick(pickOrder, minDays, maxDays,
+                    productGroup == null ? null : vn.shop.crm.contact.ProductGroup.valueOf(productGroup));
         }
 
         /** Ngày gửi trong tuần bằng chữ, ví dụ "Thứ Hai, Thứ Tư"; null nếu mọi ngày. */
@@ -75,7 +76,8 @@ public class ProposalService {
             String range = minDays == null && maxDays == null ? ""
                     : "; lần mua gần nhất cách đây " + (minDays != null && maxDays != null ? "từ " + minDays + " đến " + maxDays + " ngày"
                     : minDays != null ? "ít nhất " + minDays + " ngày" : "không quá " + maxDays + " ngày");
-            return "Lấy " + order + range;
+            String product = productGroup == null ? "" : "; chỉ khách đã mua " + vn.shop.crm.contact.ProductGroup.valueOf(productGroup).label().toLowerCase(java.util.Locale.ROOT);
+            return "Lấy " + order + range + product;
         }
 
         public boolean customPick() {
@@ -239,7 +241,7 @@ public class ProposalService {
             SELECT p.id, p.run_id, p.title, p.area, p.batch_size, p.start_on, p.end_on, p.window_from, p.window_to, p.daily_cap,
                    p.message_angle, p.reasons::text AS reasons, p.risks::text AS risks, p.confidence, p.confidence_capped, p.state,
                    p.decided_by, p.decided_at, p.decision_note, p.campaign_id, r.created_at,
-                   p.weekdays, p.pick_order, p.min_days, p.max_days
+                   p.weekdays, p.pick_order, p.min_days, p.max_days, p.product_group
             FROM campaign_proposal p JOIN advisor_run r ON r.id = p.run_id""";
 
     private Proposal map(ResultSet rs, int n) throws SQLException {
@@ -253,7 +255,7 @@ public class ProposalService {
                 rs.getBigDecimal("confidence").doubleValue(), rs.getBoolean("confidence_capped"), rs.getString("state"),
                 rs.getString("decided_by"), local(rs.getObject("decided_at", OffsetDateTime.class)), rs.getString("decision_note"),
                 campaignId, local(rs.getObject("created_at", OffsetDateTime.class)),
-                (Integer) rs.getObject("weekdays"), rs.getString("pick_order"), (Integer) rs.getObject("min_days"), (Integer) rs.getObject("max_days"));
+                (Integer) rs.getObject("weekdays"), rs.getString("pick_order"), (Integer) rs.getObject("min_days"), (Integer) rs.getObject("max_days"), rs.getString("product_group"));
     }
 
     private Run mapRun(ResultSet rs, int n) throws SQLException {

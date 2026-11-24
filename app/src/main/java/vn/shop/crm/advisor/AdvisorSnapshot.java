@@ -65,7 +65,21 @@ public record AdvisorSnapshot(
     /** Một vùng (đủ khách để không suy ngược ra từng người). {@code code} dùng được làm khu vực của chiến dịch. */
     public record Area(String code, String label, String region, long customers, long oneTime, long eligible,
                        long awaitingApproval, long newLast30Days, Recency recency, Funnel funnel, Weather weather,
-                       List<ProvinceInfo> topProvinces) {
+                       List<ProvinceInfo> topProvinces, Products products) {
+        /** Bản không có số khách theo nhóm hàng. */
+        public Area(String code, String label, String region, long customers, long oneTime, long eligible,
+                    long awaitingApproval, long newLast30Days, Recency recency, Funnel funnel, Weather weather,
+                    List<ProvinceInfo> topProvinces) {
+            this(code, label, region, customers, oneTime, eligible, awaitingApproval, newLast30Days, recency, funnel, weather,
+                    topProvinces, null);
+        }
+    }
+
+    /**
+     * Số khách đủ điều kiện mời mà chưa mời, theo nhóm hàng đã mua (giao thành công). Phân nhóm GẦN ĐÚNG theo từ khóa trong tên hàng;
+     * một khách mua nhiều loại được đếm ở mỗi nhóm nên các nhóm cộng lại có thể lớn hơn số khách. Không có tên hàng nào ra khỏi hệ thống.
+     */
+    public record Products(long aoDieuHoa, long pin, long phuKienKhac, long chuaRo) {
     }
 
     /** Khung giờ nhắn (giờ Việt Nam): số tin đã nhắn và số khách kết bạn từ các tin đó. */

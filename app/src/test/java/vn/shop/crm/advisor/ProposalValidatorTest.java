@@ -225,4 +225,14 @@ class ProposalValidatorTest {
         // khoảng ngày không chứa ngày nào được chọn
         rejected(one("start_date", "\"2026-11-25\"", "end_date", "\"2026-11-26\"", "weekdays", "[1]", "batch_size", "5"), "không có ngày nào");
     }
+
+    @Test
+    void nhomHangDeXuatChiNhanBaGiaTriHopLe() {
+        assertThat(check(wrap(one("product_group", "\"PIN\""))).accepted().getFirst().productGroup()).isEqualTo("PIN");
+        assertThat(check(wrap(one("product_group", "null"))).accepted().getFirst().productGroup()).isNull();
+        assertThat(check(wrap(one())).accepted().getFirst().productGroup()).isNull();
+        rejected(one("product_group", "\"CHUA_RO\""), "product_group");
+        rejected(one("product_group", "\"ao\""), "product_group");
+        rejected(one("product_group", "1"), "product_group");
+    }
 }

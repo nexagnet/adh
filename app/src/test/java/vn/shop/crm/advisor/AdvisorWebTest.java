@@ -158,6 +158,38 @@ class AdvisorWebTest extends AbstractPostgresTest {
         assertThat(jdbc.sql("SELECT weekdays FROM invitation_campaign").query(Integer.class).single()).isEqualTo(17);
     }
 
+
+    private long batchId;
+
+    /** Một đơn giao thành công của số điện thoại này, với tên hàng cho trước. */
+    private void delivered(String phone, String goods, String tracking) {
+        if (batchId == 0) {
+            batchId = jdbc.sql("INSERT INTO import_batch (carrier, filename, sha256, file_content) VALUES ('JT_EXPRESS', 'f.csv', 'x', '\\x00') RETURNING id")
+                    .query(Long.class).single();
+        }
+        jdbc.sql("""
+                INSERT INTO shipment (carrier, tracking_no, receiver_phone_raw, receiver_phone, created_on, raw_status, status_key,
+                                      canonical_status, goods, raw_payload, first_batch_id, last_batch_id)
+                VALUES ('JT_EXPRESS', :t, :p, :p, now(), 'x', 'x', 'DELIVERED', :g, '{}'::jsonb, :b, :b)""")
+                .param("t", tracking).param("p", phone).param("g", goods, java.sql.Types.VARCHAR).param("b", batchId).update();
+    }
+
+    @Test
+    void duyetAmChiMoiKhachDaMuaNhomHangDeXuat() throws Exception {
+        List<String> phones = jdbc.sql("SELECT phone FROM customer ORDER BY id").query(String.class).list();
+        delivered(phones.get(0), "Pin 20000mAh", "T0");
+        delivered(phones.get(1), "Pin sạc 12V", "T1");
+        delivered(phones.get(2), "Áo điều hòa nam", "T2");
+        delivered(phones.get(3), "Dây sạc", "T3");
+        long id = proposal("Khách đã mua pin", "R:NAM", 5, today());
+        jdbc.sql("UPDATE campaign_proposal SET product_group = 'PIN' WHERE id = :id").param("id", id).update();
+        mvc.perform(post("/advisor/proposals/" + id + "/approve").with(user("admin")).with(csrf()))
+                .andExpect(redirectedUrlPattern("/campaigns/*"));
+        List<String> invited = jdbc.sql("SELECT c.phone FROM invitation i JOIN customer c ON c.id = i.customer_id ORDER BY c.id")
+                .query(String.class).list();
+        assertThat(invited).containsExactly(phones.get(0), phones.get(1));
+    }
+
     @Test
     void duyetAmLayKhachMuaGanDayNhatTruocKhiDeXuatYeuCau() throws Exception {
         setAges();
