@@ -206,7 +206,7 @@ class CampaignPolicyTest extends AbstractPostgresTest {
         messages.setLimits(10, 120, "mẹ");
         assertThatThrownBy(() -> policy.save(campaign, raw(null, null, LocalTime.of(6, 0), LocalTime.of(10, 0), null, null), "mẹ"))
                 .isInstanceOf(ImportException.class).hasMessageContaining("không được nới");
-        assertThatThrownBy(() -> policy.save(campaign, raw(null, null, LocalTime.of(9, 0), LocalTime.of(21, 0), null, null), "mẹ"))
+        assertThatThrownBy(() -> policy.save(campaign, raw(null, null, LocalTime.of(9, 0), LocalTime.of(23, 0), null, null), "mẹ"))
                 .isInstanceOf(ImportException.class);
         assertThatThrownBy(() -> policy.save(campaign, raw(null, null, null, null, 11, null), "mẹ"))
                 .isInstanceOf(ImportException.class).hasMessageContaining("không được cao hơn");
