@@ -6,12 +6,11 @@ import vn.shop.crm.common.ImportException;
 
 import java.time.Instant;
 
-/** Nấc, trần mỗi ngày và ngưỡng khách của việc tự tạo nhóm (D19), lưu ở bảng cài đặt; mọi thay đổi ghi người làm vào nhật ký Zalo. */
+/** Nấc và ngưỡng khách của việc tự tạo nhóm (D19), lưu ở bảng cài đặt; mọi thay đổi ghi người làm vào nhật ký Zalo. */
 @Service
 public class ZaloGroupSettings {
 
     static final String MODE = "zalo.group.mode";
-    static final String DAILY = "zalo.group.daily";
     static final String MIN = "zalo.group.min_customers";
     static final String LAST_PLAN = "zalo.group.last_plan_at";
     public static final String A_GROUP = "TAO_NHOM";
@@ -59,27 +58,17 @@ public class ZaloGroupSettings {
         auto.log(ZaloAutoSettings.A_CONFIG, null, null, "TAO_NHOM_NAC_" + mode.name(), "TU_" + old.name(), by);
     }
 
-    public int daily() {
-        return Math.max(1, Math.min(props.maxDaily(), intSetting(DAILY, props.defaultDaily())));
-    }
-
     public int minCustomers() {
         return Math.max(2, Math.min(props.maxMembers(), intSetting(MIN, props.minCustomers())));
     }
 
-    public void setLimits(int daily, int minCustomers, String by) {
-        if (daily < 1 || daily > props.maxDaily()) {
-            throw new ImportException("Số nhóm mới mỗi ngày phải từ 1 đến " + props.maxDaily() + " (trần cứng).");
-        }
+    public void setLimits(int minCustomers, String by) {
         if (minCustomers < 2 || minCustomers > props.maxMembers()) {
             throw new ImportException("Số khách chờ tối thiểu phải từ 2 đến " + props.maxMembers() + ".");
         }
-        int oldDaily = daily();
         int oldMin = minCustomers();
-        settings.set(DAILY, Integer.toString(daily), by);
         settings.set(MIN, Integer.toString(minCustomers), by);
-        auto.log(ZaloAutoSettings.A_CONFIG, null, null, "TAO_NHOM_HAN_MUC " + daily + "/" + minCustomers,
-                "CU " + oldDaily + "/" + oldMin, by);
+        auto.log(ZaloAutoSettings.A_CONFIG, null, null, "TAO_NHOM_NGUONG " + minCustomers, "CU " + oldMin, by);
     }
 
     Instant lastPlanAt() {

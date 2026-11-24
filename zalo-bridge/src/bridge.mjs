@@ -617,8 +617,8 @@ export class Bridge {
 
   /**
    * Tạo đúng MỘT nhóm Zalo với vài khách đã đồng ý vào nhóm, bật link mời, và (nếu có) thêm mẹ làm phó nhóm. Chốt chặn công khai và
-   * cố định, không ngẫu nhiên hóa: khung giờ, trần mỗi ngày (vượt thì dừng cầu dao), khoảng nghỉ tối thiểu giữa hai lần tạo (sớm hơn thì
-   * chỉ bị từ chối RATE_LIMITED), một lúc một việc, lỗi lạ hoặc không rõ kết quả thì dừng và không tự thử lại. Tên nhóm, mã Zalo không vào log.
+   * cố định, không ngẫu nhiên hóa: khung giờ, khoảng nghỉ tối thiểu giữa hai lần tạo (sớm hơn thì
+   * chỉ bị từ chối RATE_LIMITED), và KHÔNG có trần số nhóm mỗi ngày (chủ dự án chốt 24/11/2026), một lúc một việc, lỗi lạ hoặc không rõ kết quả thì dừng và không tự thử lại. Tên nhóm, mã Zalo không vào log.
    * Bật link hoặc thêm phó nhóm lỗi thì KHÔNG dừng: nhóm đã tạo, báo lại để Adh ghi và nhắc mẹ làm tay.
    * @param {{name: string, members: string[], deputy?: string}} m
    */
@@ -640,10 +640,6 @@ export class Bridge {
     if (!inWindow(t, this.config.windowStartMin, this.config.windowEndMin)) {
       this.trip('WINDOW');
       return { outcome: 'RESTRICTED', code: 'WINDOW' };
-    }
-    if (this.groupLedger.countSince(vnDayStart(t)) >= this.config.groupDaily) {
-      this.trip('GROUP_LIMIT');
-      return { outcome: 'RESTRICTED', code: 'GROUP_LIMIT' };
     }
     const times = this.groupLedger.times;
     const last = times.length ? Math.max(...times) : null;

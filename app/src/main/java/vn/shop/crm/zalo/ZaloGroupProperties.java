@@ -7,7 +7,8 @@ import java.time.LocalTime;
 
 /**
  * Cấu hình tự tạo nhóm Zalo theo khu vực (D19). Cùng luật D18: tắt mặc định (cần cả {@code app.zalo.auto.enabled} và nấc chọn ở trang
- * Zalo), trần thấp, khoảng nghỉ cố định (không ngẫu nhiên), không né phát hiện. Mã Zalo của mẹ chỉ đặt bằng biến môi trường, không vào repo.
+ * Zalo), khoảng nghỉ cố định (không ngẫu nhiên), không né phát hiện. KHÔNG có trần số nhóm mới mỗi ngày (chủ dự án chốt 24/11/2026: chỉ
+ * giới hạn số KHÁCH được nhắn mỗi ngày); số nhóm mỗi ngày tự bị chặn bởi khung giờ và khoảng nghỉ cố định. Mã Zalo của mẹ chỉ đặt bằng biến môi trường, không vào repo.
  */
 @ConfigurationProperties(prefix = "app.zalo.group")
 public record ZaloGroupProperties(
@@ -15,9 +16,6 @@ public record ZaloGroupProperties(
         @DefaultValue("") String deputyId,
         @DefaultValue("08:00") LocalTime windowStart,
         @DefaultValue("20:00") LocalTime windowEnd,
-        /* Số nhóm mới mỗi ngày: mặc định 1, trang quản trị chỉnh đến trần cứng (tối đa 3, bằng trần của cầu nối). */
-        @DefaultValue("1") int defaultDaily,
-        @DefaultValue("3") int maxDaily,
         /* Khoảng nghỉ CỐ ĐỊNH giữa hai lần tạo (phút); cầu nối có sàn riêng 5 phút. */
         @DefaultValue("60") int gapMinutes,
         /* Số khách chờ tối thiểu ở một khu vực mới tạo nhóm (chỉnh được ở trang quản trị trong khoảng 2 đến maxMembers). */
@@ -33,15 +31,6 @@ public record ZaloGroupProperties(
 
     public ZaloGroupProperties {
         deputyId = deputyId == null ? "" : deputyId.strip();
-        if (maxDaily < 1) {
-            maxDaily = 1;
-        }
-        if (maxDaily > 3) {
-            maxDaily = 3;
-        }
-        if (defaultDaily < 1 || defaultDaily > maxDaily) {
-            defaultDaily = 1;
-        }
         if (gapMinutes < 10) {
             gapMinutes = 10;
         }

@@ -91,7 +91,6 @@ public class ZaloAutoController {
             ZaloGroupSettings gs = groupMaker.settings();
             model.addAttribute("groupModes", ZaloGroupMode.values());
             model.addAttribute("groupChosen", gs.chosenMode());
-            model.addAttribute("groupDaily", gs.daily());
             model.addAttribute("groupMin", gs.minCustomers());
             model.addAttribute("groupProps", gs.props());
             model.addAttribute("deputyCurrent", deputy.current());
@@ -140,10 +139,10 @@ public class ZaloAutoController {
     }
 
     @PostMapping("/group-limits")
-    public String groupLimits(@RequestParam int daily, @RequestParam int minCustomers, Principal user, RedirectAttributes redirect) {
+    public String groupLimits(@RequestParam int minCustomers, Principal user, RedirectAttributes redirect) {
         requireEnabled();
-        groupMaker.settings().setLimits(daily, minCustomers, by(user));
-        redirect.addFlashAttribute("flash", "Đã lưu giới hạn tạo nhóm.");
+        groupMaker.settings().setLimits(minCustomers, by(user));
+        redirect.addFlashAttribute("flash", "Đã lưu ngưỡng tạo nhóm.");
         return "redirect:/zalo#tao-nhom";
     }
 
