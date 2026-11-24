@@ -15,6 +15,8 @@ const MAX_STARTS = 5; // quá 5 lần khởi động trong 10 phút là vòng s�
 const START_WINDOW_MS = 10 * 60 * 1000;
 const MAX_GROUP_NAME = 100;
 const MAX_GROUP_MEMBERS = 5;
+/** Số lần thử lại đặt phó nhóm tối đa mỗi ngày (nút "Thử lại phó nhóm"). */
+const MAX_DEPUTY_TRIES_PER_DAY = 10;
 const REPLY_WINDOW_MS = 24 * 3600 * 1000; // WELCOME và REPLY chỉ trả lời người vừa nhắn trong khoảng này
 const MAX_REPLYABLE = 500;
 const MAX_FRIEND_TEXT = 150; // lời mời kết bạn của Zalo chỉ nhận câu ngắn
@@ -654,7 +656,9 @@ export class Bridge {
       this.stateFile.write({ inflight: true });
       let created;
       try {
-        created = await withTimeout(this.adapter.createGroup(name, members), this.config.addTimeoutMs * 2);
+        // Zalo chỉ cho đặt phó nhóm với người ĐANG TRONG nhóm: nên mẹ (phó nhóm) vào nhóm ngay lúc tạo, như một thành viên.
+        const zaloMembers = deputy === null ? members : [...members, deputy];
+        created = await withTimeout(this.adapter.createGroup(name, zaloMembers), this.config.addTimeoutMs * 2);
       } catch (e) {
         const c = classifyError(e, this.config.personErrorCodes);
         if (c.outcome !== 'PERSON_ERROR') {
@@ -676,6 +680,7 @@ export class Bridge {
       const failed = members.filter((x) => !added.includes(x));
       let link = null;
       let deputyState = deputy === null ? 'NONE' : 'FAILED';
+      let deputyCode = null;
       let tripped = false;
       const after = (e) => {
         const c = classifyError(e, this.config.personErrorCodes);
@@ -683,6 +688,7 @@ export class Bridge {
           tripped = true;
           this.trip(c.code ? `${c.outcome}:${c.code}` : c.outcome);
         }
+        return c;
       };
       try {
         const l = await withTimeout(this.adapter.enableGroupLink(groupId), this.config.addTimeoutMs);
@@ -691,16 +697,73 @@ export class Bridge {
         after(e);
       }
       if (deputy !== null && !tripped) {
-        try {
-          await withTimeout(this.adapter.addGroupDeputy(deputy, groupId), this.config.addTimeoutMs);
-          deputyState = 'OK';
-        } catch (e) {
-          after(e);
-        }
+        const r = await this.#makeDeputy(groupId, deputy, !(created.sucessMembers ?? []).map(String).includes(deputy), after);
+        deputyState = r.deputy;
+        deputyCode = r.code;
       }
       if (!tripped) this.stateFile.write({});
-      this.log(`tạo nhóm: OK (link ${link ? 'có' : 'không'}, phó nhóm ${deputyState})`);
-      return { outcome: 'OK', groupId, link, added, failed, deputy: deputyState };
+      this.log(`tạo nhóm: OK (link ${link ? 'có' : 'không'}, phó nhóm ${deputyState}${deputyCode ? ` mã ${deputyCode}` : ''})`);
+      return { outcome: 'OK', groupId, link, added, failed, deputy: deputyState, ...(deputyCode ? { deputyCode } : {}) };
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /**
+   * Đặt MỘT phó nhóm (mẹ) cho nhóm: nếu mẹ chưa ở trong nhóm thì thêm vào trước (Zalo chỉ cho đặt phó nhóm với người đang trong nhóm), rồi
+   * đặt phó nhóm. Lỗi không dừng cầu dao trừ khi Zalo hạn chế hay mất phiên; trả mã lỗi Zalo thật (dạng Z123, không có mã Zalo của người)
+   * để ghi nhật ký. Chỉ dùng từ createGroup và setDeputy.
+   * @returns {Promise<{deputy: 'OK'|'FAILED', code: string|null}>}
+   */
+  async #makeDeputy(groupId, deputy, needAdd, after) {
+    let code = null;
+    if (needAdd) {
+      try {
+        await withTimeout(this.adapter.addUserToGroup(deputy, groupId), this.config.addTimeoutMs);
+      } catch (e) {
+        code = after(e).code ?? null; // có thể đã ở trong nhóm: vẫn thử đặt phó nhóm
+      }
+    }
+    try {
+      await withTimeout(this.adapter.addGroupDeputy(deputy, groupId), this.config.addTimeoutMs);
+      return { deputy: 'OK', code: null };
+    } catch (e) {
+      return { deputy: 'FAILED', code: after(e).code ?? code ?? 'UNKNOWN' };
+    }
+  }
+
+  /**
+   * Thử lại đặt phó nhóm cho MỘT nhóm đã tạo (nút "Thử lại phó nhóm"). Chỉ việc đặt phó nhóm (thêm mẹ vào nhóm nếu chưa có), không việc nào khác.
+   * Trần cố định mỗi ngày, một lúc một việc, trong khung giờ. Mã nhóm và mã Zalo không vào log.
+   * @param {{groupId: string, uid: string}} m
+   */
+  async setDeputy(m) {
+    const groupId = String(m?.groupId ?? '');
+    const uid = String(m?.uid ?? '');
+    if (!ZALO_ID.test(groupId) || !ZALO_ID.test(uid)) return { outcome: 'PERSON_ERROR', code: 'BAD_ID' };
+    if (this.state === 'LOGIN_REQUIRED') return { outcome: 'SESSION_LOST', code: 'LOGIN_REQUIRED' };
+    if (this.state === 'TRIPPED' || this.state === 'STOPPED') return { outcome: 'RESTRICTED', code: 'NOT_ACTIVE' };
+    if (this.state !== 'LISTENING') return { outcome: 'SYSTEM_ERROR', code: 'NOT_CONNECTED' };
+    if (this.busy) return { outcome: 'SYSTEM_ERROR', code: 'BUSY' };
+    const t = this.now();
+    if (!inWindow(t, this.config.windowStartMin, this.config.windowEndMin)) return { outcome: 'RESTRICTED', code: 'WINDOW' };
+    this.deputyTries = (this.deputyTries ?? []).filter((x) => x >= vnDayStart(t));
+    if (this.deputyTries.length >= MAX_DEPUTY_TRIES_PER_DAY) return { outcome: 'RATE_LIMITED', retryAfterSec: 3600 };
+    this.busy = true;
+    try {
+      this.deputyTries.push(t);
+      let tripped = false;
+      const after = (e) => {
+        const c = classifyError(e, this.config.personErrorCodes);
+        if (c.outcome === 'RESTRICTED' || c.outcome === 'SESSION_LOST') {
+          tripped = true;
+          this.trip(c.code ? `${c.outcome}:${c.code}` : c.outcome);
+        }
+        return c;
+      };
+      const r = await this.#makeDeputy(groupId, uid, true, after);
+      this.log(`đặt phó nhóm lại: ${r.deputy}${r.code ? ` mã ${r.code}` : ''}${tripped ? ' (đã dừng)' : ''}`);
+      return { outcome: 'OK', deputy: r.deputy, ...(r.code ? { code: r.code } : {}) };
     } finally {
       this.busy = false;
     }

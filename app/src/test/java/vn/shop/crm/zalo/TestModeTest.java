@@ -363,6 +363,10 @@ class TestModeTest extends AbstractPostgresTest {
         assertThat(link.sendFriendRequest("UT4", "x").result()).isEqualTo(Result.OK);
         assertThat(fake.friendRequests).hasSize(1);
 
+        // đặt lại phó nhóm: chỉ cho nhóm Adh đã ghi
+        assertThat(link.setDeputy("777000", "4242").outcome()).isEqualTo(ZaloGroupMaker.GroupOutcome.UNREACHABLE);
+        assertThat(fake.deputyCalls).isEmpty();
+
         // thêm vào nhóm
         assertThat(link.addToGroup("UREAL", "1001").outcome()).isEqualTo(Outcome.UNREACHABLE);
         assertThat(fake.adds).isEmpty();

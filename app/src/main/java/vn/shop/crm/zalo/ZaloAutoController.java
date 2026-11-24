@@ -207,6 +207,16 @@ public class ZaloAutoController {
         return "redirect:/zalo#tao-nhom";
     }
 
+    @PostMapping("/group-proposals/{id}/deputy-retry")
+    public String retryDeputy(@PathVariable long id, Principal user, RedirectAttributes redirect) {
+        requireEnabled();
+        ZaloGroupMaker.DeputyResult r = groupMaker.retryDeputy(id, by(user));
+        redirect.addFlashAttribute("flash", r.ok()
+                ? "Đã đặt mẹ làm phó nhóm."
+                : "Chưa đặt được mẹ làm phó nhóm (mã lỗi: " + (r.code() == null ? "không rõ" : r.code()) + "). Mã này đã ghi vào nhật ký. Có thể thử lại hoặc thêm tay trong Zalo.");
+        return "redirect:/zalo#tao-nhom";
+    }
+
     @PostMapping("/limits")
     public String limits(@RequestParam int daily, @RequestParam int hourly, @RequestParam int gap, Principal user,
                          RedirectAttributes redirect) {

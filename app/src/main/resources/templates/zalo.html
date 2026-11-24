@@ -284,12 +284,13 @@
                     <td th:text="${p.reason}">Tạo nhóm vì có 3 khách chờ</td>
                     <td><span th:text="${T(vn.shop.crm.zalo.ZaloGroupCreationService).stateLabel(p.state)}">Chờ mẹ duyệt</span>
                         <span class="sub-line" th:if="${p.state == 'DONE'}"
-                              th:text="'Đã vào nhóm: ' + ${p.addedCount} + ' khách' + (${p.linkOk} ? '' : ' · CHƯA có link mời, nhóm đang tạm dừng nhận khách') + (${p.deputyState == 'FAILED'} ? ' · chưa thêm được mẹ làm phó nhóm, hãy thêm tay' : '')">Đã vào nhóm</span>
+                              th:text="'Đã vào nhóm: ' + ${p.addedCount} + ' khách' + (${p.linkOk} ? '' : ' · CHƯA có link mời, nhóm đang tạm dừng nhận khách') + (${p.deputyState == 'FAILED'} ? ' · chưa đặt được mẹ làm phó nhóm' + (${p.deputyCode != null} ? ' (mã lỗi ' + ${p.deputyCode} + ')' : '') + (${p.canRetryDeputy} ? ', bấm Thử lại phó nhóm' : ', hãy thêm tay trong Zalo') : '')">Đã vào nhóm</span>
                         <span class="sub-line" th:if="${p.state == 'FAILED' or p.state == 'EXPIRED'}" th:text="${@zaloLabels.reason(p.resultCode)}"></span>
                         <span class="sub-line" th:if="${p.needsCheck}">Hãy mở Zalo xem nhóm đã được tạo chưa; hệ thống không tự thử lại.</span></td>
                     <td>
                         <form class="inline" th:if="${p.awaitingApproval}" th:action="@{/zalo/group-proposals/{id}/approve(id=${p.id})}" method="post"><button type="submit" class="btn">Duyệt</button></form>
                         <form class="inline" th:if="${p.state == 'PROPOSED' or p.state == 'APPROVED'}" th:action="@{/zalo/group-proposals/{id}/reject(id=${p.id})}" method="post"><button type="submit" class="btn secondary">Từ chối</button></form>
+                        <form class="inline" th:if="${p.canRetryDeputy}" th:action="@{/zalo/group-proposals/{id}/deputy-retry(id=${p.id})}" method="post"><button type="submit" class="btn secondary">Thử lại phó nhóm</button></form>
                         <form class="inline" th:if="${p.needsCheck}" th:action="@{/zalo/group-proposals/{id}/checked(id=${p.id})}" method="post"><button type="submit" class="btn secondary">Đã kiểm tra trên Zalo</button></form>
                     </td>
                 </tr>

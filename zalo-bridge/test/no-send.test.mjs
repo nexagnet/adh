@@ -55,6 +55,12 @@ test('sendFriendRequest chỉ có đúng một chỗ gọi (bộ điều hợp t
   assert.ok(!/acceptFriendRequest|getFriendRequest|getAllFriends/.test(files.map(code).join('\n')));
 });
 
+test('đặt phó nhóm chỉ có một chỗ gọi trong bridge.mjs (#makeDeputy, dùng cho createGroup và setDeputy), không có hàm gỡ phó nhóm', () => {
+  const b = code('bridge.mjs');
+  assert.equal((b.match(/adapter\.addGroupDeputy\(/g) ?? []).length, 1);
+  assert.equal((b.match(/#makeDeputy\(/g) ?? []).length, 3); // một định nghĩa, hai chỗ gọi
+});
+
 test('D19: createGroup, enableGroupLink, addGroupDeputy mỗi hàm đúng một chỗ gọi, chỉ ở bộ điều hợp thật; không đổi chủ nhóm, không giải tán, không đổi tên', () => {
   for (const f of files) {
     const c = code(f);

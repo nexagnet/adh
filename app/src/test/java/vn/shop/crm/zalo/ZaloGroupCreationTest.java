@@ -385,6 +385,82 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
         assertThat(svc.recent(1).getFirst().linkOk()).isFalse();
     }
 
+    // ---------- phó nhóm (24/11/2026) ----------
+
+    /** Tạo nhóm với đặt phó nhóm lỗi kèm mã Zalo thật: ghi mã vào đề xuất và nhật ký. */
+    private void createdWithDeputyFailed(String code) {
+        approvedProposal();
+        fake.willCreate(new Created(GroupOutcome.OK, null, "6666", "https://zalo.me/g/x", List.of("70000001", "70000002", "70000003"), List.of(),
+                "FAILED", code, 0, false));
+        assertThat(svc.step()).isEqualTo(Step.CREATED);
+    }
+
+    @Test
+    void phoNhomLoiGhiMaLoiThatVaoDeXuatVaNhatKy() {
+        createdWithDeputyFailed("Z118");
+        var p = svc.recent(1).getFirst();
+        assertThat(p.deputyState()).isEqualTo("FAILED");
+        assertThat(p.deputyCode()).isEqualTo("Z118");
+        assertThat(p.canRetryDeputy()).isTrue();
+        assertThat(auto.recentLog(10)).anySatisfy(l -> assertThat(l.toString()).contains("PHO_NHOM_LOI").contains("Z118"));
+    }
+
+    @Test
+    void thuLaiPhoNhomThanhCongThiDoiSangOkVaKhongHienNutNua() {
+        createdWithDeputyFailed("Z118");
+        long id = svc.recent(1).getFirst().id();
+        var r = svc.retryDeputy(id, "mẹ");
+        assertThat(r.ok()).isTrue();
+        assertThat(fake.deputyCalls).singleElement().satisfies(c -> {
+            assertThat(c.groupId()).isEqualTo("6666");
+            assertThat(c.uid()).isEqualTo("99887766");
+        });
+        var p = svc.recent(1).getFirst();
+        assertThat(p.deputyState()).isEqualTo("OK");
+        assertThat(p.deputyCode()).isNull();
+        assertThat(p.canRetryDeputy()).isFalse();
+        assertThatThrownBy(() -> svc.retryDeputy(id, "mẹ")).isInstanceOf(ImportException.class);
+        assertThat(fake.deputyCalls).hasSize(1);
+    }
+
+    @Test
+    void thuLaiPhoNhomLoiThiGhiMaMoiVaToiDaNamLan() {
+        createdWithDeputyFailed("Z118");
+        long id = svc.recent(1).getFirst().id();
+        for (int i = 0; i < ZaloGroupCreationService.MAX_DEPUTY_TRIES; i++) {
+            fake.deputyResults.add(ZaloGroupMaker.DeputyResult.of(GroupOutcome.OK, "Z" + (200 + i)));
+            assertThat(svc.retryDeputy(id, "mẹ").ok()).isFalse();
+        }
+        var p = svc.recent(1).getFirst();
+        assertThat(p.deputyState()).isEqualTo("FAILED");
+        assertThat(p.deputyCode()).isEqualTo("Z204");
+        assertThat(p.deputyTries()).isEqualTo(ZaloGroupCreationService.MAX_DEPUTY_TRIES);
+        assertThat(p.canRetryDeputy()).isFalse();
+        assertThatThrownBy(() -> svc.retryDeputy(id, "mẹ")).isInstanceOf(ImportException.class).hasMessageContaining("bằng tay");
+        assertThat(fake.deputyCalls).hasSize(ZaloGroupCreationService.MAX_DEPUTY_TRIES);
+        assertThat(auto.tripped()).isFalse();
+    }
+
+    @Test
+    void thuLaiPhoNhomKhiZaloHanCheThiDungCauDao() {
+        createdWithDeputyFailed("Z118");
+        long id = svc.recent(1).getFirst().id();
+        fake.deputyResults.add(ZaloGroupMaker.DeputyResult.of(GroupOutcome.RESTRICTED, "Z999"));
+        assertThat(svc.retryDeputy(id, "mẹ").ok()).isFalse();
+        assertThat(auto.tripped()).isTrue();
+    }
+
+    @Test
+    void thuLaiPhoNhomKhongDuocChoNhomKhongLoiHayDeXuatKhacDone() {
+        approvedProposal();
+        assertThat(svc.step()).isEqualTo(Step.CREATED);
+        long id = svc.recent(1).getFirst().id();
+        assertThat(svc.recent(1).getFirst().deputyState()).isEqualTo("OK");
+        assertThatThrownBy(() -> svc.retryDeputy(id, "mẹ")).isInstanceOf(ImportException.class);
+        assertThatThrownBy(() -> svc.retryDeputy(987654, "mẹ")).isInstanceOf(ImportException.class);
+        assertThat(fake.deputyCalls).isEmpty();
+    }
+
     @Test
     void ngoaiLinkZaloKhongLuuLink() {
         approvedProposal();
