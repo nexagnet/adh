@@ -769,3 +769,10 @@ pre.wrap { white-space: pre-wrap; overflow-wrap: anywhere; margin: 6px 0 0; }
 .tabs a { flex: none; padding: 10px 16px; font-weight: 600; text-decoration: none; color: var(--muted); border-bottom: 3px solid transparent; margin-bottom: -2px; }
 .tabs a:hover { color: var(--text); }
 .tabs a.active { color: var(--primary-dark); border-bottom-color: var(--primary); }
+
+/* Nhóm "Khác" của menu: gập, hiện tổng số việc trên dòng tiêu đề */
+.nav details.nav-more > summary { cursor: pointer; display: flex; align-items: center; justify-content: space-between; list-style: none; }
+.nav details.nav-more > summary::-webkit-details-marker { display: none; }
+.nav details.nav-more > summary::after { content: "▾"; margin-left: 8px; }
+.nav details.nav-more:not([open]) > summary::after { content: "▸"; }
+.nav details.nav-more { display: flex; flex-direction: column; gap: 4px; }

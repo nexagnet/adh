@@ -22,7 +22,19 @@ public class NavMenu {
         }
     }
 
-    public record Group(String title, List<Item> items) {
+    /** {@code collapsible}: nhóm hiếm dùng, gập trong menu (tự mở khi mục đang xem nằm trong đó); {@code badge} là tổng việc của cả nhóm. */
+    public record Group(String title, List<Item> items, boolean collapsible) {
+        public Group(String title, List<Item> items) {
+            this(title, items, false);
+        }
+
+        public boolean hasActive() {
+            return items.stream().anyMatch(Item::active);
+        }
+
+        public long badge() {
+            return items.stream().mapToLong(Item::badge).sum();
+        }
     }
 
     private final HandoffService handoffs;
@@ -66,39 +78,55 @@ public class NavMenu {
         return path;
     }
 
+    /** Số đề xuất AI đang chờ, hiện trên tab "Đề xuất của AI" của trang chiến dịch. */
+    public long proposalBadge() {
+        return proposals.open().size();
+    }
+
+    /** Số khách đã kết bạn đang chờ thêm vào nhóm, hiện trên tab "Chờ vào nhóm" của trang nhóm. */
+    public long friendBadge() {
+        return invites.friendStats().readyToAdd();
+    }
+
+    /** Trang con nằm dưới một mục menu cha (tab của trang cha) thì tô sáng mục cha. */
+    static String highlightKey(String key) {
+        if (key.equals("/advisor") || key.equals("/today")) {
+            return "/campaigns";
+        }
+        if (key.equals("/friends") || key.equals("/zalo/groups")) {
+            return "/groups";
+        }
+        return key;
+    }
+
     public List<Group> groups(String currentKey) {
-        String key = currentKey == null ? "/" : currentKey;
+        String key = highlightKey(currentKey == null ? "/" : currentKey);
         long handoffOpen = handoffs.openCount() + refusals.heldCount() + replies.openCount() + warranty.openCount();
         long privacyOpen = privacy.openCount();
         long unmapped = statuses.unmapped().size();
-        long friendWaiting = invites.friendStats().readyToAdd();
-        // Thứ tự theo luồng làm việc hiện hành (D18 đến D21): lập danh sách, chiến dịch (tay hoặc AI đề xuất), đo hiệu quả, nhóm,
-        // điều khiển tài khoản phụ. Ba mục cuối là đường nhắn tay và chạy thử, sẽ bỏ sau khi tự gửi chạy ổn trên thật.
-        List<Item> invite = new java.util.ArrayList<>(List.of(
-                item("Danh sách mời", "/contacts", "/contacts", 0, key),
-                item("Chiến dịch mời", "/campaigns", "/campaigns", 0, key),
-                item("Đề xuất của AI", "/advisor", "/advisor", proposals.open().size(), key),
-                item("Hiệu quả chiến dịch", "/performance", "/performance", 0, key),
-                item("Nhóm Zalo", "/groups", "/groups", 0, key),
-                // Luôn hiện (D18): đây là trung tâm điều khiển tự gửi; khi bộ nối tắt, trang chỉ báo "đang tắt".
-                item("Zalo tài khoản phụ", "/zalo", "/zalo", zalo.attentionCount() + zaloHealth.openCriticalCount(), key),
-                item("Chờ vào nhóm", "/friends", "/friends", friendWaiting, key),
-                item("Lô nhắn hôm nay", "/today", "/today", 0, key)));
+        // Ba nhóm theo mức dùng (kế hoạch giao diện 24/11/2026): việc hằng ngày, chiến dịch, cài đặt; nhóm "Khác" gập.
+        // "Đề xuất của AI", "Chờ vào nhóm" và "Lô nhắn hôm nay" là tab của trang chiến dịch hoặc trang nhóm (địa chỉ cũ vẫn dùng được).
         return List.of(
-                new Group("Khách hàng", List.of(
+                new Group("Hằng ngày", List.of(
                         item("Tổng quan", "/", "/", 0, key),
-                        item("Nhập đơn", "/imports", "/imports", 0, key),
-                        item("Khách hàng", "/customers", "/customers", 0, key),
-                        item("Trạng thái đơn", "/status-mappings", "/status-mappings", unmapped, key))),
-                new Group("Mời vào nhóm", List.copyOf(invite)),
-                new Group("Trợ lý AI", List.of(
                         item("Việc cần người thật xử lý", "/handoffs", "/handoffs", handoffOpen, key),
-                        item("Trợ lý AI trả lời khách", "/zalo/reply", "/zalo/reply", 0, key),
-                        item("Trợ lý trong nhóm", "/bot", "/bot", 0, key))),
+                        item("Khách hàng", "/customers", "/customers", 0, key),
+                        item("Nhập đơn", "/imports", "/imports", 0, key))),
+                new Group("Chiến dịch", List.of(
+                        item("Danh sách mời", "/contacts", "/contacts", 0, key),
+                        item("Chiến dịch mời", "/campaigns", "/campaigns", proposals.open().size(), key),
+                        item("Nhóm Zalo", "/groups", "/groups", invites.friendStats().readyToAdd(), key),
+                        item("Hiệu quả chiến dịch", "/performance", "/performance", 0, key))),
+                new Group("Cài đặt", List.of(
+                        // Luôn hiện (D18): đây là trung tâm điều khiển tự gửi; khi bộ nối tắt, trang chỉ báo "đang tắt".
+                        item("Zalo tài khoản phụ", "/zalo", "/zalo", zalo.attentionCount() + zaloHealth.openCriticalCount(), key),
+                        item("Trợ lý AI trả lời khách", "/zalo/reply", "/zalo/reply", 0, key))),
                 new Group("Khác", List.of(
                         item("Yêu cầu của khách", "/privacy", "/privacy", privacyOpen, key),
+                        item("Trạng thái đơn", "/status-mappings", "/status-mappings", unmapped, key),
                         item("In giấy giới thiệu", "/print", "/print", 0, key),
-                        item("Bản đồ khách", "/map", "/map", 0, key))));
+                        item("Bản đồ khách", "/map", "/map", 0, key),
+                        item("Trợ lý trong nhóm", "/bot", "/bot", 0, key)), true));
     }
 
     private static Item item(String label, String url, String itemKey, long badge, String current) {

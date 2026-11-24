@@ -17,6 +17,7 @@
             </form>
         </div>
     </header>
+    <nav th:replace="~{fragments :: campaignTabs('advisor')}"></nav>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã xong.</div>
     <div class="notice bad" th:if="${flashBad}" th:text="${flashBad}">Lỗi.</div>

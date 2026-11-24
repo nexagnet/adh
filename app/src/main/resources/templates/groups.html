@@ -12,6 +12,7 @@
                 (mỗi nhóm thường khoảng <span th:text="${5 + storeAccounts}">7</span> tài khoản).</p>
         </div>
     </header>
+    <nav th:replace="~{fragments :: groupTabs('groups')}"></nav>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
 

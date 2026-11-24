@@ -40,6 +40,15 @@
         <a th:href="@{/zalo}">Mở trang Zalo tài khoản phụ</a>
     </div>
 </div>
+<nav th:fragment="campaignTabs(current)" class="tabs" aria-label="Các phần của chiến dịch">
+    <a th:href="@{/campaigns}" th:classappend="${current == 'campaigns'} ? 'active'" th:attr="aria-current=${current == 'campaigns'} ? 'page'">Chiến dịch</a>
+    <a th:href="@{/advisor}" th:classappend="${current == 'advisor'} ? 'active'" th:attr="aria-current=${current == 'advisor'} ? 'page'">Đề xuất của AI<span th:if="${@navMenu.proposalBadge() > 0}" th:text="' (' + ${@navMenu.proposalBadge()} + ')'"></span></a>
+</nav>
+<nav th:fragment="groupTabs(current)" class="tabs" aria-label="Các phần của nhóm Zalo">
+    <a th:href="@{/groups}" th:classappend="${current == 'groups'} ? 'active'" th:attr="aria-current=${current == 'groups'} ? 'page'">Nhóm Zalo</a>
+    <a th:href="@{/friends}" th:classappend="${current == 'friends'} ? 'active'" th:attr="aria-current=${current == 'friends'} ? 'page'">Chờ vào nhóm<span th:if="${@navMenu.friendBadge() > 0}" th:text="' (' + ${@navMenu.friendBadge()} + ')'"></span></a>
+    <a th:href="@{/zalo/groups}" th:classappend="${current == 'zalo-groups'} ? 'active'" th:attr="aria-current=${current == 'zalo-groups'} ? 'page'">Gán mã nhóm Zalo</a>
+</nav>
 <nav th:fragment="nav" class="nav" aria-label="Menu chính">
     <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Mở hoặc đóng menu">
     <div class="nav-bar">
@@ -47,13 +56,23 @@
         <label for="nav-toggle" class="nav-burger"><span class="nav-burger-open">Menu</span><span class="nav-burger-close">Đóng</span></label>
     </div>
     <div class="nav-body">
-        <div class="nav-group" th:each="g : ${@navMenu.groups(navKey)}">
-            <div class="nav-title" th:text="${g.title}">Khách hàng</div>
-            <a th:each="i : ${g.items}" th:href="@{${i.url}}" th:classappend="${i.active} ? 'active'">
-                <span th:text="${i.label}">Tổng quan</span>
-                <span class="count" th:if="${i.hasBadge()}" th:text="${i.badge}">3</span>
-            </a>
-        </div>
+        <th:block th:each="g : ${@navMenu.groups(navKey)}">
+            <div class="nav-group" th:unless="${g.collapsible}">
+                <div class="nav-title" th:text="${g.title}">Khách hàng</div>
+                <a th:each="i : ${g.items}" th:href="@{${i.url}}" th:classappend="${i.active} ? 'active'">
+                    <span th:text="${i.label}">Tổng quan</span>
+                    <span class="count" th:if="${i.hasBadge()}" th:text="${i.badge}">3</span>
+                </a>
+            </div>
+            <details class="nav-group nav-more" th:if="${g.collapsible}" th:attr="open=${g.hasActive()} ? 'open'">
+                <summary class="nav-title"><span th:text="${g.title}">Khác</span>
+                    <span class="count" th:if="${g.badge() > 0}" th:text="${g.badge()}">2</span></summary>
+                <a th:each="i : ${g.items}" th:href="@{${i.url}}" th:classappend="${i.active} ? 'active'">
+                    <span th:text="${i.label}">Yêu cầu của khách</span>
+                    <span class="count" th:if="${i.hasBadge()}" th:text="${i.badge}">3</span>
+                </a>
+            </details>
+        </th:block>
         <div class="nav-account">
             <div class="who">Đang đăng nhập: Chủ cửa hàng</div>
             <form th:action="@{/logout}" method="post">

@@ -12,6 +12,7 @@
                 rồi bấm <em>Đã vào nhóm</em>. Đây là cách dự phòng: khi nấc tự thêm ở <a th:href="@{/zalo}">Zalo tài khoản phụ</a> đang chạy, hệ thống tự thêm khách vào nhóm và màn này sẽ bỏ sau khi thử xong. Màn này không nhắn thêm cho khách nào.</p>
         </div>
     </header>
+    <nav th:replace="~{fragments :: groupTabs('friends')}"></nav>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã ghi.</div>
 

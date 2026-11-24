@@ -54,7 +54,7 @@ class NavMenuTest extends AbstractPostgresTest {
     void chiMotMucDuocToSangVaCoDuBonNhom() {
         var groups = menu.groups("/groups");
         assertThat(groups).extracting(NavMenu.Group::title)
-                .containsExactly("Khách hàng", "Mời vào nhóm", "Trợ lý AI", "Khác");
+                .containsExactly("Hằng ngày", "Chiến dịch", "Cài đặt", "Khác");
         var active = groups.stream().flatMap(g -> g.items().stream()).filter(NavMenu.Item::active).toList();
         assertThat(active).extracting(NavMenu.Item::label).containsExactly("Nhóm Zalo");
         assertThat(menu.groups("/").stream().flatMap(g -> g.items().stream()).filter(NavMenu.Item::active)
@@ -65,7 +65,7 @@ class NavMenuTest extends AbstractPostgresTest {
     void thanhBenHienTrenTrangDaDangNhapVaToSangMucDangMo() throws Exception {
         var owner = user("admin").roles("OWNER");
         mvc.perform(get("/groups").with(owner)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("Mời vào nhóm")))
+                .andExpect(content().string(containsString("Hằng ngày")))
                 .andExpect(content().string(containsString("Trợ lý trong nhóm")))
                 .andExpect(content().string(containsString("class=\"active\"")))
                 .andExpect(content().string(not(containsString(">Bot<"))));
@@ -76,15 +76,45 @@ class NavMenuTest extends AbstractPostgresTest {
     @Test
     void menuCoTrangTraLoiKhachVaDeXuatAiVaToSangDungMuc() {
         var all = menu.groups("/zalo/reply").stream().flatMap(g -> g.items().stream()).toList();
-        assertThat(all).extracting(NavMenu.Item::label).contains("Trợ lý AI trả lời khách", "Đề xuất của AI", "Hiệu quả chiến dịch");
+        assertThat(all).extracting(NavMenu.Item::label).contains("Trợ lý AI trả lời khách", "Chiến dịch mời", "Hiệu quả chiến dịch")
+                .doesNotContain("Đề xuất của AI", "Chờ vào nhóm", "Lô nhắn hôm nay");
         // /zalo/reply có mục riêng nên không được tô sáng thêm "Zalo tài khoản phụ".
         assertThat(all.stream().filter(NavMenu.Item::active).map(NavMenu.Item::label)).containsExactly("Trợ lý AI trả lời khách");
         assertThat(menu.groups("/zalo").stream().flatMap(g -> g.items().stream()).filter(NavMenu.Item::active)
                 .map(NavMenu.Item::label)).containsExactly("Zalo tài khoản phụ");
-        // Ba mục nhắn tay và chạy thử (sẽ bỏ) nằm cuối nhóm, sau các mục của luồng tự động.
-        var invite = menu.groups("/").get(1).items().stream().map(NavMenu.Item::label).toList();
-        assertThat(invite.indexOf("Zalo tài khoản phụ")).isLessThan(invite.indexOf("Chờ vào nhóm"));
-        assertThat(invite.indexOf("Đề xuất của AI")).isLessThan(invite.indexOf("Lô nhắn hôm nay"));
+    }
+
+    @Test
+    void trangConLaTabCuaMucChaNenToSangMucCha() {
+        assertThat(activeLabel("/advisor")).containsExactly("Chiến dịch mời");
+        assertThat(activeLabel("/today")).containsExactly("Chiến dịch mời");
+        assertThat(activeLabel("/friends")).containsExactly("Nhóm Zalo");
+        assertThat(activeLabel("/zalo/groups")).containsExactly("Nhóm Zalo");
+        assertThat(activeLabel("/campaigns/5")).containsExactly("Chiến dịch mời");
+        // Nhóm "Khác" gập và tự mở khi mục đang xem nằm trong đó.
+        var other = menu.groups("/privacy").get(3);
+        assertThat(other.collapsible()).isTrue();
+        assertThat(other.hasActive()).isTrue();
+        assertThat(menu.groups("/").get(3).hasActive()).isFalse();
+    }
+
+    private java.util.List<String> activeLabel(String key) {
+        return menu.groups(key).stream().flatMap(g -> g.items().stream()).filter(NavMenu.Item::active).map(NavMenu.Item::label).toList();
+    }
+
+    @Test
+    void cacTrangConCoThanhTabCuaTrangCha() throws Exception {
+        var owner = user("admin").roles("OWNER");
+        for (String path : new String[]{"/campaigns", "/advisor"}) {
+            mvc.perform(get(path).with(owner)).andExpect(status().isOk())
+                    .andExpect(content().string(containsString("aria-label=\"Các phần của chiến dịch\"")))
+                    .andExpect(content().string(containsString("Đề xuất của AI")));
+        }
+        for (String path : new String[]{"/groups", "/friends", "/zalo/groups"}) {
+            mvc.perform(get(path).with(owner)).andExpect(status().isOk())
+                    .andExpect(content().string(containsString("aria-label=\"Các phần của nhóm Zalo\"")))
+                    .andExpect(content().string(containsString("Chờ vào nhóm")));
+        }
     }
 
     @Test
