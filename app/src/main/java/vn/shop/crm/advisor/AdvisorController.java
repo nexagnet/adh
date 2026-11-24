@@ -67,7 +67,7 @@ class AdvisorController {
     String approve(@PathVariable long id, RedirectAttributes redirect) {
         try {
             long campaignId = proposals.approve(id, ContactService.actor());
-            redirect.addFlashAttribute("flash", "Đã tạo chiến dịch từ đề xuất của AI. Chưa có tin nào được gửi: "
+            redirect.addFlashAttribute("flash", "Đã triển khai: chiến dịch được tạo theo đề xuất của AI. Chưa có tin nào được gửi: "
                     + "bạn kiểm tra danh sách khách và lịch rồi mới duyệt cho hệ thống tự gửi. Ngày bắt đầu, khung giờ và hạn mức ngày AI gợi ý đã được đặt vào chiến dịch "
                     + "(luôn trong giới hạn chung của hệ thống); bạn chỉnh được ở mục Lịch và nhịp riêng.");
             return "redirect:/campaigns/" + campaignId;

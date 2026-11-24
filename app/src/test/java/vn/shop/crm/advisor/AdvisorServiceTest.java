@@ -76,7 +76,7 @@ class AdvisorServiceTest extends AbstractPostgresTest {
             }
         };
         AiGate gate = new AiGate(client, new AiProperties(aiOn, "khoa", "m", "https://api.deepseek.com", 100, 10, 300), usage, Clock.systemUTC());
-        return new AdvisorService(snapshots, new CampaignAdvisor(gate), store, clock, advisorOn, maxRuns);
+        return new AdvisorService(snapshots, new CampaignAdvisor(gate, "", true), store, clock, advisorOn, maxRuns);
     }
 
     private String proposal(String extra) {
@@ -112,8 +112,9 @@ class AdvisorServiceTest extends AbstractPostgresTest {
         assertThat(count("invitation_campaign")).isZero();
         assertThat(count("invitation")).isZero();
         assertThat(count("zalo_msg_log")).isZero();
-        // AI nhận lượt dài hơn thường, trong trần cứng
-        assertThat(options.get()).isEqualTo(CampaignAdvisor.OPTIONS);
+        // AI nhận lượt dài hơn thường với suy nghĩ sâu, trong trần cứng
+        assertThat(options.get()).isEqualTo(new AiClient.Options(CampaignAdvisor.TOKENS_THINKING, 120, null, true));
+        assertThat(options.get().maxOutputTokens()).isLessThanOrEqualTo(AiClient.Options.HARD_MAX_TOKENS_THINKING);
     }
 
     @Test

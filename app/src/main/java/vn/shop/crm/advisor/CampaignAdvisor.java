@@ -30,8 +30,9 @@ public class CampaignAdvisor {
                          String detail, String rawOutput) {
     }
 
-    /** Lượt đề xuất dài hơn lượt phân loại thường nên được nới giới hạn chữ và thời gian chờ (có trần cứng ở {@link AiClient.Options}). */
-    static final AiClient.Options OPTIONS = new AiClient.Options(1500, 30);
+    /** Số token đầu ra tối đa khi bật suy nghĩ sâu (gồm cả token suy nghĩ) và khi không bật. */
+    static final int TOKENS_THINKING = 16000;
+    static final int TOKENS_PLAIN = 2000;
 
     static final String SYSTEM = """
             Bạn là người lập kế hoạch nhắn tin cho một cửa hàng nhỏ ở Việt Nam bán chủ yếu áo điều hòa và phụ kiện áo điều hòa (trong đó có pin). \
@@ -47,14 +48,25 @@ public class CampaignAdvisor {
             - Mỗi lý do phải dựa vào một con số hoặc sự kiện CÓ trong số liệu (ví dụ nhiệt độ dự báo, số khách đủ điều kiện, dịp sắp tới, mùa). Không bịa số liệu.
             - Nếu thiếu dữ liệu (chưa có lịch sử phản hồi, chưa có thời tiết) thì nói rõ trong risks và cho confidence thấp. Nếu không đủ cơ sở để đề xuất, trả proposals rỗng và giải thích ngắn ở skip_reason.
             - Gợi ý thông thường (không chắc chắn, chỉ dùng khi số liệu ủng hộ): trời nóng thì khách quan tâm áo điều hòa nhiều hơn; mưa lớn thì khách ít để ý tin nhắn; tránh sát ngày lễ lớn nếu khách bận.
+            - Viết ngắn gọn: title tối đa 80 ký tự; mỗi dòng trong reasons và risks tối đa 150 ký tự; reasons tối đa 3 dòng, risks tối đa 2 dòng.
+            - Khi tính batch_size hãy xét hạn mức: số khách gửi được trong chiến dịch không quá daily_cap nhân số ngày của chiến dịch; batch_size nên không vượt con số đó.
             - message_angle là hướng nhấn gợi ý cho người viết tin (tối đa 200 ký tự), KHÔNG phải nội dung tin gửi khách. Không hứa giảm giá, quà tặng, cam kết; không nhắc đổi trả; không chứa số điện thoại hay đường dẫn.
             Chỉ trả về đúng MỘT đối tượng JSON, không thêm chữ nào khác, theo khuôn:
             {"proposals":[{"title":"...","area":"S:DONG_NAM_BO","batch_size":40,"start_date":"2026-11-25","end_date":"2026-12-02","window_from":"09:00","window_to":"11:00","daily_cap":10,"message_angle":"...","reasons":["..."],"risks":["..."],"confidence":0.5}],"skip_reason":null}""";
 
     private final AiGate ai;
+    private final AiClient.Options options;
 
-    public CampaignAdvisor(AiGate ai) {
+    /**
+     * @param model    mô hình riêng cho lượt đề xuất (APP_AI_ADVISOR_MODEL); rỗng thì dùng mô hình chung APP_AI_MODEL
+     * @param thinking bật "suy nghĩ sâu" cho lượt này (APP_AI_ADVISOR_THINKING, mặc định bật); lượt chậm hơn nhưng người bấm chờ và chỉ vài lượt mỗi ngày
+     */
+    public CampaignAdvisor(AiGate ai,
+                           @org.springframework.beans.factory.annotation.Value("${app.ai.advisor-model:}") String model,
+                           @org.springframework.beans.factory.annotation.Value("${app.ai.advisor-thinking:true}") boolean thinking) {
         this.ai = ai;
+        String m = model == null || model.isBlank() ? null : model.strip();
+        this.options = thinking ? new AiClient.Options(TOKENS_THINKING, 120, m, true) : new AiClient.Options(TOKENS_PLAIN, 45, m, false);
     }
 
     public boolean aiEnabled() {
@@ -67,7 +79,7 @@ public class CampaignAdvisor {
     }
 
     public Result advise(AdvisorSnapshot snapshot) {
-        Optional<String> raw = ai.ask(SYSTEM, userMessage(snapshot), true, OPTIONS);
+        Optional<String> raw = ai.ask(SYSTEM, userMessage(snapshot), true, options);
         if (raw.isEmpty()) {
             return new Result(Status.UNAVAILABLE, List.of(), List.of(), null, "AI tắt, hết trần lượt, đang nghỉ do lỗi hoặc gọi lỗi.", null);
         }

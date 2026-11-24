@@ -18,9 +18,17 @@ public interface AiClient {
     String complete(String system, String user, boolean json);
 
     /** Giới hạn riêng cho một lượt dài hơn bình thường (ví dụ đề xuất chiến dịch). Giá trị được kẹp lại ở nơi gọi. */
-    record Options(int maxOutputTokens, int timeoutSeconds) {
+    record Options(int maxOutputTokens, int timeoutSeconds, String model, boolean thinking) {
         public static final int HARD_MAX_TOKENS = 2000;
         public static final int HARD_MAX_TIMEOUT = 60;
+        /** Khi bật suy nghĩ sâu, các token suy nghĩ cũng tính vào giới hạn đầu ra và lượt gọi lâu hơn, nên trần cứng cao hơn. */
+        public static final int HARD_MAX_TOKENS_THINKING = 32000;
+        public static final int HARD_MAX_TIMEOUT_THINKING = 120;
+
+        /** Lượt dài nhưng dùng mô hình mặc định và không suy nghĩ sâu. */
+        public Options(int maxOutputTokens, int timeoutSeconds) {
+            this(maxOutputTokens, timeoutSeconds, null, false);
+        }
     }
 
     /** Mặc định bỏ qua tùy chọn (các bản cài đặt giả trong test vẫn là một hàm). */

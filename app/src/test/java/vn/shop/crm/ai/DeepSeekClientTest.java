@@ -73,6 +73,17 @@ class DeepSeekClientTest {
     }
 
     @Test
+    void luotDeXuatCoTheDungMoHinhRiengVaSuyNghiSau() {
+        client("m").complete("s", "u", true, new AiClient.Options(16000, 120, "deepseek-v4-pro", true));
+        assertThat(body.get()).contains("\"model\":\"deepseek-v4-pro\"").contains("\"thinking\":{\"type\":\"enabled\"}")
+                .contains("\"max_tokens\":16000").contains("response_format");
+        client("m").complete("s", "u", true, new AiClient.Options(999999, 999, "m\"x", true));
+        assertThat(body.get()).contains("\"model\":\"m\"").contains("\"max_tokens\":" + AiClient.Options.HARD_MAX_TOKENS_THINKING);
+        client("m").complete("s", "u", true, new AiClient.Options(1500, 30));
+        assertThat(body.get()).contains("\"model\":\"m\"").contains("\"thinking\":{\"type\":\"disabled\"}");
+    }
+
+    @Test
     void loiHttpHoacTraLoiLaThanhNgoaiLeKhongLoKhoa() {
         status = 401;
         assertThatThrownBy(() -> client("m").complete("s", "u", false)).isInstanceOf(AiClient.AiUnavailableException.class)

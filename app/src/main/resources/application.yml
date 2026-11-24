@@ -60,6 +60,9 @@ app:
     # D21: AI đề xuất chiến dịch (chỉ đề xuất, người duyệt). MẶC ĐỊNH TẮT; cần cả enabled ở trên. Số lần bấm "Nhờ AI đề xuất" tối đa mỗi ngày.
     advisor-enabled: ${APP_AI_ADVISOR_ENABLED:false}
     advisor-max-runs-per-day: ${APP_AI_ADVISOR_MAX_RUNS:5}
+    # Mô hình mạnh nhất riêng cho lượt đề xuất (deepseek-v4-pro theo api-docs.deepseek.com ngày 24/11/2026; đặt rỗng = dùng APP_AI_MODEL) và "suy nghĩ sâu" (mặc định bật; chỉ lượt này, không đụng nhận diện từ chối hay trả lời khách).
+    advisor-model: ${APP_AI_ADVISOR_MODEL:deepseek-v4-pro}
+    advisor-thinking: ${APP_AI_ADVISOR_THINKING:true}
   grouping:
     # Cho phép xếp khách vào nhóm của miền khác khi không còn nhóm nào hợp (mặc định không).
     allow-other-region: false

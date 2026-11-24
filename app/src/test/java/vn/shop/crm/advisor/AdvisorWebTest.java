@@ -104,7 +104,7 @@ class AdvisorWebTest extends AbstractPostgresTest {
                 .andExpect(content().string(containsString("Dự báo lạnh ở miền Nam")))
                 .andExpect(content().string(containsString("Chưa có lịch sử phản hồi")))
                 .andExpect(content().string(containsString("55%")))
-                .andExpect(content().string(containsString("Duyệt và tạo chiến dịch")))
+                .andExpect(content().string(containsString("Triển khai")))
                 .andExpect(content().string(containsString("Tính năng đang tắt")))
                 .andExpect(content().string(not(containsString("Nhờ AI đề xuất</button>"))))
                 .andExpect(content().string(not(containsString("Exception"))));
@@ -116,6 +116,18 @@ class AdvisorWebTest extends AbstractPostgresTest {
                 .andExpect(redirectedUrl("/advisor"))
                 .andExpect(flash().attribute("flashBad", containsString("đang tắt")));
         assertThat(count("advisor_run")).isEqualTo(1); // chỉ lượt dựng sẵn của test, không thêm lượt nào
+    }
+
+    @Test
+    void duyetDatHanLoiMoiToiSauNgayKetThucVaBatHoanKhiMua() throws Exception {
+        long id = proposal("Đợt xa", "R:NAM", 5, today().plusDays(25));
+        mvc.perform(post("/advisor/proposals/" + id + "/approve").with(user("admin")).with(csrf()))
+                .andExpect(redirectedUrlPattern("/campaigns/*"));
+        long days = jdbc.sql("SELECT expires_days FROM invitation_campaign").query(Long.class).single();
+        assertThat(days).as("hạn lời mời phải tới sau ngày kết thúc (25 + 5 ngày) cộng 14 ngày, không phải 14 ngày từ lúc tạo").isEqualTo(44);
+        long short1 = jdbc.sql("SELECT count(*) FROM invitation WHERE expires_at < now() + interval '40 days'").query(Long.class).single();
+        assertThat(short1).isZero();
+        assertThat(jdbc.sql("SELECT hold_on_rain FROM invitation_campaign").query(Boolean.class).single()).isTrue();
     }
 
     @Test
