@@ -1020,6 +1020,24 @@ test('WELCOME: chỉ theo mã Zalo, cần bật đọc tin riêng và người �
   c.cleanup();
 });
 
+test('tin trả lời (WELCOME, REPLY) có khoảng nghỉ cố định riêng 30 giây; tin chủ động vẫn theo khoảng nghỉ 90 giây', async () => {
+  const c = setup({ env: { BRIDGE_INBOX_ENABLED: 'true' } });
+  await c.bridge.start();
+  await loginAndListen(c);
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', uid: '777', text: 'Mời' })).outcome, 'OK');
+  c.adapter.emitMessage('777', 'Ưu đãi như nào');
+  c.clock.t += 10000;
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'REPLY', uid: '777', text: 'Dạ' }), { outcome: 'RATE_LIMITED', retryAfterSec: 20 });
+  c.clock.t += 21000; // 31 giây sau tin trước
+  assert.equal((await c.bridge.sendMessage({ kind: 'REPLY', uid: '777', text: 'Dạ' })).outcome, 'OK');
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', uid: '778', text: 'Mời' })).outcome, 'RATE_LIMITED'); // tin chủ động chưa đủ 90 giây
+  c.adapter.emitMessage('777', 'Cho hỏi thêm');
+  c.clock.t += 31000;
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', uid: '778', text: 'Mời' })).outcome, 'RATE_LIMITED'); // mới 31 giây
+  assert.equal((await c.bridge.sendMessage({ kind: 'REPLY', uid: '777', text: 'Dạ' })).outcome, 'OK');
+  c.cleanup();
+});
+
 test('WELCOME: mỗi tin đến chỉ được trả lời một lần, quá 24 giờ thì thôi, tin mới thì được lại; vẫn chịu khoảng nghỉ và trần ngày chung', async () => {
   const c = setup({ env: { BRIDGE_INBOX_ENABLED: 'true' } });
   await c.bridge.start();

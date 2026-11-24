@@ -58,6 +58,8 @@ export function loadConfig(env = process.env) {
     // Vượt trần ngày thì cầu nối tự dừng; gửi quá sớm thì chỉ bị từ chối (RATE_LIMITED), Adh thử lại sau.
     msgDaily: int(env, 'BRIDGE_MSG_DAILY', 150, 1, 400),
     msgGapMs: int(env, 'BRIDGE_MSG_GAP_SEC', 90, 30, 3600) * 1000,
+    // Khoảng nghỉ cố định riêng cho tin TRẢ LỜI người vừa nhắn tới (WELCOME, REPLY), ngắn hơn; tính từ tin gần nhất bất kể loại. Không ngẫu nhiên.
+    replyGapMs: int(env, 'BRIDGE_REPLY_GAP_SEC', 30, 15, 3600) * 1000,
     // Lời mời kết bạn (23/11/2026, chủ shop chốt "tài khoản phụ chủ động kết bạn"): chỉ gửi cho người ĐÃ nhận Tin 1 từ chính cầu nối này, mỗi người
     // một lời mời. Trần cứng mỗi ngày của CHÍNH cầu nối (Adh đặt thấp hơn, mặc định 10); dùng chung khoảng nghỉ cố định, khung giờ, phanh
     // khẩn cấp đếm mọi tin và cầu dao với phần gửi tin. Không ngẫu nhiên hóa.

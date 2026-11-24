@@ -428,8 +428,9 @@ export class Bridge {
       return { outcome: 'RESTRICTED', code: 'MSG_LIMIT' };
     }
     const last = this.msgLedger.last();
-    if (last !== null && t - last < this.config.msgGapMs) {
-      return { outcome: 'RATE_LIMITED', retryAfterSec: Math.ceil((this.config.msgGapMs - (t - last)) / 1000) };
+    const gapMs = isReply ? Math.min(this.config.replyGapMs, this.config.msgGapMs) : this.config.msgGapMs; // tin trả lời có khoảng nghỉ cố định ngắn hơn
+    if (last !== null && t - last < gapMs) {
+      return { outcome: 'RATE_LIMITED', retryAfterSec: Math.ceil((gapMs - (t - last)) / 1000) };
     }
     if (isReply) {
       // chỉ trả lời người vừa nhắn tới và chưa được trả lời cho tin đó; kiểm trước khi chạm Zalo

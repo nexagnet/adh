@@ -28,6 +28,11 @@ public interface ZaloMessenger {
             return this == INVITE || this == FOLLOWUP2 || this == FOLLOWUP3;
         }
 
+        /** Tin trả lời người vừa TỰ nhắn tới (tin mẫu hoặc câu do trợ lý AI soạn): có khoảng nghỉ cố định riêng, ngắn hơn. */
+        public boolean answersInbound() {
+            return this == WELCOME || this == REPLY;
+        }
+
         public boolean followup() {
             return this == FOLLOWUP2 || this == FOLLOWUP3;
         }

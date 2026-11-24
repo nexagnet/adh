@@ -71,6 +71,8 @@ public class DeepSeekClient implements AiClient {
         body.put("messages", List.of(Map.of("role", "system", "content", system), Map.of("role", "user", "content", user)));
         body.put("max_tokens", maxTokens);
         body.put("temperature", 0);
+        // Tắt chế độ "suy nghĩ sâu": phân loại và soạn câu ngắn không cần, và nó làm chậm cả lượt gọi lẫn hàng chờ trả lời.
+        body.put("thinking", Map.of("type", "disabled"));
         body.put("stream", false);
         if (json) {
             body.put("response_format", Map.of("type", "json_object"));
