@@ -54,7 +54,7 @@ class DeepSeekClientTest {
         assertThat(out).isEqualTo("Xin chào");
         assertThat(path.get()).isEqualTo("/chat/completions");
         assertThat(auth.get()).isEqualTo("Bearer " + KEY);
-        assertThat(body.get()).contains("\"model\":\"mo-hinh-thu\"").contains("câu hỏi").contains("\"stream\":false")
+        assertThat(body.get()).contains("\"model\":\"mo-hinh-thu\"").contains("câu hỏi").contains("\"stream\":false").contains("\"thinking\":{\"type\":\"disabled\"}")
                 .doesNotContain(KEY).doesNotContain("response_format");
         client("m").complete("s", "u", true);
         assertThat(body.get()).contains("response_format");

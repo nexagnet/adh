@@ -228,6 +228,28 @@ class ReplyTest extends AbstractPostgresTest {
     }
 
     @Test
+    void tinTraLoiCoKhoangNghiCoDinhRiengNganHonTinChuDong() {
+        autoOn();
+        says("Vào nhóm có mất phí không");
+        freshInbound();
+        assertThat(sender.step()).isTrue();
+        clock.advance(java.time.Duration.ofSeconds(10));
+        fake.pushInbound("60000001", "Ưu đãi thế nào");
+        svc.poll();
+        freshInbound();
+        assertThat(sender.step()).isFalse(); // mới 10 giây: chưa đủ khoảng nghỉ của tin trả lời (30 giây)
+        assertThat(fake.messages).hasSize(1);
+        clock.advance(java.time.Duration.ofSeconds(25));
+        assertThat(sender.step()).isTrue(); // đủ 30 giây thì gửi, không phải đợi 120 giây như tin chủ động
+        assertThat(fake.messages).hasSize(2);
+        // tin chủ động vẫn theo khoảng nghỉ dài
+        assertThat(messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.INVITE, null, null)).isPresent();
+        clock.advance(java.time.Duration.ofSeconds(60));
+        assertThat(messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.INVITE, null, null)).isPresent(); // 60 < 120
+        assertThat(messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.REPLY, null, null)).isEmpty();
+    }
+
+    @Test
     void tuDongTinTraLoiKhongTinhVaoHanMucKhachMoiNgay() {
         autoOn();
         settings.set("zalo.msg.daily", "1", "test");

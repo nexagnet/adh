@@ -37,6 +37,12 @@ public class ZaloMessageService {
     static final String ENABLED = "zalo.msg.enabled";
     static final String DAILY = "zalo.msg.daily";
     static final String GAP = "zalo.msg.gap_seconds";
+    /**
+     * Khoảng nghỉ CỐ ĐỊNH (không ngẫu nhiên) riêng cho tin trả lời người vừa tự nhắn tới (chủ dự án chốt 24/11/2026), tính từ tin gần nhất bất kể loại.
+     * Ngắn hơn khoảng nghỉ của tin shop chủ động nhắn để khách đang chờ không phải đợi cả giờ khi nhiều người nhắn cùng lúc. Cầu nối có sàn riêng
+     * (BRIDGE_REPLY_GAP_SEC, mặc định bằng số này) và phải ≤ số này.
+     */
+    public static final int REPLY_GAP_SECONDS = 30;
     static final String FRIEND_DAILY = "zalo.friend.daily";
     public static final String SCOPE_REAL = "REAL";
     /** Số lần liền lỗi riêng người (mã lạ) thì dừng, và số lần liền "không tìm thấy" thì dừng để người kiểm tra. */
@@ -273,7 +279,8 @@ public class ZaloMessageService {
             return Optional.of(Block.DAILY_LIMIT);
         }
         Instant last = lastAt(null);
-        if (last != null && now.isBefore(last.plusSeconds(l.gapSeconds()))) {
+        int gap = kind.answersInbound() ? Math.min(REPLY_GAP_SECONDS, l.gapSeconds()) : l.gapSeconds();
+        if (last != null && now.isBefore(last.plusSeconds(gap))) {
             return Optional.of(Block.GAP);
         }
         if (invite && scopeDaily != null && countSince(startOfDay(), scope, true) >= scopeDaily) {
