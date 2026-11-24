@@ -120,8 +120,8 @@
         <p class="hint">Mặc định gửi <strong>1 lần</strong>. Có thể gửi thêm tối đa <span th:text="${maxTouches - 1}">2</span> tin nhắc (mỗi khách nhận tối đa <span th:text="${maxTouches}">3</span> lần).
             Khách đã kết bạn, vào nhóm, từ chối, nhắn xin ngừng hoặc đã nhắn riêng cho shop thì dừng ngay, không nhắc nữa. Hệ thống tự thêm câu xin ngừng
             "<span th:text="${stopFooter}">Anh/chị không muốn nhận tin nữa cứ nhắn "dừng" ạ.</span>" vào cuối mỗi lần gửi. Hai lần gửi cách nhau ít nhất <span th:text="${minGapDays}">3</span> ngày.</p>
-        <details>
-            <summary>Nội dung Tin 1</summary>
+        <details th:attr="open=${progress.first() == 0} ? 'open' : null">
+            <summary>Sửa nội dung Tin 1 (mẫu)</summary>
             <form th:action="@{/campaigns/{id}/first-message(id=${campaign.id})}" method="post" class="stack">
                 <label class="field">Tin 1 (gửi lần đầu)
                     <textarea name="template" rows="6" maxlength="800" th:text="${campaign.template}">Tin 1</textarea></label>
@@ -191,6 +191,7 @@
     <th:block th:if="${tab == 'tin'}">
     <h2>Nội dung tin (mẫu)</h2>
     <p th:text="${campaign.template}" class="mono">mẫu</p>
+    <p class="hint">Muốn sửa: mở mục "Sửa nội dung Tin 1 (mẫu)" ở phía trên trang này. Chỉ sửa được khi chưa gửi Tin 1 cho khách nào của chiến dịch.</p>
 
     <div class="actions" th:if="${campaign.ready > 0}">
         <form th:action="@{/campaigns/{id}/dry-run(id=${campaign.id})}" method="post">
