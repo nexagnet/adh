@@ -58,3 +58,14 @@ Phần "dọn" thực hiện: sửa chú thích lỗi thời của Tin 2 trong `
 - **Các danh sách khác**: bảng có `data-filter` được lọc ngay trên máy (`list-filter.js`, cột ít giá trị thì chọn từ danh sách, còn lại gõ chữ không phân biệt dấu); bảng mới muốn có lọc chỉ cần thêm thuộc tính này. Điện thoại có nút "Lọc" mở khung gồm mọi cột. Lọc chỉ áp cho các dòng đang hiển thị trên trang.
 - **Ghim cột đầu** (số điện thoại, tên, mã) khi cuộn ngang: bảng khách và các bảng có `data-sticky`; bóng mờ hiện khi đã cuộn. Bảng ghim bỏ `overflow: hidden` của `table` (nếu không thì `position: sticky` không hoạt động), viền và bo góc do khung `.table-wrap` lo. Điện thoại (≤ 700px) bảng thành thẻ nên không ghim.
 - **Co giãn**: thanh bên chuyển thành thanh trên cùng từ 1100px (trước là 900px); độ rộng thanh bên và lề trang co theo màn hình; thẻ số liệu tự chia cột theo chỗ trống; bốn thẻ xếp 2 x 2 ở màn vừa.
+
+## Đơn giản hóa giao diện cấu hình (24/11/2026, PR #120 đến #125)
+
+Chủ dự án thấy các trang cấu hình rối, không tập trung. Kế hoạch gốc: `KE-HOACH-DON-GIAN-HOA-GIAO-DIEN-CAU-HINH.md` (trong thư mục dự án). Chỉ đổi giao diện, không đổi hành vi gửi tin, hạn mức, cầu dao, chế độ thử.
+
+- **Thanh menu** chia nhóm "Hằng ngày", "Chiến dịch", "Cài đặt", và mục "Khác" gấp lại (`NavMenu`, `<details class="nav-more">`).
+- **`/zalo`** chia 4 tab chọn bằng `?tab=`: `tinh-trang` (mặc định), `gioi-han`, `nhom`, `thu`. Thanh an toàn (Dừng ngay, Tạm dừng tất cả) luôn hiện phía trên các tab. Mọi chuyển hướng sau khi lưu quay về đúng tab.
+- **`/zalo/reply` (Trợ lý AI)** chia 4 tab: `hom-nay`, `bat-tat`, `thong-tin`, `nang-cao`.
+- **`/campaigns`**: tab "Chiến dịch", "Tạo chiến dịch" (`?tab=moi`), "Đề xuất của AI". Fragment `campaignTabs` và `groupTabs` trong `fragments.html` (đừng dùng thẻ `<nav>` cho fragment mới: `~{fragments :: nav}` khớp cả thẻ `<nav>`, dùng `<div role="navigation">`).
+- **Tổng quan** gọn: khối "Lời mời và nhóm" gấp vào "Xem thêm".
+- **Chưa làm (cố ý):** `/handoffs` chưa chia tab (một hàng đợi duy nhất); fragment "nấc" dùng chung cho ba công tắc ba nấc; thay chữ "mẹ" bằng "người thật" ở mọi chỗ. Làm sau khi chạy thử xong và chủ dự án thấy cần.
