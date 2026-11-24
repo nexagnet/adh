@@ -180,4 +180,34 @@ class AdvisorSnapshotTest extends AbstractPostgresTest {
         assertThat(done.state()).isEqualTo("XONG");
         assertThat(done.sent()).isEqualTo(3);
     }
+
+    private long batchId;
+
+    /** Một đơn giao thành công của số điện thoại này, với tên hàng cho trước. */
+    private void delivered(String phone, String goods, String tracking) {
+        if (batchId == 0) {
+            batchId = jdbc.sql("INSERT INTO import_batch (carrier, filename, sha256, file_content) VALUES ('JT_EXPRESS', 'f.csv', 'x', '\\x00') RETURNING id")
+                    .query(Long.class).single();
+        }
+        jdbc.sql("""
+                INSERT INTO shipment (carrier, tracking_no, receiver_phone_raw, receiver_phone, created_on, raw_status, status_key,
+                                      canonical_status, goods, raw_payload, first_batch_id, last_batch_id)
+                VALUES ('JT_EXPRESS', :t, :p, :p, now(), 'x', 'x', 'DELIVERED', :g, '{}'::jsonb, :b, :b)""")
+                .param("t", tracking).param("p", phone).param("g", goods, java.sql.Types.VARCHAR).param("b", batchId).update();
+    }
+
+    @Test
+    void demKhachDuDieuKienTheoNhomHangDaMua() {
+        List<String> phones = jdbc.sql("SELECT phone FROM customer WHERE id IN (:ids) ORDER BY id").param("ids", hcm.subList(0, 6))
+                .query(String.class).list();
+        delivered(phones.get(0), "Áo điều hòa kèm pin 20000mAh", "T1");
+        delivered(phones.get(1), "Áo điều hòa nam", "T2");
+        delivered(phones.get(1), "Áo điều hòa nam", "T3"); // cùng nhóm, vẫn đếm một khách
+        delivered(phones.get(2), "Dây sạc type C", "T4");
+        delivered(phones.get(3), null, "T5");
+
+        var a = service.build().areas().getFirst();
+        assertThat(a.products()).isEqualTo(new AdvisorSnapshot.Products(2, 1, 1, 1));
+        assertThat(service.build().toJson()).doesNotContain("Dây sạc").doesNotContain("20000mAh").contains("\"ao_dieu_hoa\":2");
+    }
 }

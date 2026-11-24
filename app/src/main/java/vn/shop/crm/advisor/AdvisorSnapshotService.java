@@ -3,6 +3,7 @@ package vn.shop.crm.advisor;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import vn.shop.crm.contact.ContactService;
+import vn.shop.crm.contact.ProductGroup;
 import vn.shop.crm.geo.GeoArea;
 import vn.shop.crm.geo.Province;
 import vn.shop.crm.geo.SubRegion;
@@ -68,6 +69,7 @@ public class AdvisorSnapshotService {
         long customers, oneTime, eligible, awaiting, new30;
         long r30, r90, r180, rOld, rUnknown;
         long sent, friended, joined, optedOut;
+        long gShirt, gBattery, gOther, gUnknown;
 
         void add(Acc o) {
             customers += o.customers;
@@ -84,6 +86,10 @@ public class AdvisorSnapshotService {
             friended += o.friended;
             joined += o.joined;
             optedOut += o.optedOut;
+            gShirt += o.gShirt;
+            gBattery += o.gBattery;
+            gOther += o.gOther;
+            gUnknown += o.gUnknown;
         }
 
         AdvisorSnapshot.Funnel funnel() {
@@ -157,7 +163,7 @@ public class AdvisorSnapshotService {
         return new AdvisorSnapshot.Area(GeoArea.sub(sub).code(), sub.label(), sub.region().label(), acc.customers,
                 acc.oneTime, acc.eligible, acc.awaiting, acc.new30,
                 new AdvisorSnapshot.Recency(acc.r30, acc.r90, acc.r180, acc.rOld, acc.rUnknown), acc.funnel(),
-                weatherOf(provinces, forecasts), top);
+                weatherOf(provinces, forecasts), top, new AdvisorSnapshot.Products(acc.gShirt, acc.gBattery, acc.gOther, acc.gUnknown));
     }
 
     /** Trung bình theo số khách của từng tỉnh; null nếu chưa có dự báo nào cho vùng này. */
@@ -225,6 +231,7 @@ public class AdvisorSnapshotService {
         contacts.eligibleNotInvitedByProvince().forEach((p, n) -> out.computeIfAbsent(p, k -> new Acc()).eligible += n);
         contacts.candidatesByProvince().forEach((p, n) -> out.computeIfAbsent(p, k -> new Acc()).awaiting += n);
         contacts.optedOutAfterInviteByProvince().forEach((p, n) -> out.computeIfAbsent(p, k -> new Acc()).optedOut += n);
+        addProducts(out);
 
         jdbc.sql("""
                         SELECT coalesce(c.province, '') AS p,
@@ -245,6 +252,25 @@ public class AdvisorSnapshotService {
                     dst.joined += e.getValue().joined;
                 });
         return out;
+    }
+
+    /** Đếm khách đủ điều kiện mời theo nhóm hàng đã mua, theo tỉnh: mỗi khách một lần ở mỗi nhóm. */
+    private void addProducts(Map<String, Acc> out) {
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (ContactService.Purchase p : contacts.eligibleNotInvitedPurchases()) {
+            Acc acc = out.computeIfAbsent(p.province(), k -> new Acc());
+            for (ProductGroup g : ProductGroup.of(p.goods())) {
+                if (!seen.add(p.customerId() + ":" + g)) {
+                    continue;
+                }
+                switch (g) {
+                    case AO_DIEU_HOA -> acc.gShirt++;
+                    case PIN -> acc.gBattery++;
+                    case PHU_KIEN_KHAC -> acc.gOther++;
+                    case CHUA_RO -> acc.gUnknown++;
+                }
+            }
+        }
     }
 
     /** Số chiến dịch gần đây (hoặc còn khách chờ) báo cho AI, tối đa. */
