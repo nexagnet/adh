@@ -88,6 +88,30 @@
         </div>
     </section>
 
+    <section th:if="${!track.outcomes().isEmpty()}">
+        <h2>Kết quả các đề xuất đã triển khai</h2>
+        <p class="muted small">Để biết AI đề xuất trúng hay trượt: tỉ lệ thật của chiến dịch tạo từ đề xuất, so với các chiến dịch khác.
+            Dưới 5 khách đã nhắn thì chưa kết luận được. AI cũng được xem các số này khi đề xuất lần sau.</p>
+        <div class="table-wrap">
+            <table>
+                <tr><th>Đề xuất</th><th>Tin cậy lúc đó</th><th>Đã nhắn</th><th>Kết bạn</th><th>Vào nhóm</th><th>Từ chối</th><th>Mua sau khi vào nhóm</th></tr>
+                <tr th:each="o : ${track.outcomes()}">
+                    <td><a th:href="@{/campaigns/{id}(id=${o.campaignId})}" th:text="${o.title}">Rét đợt 1</a>
+                        <span class="muted small" th:text="'· ' + ${o.areaLabel}"></span></td>
+                    <td th:text="${o.confidencePercent} + '%'">55%</td>
+                    <td th:text="${o.sent}">20</td>
+                    <td th:if="${o.enough()}" th:text="${o.friended} + ' (' + ${#numbers.formatDecimal(o.friendedPercent(), 1, 0)} + '%)'">8 (40%)</td>
+                    <td th:if="${o.enough()}" th:text="${o.joined} + ' (' + ${#numbers.formatDecimal(o.joinedPercent(), 1, 0)} + '%)'">5 (25%)</td>
+                    <td th:if="${o.enough()}" th:text="${o.optedOut} + ' (' + ${#numbers.formatDecimal(o.refusalPercent(), 1, 0)} + '%)'">1 (5%)</td>
+                    <td th:if="${o.enough()}" th:text="${o.buyers != null} ? ${o.buyers} : 'chưa đủ số liệu'">2</td>
+                    <td th:unless="${o.enough()}" colspan="4" class="muted">Chưa đủ khách đã nhắn để kết luận</td>
+                </tr>
+            </table>
+        </div>
+        <p class="muted small" th:if="${track.baselineFriendedPercent() != null}"
+           th:text="'Các chiến dịch khác (' + ${track.baselineSent()} + ' khách đã nhắn): kết bạn ' + ${#numbers.formatDecimal(track.baselineFriendedPercent(), 1, 0)} + '%, vào nhóm ' + ${#numbers.formatDecimal(track.baselineJoinedPercent(), 1, 0)} + '%.'">Các chiến dịch khác: kết bạn 30%.</p>
+    </section>
+
     <section th:if="${!runs.isEmpty()}">
         <h2>Các lần nhờ AI gần đây</h2>
         <div class="table-wrap">
