@@ -23,8 +23,7 @@
                 <strong th:text="${#numbers.formatDecimal(scopeMin, 1, 2)}">0,80</strong>), rồi soạn câu <strong>chỉ từ bảng thông tin cửa hàng</strong> bên dưới.</li>
             <li>Câu AI soạn còn qua bộ kiểm tra cứng: chặn con số không có trong bảng, đường dẫn, số điện thoại, hứa hẹn, chuyện đổi trả, nền tảng khác, xin thông tin cá nhân.
                 Không qua thì <strong>không gửi</strong>, chuyển người thật.</li>
-            <li>Trợ lý luôn nói rõ mình là trợ lý AI, không giả làm người hay chủ shop. Mỗi câu kèm chữ ký:
-                <em th:text="${signature}">— Trợ lý AI của Cửa hàng.</em></li>
+            <li>Câu trả lời không kèm chữ ký (đã bỏ 24/11/2026). Trợ lý không bao giờ nhận mình là người, nhân viên hay chủ shop; khách hỏi thẳng "bạn là AI hay người" thì được trả lời thật là trợ lý AI.</li>
             <li>Bước soạn câu nhận thêm <a href="#ho-so">hồ sơ của ĐÚNG khách đang nhắn</a> (khu vực, hàng đã mua, nhóm...), chỉ các trường bạn cho phép bên dưới. Không bao giờ gửi
                 số điện thoại, địa chỉ, mã vận đơn, thanh toán, mã Zalo, tên khách hay link nhóm. Khách từng từ chối không bao giờ được trả lời ở đây.</li>
             <li>Khách nhắn trước thì không giới hạn số câu trả lời (mỗi tin đến một câu trả lời); vẫn theo giờ gửi, khoảng nghỉ cố định, cầu dao và phanh khẩn cấp của bộ nối.</li>
