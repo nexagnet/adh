@@ -57,6 +57,9 @@ services:
       APP_ZALO_LIVE: ${APP_ZALO_LIVE:-false}
       # Tự gửi tin (D18): trần cứng số KHÁCH được nhắn chủ động mỗi ngày (Tin 1) mà trang quản trị được phép đặt. Công tắc mặc định TẮT.
       APP_ZALO_AUTO_MSG_MAX_DAILY: ${APP_ZALO_AUTO_MSG_MAX_DAILY:-50}
+      # Trần cứng số lời mời kết bạn mỗi ngày và số người thêm vào nhóm mỗi giờ mà trang quản trị được phép đặt (cầu nối có trần riêng BRIDGE_FRIEND_DAILY).
+      APP_ZALO_AUTO_FRIEND_MAX_DAILY: ${APP_ZALO_AUTO_FRIEND_MAX_DAILY:-50}
+      APP_ZALO_AUTO_MAX_HOURLY: ${APP_ZALO_AUTO_MAX_HOURLY:-30}
       # AI (DeepSeek) nhận diện khách từ chối (D19). MẶC ĐỊNH TẮT; cần cả ba cờ: APP_AI_ENABLED, APP_ZALO_INBOX_ENABLED và BRIDGE_INBOX_ENABLED ở bộ nối.
       # Khóa API chỉ đặt trong file .env trên máy chủ (không vào repo, log hay PR); tên mô hình do chủ shop đặt.
       APP_AI_ENABLED: ${APP_AI_ENABLED:-false}
@@ -95,6 +98,7 @@ services:
       BRIDGE_PERSON_ERROR_CODES: ${ZALO_PERSON_ERROR_CODES:-}
       # Tự gửi tin (D18): trần cứng và khoảng cách tối thiểu ở bộ nối (cao hơn trần của ứng dụng, là lớp bảo hiểm thứ hai).
       BRIDGE_MSG_DAILY: ${BRIDGE_MSG_DAILY:-150}
+      BRIDGE_FRIEND_DAILY: ${BRIDGE_FRIEND_DAILY:-50}
       BRIDGE_MSG_GAP_SEC: ${BRIDGE_MSG_GAP_SEC:-90}
       BRIDGE_REPLY_GAP_SEC: ${BRIDGE_REPLY_GAP_SEC:-30}
       # Đọc tin riêng của người đã nhận tin hệ thống, chỉ để nhận diện từ chối (D19). MẶC ĐỊNH TẮT; tin chỉ nằm trong bộ nhớ.
