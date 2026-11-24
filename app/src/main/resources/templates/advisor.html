@@ -37,6 +37,8 @@
                 <span th:text="'Tối đa ' + ${p.batchSize} + ' khách, nhắn tối đa ' + ${p.dailyCap} + ' khách mỗi ngày'">Tối đa 40 khách</span>
             </p>
             <p th:text="'Từ ' + ${#temporals.format(p.startOn, 'dd/MM/yyyy')} + ' đến ' + ${#temporals.format(p.endOn, 'dd/MM/yyyy')} + ', khung giờ ' + ${#temporals.format(p.windowFrom, 'HH:mm')} + ' đến ' + ${#temporals.format(p.windowTo, 'HH:mm')}">Từ 25/11 đến 02/12</p>
+            <p class="small" th:if="${p.weekdaysLabel() != null}" th:text="'Chỉ gửi vào: ' + ${p.weekdaysLabel()}">Chỉ gửi vào: Thứ Hai</p>
+            <p class="small" th:if="${p.customPick()}" th:text="${p.pickLabel()}">Lấy khách mua gần đây nhất trước</p>
             <p>
                 Độ tin cậy: <strong th:text="${p.confidencePercent()} + '%'">50%</strong>
                 <span class="muted small" th:if="${p.confidenceCapped}">(AI tự nhận cao hơn, hệ thống đã hạ xuống vì chưa đủ số liệu)</span>

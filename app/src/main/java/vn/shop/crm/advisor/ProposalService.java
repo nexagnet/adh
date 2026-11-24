@@ -45,7 +45,43 @@ public class ProposalService {
     public record Proposal(long id, long runId, String title, String area, String areaLabel, int batchSize, LocalDate startOn,
                     LocalDate endOn, LocalTime windowFrom, LocalTime windowTo, int dailyCap, String messageAngle,
                     List<String> reasons, List<String> risks, double confidence, boolean confidenceCapped, String state,
-                    String decidedBy, LocalDateTime decidedAt, String decisionNote, Long campaignId, LocalDateTime createdAt) {
+                    String decidedBy, LocalDateTime decidedAt, String decisionNote, Long campaignId, LocalDateTime createdAt,
+                    Integer weekdays, String pickOrder, Integer minDays, Integer maxDays) {
+        public ContactService.Pick pick() {
+            return new ContactService.Pick(pickOrder, minDays, maxDays);
+        }
+
+        /** Ngày gửi trong tuần bằng chữ, ví dụ "Thứ Hai, Thứ Tư"; null nếu mọi ngày. */
+        public String weekdaysLabel() {
+            if (weekdays == null) {
+                return null;
+            }
+            String[] names = {"Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ nhật"};
+            List<String> out = new java.util.ArrayList<>();
+            for (int i = 0; i < 7; i++) {
+                if ((weekdays & (1 << i)) != 0) {
+                    out.add(names[i]);
+                }
+            }
+            return String.join(", ", out);
+        }
+
+        public String pickLabel() {
+            String order = switch (pickOrder) {
+                case "NEWEST_PURCHASE" -> "khách mua gần đây nhất trước";
+                case "OLDEST_PURCHASE" -> "khách mua đã lâu trước";
+                default -> "khách được duyệt sớm nhất trước";
+            };
+            String range = minDays == null && maxDays == null ? ""
+                    : "; lần mua gần nhất cách đây " + (minDays != null && maxDays != null ? "từ " + minDays + " đến " + maxDays + " ngày"
+                    : minDays != null ? "ít nhất " + minDays + " ngày" : "không quá " + maxDays + " ngày");
+            return "Lấy " + order + range;
+        }
+
+        public boolean customPick() {
+            return pick().any();
+        }
+
         public boolean open() {
             return "PROPOSED".equals(state);
         }
@@ -143,18 +179,18 @@ public class ProposalService {
         expireOld();
         Proposal p = lock(id);
         requireOpen(p);
-        long available = contacts.countEligibleNotInvited(p.area());
+        long available = contacts.countEligibleNotInvited(p.area(), p.pick());
         int count = (int) Math.min(p.batchSize(), Math.min(available, invites.maxCampaign()));
         if (count < 1) {
-            throw new ImportException("Hiện không còn khách nào ở khu vực này đủ điều kiện mời và chưa từng được mời, nên chưa tạo được chiến dịch. "
+            throw new ImportException("Hiện không còn khách nào ở khu vực này (theo cách chọn khách của đề xuất) đủ điều kiện mời và chưa từng được mời, nên chưa tạo được chiến dịch. "
                     + "Hãy duyệt thêm khách ở mục Danh sách mời, hoặc bỏ qua đề xuất này.");
         }
         String name = p.title().length() <= MAX_NAME ? p.title() : p.title().substring(0, MAX_NAME);
-        long campaignId = invites.createCampaign(name, null, expiresDaysFor(p, today()), count, p.area());
+        long campaignId = invites.createCampaign(name, null, expiresDaysFor(p, today()), count, p.area(), p.pick());
         // Lịch, khung giờ và hạn mức ngày AI đề xuất được đặt vào chiến dịch, nhưng luôn KẸP trong trần hệ thống (chỉ chặt hơn, không bao giờ nới).
         policy.saveClamped(campaignId, new CampaignPolicy.Raw(p.startOn(), p.endOn(), p.windowFrom(), p.windowTo(), p.dailyCap(), null), by);
         // Cấu hình sẵn thêm: hoãn khi mưa lớn (chỉ HOÃN, không bao giờ gửi nhanh hơn hay nhiều hơn); ngày trong tuần và ngưỡng tự dừng theo hệ thống.
-        policy.saveExtra(campaignId, new CampaignPolicy.Extra(null, true, null), by);
+        policy.saveExtra(campaignId, new CampaignPolicy.Extra(p.weekdays(), true, null), by);
         jdbc.sql("""
                         UPDATE campaign_proposal SET state = 'APPROVED', decided_by = :by, decided_at = now(), campaign_id = :cid
                         WHERE id = :id""")
@@ -202,7 +238,8 @@ public class ProposalService {
     private static final String SELECT = """
             SELECT p.id, p.run_id, p.title, p.area, p.batch_size, p.start_on, p.end_on, p.window_from, p.window_to, p.daily_cap,
                    p.message_angle, p.reasons::text AS reasons, p.risks::text AS risks, p.confidence, p.confidence_capped, p.state,
-                   p.decided_by, p.decided_at, p.decision_note, p.campaign_id, r.created_at
+                   p.decided_by, p.decided_at, p.decision_note, p.campaign_id, r.created_at,
+                   p.weekdays, p.pick_order, p.min_days, p.max_days
             FROM campaign_proposal p JOIN advisor_run r ON r.id = p.run_id""";
 
     private Proposal map(ResultSet rs, int n) throws SQLException {
@@ -215,7 +252,8 @@ public class ProposalService {
                 rs.getString("message_angle"), strings(rs.getString("reasons")), strings(rs.getString("risks")),
                 rs.getBigDecimal("confidence").doubleValue(), rs.getBoolean("confidence_capped"), rs.getString("state"),
                 rs.getString("decided_by"), local(rs.getObject("decided_at", OffsetDateTime.class)), rs.getString("decision_note"),
-                campaignId, local(rs.getObject("created_at", OffsetDateTime.class)));
+                campaignId, local(rs.getObject("created_at", OffsetDateTime.class)),
+                (Integer) rs.getObject("weekdays"), rs.getString("pick_order"), (Integer) rs.getObject("min_days"), (Integer) rs.getObject("max_days"));
     }
 
     private Run mapRun(ResultSet rs, int n) throws SQLException {

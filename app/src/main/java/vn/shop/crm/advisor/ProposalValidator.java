@@ -41,6 +41,10 @@ final class ProposalValidator {
     private static final Set<String> TOP_KEYS = Set.of("proposals", "skip_reason");
     private static final Set<String> KEYS = Set.of("title", "area", "batch_size", "start_date", "end_date", "window_from",
             "window_to", "daily_cap", "message_angle", "reasons", "risks", "confidence");
+    /** Khóa tùy chọn: thiếu thì lấy mặc định của hệ thống (mọi ngày, duyệt sớm nhất, không lọc độ mới lần mua). */
+    private static final Set<String> OPTIONAL_KEYS = Set.of("weekdays", "pick_order", "min_days_since_purchase", "max_days_since_purchase");
+    private static final Set<String> PICK_ORDERS = Set.of("OLDEST_APPROVED", "NEWEST_PURCHASE", "OLDEST_PURCHASE");
+    static final int MAX_DAYS_SINCE_PURCHASE = 1100;
     private static final Pattern TIME = Pattern.compile("\\d{2}:\\d{2}");
     private static final Pattern LINK = Pattern.compile(
             "(https?:|www\\.|zalo\\.me|\\b[a-z0-9-]+\\.(com|vn|net|me|org|info|app|link|ly|io)\\b|@[a-z0-9_.]{3,})");
@@ -112,7 +116,8 @@ final class ProposalValidator {
 
     /** Trả {@link AdvisorProposal} nếu đạt, ngược lại trả chuỗi lý do bị bỏ. */
     private static Object one(JsonNode n, AdvisorSnapshot snap, LocalDate today, Set<String> usedAreas) {
-        if (!n.isObject() || !keysOf(n).equals(KEYS)) {
+        Set<String> keys = n.isObject() ? keysOf(n) : Set.of();
+        if (!n.isObject() || !keys.containsAll(KEYS) || !allowed(keys)) {
             return "sai khuôn (thiếu hoặc thừa khóa)";
         }
         for (String k : List.of("title", "area", "start_date", "end_date", "window_from", "window_to", "message_angle")) {
@@ -217,6 +222,45 @@ final class ProposalValidator {
             }
         }
 
+        Integer weekdays = null;
+        if (n.has("weekdays") && !n.get("weekdays").isNull()) {
+            JsonNode w = n.get("weekdays");
+            if (!w.isArray() || w.isEmpty() || w.size() > 7) {
+                return "weekdays phải là danh sách 1 đến 7 ngày (1 = thứ Hai ... 7 = Chủ nhật) hoặc null";
+            }
+            int mask = 0;
+            for (JsonNode d : w) {
+                if (!d.isIntegralNumber() || d.asInt() < 1 || d.asInt() > 7) {
+                    return "weekdays chỉ nhận số nguyên từ 1 đến 7";
+                }
+                mask |= 1 << (d.asInt() - 1);
+            }
+            weekdays = mask == 127 ? null : mask;
+            if (weekdays != null && !hasAllowedDay(weekdays, start, end)) {
+                return "weekdays không có ngày nào nằm trong khoảng từ ngày bắt đầu tới ngày kết thúc";
+            }
+            long sendDays = allowedDays(mask, start, end);
+            if ((long) batch > (long) cap * sendDays) {
+                return "batch_size " + batch + " vượt số khách gửi được trong các ngày được chọn (" + cap + " khách mỗi ngày x " + sendDays
+                        + " ngày gửi = " + (long) cap * sendDays + ")";
+            }
+        }
+        String pickOrder = "OLDEST_APPROVED";
+        if (n.has("pick_order") && !n.get("pick_order").isNull()) {
+            if (!n.get("pick_order").isString() || !PICK_ORDERS.contains(n.get("pick_order").asString())) {
+                return "pick_order chỉ nhận OLDEST_APPROVED, NEWEST_PURCHASE hoặc OLDEST_PURCHASE";
+            }
+            pickOrder = n.get("pick_order").asString();
+        }
+        Integer minDays = optionalDays(n, "min_days_since_purchase");
+        Integer maxDays = optionalDays(n, "max_days_since_purchase");
+        if (minDays != null && minDays == -1 || maxDays != null && maxDays == -1) {
+            return "min_days_since_purchase và max_days_since_purchase phải là số nguyên từ 0 đến " + MAX_DAYS_SINCE_PURCHASE + " hoặc null";
+        }
+        if (minDays != null && maxDays != null && maxDays < minDays) {
+            return "max_days_since_purchase không được nhỏ hơn min_days_since_purchase";
+        }
+
         double confidence = n.get("confidence").asDouble();
         double ceiling = 1.0;
         if (snap.overall().funnel().sent() < MIN_HISTORY_SENT) {
@@ -227,7 +271,7 @@ final class ProposalValidator {
         }
         boolean capped = confidence > ceiling;
         return new AdvisorProposal(title, area, batch, start, end, from, to, cap, angle, reasons, risks,
-                Math.min(confidence, ceiling), capped);
+                Math.min(confidence, ceiling), capped, weekdays, pickOrder, minDays, maxDays);
     }
 
     /** Hai khu vực có chung tỉnh nào không. "ALL" là mọi nơi, "U" là chưa rõ tỉnh. */
@@ -257,6 +301,47 @@ final class ProposalValidator {
         } catch (DateTimeException e) {
             return true;
         }
+    }
+
+    private static boolean allowed(Set<String> keys) {
+        for (String k : keys) {
+            if (!KEYS.contains(k) && !OPTIONAL_KEYS.contains(k)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static long allowedDays(int mask, LocalDate start, LocalDate end) {
+        long n = 0;
+        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
+            if ((mask & (1 << (d.getDayOfWeek().getValue() - 1))) != 0) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /** Ít nhất một ngày trong khoảng [start, end] có bit tương ứng trong {@code mask}. */
+    static boolean hasAllowedDay(int mask, LocalDate start, LocalDate end) {
+        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
+            if ((mask & (1 << (d.getDayOfWeek().getValue() - 1))) != 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Số ngày tùy chọn: null nếu thiếu hoặc null; -1 nếu sai (không phải số nguyên 0 đến trần). */
+    private static Integer optionalDays(JsonNode n, String key) {
+        if (!n.has(key) || n.get(key).isNull()) {
+            return null;
+        }
+        JsonNode v = n.get(key);
+        if (!v.isIntegralNumber() || v.asInt() < 0 || v.asInt() > MAX_DAYS_SINCE_PURCHASE) {
+            return -1;
+        }
+        return v.asInt();
     }
 
     private static List<String> lines(JsonNode n, int min, int max) {

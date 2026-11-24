@@ -46,6 +46,7 @@ public class CampaignAdvisor {
             - start_date từ hôm nay (generated_on) trở đi, trong 30 ngày tới; end_date không quá 14 ngày kể từ start_date (YYYY-MM-DD).
             - window_from và window_to (HH:mm) nằm trong limits.window_from đến limits.window_to và rộng ít nhất 60 phút.
             - campaigns là các chiến dịch đang chạy hoặc mới chạy (scope là khu vực, state DANG_GUI hoặc CHUA_DUYET nghĩa là còn khách chờ gửi). Không đề xuất chiến dịch trùng khu vực VÀ trùng thời gian với chiến dịch còn chờ gửi; hãy chọn khu vực khác hoặc ngày sau khi chiến dịch kia kết thúc. Chiến dịch XONG cho biết kết quả (sent là số khách đã nhắn).
+            - Tùy chọn (có thể bỏ khỏi JSON, bỏ thì hệ thống dùng mặc định): weekdays là danh sách ngày trong tuần được gửi (1 là thứ Hai ... 7 là Chủ nhật; ví dụ tránh Chủ nhật khi khách ít để ý tin); pick_order là OLDEST_APPROVED (mặc định), NEWEST_PURCHASE (khách vừa mua gần đây trước, hợp khi muốn nhắn sớm lúc khách còn nhớ shop) hoặc OLDEST_PURCHASE (khách mua đã lâu trước); min_days_since_purchase và max_days_since_purchase giới hạn lần mua gần nhất cách đây bao nhiêu ngày (dùng recency của số liệu; ví dụ 0 đến 90 là khách mua trong 3 tháng). Chỉ dùng khi số liệu ủng hộ và nêu trong reasons. Khi dùng weekdays, batch_size không quá daily_cap nhân số ngày được gửi trong chiến dịch.
             - Mỗi lý do phải dựa vào một con số hoặc sự kiện CÓ trong số liệu (ví dụ nhiệt độ dự báo, số khách đủ điều kiện, dịp sắp tới, mùa). Không bịa số liệu.
             - Nếu thiếu dữ liệu (chưa có lịch sử phản hồi, chưa có thời tiết) thì nói rõ trong risks và cho confidence thấp. Nếu không đủ cơ sở để đề xuất, trả proposals rỗng và giải thích ngắn ở skip_reason.
             - Gợi ý thông thường (không chắc chắn, chỉ dùng khi số liệu ủng hộ): trời nóng thì khách quan tâm áo điều hòa nhiều hơn; mưa lớn thì khách ít để ý tin nhắn; tránh sát ngày lễ lớn nếu khách bận.
@@ -53,7 +54,7 @@ public class CampaignAdvisor {
             - Khi tính batch_size hãy xét hạn mức: số khách gửi được trong chiến dịch không quá daily_cap nhân số ngày của chiến dịch; batch_size nên không vượt con số đó.
             - message_angle là hướng nhấn gợi ý cho người viết tin (tối đa 200 ký tự), KHÔNG phải nội dung tin gửi khách. Không hứa giảm giá, quà tặng, cam kết; không nhắc đổi trả; không chứa số điện thoại hay đường dẫn.
             Chỉ trả về đúng MỘT đối tượng JSON, không thêm chữ nào khác, theo khuôn:
-            {"proposals":[{"title":"...","area":"S:DONG_NAM_BO","batch_size":40,"start_date":"2026-11-25","end_date":"2026-12-02","window_from":"09:00","window_to":"11:00","daily_cap":10,"message_angle":"...","reasons":["..."],"risks":["..."],"confidence":0.5}],"skip_reason":null}""";
+            {"proposals":[{"title":"...","area":"S:DONG_NAM_BO","batch_size":40,"start_date":"2026-11-25","end_date":"2026-12-02","window_from":"09:00","window_to":"11:00","daily_cap":10,"message_angle":"...","reasons":["..."],"risks":["..."],"confidence":0.5,"weekdays":[1,2,3,4,5],"pick_order":"NEWEST_PURCHASE","min_days_since_purchase":0,"max_days_since_purchase":90}],"skip_reason":null}""";
 
     private final AiGate ai;
     private final AiClient.Options options;
