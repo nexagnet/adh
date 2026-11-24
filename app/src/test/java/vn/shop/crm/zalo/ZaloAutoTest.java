@@ -707,22 +707,107 @@ class ZaloAutoTest extends AbstractPostgresTest {
         assertThat(cfg.quota().usedLastHour()).isZero();
     }
 
+    private void addLog(String at, long groupId, String result) {
+        jdbc.sql("INSERT INTO zalo_auto_log (at, action, invitation_id, group_id, result, actor) VALUES (CAST(:at AS timestamptz), 'THEM_NHOM', NULL, :g, :r, 'system')")
+                .param("at", at).param("g", groupId).param("r", result).update();
+    }
+
     @Test
-    void baLanLienLoiRiengNguoiThiDungDeKhongDotHanMuc() {
+    void bonLanLienLoiRiengNguoiCungMotNhomThiTamDungNhomKhongDungCauDao() {
         mode(ZaloMode.AUTO);
-        for (int i = 1; i <= 4; i++) {
+        for (int i = 1; i <= 5; i++) {
             sent(i);
             friend(i, i);
         }
         zalo.poll();
         fake.defaultResult = AddResult.of(Outcome.PERSON_ERROR, "Z1");
-        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.PERSON_FAILED);
+        for (int i = 1; i <= 3; i++) {
+            assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.PERSON_FAILED);
+            clock.advance(Duration.ofMinutes(2));
+        }
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.GROUP_FAILED);
+        assertThat(cfg.tripped()).isFalse(); // vài khách xui không làm cả hệ thống dừng
+        assertThat(groups.find(north).orElseThrow().status()).isEqualTo(GroupStatus.PAUSED);
+        assertThat(fake.adds).hasSize(4);
         clock.advance(Duration.ofMinutes(2));
-        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.PERSON_FAILED);
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.NO_GROUP); // nhóm đã tạm dừng thì không thêm nữa
+        assertThat(fake.adds).hasSize(4);
+    }
+
+    @Test
+    void loiRiengNguoiXenKeVoiThanhCongKhongBaoGioDungGi() {
+        mode(ZaloMode.AUTO);
+        for (int i = 1; i <= 6; i++) {
+            sent(i);
+            friend(i, i);
+        }
+        zalo.poll();
+        for (int i = 1; i <= 6; i++) {
+            fake.willReturn(i % 2 == 0 ? AddResult.ok() : AddResult.of(Outcome.PERSON_ERROR, "Z1"));
+            zalo.addNext();
+            clock.advance(Duration.ofMinutes(2));
+        }
+        assertThat(cfg.tripped()).isFalse();
+        assertThat(groups.find(north).orElseThrow().status()).isEqualTo(GroupStatus.OPEN);
+    }
+
+    @Test
+    void saoTrongTamLanGanNhatLoiRiengNguoiLanNhieuNhomThiDungCauDao() {
+        mode(ZaloMode.AUTO);
+        sent(1);
+        friend(1, 1);
+        zalo.poll();
+        // lịch sử trong ngày: 5 lần lỗi riêng người xen hai nhóm, 2 lần thành công (không có chuỗi 4 liền cùng một nhóm)
+        String[] seq = {"PERSON_ERROR", "PERSON_ERROR", "OK", "PERSON_ERROR", "PERSON_ERROR", "OK", "PERSON_ERROR"};
+        for (int i = 0; i < seq.length; i++) {
+            addLog("2026-11-22 0" + (1 + i) + ":00:00+07", i % 2 == 0 ? north : south, seq[i]);
+        }
+        fake.willReturn(AddResult.of(Outcome.PERSON_ERROR, "Z1"));
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.TRIPPED); // lần thứ 6 trong 8 lần gần nhất
+        assertThat(cfg.trippedReason()).isEqualTo("NHIEU_LOI_NGUOI");
+    }
+
+    @Test
+    void loiCaNhomThiTamDungNhomDoTraKhachVeHangDoiVaKhongDungCauDao() {
+        mode(ZaloMode.AUTO);
+        sent(1);
+        friend(1, 1);
+        zalo.poll();
+        fake.willReturn(AddResult.of(Outcome.GROUP_ERROR, "Z178"));
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.GROUP_FAILED);
+        assertThat(cfg.tripped()).isFalse();
+        assertThat(groups.find(north).orElseThrow().status()).isEqualTo(GroupStatus.PAUSED);
+        assertThat(addState(1)).isEqualTo("QUEUED"); // không phải lỗi của khách: chờ nhóm khác, không đánh dấu FAILED
+        // có nhóm khác cùng miền thì khách được thêm ở nhịp sau
+        long other = groups.create("Nhóm Bắc 2", "https://zalo.me/g/bac2", 50, "R:BAC");
+        groups.setStatus(other, GroupStatus.OPEN);
+        groups.setZaloGroupId(other, "1003");
+        fake.willReturn(AddResult.ok());
+        clock.advance(Duration.ofMinutes(2));
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.ADDED);
+        assertThat(fake.adds.get(fake.adds.size() - 1)[1]).isEqualTo("1003");
+    }
+
+    @Test
+    void baLanLienLoiCaNhomCuaBaNhomThiDungCauDao() {
+        mode(ZaloMode.AUTO);
+        for (int i = 1; i <= 4; i++) {
+            sent(i);
+            friend(i, i);
+        }
+        for (int k = 2; k <= 3; k++) {
+            long g = groups.create("Nhóm Bắc " + k, "https://zalo.me/g/bac" + k, 50, "R:BAC");
+            groups.setStatus(g, GroupStatus.OPEN);
+            groups.setZaloGroupId(g, "100" + (k + 1));
+        }
+        zalo.poll();
+        fake.defaultResult = AddResult.of(Outcome.GROUP_ERROR, "Z178");
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.GROUP_FAILED);
+        clock.advance(Duration.ofMinutes(2));
+        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.GROUP_FAILED);
         clock.advance(Duration.ofMinutes(2));
         assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.TRIPPED);
-        assertThat(cfg.trippedReason()).isEqualTo("NHIEU_LOI_NGUOI");
-        assertThat(fake.adds).hasSize(3);
+        assertThat(cfg.trippedReason()).isEqualTo("NHIEU_LOI_NHOM");
     }
 
     @Test

@@ -10,6 +10,7 @@ import vn.shop.crm.common.PhoneNormalizer;
 import vn.shop.crm.contact.ContactService;
 import vn.shop.crm.geo.VnGeo;
 import vn.shop.crm.invite.GroupService;
+import vn.shop.crm.invite.GroupStatus;
 import vn.shop.crm.invite.InviteService;
 import vn.shop.crm.safety.TestMode;
 
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -35,7 +37,7 @@ public class ZaloAutoService {
 
     private static final Logger log = LoggerFactory.getLogger(ZaloAutoService.class);
 
-    public enum Step { NOT_ACTIVE, LIMIT, NOTHING, NO_GROUP, ADDED, PERSON_FAILED, TRIPPED, UNREACHABLE }
+    public enum Step { NOT_ACTIVE, LIMIT, NOTHING, NO_GROUP, ADDED, PERSON_FAILED, GROUP_FAILED, TRIPPED, UNREACHABLE }
 
     public record WaitingRow(long invitationId, String customerName, String provinceName, String state, String code,
                              LocalDateTime friendedAt, String groupName, boolean groupReady, boolean mayApprove) {
@@ -454,85 +456,6 @@ public class ZaloAutoService {
         }
     }
 
-    /** Kết quả thêm một mã Zalo không thuộc khách thật (chiến dịch thử). */
-    public record ExternalAdd(Step step, String code) {
-    }
-
-    /**
-     * CHỈ cho chiến dịch thử (D18): thêm một mã Zalo vào một nhóm có mã nhóm Zalo, với ĐÚNG cùng chốt chặn như khách thật (nấc có
-     * thêm, cầu dao, khung giờ, hạn mức ngày và giờ, khoảng cách, nhật ký THEM_NHOM tính vào hạn mức, cầu dao khi lỗi lạ).
-     * Không đụng tới bảng khách hay lời mời. Xóa cùng màn chạy thử khi xong.
-     */
-    public ExternalAdd addExternal(String uid, GroupService.Group group) {
-        ZaloMode mode = cfg.effectiveMode();
-        if (!mode.adds()) {
-            return new ExternalAdd(Step.NOT_ACTIVE, null);
-        }
-        if (!group.hasZaloId()) {
-            return new ExternalAdd(Step.NO_GROUP, "KHONG_CO_MA_NHOM");
-        }
-        if (!addLock.tryLock()) {
-            return new ExternalAdd(Step.NOTHING, null);
-        }
-        try {
-            if (inFlightLeftover()) {
-                tripAndStop("INTERRUPTED", true);
-                return new ExternalAdd(Step.TRIPPED, "INTERRUPTED");
-            }
-            if (!cfg.mayAddNow()) {
-                return new ExternalAdd(Step.LIMIT, null);
-            }
-            ZaloGateway.Status st = gateway.status();
-            if (st.state() == ZaloGateway.State.TRIPPED) {
-                tripAndStop("BRIDGE_" + (st.tripReason() == null ? "TRIPPED" : st.tripReason()), false);
-                return new ExternalAdd(Step.TRIPPED, null);
-            }
-            if (Boolean.FALSE.equals(st.accountOk())) {
-                tripAndStop("ACCOUNT_MISMATCH", true);
-                return new ExternalAdd(Step.TRIPPED, "ACCOUNT_MISMATCH");
-            }
-            if (!st.listening() || !Boolean.TRUE.equals(st.accountOk())) {
-                return new ExternalAdd(Step.UNREACHABLE, null);
-            }
-            long logId = jdbc.sql("""
-                            INSERT INTO zalo_auto_log (at, action, invitation_id, group_id, result, actor)
-                            VALUES (:at, :a, NULL, :g, 'DANG_GOI', 'system') RETURNING id""")
-                    .param("at", OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)).param("a", ZaloAutoSettings.A_ADD)
-                    .param("g", group.id()).query(Long.class).single();
-            ZaloGateway.AddResult r = gateway.addToGroup(uid, group.zaloGroupId());
-            if (r.outcome() == ZaloGateway.Outcome.UNREACHABLE) {
-                jdbc.sql("DELETE FROM zalo_auto_log WHERE id = :id").param("id", logId).update();
-                return new ExternalAdd(Step.UNREACHABLE, null);
-            }
-            try {
-                jdbc.sql("UPDATE zalo_auto_log SET result = :r, code = :c WHERE id = :id")
-                        .param("r", r.outcome().name()).param("c", r.code(), java.sql.Types.VARCHAR).param("id", logId).update();
-                switch (r.outcome()) {
-                    case OK -> {
-                        return new ExternalAdd(Step.ADDED, null);
-                    }
-                    case PERSON_ERROR -> {
-                        if (lastAddsAllPersonErrors(3)) {
-                            tripAndStop("NHIEU_LOI_NGUOI", true);
-                            return new ExternalAdd(Step.TRIPPED, r.code());
-                        }
-                        return new ExternalAdd(Step.PERSON_FAILED, r.code() == null ? "LOI_NGUOI" : r.code());
-                    }
-                    default -> {
-                        tripAndStop(r.outcome().name() + (r.code() == null ? "" : ":" + r.code()), true);
-                        return new ExternalAdd(Step.TRIPPED, r.code());
-                    }
-                }
-            } catch (RuntimeException e) {
-                log.warn("Lỗi sau khi gọi Zalo thêm người (thử): {}", e.getClass().getSimpleName());
-                tripAndStop("INTERRUPTED", true);
-                return new ExternalAdd(Step.TRIPPED, "INTERRUPTED");
-            }
-        } finally {
-            addLock.unlock();
-        }
-    }
-
     private List<Task> queued(ZaloMode mode) {
         // AUTO: cả người còn "chờ duyệt" cũng đủ điều kiện (đã chọn tự thêm). CONFIRM: chỉ người đã được duyệt.
         String states = mode == ZaloMode.AUTO ? "('QUEUED', 'WAITING_APPROVAL')" : "('QUEUED')";
@@ -585,12 +508,15 @@ public class ZaloAutoService {
                 case PERSON_ERROR -> {
                     fail(t.invitationId(), r.code() == null ? "LOI_NGUOI" : r.code());
                     queueLink(t.invitationId(), group.id());
-                    if (lastAddsAllPersonErrors(3)) {
-                        // ba lần liền lỗi riêng người: nhiều khả năng cấu hình nhóm sai (ví dụ "chỉ quản trị viên được thêm"), đừng đốt hạn mức
-                        tripAndStop("NHIEU_LOI_NGUOI", true);
-                        return Step.TRIPPED;
-                    }
-                    return Step.PERSON_FAILED;
+                    return afterPersonError(group);
+                }
+                case GROUP_ERROR -> {
+                    // Zalo báo lỗi của CẢ NHÓM (không còn nhóm, không đủ quyền...): không phải lỗi của khách này và không phải dấu hiệu tài khoản
+                    // bị hạn chế. Tạm dừng đúng nhóm đó, trả khách về hàng đợi (khách sẽ được xếp nhóm khác), mẹ thấy cảnh báo.
+                    jdbc.sql("UPDATE invitation SET zalo_add_state = :s, zalo_add_code = NULL WHERE id = :id")
+                            .param("s", t.prevState()).param("id", t.invitationId()).update();
+                    groups.setStatus(group.id(), GroupStatus.PAUSED);
+                    return afterGroupError();
                 }
                 default -> {
                     // phiên mất, Zalo cảnh báo, lỗi lạ hoặc không rõ kết quả: dừng ngay, đánh dấu để người kiểm tra tay
@@ -623,10 +549,44 @@ public class ZaloAutoService {
                 .param("g", groupId).param("h", invites.reserveHours()).param("id", invitationId).update();
     }
 
-    private boolean lastAddsAllPersonErrors(int n) {
-        List<String> last = jdbc.sql("SELECT result FROM zalo_auto_log WHERE action = :a ORDER BY id DESC LIMIT :n")
-                .param("a", ZaloAutoSettings.A_ADD).param("n", n).query(String.class).list();
-        return last.size() == n && last.stream().allMatch("PERSON_ERROR"::equals);
+    /** Bao nhiêu lần thêm liền lỗi riêng người, cùng MỘT nhóm, thì tạm dừng nhóm đó (nghi nhóm cài sai: chỉ quản trị viên được thêm...). */
+    static final int GROUP_STREAK = 4;
+    /** Trong cửa sổ này (các lần thêm gần nhất, mọi nhóm), từng này lần lỗi riêng người thì dừng cầu dao (nghi Zalo hạn chế). */
+    static final int TRIP_WINDOW = 8;
+    static final int TRIP_PERSON_ERRORS = 6;
+    /** Bao nhiêu lần liền lỗi cả nhóm (nhóm khác nhau) thì dừng cầu dao: nhiều nhóm cùng hỏng cùng lúc không phải chuyện ngẫu nhiên. */
+    static final int GROUP_ERROR_TRIP = 3;
+
+    /**
+     * Sau một lần lỗi riêng người. Không dừng cầu dao chỉ vì vài khách xui liền nhau (nhiều người cài "không cho thêm vào nhóm"):
+     * (1) {@value #GROUP_STREAK} lần liền cùng một nhóm: tạm dừng nhóm đó, mẹ xem; (2) {@value #TRIP_PERSON_ERRORS} trong {@value #TRIP_WINDOW}
+     * lần gần nhất (lẫn nhiều nhóm): dừng cầu dao, đừng đốt hạn mức.
+     */
+    private Step afterPersonError(GroupService.Group group) {
+        List<Map<String, Object>> last = jdbc.sql("SELECT result, group_id FROM zalo_auto_log WHERE action = :a AND result <> 'DANG_GOI' ORDER BY id DESC LIMIT :n")
+                .param("a", ZaloAutoSettings.A_ADD).param("n", TRIP_WINDOW).query().listOfRows();
+        long persons = last.stream().filter(m -> "PERSON_ERROR".equals(m.get("result"))).count();
+        if (last.size() == TRIP_WINDOW && persons >= TRIP_PERSON_ERRORS) {
+            tripAndStop("NHIEU_LOI_NGUOI", true);
+            return Step.TRIPPED;
+        }
+        boolean streak = last.size() >= GROUP_STREAK && last.stream().limit(GROUP_STREAK)
+                .allMatch(m -> "PERSON_ERROR".equals(m.get("result")) && m.get("group_id") != null && ((Number) m.get("group_id")).longValue() == group.id());
+        if (streak) {
+            groups.setStatus(group.id(), GroupStatus.PAUSED);
+            return Step.GROUP_FAILED;
+        }
+        return Step.PERSON_FAILED;
+    }
+
+    private Step afterGroupError() {
+        List<String> last = jdbc.sql("SELECT result FROM zalo_auto_log WHERE action = :a AND result <> 'DANG_GOI' ORDER BY id DESC LIMIT :n")
+                .param("a", ZaloAutoSettings.A_ADD).param("n", GROUP_ERROR_TRIP).query(String.class).list();
+        if (last.size() == GROUP_ERROR_TRIP && last.stream().allMatch("GROUP_ERROR"::equals)) {
+            tripAndStop("NHIEU_LOI_NHOM", true);
+            return Step.TRIPPED;
+        }
+        return Step.GROUP_FAILED;
     }
 
     private void fail(long invitationId, String code) {

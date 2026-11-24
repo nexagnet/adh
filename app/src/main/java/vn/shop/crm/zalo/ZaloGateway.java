@@ -54,6 +54,8 @@ public interface ZaloGateway {
         OK,
         /** Lỗi riêng người này (đã ở trong nhóm, bị chặn, nhóm đầy, nhóm chỉ quản trị viên được thêm...). Không làm cầu dao nhảy. */
         PERSON_ERROR,
+        /** Lỗi của CẢ NHÓM khi thêm người (nhóm không còn, mình không đủ quyền...); chỉ có ở việc thêm vào nhóm. Không làm cầu dao nhảy ngay: Adh tạm dừng nhóm đó. */
+        GROUP_ERROR,
         /** Phiên hết hạn/bị đăng xuất: dừng, cần quét QR. */
         SESSION_LOST,
         /** Zalo yêu cầu xác minh/captcha hoặc báo hạn chế, hoặc chạm trần của chính cầu nối: dừng ngay. */
