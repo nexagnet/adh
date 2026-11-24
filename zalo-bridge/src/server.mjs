@@ -1,5 +1,5 @@
 // Máy chủ HTTP nội bộ (node:http, không thêm thư viện). Hợp đồng: docs/ZALO-BRIDGE-API.md.
-// Có đúng các đường: /healthz, /status, /events, GET /inbox (D19: tin riêng của người đã nhận tin của hệ thống; tắt mặc định), GET /groups (chỉ đọc), POST /groups (D19: tạo MỘT nhóm), POST /groups/{id}/members, POST /messages (D18: một tin cho một người), POST /people/lookup (D19: tra tên và ảnh của MỘT số để xác nhận mẹ),
+// Có đúng các đường: /healthz, /status, /events, GET /inbox (D19: tin riêng của người đã nhận tin của hệ thống; tắt mặc định), GET /groups (chỉ đọc), POST /groups (D19: tạo MỘT nhóm), POST /groups/{id}/members, POST /messages (D18: một tin cho một người), POST /friend-requests (một lời mời kết bạn cho một người đã nhận Tin 1), POST /people/lookup (D19: tra tên và ảnh của MỘT số để xác nhận mẹ),
 // /session/*. KHÔNG có đường gửi hàng loạt, gửi lời mời kết bạn, tìm người theo số rời, hay liệt kê bạn bè. server.test.mjs khóa danh sách này.
 
 import http from 'node:http';
@@ -49,6 +49,7 @@ export const ROUTES = [
   'POST /groups',
   'POST /groups/{id}/members',
   'POST /messages',
+  'POST /friend-requests',
   'POST /people/lookup',
   'POST /session/login',
   'GET /session/login',
@@ -95,6 +96,10 @@ export function createServer({ bridge, config, fake = null }) {
       if (route === 'POST /messages') {
         const body = await readJson(req);
         return send(200, await bridge.sendMessage({ kind: body.kind, phone: body.phone, uid: body.uid, text: body.text }));
+      }
+      if (route === 'POST /friend-requests') {
+        const body = await readJson(req);
+        return send(200, await bridge.sendFriendRequest({ uid: body.uid, text: body.text }));
       }
       if (route === 'POST /people/lookup') {
         const body = await readJson(req);

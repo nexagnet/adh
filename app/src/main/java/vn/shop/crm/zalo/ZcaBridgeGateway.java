@@ -147,7 +147,7 @@ public class ZcaBridgeGateway implements ZaloLink {
 
     /** Mã không gửi được vì chính cầu nối từ chối TRƯỚC khi chạm Zalo (xem bridge.mjs): chắc chắn chưa có tin nào đi. */
     private static final java.util.Set<String> NOT_SENT_CODES = java.util.Set.of("BUSY", "NOT_CONNECTED", "NOT_ACTIVE", "WINDOW",
-            "MSG_LIMIT", "LOGIN_REQUIRED", "BAD_INPUT", "BAD_PHONE", "BAD_ID", "NOT_REPLYABLE",
+            "MSG_LIMIT", "FRIEND_LIMIT", "LOGIN_REQUIRED", "BAD_INPUT", "BAD_PHONE", "BAD_ID", "NOT_REPLYABLE",
             "NO_INVITE", "NO_PREVIOUS", "CUSTOMER_REPLIED");
 
     @Override
@@ -169,9 +169,25 @@ public class ZcaBridgeGateway implements ZaloLink {
         return message(java.util.Map.of("kind", kind.name(), "uid", uid, "text", String.valueOf(text)));
     }
 
+    /** Lời mời kết bạn: chỉ theo mã Zalo của người đã nhận Tin 1 (cầu nối kiểm lại), câu tối đa 150 ký tự. */
+    @Override
+    public Sent sendFriendRequest(String uid, String text) {
+        if (uid == null || !ZALO_ID.matcher(uid).matches()) {
+            return Sent.of(Result.PERSON_ERROR, "BAD_ID", true);
+        }
+        if (text == null || text.isBlank() || text.strip().length() > 150) {
+            return Sent.of(Result.PERSON_ERROR, "BAD_INPUT", true);
+        }
+        return message("/friend-requests", java.util.Map.of("uid", uid, "text", text.strip()));
+    }
+
     private Sent message(java.util.Map<String, String> body) {
+        return message("/messages", body);
+    }
+
+    private Sent message(String path, java.util.Map<String, String> body) {
         try {
-            JsonNode n = call("POST", "/messages", JSON.writeValueAsString(body), 90);
+            JsonNode n = call("POST", path, JSON.writeValueAsString(body), 90);
             Result result;
             try {
                 result = Result.valueOf(n.path("outcome").asString(""));

@@ -37,6 +37,8 @@ public class FakeZaloGateway implements ZaloLink {
         statusCalls = 0;
         eventCalls = 0;
         adds.clear();
+        friendRequests.clear();
+        defaultFriend = null;
         stops = 0;
         resumes = 0;
         resumeResult = true;
@@ -160,6 +162,21 @@ public class FakeZaloGateway implements ZaloLink {
             return messageResults.poll();
         }
         return defaultMessage != null ? defaultMessage : new Sent(Result.OK, null, uid, 0, false);
+    }
+
+    public record FriendReq(String uid, String text) {
+    }
+
+    public final List<FriendReq> friendRequests = new ArrayList<>();
+    public Sent defaultFriend;
+
+    @Override
+    public Sent sendFriendRequest(String uid, String text) {
+        friendRequests.add(new FriendReq(uid, text));
+        if (!messageResults.isEmpty()) {
+            return messageResults.poll();
+        }
+        return defaultFriend != null ? defaultFriend : new Sent(Result.OK, null, uid, 0, false);
     }
 
     public void push(FriendEvent e) {

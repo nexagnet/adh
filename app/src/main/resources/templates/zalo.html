@@ -205,6 +205,13 @@
             <label class="field">Nghỉ giữa hai tin (giây) <input type="number" name="gap" th:value="${msg.limits.gapSeconds}" th:min="${props.msgMinGapSeconds}" max="3600"></label>
             <button type="submit" class="btn">Lưu hạn mức tin</button>
         </form>
+        <p>Sau Tin 1, tài khoản phụ <strong>tự gửi lời mời kết bạn</strong> cho người đó (kèm một câu ngắn); ai đồng ý kết bạn thì hệ thống tự thêm vào nhóm.
+            Lời mời có hạn mức riêng mỗi ngày, cùng khoảng nghỉ cố định, khung giờ và cầu dao với tin. Hôm nay đã mời kết bạn <strong th:text="${friendUsed}">0</strong>/<strong th:text="${friendDaily}">10</strong> người
+            (trần cứng <span th:text="${friendMax}">50</span>). Đặt 0 để tắt.</p>
+        <form class="formrow" th:action="@{/zalo/messages/friend-limit}" method="post">
+            <label class="field">Số lời mời kết bạn mỗi ngày <input type="number" name="daily" th:value="${friendDaily}" min="0" th:max="${friendMax}"></label>
+            <button type="submit" class="btn">Lưu hạn mức lời mời</button>
+        </form>
         <p class="hint">Chiến dịch chỉ được tự gửi sau khi bạn bấm <em>Duyệt cho hệ thống tự gửi</em> ở trang chi tiết chiến dịch (tự tạo, hoặc từ <a th:href="@{/advisor}">Đề xuất của AI</a>).
             Chiến dịch gửi nhiều lần chỉ nhắc khi trợ lý AI đang đọc tin riêng để nghe được khách xin ngừng (mục "Nhận diện khách từ chối bằng AI" bên dưới).
             Muốn thử trước: dùng <a th:href="@{/test-runs}">Chiến dịch thử</a> (cùng hạn mức, chỉ gửi cho số thử đã khai báo). Kết quả từng đợt xem ở <a th:href="@{/performance}">Hiệu quả chiến dịch</a>.</p>

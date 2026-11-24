@@ -1103,3 +1103,75 @@ test('FOLLOWUP: không nhắc người vừa tự nhắn tới trong 24 giờ, q
   assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP2', uid: '777', text: 'Nhắc' })).outcome, 'OK'); // tin của khách đã quá 24 giờ: bộ nối không còn căn cứ chặn (Adh tự kiểm điều kiện dừng)
   c.cleanup();
 });
+
+// ---------- lời mời kết bạn (23/11/2026): chỉ cho người đã nhận Tin 1 ----------
+
+test('lời mời kết bạn: chỉ người đã nhận Tin 1, mỗi người một lần, đúng một lời mời cho đúng một người', async () => {
+  const c = await ready();
+  assert.deepEqual(await c.bridge.sendFriendRequest({ uid: '501', text: 'Em là shop' }), { outcome: 'PERSON_ERROR', code: 'NO_INVITE' });
+  assert.equal(c.adapter.friendRequests, undefined);
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'Chào anh' }), { outcome: 'OK', uid: '501' });
+  c.clock.t += GAP + 1000;
+  assert.deepEqual(await c.bridge.sendFriendRequest({ uid: '501', text: 'Em là shop' }), { outcome: 'OK' });
+  assert.deepEqual(c.adapter.friendRequests, [{ uid: '501', text: 'Em là shop' }]);
+  c.clock.t += GAP + 1000;
+  assert.deepEqual(await c.bridge.sendFriendRequest({ uid: '501', text: 'Em là shop' }), { outcome: 'PERSON_ERROR', code: 'DUPLICATE' });
+  assert.equal(c.adapter.friendRequests.length, 1);
+  c.cleanup();
+});
+
+test('lời mời kết bạn: đầu vào sai bị từ chối trước khi chạm Zalo', async () => {
+  const c = await ready();
+  for (const m of [{}, { uid: '501' }, { uid: '501', text: '   ' }, { uid: '501', text: 'x'.repeat(151) }, { uid: 'abc', text: 'a' }, { text: 'a' }]) {
+    assert.deepEqual(await c.bridge.sendFriendRequest(m), { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' }, JSON.stringify(m));
+  }
+  assert.equal(c.adapter.friendRequests, undefined);
+  c.cleanup();
+});
+
+test('lời mời kết bạn: dùng chung khoảng nghỉ cố định với tin, gửi sớm thì RATE_LIMITED và không gọi Zalo', async () => {
+  const c = await ready();
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' })).outcome, 'OK');
+  c.clock.t += 30 * 1000;
+  assert.deepEqual(await c.bridge.sendFriendRequest({ uid: '501', text: 'a' }), { outcome: 'RATE_LIMITED', retryAfterSec: 60 });
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  assert.equal(c.adapter.friendRequests, undefined);
+  c.cleanup();
+});
+
+test('lời mời kết bạn: chạm trần lời mời mỗi ngày thì dừng cầu dao; ngoài khung giờ cũng dừng', async () => {
+  const c = await ready({ BRIDGE_FRIEND_DAILY: '1' });
+  for (const [p, u] of [['84900000001', '501'], ['84900000002', '502']]) {
+    assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: p, text: 'a' })).outcome, 'OK');
+    c.clock.t += GAP + 1000;
+  }
+  assert.equal((await c.bridge.sendFriendRequest({ uid: '501', text: 'a' })).outcome, 'OK');
+  c.clock.t += GAP + 1000;
+  assert.deepEqual(await c.bridge.sendFriendRequest({ uid: '502', text: 'a' }), { outcome: 'RESTRICTED', code: 'FRIEND_LIMIT' });
+  assert.equal(c.bridge.status().state, 'TRIPPED');
+  assert.equal(c.adapter.friendRequests.length, 1);
+  c.cleanup();
+});
+
+test('lời mời kết bạn: lỗi lạ của Zalo thì dừng cầu dao, không tự gửi lại', async () => {
+  const c = await ready();
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' })).outcome, 'OK');
+  c.clock.t += GAP + 1000;
+  const e = new Error('x');
+  e.code = 999999;
+  c.adapter.friendError = e;
+  const r = await c.bridge.sendFriendRequest({ uid: '501', text: 'a' });
+  assert.notEqual(r.outcome, 'OK');
+  assert.notEqual(r.outcome, 'PERSON_ERROR');
+  assert.equal(c.bridge.status().state, 'TRIPPED');
+  c.cleanup();
+});
+
+test('lời mời kết bạn: không ghi uid, số điện thoại hay nội dung vào log', async () => {
+  const c = await ready();
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' })).outcome, 'OK');
+  c.clock.t += GAP + 1000;
+  await c.bridge.sendFriendRequest({ uid: '501', text: 'Câu bí mật' });
+  assert.ok(!c.logs.some((l) => l.includes('501') || l.includes('Câu bí mật') || l.includes('84900000001')));
+  c.cleanup();
+});

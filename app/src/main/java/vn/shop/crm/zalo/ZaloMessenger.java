@@ -2,7 +2,7 @@ package vn.shop.crm.zalo;
 
 /**
  * Việc thứ tư của bộ nối (D18, ADR-0002 mục 12): gửi MỘT tin văn bản cho MỘT khách đã mua, qua tài khoản Zalo phụ. Tách khỏi
- * {@link ZaloGateway} (vẫn đúng ba việc). Không có gửi lời mời kết bạn, không gửi hàng loạt, không đính kèm.
+ * {@link ZaloGateway} (vẫn đúng ba việc). Từ 24/11/2026 có thêm lời mời kết bạn cho người đã nhận Tin 1 ({@link #sendFriendRequest}). Không gửi hàng loạt, không đính kèm.
  * Chỉ {@link vn.shop.crm.zalo.ZaloMessageService} được gọi giao diện này: chốt chặn (hạn mức, giờ, khoảng nghỉ, cầu dao) nằm ở đó.
  */
 public interface ZaloMessenger {
@@ -19,7 +19,9 @@ public interface ZaloMessenger {
         /** Tin nhắc lần hai của chiến dịch nhiều lần gửi (D21): chỉ theo mã Zalo của người ĐÃ nhận Tin 1, tính vào hạn mức ngày như Tin 1. */
         FOLLOWUP2,
         /** Tin nhắc lần ba (D21), cùng luật như {@link #FOLLOWUP2}; cầu nối chỉ nhận khi lần hai đã gửi. */
-        FOLLOWUP3;
+        FOLLOWUP3,
+        /** Lời mời kết bạn (24/11/2026): tài khoản phụ chủ động kết bạn với người ĐÃ nhận Tin 1. Chỉ theo mã Zalo; trần riêng mỗi ngày, không tính vào hạn mức khách nhắn chủ động. */
+        FRIEND;
 
         /** Tin do shop chủ động nhắn khách (không phải trả lời, không phải Tin 2): tính vào hạn mức ngày. */
         public boolean proactive() {
@@ -60,4 +62,7 @@ public interface ZaloMessenger {
 
     /** Tin 2: gửi cho mã Zalo đã biết. */
     Sent sendByUid(Kind kind, String uid, String text);
+
+    /** Lời mời kết bạn kèm câu ngắn (tối đa 150 ký tự) cho MỘT người đã nhận Tin 1 (theo mã Zalo). */
+    Sent sendFriendRequest(String uid, String text);
 }

@@ -1,6 +1,6 @@
 // Lõi của cầu nối: máy trạng thái phiên, cầu dao phía cầu nối, nối lại có backoff, thêm MỘT người vào MỘT nhóm.
-// Việc được làm: nghe sự kiện kết bạn, tra tên và ảnh của MỘT số điện thoại để xác nhận mẹ (D19), thêm MỘT người vào MỘT nhóm, và (từ D18) gửi MỘT tin văn bản cho MỘT khách đã mua. Không có gửi lời
-// mời kết bạn, không có liệt kê bạn bè, không có gửi hàng loạt (ADR-0002 mục 3.1, 4).
+// Việc được làm: nghe sự kiện kết bạn, tra tên và ảnh của MỘT số điện thoại để xác nhận mẹ (D19), thêm MỘT người vào MỘT nhóm, và (từ D18) gửi MỘT tin văn bản cho MỘT khách đã mua. Từ 23/11/2026 (chủ shop
+// chốt "tài khoản phụ chủ động kết bạn") còn gửi MỘT lời mời kết bạn cho MỘT người ĐÃ nhận Tin 1. Không có liệt kê bạn bè, không nhận lời mời, không gửi hàng loạt (ADR-0002 mục 3.1, 4).
 // Không bao giờ ghi uid, số điện thoại, tên vào log.
 
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
@@ -17,6 +17,7 @@ const MAX_GROUP_NAME = 100;
 const MAX_GROUP_MEMBERS = 5;
 const REPLY_WINDOW_MS = 24 * 3600 * 1000; // WELCOME và REPLY chỉ trả lời người vừa nhắn trong khoảng này
 const MAX_REPLYABLE = 500;
+const MAX_FRIEND_TEXT = 150; // lời mời kết bạn của Zalo chỉ nhận câu ngắn
 const MAX_TEXT = 1000; // ký tự; tin mời của shop chỉ vài trăm ký tự
 
 function withTimeout(promise, ms) {
@@ -53,12 +54,13 @@ class StateFile {
 }
 
 export class Bridge {
-  constructor({ config, adapter, store, ledger, msgLedger = null, groupLedger = null, events, inbox = null, now = () => Date.now(), log = () => {} }) {
+  constructor({ config, adapter, store, ledger, msgLedger = null, friendLedger = null, groupLedger = null, events, inbox = null, now = () => Date.now(), log = () => {} }) {
     this.config = config;
     this.adapter = adapter;
     this.store = store;
     this.ledger = ledger;
     this.msgLedger = msgLedger ?? new MessageLedger(null, Buffer.alloc(32));
+    this.friendLedger = friendLedger ?? new MessageLedger(null, Buffer.alloc(32));
     this.groupLedger = groupLedger ?? new AddLedger(null);
     this.events = events;
     this.inbox = inbox ?? new InboxBuffer({ now: () => this.now() });
@@ -479,6 +481,70 @@ export class Bridge {
       const out = { outcome: c.outcome };
       if (c.code) out.code = c.code;
       if (uid) out.uid = uid;
+      return out;
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  // ---------- lời mời kết bạn (chủ shop chốt 23/11/2026: tài khoản phụ chủ động kết bạn) ----------
+
+  /**
+   * Gửi MỘT lời mời kết bạn kèm câu ngắn cho MỘT người ĐÃ nhận Tin 1 từ chính cầu nối này (không bao giờ người lạ): mỗi người một lời mời.
+   * Chốt chặn công khai và cố định, dùng chung với phần gửi tin: khung giờ, khoảng nghỉ cố định sau tin hoặc lời mời liền trước, phanh
+   * khẩn cấp đếm mọi lần gọi, cầu dao; thêm trần lời mời mỗi ngày riêng (friendDaily). Lỗi lạ, không rõ kết quả thì dừng. Không ngẫu nhiên hóa.
+   * @param {{uid: string, text: string}} m
+   */
+  async sendFriendRequest(m) {
+    const text = typeof m?.text === 'string' ? m.text.trim() : '';
+    const uid = m?.uid === undefined || m?.uid === null ? null : String(m.uid);
+    if (uid === null || !ZALO_ID.test(uid) || text.length === 0 || text.length > MAX_FRIEND_TEXT) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' };
+    if (this.state === 'LOGIN_REQUIRED') return { outcome: 'SESSION_LOST', code: 'LOGIN_REQUIRED' };
+    if (this.state === 'TRIPPED' || this.state === 'STOPPED') return { outcome: 'RESTRICTED', code: 'NOT_ACTIVE' };
+    if (this.state !== 'LISTENING') return { outcome: 'SYSTEM_ERROR', code: 'NOT_CONNECTED' };
+    if (this.busy) return { outcome: 'SYSTEM_ERROR', code: 'BUSY' };
+    const t = this.now();
+    if (!inWindow(t, this.config.windowStartMin, this.config.windowEndMin)) {
+      this.trip('WINDOW');
+      return { outcome: 'RESTRICTED', code: 'WINDOW' };
+    }
+    const day = vnDayStart(t);
+    if (this.friendLedger.countSince(day) >= this.config.friendDaily) {
+      this.trip('FRIEND_LIMIT');
+      return { outcome: 'RESTRICTED', code: 'FRIEND_LIMIT' };
+    }
+    if (this.msgLedger.countSince(day) >= this.config.msgDaily) {
+      this.trip('MSG_LIMIT');
+      return { outcome: 'RESTRICTED', code: 'MSG_LIMIT' };
+    }
+    const last = this.msgLedger.last();
+    if (last !== null && t - last < this.config.msgGapMs) {
+      return { outcome: 'RATE_LIMITED', retryAfterSec: Math.ceil((this.config.msgGapMs - (t - last)) / 1000) };
+    }
+    // chỉ người đã nhận Tin 1 từ chính cầu nối này; mỗi người một lời mời
+    if (!this.msgLedger.has('INVITE', uid)) return { outcome: 'PERSON_ERROR', code: 'NO_INVITE' };
+    if (this.friendLedger.has('FRIEND', uid)) return { outcome: 'PERSON_ERROR', code: 'DUPLICATE' };
+    this.busy = true;
+    try {
+      this.msgLedger.record(t); // ghi trước khi gọi, tính vào phanh khẩn cấp và khoảng nghỉ chung
+      this.friendLedger.record(t);
+      this.stateFile.write({ inflight: true });
+      let c;
+      try {
+        await withTimeout(this.adapter.sendFriendRequest(uid, text), this.config.addTimeoutMs);
+        this.friendLedger.markSent('FRIEND', uid); // thư viện không ném lỗi nghĩa là Zalo đã nhận (thành công trả chuỗi rỗng)
+        c = { outcome: 'OK' };
+      } catch (e) {
+        c = classifyError(e, this.config.personErrorCodes);
+      }
+      if (c.outcome !== 'OK' && c.outcome !== 'PERSON_ERROR') {
+        this.trip(c.code ? `${c.outcome}:${c.code}` : c.outcome);
+      } else {
+        this.stateFile.write({});
+      }
+      this.log(`kết bạn: ${c.outcome}`);
+      const out = { outcome: c.outcome };
+      if (c.code) out.code = c.code;
       return out;
     } finally {
       this.busy = false;

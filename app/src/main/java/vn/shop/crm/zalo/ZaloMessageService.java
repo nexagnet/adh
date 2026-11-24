@@ -37,6 +37,7 @@ public class ZaloMessageService {
     static final String ENABLED = "zalo.msg.enabled";
     static final String DAILY = "zalo.msg.daily";
     static final String GAP = "zalo.msg.gap_seconds";
+    static final String FRIEND_DAILY = "zalo.friend.daily";
     public static final String SCOPE_REAL = "REAL";
     /** Số lần liền lỗi riêng người (mã lạ) thì dừng, và số lần liền "không tìm thấy" thì dừng để người kiểm tra. */
     static final int MAX_CONSECUTIVE_PERSON_ERRORS = 3;
@@ -138,6 +139,29 @@ public class ZaloMessageService {
         ZaloAutoProperties p = cfg.props();
         return new Limits(clamp(intSetting(DAILY, p.msgDefaultDaily()), 1, p.msgMaxDaily()),
                 Math.max(p.msgMinGapSeconds(), intSetting(GAP, p.msgDefaultGapSeconds())));
+    }
+
+    /** Trần lời mời kết bạn mỗi ngày (mặc định 10, trần cứng đặt ở cấu hình triển khai; 0 = tắt). */
+    public int friendDaily() {
+        ZaloAutoProperties p = cfg.props();
+        return clamp(intSetting(FRIEND_DAILY, p.friendDefaultDaily()), 0, p.friendMaxDaily());
+    }
+
+    public int setFriendDaily(int daily, String by) {
+        ZaloAutoProperties p = cfg.props();
+        if (daily < 0 || daily > p.friendMaxDaily()) {
+            throw new ImportException("Số lời mời kết bạn mỗi ngày phải từ 0 (tắt) đến " + p.friendMaxDaily() + " (trần cứng đặt ở cấu hình triển khai).");
+        }
+        int old = friendDaily();
+        settings.set(FRIEND_DAILY, Integer.toString(daily), by);
+        cfg.log(ZaloAutoSettings.A_CONFIG, null, null, "HAN_MUC_KET_BAN " + daily, "CU " + old, by);
+        return friendDaily();
+    }
+
+    /** Số lời mời kết bạn đã gọi hôm nay (tính cả lần lỗi). */
+    public int friendUsedToday() {
+        return jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE at >= :s AND kind = 'FRIEND'")
+                .param("s", OffsetDateTime.ofInstant(startOfDay(), ZoneOffset.UTC)).query(Integer.class).single();
     }
 
     public Limits setLimits(int daily, int gapSeconds, String by) {
@@ -245,6 +269,9 @@ public class ZaloMessageService {
         if (invite && countSince(startOfDay(), null, true) >= l.daily()) {
             return Optional.of(Block.DAILY_LIMIT);
         }
+        if (kind == Kind.FRIEND && friendUsedToday() >= friendDaily()) {
+            return Optional.of(Block.DAILY_LIMIT);
+        }
         Instant last = lastAt(null);
         if (last != null && now.isBefore(last.plusSeconds(l.gapSeconds()))) {
             return Optional.of(Block.GAP);
@@ -269,6 +296,11 @@ public class ZaloMessageService {
     /** Tin 2: gửi cho mã Zalo đã biết. */
     public Delivery sendByUid(String scope, Kind kind, Long refId, String uid, String text, Integer scopeDaily, Integer scopeGap) {
         return deliver(scope, kind, refId, scopeDaily, scopeGap, () -> link.sendByUid(kind, uid, text));
+    }
+
+    /** Lời mời kết bạn cho người đã nhận Tin 1 (theo mã Zalo): cùng chốt chặn như tin, thêm trần lời mời mỗi ngày. */
+    public Delivery sendFriendRequest(String scope, Long refId, String uid, String text) {
+        return deliver(scope, Kind.FRIEND, refId, null, null, () -> link.sendFriendRequest(uid, text));
     }
 
     private Delivery deliver(String scope, Kind kind, Long refId, Integer scopeDaily, Integer scopeGap,

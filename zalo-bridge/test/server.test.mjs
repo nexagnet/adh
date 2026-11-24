@@ -71,10 +71,10 @@ test('phiên: đăng nhập QR, dừng, mở lại, đăng xuất', async () => 
   await s.close();
 });
 
-test('KHÔNG có đường gửi hàng loạt, gửi lời mời kết bạn, tìm người rời, liệt kê bạn bè (chỉ POST /messages một tin một người)', async () => {
+test('KHÔNG có đường gửi hàng loạt, tìm người rời, liệt kê bạn bè (chỉ POST /messages một tin một người và POST /friend-requests một lời mời cho một người đã nhận Tin 1)', async () => {
   const s = await boot();
   const forbidden = [
-    ['POST', '/message'], ['POST', '/messages/1'], ['GET', '/messages'], ['POST', '/send'], ['POST', '/sendMessage'], ['POST', '/friends/request'],
+    ['POST', '/message'], ['POST', '/messages/1'], ['GET', '/messages'], ['POST', '/send'], ['POST', '/sendMessage'], ['POST', '/friends/request'], ['POST', '/friend-requests/1'], ['GET', '/friend-requests'],
     ['POST', '/friends'], ['GET', '/friends'], ['GET', '/users'], ['POST', '/users/find'], ['GET', '/users/84912345678'],
     ['POST', '/broadcast'], ['PUT', '/groups'], ['POST', '/groups/create'], ['POST', '/groups/1'],  // GET /groups và POST /groups (D19, tạo một nhóm) là đường được phép riêng
     ['GET', '/groups/1/members'], ['DELETE', '/groups/1/members'],
@@ -106,7 +106,7 @@ test('POST /people/lookup (D19) cần khóa, tra đúng một số, số sai kh�
 
 test('danh sách đường được phép là cố định', () => {
   assert.deepEqual(ROUTES, [
-    'GET /healthz', 'GET /status', 'GET /events', 'GET /inbox', 'GET /groups', 'POST /groups', 'POST /groups/{id}/members', 'POST /messages', 'POST /people/lookup', 'POST /session/login', 'GET /session/login',
+    'GET /healthz', 'GET /status', 'GET /events', 'GET /inbox', 'GET /groups', 'POST /groups', 'POST /groups/{id}/members', 'POST /messages', 'POST /friend-requests', 'POST /people/lookup', 'POST /session/login', 'GET /session/login',
     'POST /session/logout', 'POST /session/stop', 'POST /session/resume',
   ]);
 });

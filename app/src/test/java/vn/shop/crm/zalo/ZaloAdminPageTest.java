@@ -180,6 +180,17 @@ class ZaloAdminPageTest extends AbstractPostgresTest {
     }
 
     @Test
+    void hanMucLoiMoiKetBanKhongVuotTranCungVaDatKhongLaTat() throws Exception {
+        mvc.perform(post("/zalo/messages/friend-limit").with(owner()).with(csrf()).param("daily", "51"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/zalo/messages/friend-limit").with(owner()).with(csrf()).param("daily", "7"))
+                .andExpect(status().is3xxRedirection());
+        mvc.perform(get("/zalo").with(owner())).andExpect(status().isOk()).andExpect(content().string(containsString("tự gửi lời mời kết bạn")));
+        mvc.perform(post("/zalo/messages/friend-limit").with(owner()).with(csrf()).param("daily", "0"))
+                .andExpect(status().is3xxRedirection());
+    }
+
+    @Test
     void dungNgayRoiMoLaiChiKhiNguoiBam() throws Exception {
         cfg.setMode(ZaloMode.CONFIRM, false, "mẹ");
         mvc.perform(post("/zalo/stop").with(owner()).with(csrf())).andExpect(status().is3xxRedirection());

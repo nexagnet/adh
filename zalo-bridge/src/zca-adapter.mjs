@@ -1,6 +1,7 @@
 // Bộ điều hợp THẬT dùng thư viện không chính thức zca-js (ghim đúng 2.3.0 trong package.json và package-lock.json).
 // Thư viện giả lập Zalo Web nên trái điều khoản Zalo và tài khoản phụ có thể bị khóa; xem docs/ADR-0002.
-// Cố ý KHÔNG dùng: sendFriendRequest, getAllFriends, acceptFriendRequest, bất kỳ hàm gửi hay dò hàng loạt nào khác.
+// Cố ý KHÔNG dùng: getAllFriends, acceptFriendRequest, bất kỳ hàm gửi hay dò hàng loạt nào khác.
+// Từ 23/11/2026 (chủ shop chốt: tài khoản phụ chủ động kết bạn) có thêm đúng MỘT hàm: sendFriendRequest, chỉ cho người đã nhận Tin 1.
 // Từ D19 (23/11/2026, chủ shop chốt) có thêm đúng ba hàm để tạo nhóm theo khu vực: createGroup, enableGroupLink, addGroupDeputy.
 // Từ D18 (23/11/2026, chủ shop chốt) có thêm đúng hai hàm để nhắn khách đã mua của chính họ, mỗi người một tin: findUser (một số)
 // và sendMessage (văn bản, một người). Có trần ngày, khoảng nghỉ cố định, khung giờ và cầu dao ở bridge.mjs; không che việc dùng thư viện.
@@ -104,6 +105,11 @@ export class ZcaAdapter {
   /** Gửi MỘT tin văn bản cho MỘT người. Không đính kèm, không gửi lời mời kết bạn. */
   async sendText(uid, text) {
     return this.api.sendMessage({ msg: text }, uid, ThreadType.User);
+  }
+
+  /** Gửi MỘT lời mời kết bạn (kèm câu ngắn) cho MỘT người đã nhận Tin 1. Chỗ DUY NHẤT gọi sendFriendRequest. Thành công trả chuỗi rỗng. */
+  async sendFriendRequest(uid, text) {
+    return this.api.sendFriendRequest(text, uid);
   }
 
   async addUserToGroup(uid, groupId) {
