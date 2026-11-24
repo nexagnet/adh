@@ -682,6 +682,43 @@ test('lỗi lạ khi tìm hay gửi thì dừng cầu dao; mã đã khai báo l�
   c.cleanup();
 });
 
+test('Tin 1 bị Zalo từ chối vì người nhận không nhận tin người lạ (Z122): lỗi riêng người đó, không dừng, vẫn được kết bạn rồi gửi lại Tin 1', async () => {
+  const c = await ready({ BRIDGE_PERSON_ERROR_CODES: '225' }); // 122 nằm ở danh sách riêng, không cần thêm vào mã lỗi người
+  c.adapter.sendError = Object.assign(new Error('Không thể nhận tin nhắn từ bạn.'), { code: 122 });
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'Chào anh' }), { outcome: 'PERSON_ERROR', code: 'STRANGER_BLOCKED', uid: '501' });
+  assert.equal(c.bridge.status().state, 'LISTENING'); // không ngắt cầu dao
+  // chưa từng nhận Tin 1 nhưng được kết bạn vì Tin 1 bị chặn; vẫn mỗi người một lời mời
+  c.clock.t += GAP + 1000;
+  assert.deepEqual(await c.bridge.sendFriendRequest({ uid: '501', text: 'Em là shop' }), { outcome: 'OK' });
+  c.clock.t += GAP + 1000;
+  assert.deepEqual(await c.bridge.sendFriendRequest({ uid: '501', text: 'Em là shop' }), { outcome: 'PERSON_ERROR', code: 'DUPLICATE' });
+  // người khác chưa từng bị chặn thì vẫn không được kết bạn
+  assert.deepEqual(await c.bridge.sendFriendRequest({ uid: '777', text: 'Em là shop' }), { outcome: 'PERSON_ERROR', code: 'NO_INVITE' });
+  // gửi lại Tin 1 được (chưa từng ghi "đã gửi Tin 1")
+  c.adapter.sendError = null;
+  c.clock.t += GAP + 1000;
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'INVITE', uid: '501', text: 'Chào anh' }), { outcome: 'OK', uid: '501' });
+  c.clock.t += GAP + 1000;
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'INVITE', uid: '501', text: 'Chào anh' }), { outcome: 'PERSON_ERROR', code: 'DUPLICATE' });
+  c.cleanup();
+});
+
+test('Z212 (không tìm thấy số điện thoại) khi gửi Tin 1 là lỗi riêng số đó (NOT_FOUND), không dừng cầu dao', async () => {
+  const c = await ready({ BRIDGE_PERSON_ERROR_CODES: '' });
+  c.adapter.sendError = Object.assign(new Error('Không tìm thấy'), { code: 212 });
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'Chào anh' }), { outcome: 'PERSON_ERROR', code: 'NOT_FOUND', uid: '501' });
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  c.cleanup();
+});
+
+test('mã lạ khác Z122 khi gửi Tin 1 vẫn là lỗi lạ và dừng cầu dao', async () => {
+  const c = await ready({ BRIDGE_PERSON_ERROR_CODES: '225' });
+  c.adapter.sendError = Object.assign(new Error('lỗi lạ'), { code: 999 });
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'Chào anh' })).outcome, 'SYSTEM_ERROR');
+  assert.equal(c.bridge.status().state, 'TRIPPED');
+  c.cleanup();
+});
+
 test('Zalo cảnh báo (RESTRICTED), mất phiên (SESSION_LOST) hay hết giờ chờ khi gửi thì dừng', async () => {
   for (const [err, outcome] of [
     [Object.assign(new Error('Too many requests'), { code: 114 }), 'RESTRICTED'],

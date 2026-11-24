@@ -50,7 +50,9 @@ test('sendFriendRequest chỉ có đúng một chỗ gọi (bộ điều hợp t
   }
   const b = code('bridge.mjs');
   assert.equal((b.match(/adapter\.sendFriendRequest\(/g) ?? []).length, 1);
-  assert.match(b, /if \(!this\.msgLedger\.has\('INVITE', uid\)\) return \{ outcome: 'PERSON_ERROR', code: 'NO_INVITE' \}/);
+  // chỉ người đã nhận Tin 1, hoặc người có Tin 1 bị Zalo chặn vì không nhận tin người lạ (Z122): không có đường nào khác tới lời mời kết bạn
+  assert.match(b, /if \(!this\.msgLedger\.has\('INVITE', uid\) && !this\.msgLedger\.has\('INVITE_BLOCKED', uid\)\) return \{ outcome: 'PERSON_ERROR', code: 'NO_INVITE' \}/);
+  assert.equal((b.match(/markSent\('INVITE_BLOCKED'/g) ?? []).length, 1);
   assert.match(b, /this\.friendLedger\.has\('FRIEND', uid\)/);
   assert.ok(!/acceptFriendRequest|getFriendRequest/.test(files.map(code).join('\n')));
 });

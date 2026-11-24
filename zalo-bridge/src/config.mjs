@@ -67,6 +67,11 @@ export function loadConfig(env = process.env) {
     // một lời mời. Trần cứng mỗi ngày của CHÍNH cầu nối (Adh đặt thấp hơn, mặc định 10); dùng chung khoảng nghỉ cố định, khung giờ, phanh
     // khẩn cấp đếm mọi tin và cầu dao với phần gửi tin. Không ngẫu nhiên hóa.
     friendDaily: int(env, 'BRIDGE_FRIEND_DAILY', 50, 1, 100),
+    // Mã lỗi Zalo của việc "người nhận không nhận tin nhắn từ người lạ" (mặc định 122, đo thật 24/11/2026): với Tin 1 thì đây là lỗi RIÊNG người đó
+    // (không dừng cầu dao), cầu nối ghi nhớ "Tin 1 bị chặn" để vẫn được gửi lời mời kết bạn cho người này; Tin 1 sẽ gửi lại sau khi họ thành bạn.
+    // Mã lỗi Zalo của việc không tìm thấy người theo số điện thoại (mặc định 212, ADR-0002): lỗi RIÊNG số đó, không dừng cầu dao; trả về như NOT_FOUND.
+    notFoundCodes: new Set(String(env.BRIDGE_NOT_FOUND_CODES ?? '212').split(',').map((x) => x.trim()).filter((x) => /^\d{1,4}$/.test(x))),
+    strangerBlockedCodes: new Set(String(env.BRIDGE_STRANGER_BLOCKED_CODES ?? '122').split(',').map((x) => x.trim()).filter((x) => /^\d{1,4}$/.test(x))),
     // Tạo nhóm Zalo (D19): trần cứng của CHÍNH cầu nối là 3 nhóm mỗi ngày (Adh mặc định 1), khoảng nghỉ CỐ ĐỊNH tối thiểu giữa hai lần tạo.
     // Vượt trần ngày thì cầu nối tự dừng; tạo sớm hơn khoảng nghỉ thì chỉ bị từ chối (RATE_LIMITED). Không ngẫu nhiên hóa.
     groupGapMs: int(env, 'BRIDGE_GROUP_GAP_SEC', 300, 300, 86400) * 1000,

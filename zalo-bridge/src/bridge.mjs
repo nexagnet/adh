@@ -503,7 +503,14 @@ export class Bridge {
           }
         }
       } catch (e) {
-        c = classifyError(e, this.config.personErrorCodes);
+        c = classifyError(e, new Set([...this.config.personErrorCodes, ...this.config.strangerBlockedCodes, ...this.config.notFoundCodes]));
+        // Z212: không tìm thấy số này trên Zalo. Lỗi riêng số đó, cùng nghĩa với NOT_FOUND (Adh đã biết xử lý, không dừng).
+        if (c.outcome === 'PERSON_ERROR' && /^Z\d+$/.test(c.code ?? '') && this.config.notFoundCodes.has(c.code.slice(1))) c = { outcome: 'PERSON_ERROR', code: 'NOT_FOUND' };
+        // Người nhận không nhận tin của người lạ: chỉ riêng Tin 1. Nhớ lại để được gửi lời mời kết bạn (chưa từng nhận Tin 1 nên không có dấu INVITE).
+        if (kind === 'INVITE' && uid !== null && c.outcome === 'PERSON_ERROR' && /^Z\d+$/.test(c.code ?? '') && this.config.strangerBlockedCodes.has(c.code.slice(1))) {
+          this.msgLedger.markSent('INVITE_BLOCKED', uid);
+          c = { ...c, code: 'STRANGER_BLOCKED' };
+        }
       }
       if (c.trip) {
         this.trip(c.trip); // lỗi ở phần sau của Tin 1 (phần đầu đã gửi)
@@ -557,7 +564,7 @@ export class Bridge {
       return { outcome: 'RATE_LIMITED', retryAfterSec: Math.ceil((this.config.msgGapMs - (t - last)) / 1000) };
     }
     // chỉ người đã nhận Tin 1 từ chính cầu nối này; mỗi người một lời mời
-    if (!this.msgLedger.has('INVITE', uid)) return { outcome: 'PERSON_ERROR', code: 'NO_INVITE' };
+    if (!this.msgLedger.has('INVITE', uid) && !this.msgLedger.has('INVITE_BLOCKED', uid)) return { outcome: 'PERSON_ERROR', code: 'NO_INVITE' };
     if (this.friendLedger.has('FRIEND', uid)) return { outcome: 'PERSON_ERROR', code: 'DUPLICATE' };
     this.busy = true;
     try {

@@ -547,6 +547,7 @@ public class ZaloAutoService {
                                coalesce(i.group_id, CASE WHEN i.reserved_until > now() THEN i.reserved_group_id END) AS held_group, i.friended_at
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
                         WHERE i.zalo_add_state IN %s AND i.zalo_uid IS NOT NULL AND i.status IN ('SENT', 'CLICKED', 'FRIENDED')
+                          AND (i.tin1_blocked_at IS NULL OR i.tin1_resent_at IS NOT NULL)
                         """.formatted(states) + testMode.onlyTestSql("c.phone") + " ORDER BY i.friended_at NULLS LAST, i.id LIMIT 500")
                 .query((rs, n) -> new Task(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("zalo_uid"),
                         rs.getString("province"), rs.getString("zalo_add_state"), (Long) rs.getObject("held_group"),
