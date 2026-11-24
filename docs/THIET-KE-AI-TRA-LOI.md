@@ -40,5 +40,5 @@ Chạy thử thật cho thấy AI hay hiểu sai câu hỏi chung về ưu đãi
 
 ## Giọng trả lời và chuyện trợ lý AI luôn nói rõ mình là AI (24/11/2026)
 
-- Prompt soạn câu (`ReplyAssistant.COMPOSE_RULES`) viết lại: giọng như bạn nhân viên bán hàng nhắn Zalo (xưng "em", "Dạ... ạ"), **tối đa hai câu và dưới 250 ký tự**, chỉ trả lời đúng điều khách hỏi, kèm vài ví dụ về giọng và độ ngắn (nội dung thật vẫn chỉ lấy từ bảng thông tin cửa hàng). Chữ ký rút gọn: "— Trợ lý AI của <shop>. Cần người thật, anh/chị nhắn "gặp người thật" ạ."
+- Prompt soạn câu (`ReplyAssistant.COMPOSE_RULES`) viết lại: giọng như bạn nhân viên bán hàng nhắn Zalo (xưng "em", "Dạ... ạ"), **một câu dưới 120 ký tự (hai câu dưới 200 chỉ khi khách hỏi hai ý)**, chỉ trả lời đúng điều khách hỏi, kèm vài ví dụ về giọng và độ ngắn (nội dung thật vẫn chỉ lấy từ bảng thông tin cửa hàng). Chữ ký một dòng ngắn: "— Trợ lý AI của shop. Cần người thật, nhắn "gặp người thật"." (không kèm tên shop dài)
 - **Không bao giờ giấu hay chối mình là AI.** Chủ dự án có đề nghị bỏ tiết lộ và để AI trả lời "như người thật"; phần đó KHÔNG làm, vì khách sẽ tin mình đang nói chuyện với người. Giữ nguyên: mọi câu có chữ ký trợ lý AI; `ReplyValidator` chặn "em là người", "em là nhân viên/chủ shop/mẹ"; khách hỏi thẳng "bạn là AI hay người thật" thì rơi vào NGOÀI phạm vi, chuyển người thật (không tự trả lời).

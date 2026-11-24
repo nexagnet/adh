@@ -465,7 +465,8 @@ class ReplyTest extends AbstractPostgresTest {
         replies.setMode(Mode.DRAFT, false, "mẹ");
         says("Ưu đãi như nào");
         String compose = systems.stream().filter(s -> s.startsWith("Bạn là TRỢ LÝ AI")).findFirst().orElseThrow();
-        assertThat(compose).contains("THẬT NGẮN").contains("HAI câu").contains("dưới 250 ký tự").contains("bạn nhân viên bán hàng thân thiện")
+        assertThat(compose).contains("THẬT NGẮN").contains("chỉ MỘT câu và dưới 120 ký tự").contains("không nhắc lại câu hỏi hay điều khách vừa nói")
+                .contains("\"Mình kết bạn rồi nha\" → \"Dạ em thêm anh/chị vào nhóm ngay ạ.\"").contains("bạn nhân viên bán hàng thân thiện")
                 .contains("Chỉ trả lời đúng chủ đề").contains("\"Ưu đãi như nào\" → \"Dạ");
         assertThat(compose).contains("Không giả làm người hay chủ shop").contains("không tự đặt tên")
                 .contains("trả lời thật là trợ lý AI của cửa hàng").contains("không né, không chối, không khẳng định mình là người");
@@ -500,7 +501,8 @@ class ReplyTest extends AbstractPostgresTest {
     void moiCauTraLoiDeuKemChuKyTroLyAiNganGon() {
         replies.setMode(Mode.DRAFT, false, "mẹ");
         says("Ưu đãi như nào");
-        assertThat(one("reply_text")).endsWith("Cần người thật, anh/chị nhắn \"gặp người thật\" ạ.").contains("— Trợ lý AI của");
+        assertThat(one("reply_text")).endsWith("\n— Trợ lý AI của shop. Cần người thật, nhắn \"gặp người thật\".").doesNotContain("Shop sỉ");
+        assertThat(replies.signature().length()).isLessThan(70);
     }
 
     @Test
