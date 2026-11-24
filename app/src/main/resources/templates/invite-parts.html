@@ -21,7 +21,8 @@
 <td th:fragment="group(r)">
     <span th:if="${r.groupName != null}" th:text="${r.groupName}">Nhóm 1</span>
     <span class="muted" th:if="${r.groupName != null and r.suggested}"> (nên thêm vào)</span>
-    <span class="muted" th:if="${r.groupName == null and r.status != 'CANCELLED'}">Chưa có nhóm còn chỗ</span>
+    <span class="muted" th:if="${r.groupName == null and r.status == 'FAILED'}">Gửi lỗi: kiểm tra tin trên Zalo rồi xử lý tay</span>
+    <span class="muted" th:if="${r.groupName == null and r.status != 'CANCELLED' and r.status != 'FAILED'}">Chưa có nhóm còn chỗ</span>
     <span class="sub-line" th:if="${r.reservedUntil != null}"
           th:text="'Đã giữ chỗ đến ' + ${#temporals.format(r.reservedUntil, 'HH:mm dd/MM')}">Đã giữ chỗ đến 10:00 23/11</span>
     <div class="muted mono" th:if="${r.groupLink != null and r.status != 'JOINED' and r.status != 'CANCELLED'}" th:text="${r.groupLink}">https://zalo.me/g/x</div>
