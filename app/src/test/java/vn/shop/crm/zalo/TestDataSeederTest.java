@@ -30,6 +30,9 @@ class TestDataSeederTest extends AbstractPostgresTest {
         assertThat(jdbc.sql("SELECT count(*) FROM shipment WHERE tracking_no LIKE 'JTTEST%' AND carrier = 'JT_EXPRESS'").query(Long.class).single()).isEqualTo(2);
         assertThat(jdbc.sql("SELECT count(DISTINCT c.province) FROM customer c WHERE c.phone IN ('+84900000011', '+84900000012')").query(Long.class).single()).isEqualTo(1);
         assertThat(jdbc.sql("SELECT province FROM customer WHERE phone = '+84900000011'").query(String.class).single()).isNotBlank();
+        // trạng thái phải là chữ bảng nhập đơn J&T hiểu sẵn (V3: 'giao thanh cong' = DELIVERED), không phải "Đã ký nhận" làm đơn rơi vào
+        // "cần kiểm tra" và chiến dịch không mời được (bảng ánh xạ J&T bị xóa trong test nên kiểm theo khóa trạng thái)
+        assertThat(jdbc.sql("SELECT count(*) FROM shipment WHERE status_key = 'giao thanh cong'").query(Long.class).single()).isEqualTo(2);
         // chạy lại: số đã là khách thì bỏ qua, không tạo thêm đơn
         var again = seeder.seed();
         assertThat(again.created()).isZero();
