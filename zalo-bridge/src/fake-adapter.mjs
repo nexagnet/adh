@@ -75,7 +75,12 @@ export class FakeAdapter {
     return url ? `data:image/png;base64,${PNG_1X1}` : null;
   }
 
-  async sendText(uid, text) {
+  async sendText(uid, text, group = false) {
+    if (group) {
+      if (this.groupSendError) throw this.groupSendError;
+      (this.groupSent ??= []).push({ groupId: uid, text });
+      return { message: { msgId: 2 }, attachment: [] };
+    }
     if (this.sendError) throw this.sendError;
     (this.sent ??= []).push({ uid, text });
     return { message: { msgId: 1 }, attachment: [] };

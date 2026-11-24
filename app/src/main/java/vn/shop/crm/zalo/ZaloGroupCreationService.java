@@ -416,7 +416,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
         jdbc.sql("UPDATE zalo_group_proposal SET state = 'CREATING', started_at = :now, group_name = :n WHERE id = :id")
                 .param("n", name).param("id", id).param("now", now()).update();
         String deputy = deputyUid(members);
-        ZaloGroupMaker.Created r = maker.createGroup(name, members.stream().map(Member::uid).toList(), deputy);
+        ZaloGroupMaker.Created r = maker.createGroup(name, members.stream().map(Member::uid).toList(), deputy, cfg.welcomeText());
         if (r.outcome() == ZaloGroupMaker.GroupOutcome.UNREACHABLE || r.outcome() == ZaloGroupMaker.GroupOutcome.RATE_LIMITED
                 || (r.notCreated() && r.outcome() == ZaloGroupMaker.GroupOutcome.SYSTEM_ERROR)) {
             // chắc chắn chưa tạo gì (chưa chạm Zalo hoặc cầu nối từ chối trước): trả về hàng đợi, không tính trần ngày, thử lại nhịp sau
@@ -536,6 +536,10 @@ public class ZaloGroupCreationService implements ZaloTickHook {
                     .param("now", now()).param("g", groupId).param("a", added).param("l", linkOk).param("d", r.deputy())
                     .param("dc", "FAILED".equals(r.deputy()) ? r.deputyCode() : null, java.sql.Types.VARCHAR).param("id", proposalId).update();
         });
+        if ("OK".equals(r.welcome()) || "FAILED".equals(r.welcome()) || "SKIPPED".equals(r.welcome())) {
+            // tin chào đầu nhóm chỉ gửi một lần lúc tạo; lỗi chỉ ghi nhận, không chặn việc tạo nhóm và không tự gửi lại
+            auto.log(ZaloGroupSettings.A_GROUP, null, null, "TIN_CHAO_" + r.welcome(), null, "system");
+        }
         if ("FAILED".equals(r.deputy())) {
             // ghi mã lỗi Zalo thật để biết vì sao không đặt được phó nhóm (không chứa mã người hay tên)
             auto.log(ZaloGroupSettings.A_GROUP, null, null, "PHO_NHOM_LOI", r.deputyCode() == null ? "KHONG_RO" : r.deputyCode(), "system");

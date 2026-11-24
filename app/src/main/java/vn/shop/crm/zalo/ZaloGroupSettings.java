@@ -17,7 +17,20 @@ public class ZaloGroupSettings {
     static final String D_RELAX = "zalo.group.relax_days";
     static final String D_ALERT = "zalo.group.alert_days";
     static final String LAST_PLAN = "zalo.group.last_plan_at";
+    static final String WELCOME_ON = "zalo.group.welcome_enabled";
+    static final String WELCOME_TEXT = "zalo.group.welcome_text";
+    static final String SHOP_LINK = "zalo.group.shop_link";
     public static final String A_GROUP = "TAO_NHOM";
+
+    /** Link gian hàng TikTok Shop mặc định (chủ dự án đưa 24/11/2026); sửa ở trang /zalo, không cứng trong mã gửi. */
+    public static final String DEFAULT_SHOP_LINK = "https://vt.tiktok.com/ZSsYdPXfU/?page=TikTokShop";
+
+    /** Tin chào đầu nhóm mặc định. Mỗi dòng là một đoạn ngắn; {link} được thay bằng link gian hàng. Không chê TikTok, không nhận là người. */
+    public static final String DEFAULT_WELCOME = """
+            Dạ em là trợ lý AI của shop áo điều hòa Minh Hiệp, chào mừng cả nhà vào nhóm ạ.
+            Mua áo điều hòa và phụ kiện trong nhóm được giảm 10% so với TikTok, miễn ship ạ. Cả nhà cần hướng dẫn dùng áo thì cứ nhắn vào nhóm nhé.
+            Cả nhà xem sản phẩm ở gian hàng của shop: {link}""";
+    static final int MAX_WELCOME = 1000;
 
     private final AppSettings settings;
     private final ZaloGroupProperties props;
@@ -118,6 +131,59 @@ public class ZaloGroupSettings {
         if (!old.equals(mergeUp + "/" + relax + "/" + alert)) {
             auto.log(ZaloAutoSettings.A_CONFIG, null, null, "TAO_NHOM_NGAY " + mergeUp + "/" + relax + "/" + alert, "CU " + old, by);
         }
+    }
+
+    // ---------- tin chào đầu nhóm ----------
+
+    /** Bật gửi tin chào khi tạo nhóm mới (mặc định bật). */
+    public boolean welcomeEnabled() {
+        return !"false".equals(settings.get(WELCOME_ON).map(String::strip).orElse("true"));
+    }
+
+    /** Mẫu đang lưu; trống nghĩa là dùng mẫu mặc định. */
+    public String welcomeTemplate() {
+        return settings.get(WELCOME_TEXT).filter(v -> !v.isBlank()).orElse(DEFAULT_WELCOME);
+    }
+
+    public String shopLink() {
+        return settings.get(SHOP_LINK).filter(v -> !v.isBlank()).map(String::strip).orElse(DEFAULT_SHOP_LINK);
+    }
+
+    /** Lưu cấu hình tin chào. Mẫu trống = dùng mặc định; chỉ cho chỗ điền {link}; link phải là https. */
+    public void setWelcome(boolean enabled, String template, String link, String by) {
+        String t = template == null ? "" : template.replace("\r\n", "\n").strip();
+        String l = link == null ? "" : link.strip();
+        if (t.length() > MAX_WELCOME) {
+            throw new ImportException("Tin chào tối đa " + MAX_WELCOME + " ký tự.");
+        }
+        if (t.chars().anyMatch(c -> c < 32 && c != '\n')) {
+            throw new ImportException("Tin chào có ký tự điều khiển lạ.");
+        }
+        if (!t.isEmpty() && hasUnresolved(t.replace("{link}", ""))) {
+            throw new ImportException("Tin chào chỉ được dùng chỗ điền {link}; còn dấu { } lạ.");
+        }
+        if (!l.isEmpty() && (l.length() > 200 || !l.startsWith("https://") || l.chars().anyMatch(c -> c <= 32 || c == '{' || c == '}'))) {
+            throw new ImportException("Link gian hàng phải bắt đầu bằng https:// và không có khoảng trắng.");
+        }
+        settings.set(WELCOME_ON, Boolean.toString(enabled), by);
+        settings.set(WELCOME_TEXT, t, by);
+        settings.set(SHOP_LINK, l, by);
+        auto.log(ZaloAutoSettings.A_CONFIG, null, null, "TIN_CHAO_NHOM " + (enabled ? "BAT" : "TAT"), null, by);
+    }
+
+    /**
+     * Tin chào đã điền sẵn để gửi, hoặc null nếu tắt hoặc mẫu còn chỗ điền lạ (không bao giờ gửi tin còn dấu { }).
+     */
+    public String welcomeText() {
+        if (!welcomeEnabled()) {
+            return null;
+        }
+        String t = welcomeTemplate().replace("{link}", shopLink()).strip();
+        return t.isEmpty() || hasUnresolved(t) || t.length() > MAX_WELCOME + 200 ? null : t;
+    }
+
+    private static boolean hasUnresolved(String s) {
+        return s.contains("{") || s.contains("}");
     }
 
     Instant lastPlanAt() {

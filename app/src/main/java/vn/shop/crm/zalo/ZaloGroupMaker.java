@@ -31,9 +31,15 @@ public interface ZaloGroupMaker {
      * @param deputy     OK, FAILED hoặc NONE
      * @param deputyCode mã lỗi Zalo thật (dạng Z118) khi đặt phó nhóm lỗi; null nếu không có
      * @param notCreated cầu nối CHẮC CHẮN chưa tạo gì (từ chối trước khi chạm Zalo); false = đã tạo hoặc không biết
+     * @param welcome    kết quả tin chào đầu nhóm: OK, FAILED, SKIPPED hoặc NONE (không yêu cầu gửi)
      */
     record Created(GroupOutcome outcome, String code, String groupId, String link, List<String> added, List<String> failed,
-                   String deputy, String deputyCode, int retryAfterSeconds, boolean notCreated) {
+                   String deputy, String deputyCode, int retryAfterSeconds, boolean notCreated, String welcome) {
+        public Created(GroupOutcome outcome, String code, String groupId, String link, List<String> added, List<String> failed,
+                       String deputy, String deputyCode, int retryAfterSeconds, boolean notCreated) {
+            this(outcome, code, groupId, link, added, failed, deputy, deputyCode, retryAfterSeconds, notCreated, "NONE");
+        }
+
         public Created(GroupOutcome outcome, String code, String groupId, String link, List<String> added, List<String> failed,
                        String deputy, int retryAfterSeconds, boolean notCreated) {
             this(outcome, code, groupId, link, added, failed, deputy, null, retryAfterSeconds, notCreated);
@@ -65,6 +71,9 @@ public interface ZaloGroupMaker {
      */
     DeputyResult setDeputy(String groupId, String deputyUid);
 
-    /** Tạo nhóm. Không bao giờ ném lỗi. {@code deputyUid} có thể null. */
-    Created createGroup(String name, List<String> memberUids, String deputyUid);
+    /**
+     * Tạo nhóm. Không bao giờ ném lỗi. {@code deputyUid} có thể null. {@code welcome} (có thể null) là MỘT tin chào gửi vào chính nhóm vừa tạo,
+     * đúng một lần ngay sau khi tạo (chủ dự án chốt 24/11/2026: không chịu khoảng nghỉ 2 phút hay hạn mức tin); gửi lỗi không làm hỏng việc tạo.
+     */
+    Created createGroup(String name, List<String> memberUids, String deputyUid, String welcome);
 }

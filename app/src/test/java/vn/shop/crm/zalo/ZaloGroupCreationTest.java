@@ -156,6 +156,42 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
     }
 
     @Test
+    void taoNhomGuiMotTinChaoCoLinkGianHangMacDinh() {
+        mode(ZaloGroupMode.CONFIRM);
+        friended(1, 2, 3);
+        svc.step();
+        svc.approve(svc.recent(1).getFirst().id(), "mẹ");
+        assertThat(svc.step()).isEqualTo(Step.CREATED);
+        assertThat(fake.welcomes).singleElement().satisfies(w -> assertThat(w)
+                .contains("https://vt.tiktok.com/ZSsYdPXfU/?page=TikTokShop", "giảm 10% so với TikTok", "miễn ship")
+                .doesNotContain("{", "}"));
+        assertThat(auto.recentLog(10)).anyMatch(l -> "TIN_CHAO_OK".equals(l.result()));
+    }
+
+    @Test
+    void tinChaoTatHoacSuaDuocVaMauLaBiTuChoi() {
+        cfg.setWelcome(false, "", "", "mẹ");
+        assertThat(cfg.welcomeText()).isNull();
+        cfg.setWelcome(true, "Chào cả nhà, gian hàng: {link}", "https://example.com/shop", "mẹ");
+        assertThat(cfg.welcomeText()).isEqualTo("Chào cả nhà, gian hàng: https://example.com/shop");
+        cfg.setWelcome(true, "", "", "mẹ");
+        assertThat(cfg.welcomeText()).isEqualTo(ZaloGroupSettings.DEFAULT_WELCOME.replace("{link}", ZaloGroupSettings.DEFAULT_SHOP_LINK));
+        assertThatThrownBy(() -> cfg.setWelcome(true, "Chào {ten}", "", "mẹ")).isInstanceOf(ImportException.class);
+        assertThatThrownBy(() -> cfg.setWelcome(true, "", "http://khong-an-toan", "mẹ")).isInstanceOf(ImportException.class);
+    }
+
+    @Test
+    void tinChaoTatThiKhongYeuCauGuiGiVaoNhom() {
+        cfg.setWelcome(false, "", "", "mẹ");
+        mode(ZaloGroupMode.CONFIRM);
+        friended(1, 2, 3);
+        svc.step();
+        svc.approve(svc.recent(1).getFirst().id(), "mẹ");
+        assertThat(svc.step()).isEqualTo(Step.CREATED);
+        assertThat(fake.welcomes).containsExactly((String) null);
+    }
+
+    @Test
     void duyetRoiTaoNhomGhiNhomVaDuaKhachVaoDungNhom() {
         mode(ZaloGroupMode.CONFIRM);
         friended(1, 2, 3);

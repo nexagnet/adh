@@ -91,12 +91,12 @@ public final class SafeZaloLink implements ZaloLink {
     // ---------- ZaloGroupMaker ----------
 
     @Override
-    public Created createGroup(String name, List<String> memberUids, String deputyUid) {
+    public Created createGroup(String name, List<String> memberUids, String deputyUid, String welcome) {
         if (memberUids == null || memberUids.stream().anyMatch(u -> !mode.uidAllowed(u))) {
             mode.noteBlocked("TAO_NHOM");
             return Created.of(GroupOutcome.UNREACHABLE, CODE, true);
         }
-        return inner.createGroup(name, memberUids, deputyUid);
+        return inner.createGroup(name, memberUids, deputyUid, welcome);
     }
 
     /** Ở chế độ thử chỉ đặt phó nhóm cho nhóm do chính Adh tạo (có mã nhóm Zalo trong bảng nhóm); mã lạ thì từ chối, chưa chạm Zalo. */

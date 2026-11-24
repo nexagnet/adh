@@ -757,6 +757,38 @@ test('tạo nhóm: tạo một nhóm với đúng các thành viên, bật link,
   c.cleanup();
 });
 
+test('tạo nhóm: tin chào đầu nhóm gửi đúng một lần vào nhóm vừa tạo, sau khi bật link và đặt phó nhóm, không bị chặn bởi khoảng nghỉ tin riêng', async () => {
+  const c = await ready();
+  await c.bridge.sendMessage({ kind: 'INVITE', phone: '849000000001', text: 'Tin 1' }); // vừa gửi tin riêng: khoảng nghỉ riêng đang chạy
+  const r = await c.bridge.createGroup({ ...NEW_GROUP, welcome: 'Dạ em chào cả nhóm ạ' });
+  assert.equal(r.outcome, 'OK');
+  assert.equal(r.welcome, 'OK');
+  assert.deepEqual(c.adapter.groupSent, [{ groupId: '9001', text: 'Dạ em chào cả nhóm ạ' }]);
+  c.cleanup();
+});
+
+test('tạo nhóm: tin chào lỗi thì nhóm vẫn tạo xong, báo FAILED kèm mã, không gửi lại', async () => {
+  const c = await ready();
+  c.adapter.groupSendError = Object.assign(new Error('Không gửi được'), { code: 221 });
+  const r = await c.bridge.createGroup({ ...NEW_GROUP, welcome: 'Chào cả nhóm' });
+  assert.equal(r.outcome, 'OK');
+  assert.equal(r.welcome, 'FAILED');
+  assert.equal(c.adapter.groupSent, undefined);
+  c.cleanup();
+});
+
+test('tạo nhóm: không có tin chào thì không gửi gì vào nhóm; tin chào sai khuôn bị từ chối trước khi chạm Zalo', async () => {
+  const c = await ready();
+  assert.equal((await c.bridge.createGroup(NEW_GROUP)).welcome, undefined);
+  assert.equal(c.adapter.groupSent, undefined);
+  for (const bad of ['', '   ', 'Chào {ten}', 'x'.repeat(1501), 5]) {
+    const r = await c.bridge.createGroup({ name: 'N', members: ['601'], welcome: bad });
+    assert.deepEqual(r, { outcome: 'PERSON_ERROR', code: 'BAD_WELCOME' });
+  }
+  assert.equal(c.adapter.created.length, 1);
+  c.cleanup();
+});
+
 test('tạo nhóm: mẹ chưa vào nhóm lúc tạo thì thêm vào trước rồi mới đặt phó nhóm', async () => {
   const c = await ready();
   c.adapter.createFailMembers = ['900'];

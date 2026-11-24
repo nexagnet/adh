@@ -110,6 +110,10 @@ public class ZaloAutoController {
             model.addAttribute("groupRelaxDays", gs.relaxDays());
             model.addAttribute("groupAlertDays", gs.alertDays());
             model.addAttribute("groupProps", gs.props());
+            model.addAttribute("welcomeOn", gs.welcomeEnabled());
+            model.addAttribute("welcomeTemplate", gs.welcomeTemplate());
+            model.addAttribute("welcomeLink", gs.shopLink());
+            model.addAttribute("welcomeMax", ZaloGroupSettings.MAX_WELCOME);
             model.addAttribute("deputyCurrent", deputy.current());
             model.addAttribute("deputyCandidate", deputy.candidate().orElse(null));
             model.addAttribute("inboxRunning", inbox.running());
@@ -167,6 +171,15 @@ public class ZaloAutoController {
         gs.setDays(mergeUpDays == null ? gs.mergeUpDays() : mergeUpDays, relaxDays == null ? gs.relaxDays() : relaxDays,
                 alertDays == null ? gs.alertDays() : alertDays, by(user));
         redirect.addFlashAttribute("flash", "Đã lưu ngưỡng và sức chứa nhóm.");
+        return "redirect:/zalo?tab=nhom#tao-nhom";
+    }
+
+    @PostMapping("/group-welcome")
+    public String groupWelcome(@RequestParam(defaultValue = "false") boolean enabled, @RequestParam(defaultValue = "") String template,
+                               @RequestParam(defaultValue = "") String shopLink, Principal user, RedirectAttributes redirect) {
+        requireEnabled();
+        groupMaker.settings().setWelcome(enabled, template, shopLink, by(user));
+        redirect.addFlashAttribute("flash", "Đã lưu tin chào đầu nhóm.");
         return "redirect:/zalo?tab=nhom#tao-nhom";
     }
 

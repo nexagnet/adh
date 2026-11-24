@@ -14,6 +14,7 @@ const CLOSE_KICK = 3003;
 const MAX_STARTS = 5; // quá 5 lần khởi động trong 10 phút là vòng sập-bật lại
 const START_WINDOW_MS = 10 * 60 * 1000;
 const MAX_GROUP_NAME = 100;
+const MAX_GROUP_WELCOME = 1500;
 const MAX_GROUP_MEMBERS = 5;
 /** Số lần thử lại đặt phó nhóm tối đa mỗi ngày (nút "Thử lại phó nhóm"). */
 const MAX_DEPUTY_TRIES_PER_DAY = 10;
@@ -652,7 +653,9 @@ export class Bridge {
    * cố định, không ngẫu nhiên hóa: khung giờ, khoảng nghỉ tối thiểu giữa hai lần tạo (sớm hơn thì
    * chỉ bị từ chối RATE_LIMITED), và KHÔNG có trần số nhóm mỗi ngày (chủ dự án chốt 24/11/2026), một lúc một việc, lỗi lạ hoặc không rõ kết quả thì dừng và không tự thử lại. Tên nhóm, mã Zalo không vào log.
    * Bật link hoặc thêm phó nhóm lỗi thì KHÔNG dừng: nhóm đã tạo, báo lại để Adh ghi và nhắc mẹ làm tay.
-   * @param {{name: string, members: string[], deputy?: string}} m
+   * Tin chào đầu nhóm (tùy chọn `welcome`, 24/11/2026, chủ dự án chốt: không giới hạn khoảng nghỉ hay hạn mức): MỘT tin văn bản vào chính nhóm
+   * vừa tạo, gửi một lần ngay sau khi tạo (không có đường gửi lại); lỗi không làm hỏng việc tạo nhóm. Không tính vào sổ tin riêng.
+   * @param {{name: string, members: string[], deputy?: string, welcome?: string}} m
    */
   async createGroup(m) {
     const name = typeof m?.name === 'string' ? m.name.trim() : '';
@@ -664,6 +667,11 @@ export class Bridge {
       return { outcome: 'PERSON_ERROR', code: 'BAD_MEMBERS' };
     }
     if (deputy !== null && (!ZALO_ID.test(deputy) || members.includes(deputy))) return { outcome: 'PERSON_ERROR', code: 'BAD_DEPUTY' };
+    const welcome = m?.welcome === undefined || m?.welcome === null ? null : m.welcome;
+    // eslint-disable-next-line no-control-regex
+    if (welcome !== null && (typeof welcome !== 'string' || welcome.trim().length === 0 || welcome.length > MAX_GROUP_WELCOME || /[\u0000-\u0009\u000b-\u001f]/.test(welcome) || /\{[^}]*\}/.test(welcome))) {
+      return { outcome: 'PERSON_ERROR', code: 'BAD_WELCOME' };
+    }
     if (this.state === 'LOGIN_REQUIRED') return { outcome: 'SESSION_LOST', code: 'LOGIN_REQUIRED' };
     if (this.state === 'TRIPPED' || this.state === 'STOPPED') return { outcome: 'RESTRICTED', code: 'NOT_ACTIVE' };
     if (this.state !== 'LISTENING') return { outcome: 'SYSTEM_ERROR', code: 'NOT_CONNECTED' };
@@ -729,9 +737,25 @@ export class Bridge {
         deputyState = r.deputy;
         deputyCode = r.code;
       }
+      // Tin chào đầu nhóm: đúng MỘT lần, không thử lại; lỗi chỉ được ghi lại, không dừng trừ khi Zalo hạn chế hay mất phiên
+      let welcomeState = 'NONE';
+      let welcomeCode = null;
+      if (welcome !== null) {
+        if (tripped) {
+          welcomeState = 'SKIPPED';
+        } else {
+          try {
+            await withTimeout(this.adapter.sendText(groupId, welcome, true), this.config.addTimeoutMs);
+            welcomeState = 'OK';
+          } catch (e) {
+            welcomeState = 'FAILED';
+            welcomeCode = after(e).code ?? 'UNKNOWN';
+          }
+        }
+      }
       if (!tripped) this.stateFile.write({});
-      this.log(`tạo nhóm: OK (link ${link ? 'có' : 'không'}, phó nhóm ${deputyState}${deputyCode ? ` mã ${deputyCode}` : ''})`);
-      return { outcome: 'OK', groupId, link, added, failed, deputy: deputyState, ...(deputyCode ? { deputyCode } : {}) };
+      this.log(`tạo nhóm: OK (link ${link ? 'có' : 'không'}, phó nhóm ${deputyState}${deputyCode ? ` mã ${deputyCode}` : ''}, tin chào ${welcomeState}${welcomeCode ? ` mã ${welcomeCode}` : ''})`);
+      return { outcome: 'OK', groupId, link, added, failed, deputy: deputyState, ...(deputyCode ? { deputyCode } : {}), ...(welcome !== null ? { welcome: welcomeState } : {}), ...(welcomeCode ? { welcomeCode } : {}) };
     } finally {
       this.busy = false;
     }

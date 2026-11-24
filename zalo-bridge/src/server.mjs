@@ -88,7 +88,7 @@ export function createServer({ bridge, config, fake = null }) {
       if (route === 'GET /groups') return send(200, await bridge.listGroups());
       if (route === 'POST /groups') {
         const body = await readJson(req);
-        return send(200, await bridge.createGroup({ name: body.name, members: body.members, deputy: body.deputy }));
+        return send(200, await bridge.createGroup({ name: body.name, members: body.members, deputy: body.deputy, welcome: body.welcome }));
       }
       const add = /^POST \/groups\/([^/]+)\/members$/.exec(route);
       if (add) {
