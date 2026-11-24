@@ -331,6 +331,112 @@ class ReplyTest extends AbstractPostgresTest {
         assertThat(one("reason")).isEqualTo("KHACH_KHIEU_NAI");
     }
 
+    private List<String> scopePrompts() {
+        List<String> out = new ArrayList<>();
+        for (int i = 0; i < systems.size(); i++) {
+            if (systems.get(i).startsWith("Bạn chỉ làm một việc: xem MỘT tin")) {
+                out.add(prompts.get(i));
+            }
+        }
+        return out;
+    }
+
+    @Test
+    void hoiUuDaiChungMaNhanMuonMuaChuaChacThiVanTraLoi() {
+        // "Ưu đãi như nào": AI từng gắn MUON_MUA độ chắc 0,8. Dưới mức chắc chắn thì bước phạm vi quyết, và đây là hỏi ưu đãi chung nên được trả lời.
+        replies.setMode(Mode.DRAFT, false, "mẹ");
+        label.set(aiLabel("MUON_MUA", 0.8));
+        says("Ưu đãi như nào");
+        assertThat(one("state")).isEqualTo("DRAFT");
+        assertThat(one("reply_text")).startsWith(GOOD);
+        assertThat(scopePrompts()).hasSize(1);
+    }
+
+    @Test
+    void nhanMuonMuaChuaChacNhungNgoaiPhamViThiVanChuyenNguoiThatVoiLyDoMuonMua() {
+        replies.setMode(Mode.DRAFT, false, "mẹ");
+        label.set(aiLabel("MUON_MUA", 0.8));
+        scope.set(aiScope("NGOAI", 0.95));
+        says("Áo điều hòa size L giá bao nhiêu");
+        assertThat(one("state")).isEqualTo("HANDOFF");
+        assertThat(one("reason")).isEqualTo("KHACH_MUON_MUA");
+        assertThat(systems.stream().filter(s -> s.startsWith("Bạn là TRỢ LÝ AI")).count()).isZero(); // không soạn câu
+    }
+
+    @Test
+    void nhanMuonMuaChacTuNguongThiChuyenNguoiThatNgayKhongHoiPhamVi() {
+        replies.setMode(Mode.DRAFT, false, "mẹ");
+        label.set(aiLabel("MUON_MUA", ReplyService.BUY_HANDOFF_MIN));
+        says("Cho tôi đặt hai cái");
+        assertThat(one("reason")).isEqualTo("KHACH_MUON_MUA");
+        assertThat(scopePrompts()).isEmpty();
+    }
+
+    @Test
+    void hoiUuDaiChungKhongNoiVaoNhomThiCuaGocPhamViChiXetTinMoiKhiGopTin() {
+        replies.setMode(Mode.DRAFT, false, "mẹ");
+        says("Vào nhóm có mất phí không");
+        says("Cho tôi biết ưu đãi bên bạn");
+        // Hai tin liên tiếp được gộp để soạn MỘT câu đủ ý, nhưng bước phạm vi chỉ xét tin mới nhất (tin cũ đã qua bước này rồi).
+        assertThat(scopePrompts()).hasSize(2);
+        assertThat(scopePrompts().get(1)).contains("ưu đãi bên bạn").doesNotContain("mất phí").doesNotContain(" | ");
+        assertThat(prompts.get(prompts.size() - 1)).contains("mất phí").contains("ưu đãi bên bạn");
+        assertThat(count("SELECT count(*) FROM reply_draft WHERE state = 'SUPERSEDED'")).isEqualTo(1);
+        assertThat(one("state")).isEqualTo("DRAFT");
+        assertThat(one("inbound_text")).contains("mất phí").contains("ưu đãi bên bạn");
+    }
+
+    @Test
+    void tinMoiNgoaiPhamViKhiGopTinThiChuyenNguoiThatGiuCaHaiTin() {
+        replies.setMode(Mode.DRAFT, false, "mẹ");
+        says("Vào nhóm có mất phí không");
+        scope.set(aiScope("NGOAI", 0.95));
+        says("Pin 48V còn hàng không");
+        assertThat(one("state")).isEqualTo("HANDOFF");
+        assertThat(one("reason")).isEqualTo("NGOAI_PHAM_VI");
+        assertThat(one("inbound_text")).contains("mất phí").contains("Pin 48V");
+    }
+
+    @Test
+    void loiNhacAiNoiRoHoiUuDaiChungLaTrongPhamViVaChiMuonMuaThiMoiLaMuonMua() {
+        assertThat(ReplyAssistant.SCOPE_SYSTEM).contains("Ưu đãi như nào").contains("Cho tôi biết ưu đãi bên bạn").contains("dù khách không nhắc chữ \"nhóm\"");
+        assertThat(ReplyAssistant.SCOPE_SYSTEM).contains("\"Ưu đãi vào nhóm là gì\" → TRONG").contains("\"Pin 48V còn hàng không\" → NGOAI")
+                .contains("Tin thật sự mơ hồ hoặc không hiểu được cũng là NGOAI");
+        assertThat(RefusalClassifier.SYSTEM).contains("\"Ưu đãi như nào\" → CAU_HOI").contains("\"Cho mình đặt 2 cái\" → MUON_MUA")
+                .contains("xét lần lượt từ trên xuống");
+        assertThat(RefusalClassifier.SYSTEM).contains("KHÔNG phải MUON_MUA").contains("Ưu đãi như nào").contains("MỘT sản phẩm cụ thể");
+    }
+
+    /**
+     * Bộ câu mẫu: (câu khách, nhãn AI gắn, độ chắc nhãn, scope AI chọn, kết quả mong đợi). Kiểm đường đi của hệ thống với đầu ra AI có thể gặp, kể cả
+     * các lần AI từng gắn sai (nhãn MUON_MUA độ chắc 0,8 cho câu hỏi ưu đãi, scope NGOAI 0,7). Cùng các câu này có thể dán vào ô "Thử một câu" ở /zalo/reply
+     * để thử với DeepSeek thật.
+     */
+    @org.junit.jupiter.params.ParameterizedTest(name = "[{index}] {0}")
+    @org.junit.jupiter.params.provider.CsvSource(delimiter = ';', value = {
+            "Ưu đãi vào nhóm là gì;CAU_HOI;0.95;TRONG;0.99;DRAFT;",
+            "Ưu đãi như nào;CAU_HOI;0.9;TRONG;0.95;DRAFT;",
+            "Ưu đãi như nào;MUON_MUA;0.8;TRONG;0.9;DRAFT;",
+            "Cho tôi biết ưu đãi bên bạn;MUON_MUA;0.8;TRONG;0.85;DRAFT;",
+            "Bên bạn có giảm giá không;KHAC;0.7;TRONG;0.9;DRAFT;",
+            "Ok thêm mình vào nhóm;KHAC;0.9;TRONG;0.95;DRAFT;",
+            "Áo điều hòa size L giá bao nhiêu;MUON_MUA;0.95;NGOAI;0.95;HANDOFF;KHACH_MUON_MUA",
+            "Áo điều hòa size L giá bao nhiêu;MUON_MUA;0.8;NGOAI;0.95;HANDOFF;KHACH_MUON_MUA",
+            "Pin 48V còn hàng không;CAU_HOI;0.6;NGOAI;0.9;HANDOFF;NGOAI_PHAM_VI",
+            "Hàng nhận bị lỗi quạt không chạy;KHIEU_NAI;0.9;NGOAI;0.9;HANDOFF;KHACH_KHIEU_NAI",
+            "Cho mình gặp người thật;KHAC;0.6;NGOAI;0.9;HANDOFF;NGOAI_PHAM_VI",
+            "ưu đãi sao;CAU_HOI;0.7;TRONG;0.7;HANDOFF;NGOAI_PHAM_VI"})
+    void boCauMauDuongDiDungKhiAiGanNhanKhacNhau(String text, String intent, double intentConf, String sc, double scConf, String state, String reason) {
+        replies.setMode(Mode.DRAFT, false, "mẹ");
+        label.set(aiLabel(intent, intentConf));
+        scope.set(aiScope(sc, scConf));
+        says(text);
+        assertThat(one("state")).isEqualTo(state);
+        if (reason != null && !reason.isBlank()) {
+            assertThat(one("reason")).isEqualTo(reason);
+        }
+    }
+
     @Test
     void cauAiSoanKhongQuaKiemCungThiKhongBaoGioGui() {
         autoOn();
