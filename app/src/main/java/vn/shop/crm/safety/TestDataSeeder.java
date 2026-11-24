@@ -16,7 +16,7 @@ import java.util.List;
 /**
  * Dựng khách và đơn J&T GIẢ từ các số thử đã khai báo ở chế độ thử, để chạy thử "như thật" mà không bắt người dùng nhập đơn tay.
  *
- * <p>Mỗi số thử chưa là khách được một đơn giả "Đã ký nhận" đi qua đúng đường nhập đơn J&T thật ({@link ImportService}), cùng một
+ * <p>Mỗi số thử chưa là khách được một đơn giả "Giao thành công" đi qua đúng đường nhập đơn J&T thật ({@link ImportService}), cùng một
  * tỉnh (để việc xếp nhóm theo khu vực có đủ người). Dữ liệu giả được đánh dấu rõ: mã vận đơn bắt đầu bằng {@value #TRACKING_PREFIX} và tên
  * người nhận là "Khách thử N". Chỉ chạy khi đang ở chế độ thử (không bao giờ ở chế độ chạy thật) và chỉ cho số trong danh sách thử. Không
  * xóa, không sửa khách nào đã có; số đã là khách thì bỏ qua và báo lại.
@@ -78,7 +78,7 @@ public class TestDataSeeder {
             csv.append(tracking).append(',').append("TEST").append(now.format(CODE)).append(String.format("%02d", i)).append(',')
                     .append(now.minusDays(3).format(CREATED)).append(",Khách thử ").append(i).append(',')
                     .append(PhoneNormalizer.toDisplay(phone).replaceAll("\\s", "")).append(",\"").append(PROVINCE_ADDRESS)
-                    .append("\",Đã ký nhận\n");
+                    .append("\",Giao thành công\n");
         }
         long batch = imports.createBatch(Carrier.JT_EXPRESS, "du-lieu-thu.csv", csv.toString().getBytes(StandardCharsets.UTF_8));
         var view = imports.open(batch, null);
