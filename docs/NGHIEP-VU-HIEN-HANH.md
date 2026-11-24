@@ -182,7 +182,7 @@ Muốn tự gửi chạy cần **ba thứ cùng lúc**: biến môi trường t�
 - Muốn tự thêm được, nhóm cần đủ: có link mời, có mã nhóm Zalo, đang "nhận khách", và tài khoản cửa hàng đã ở trong nhóm. Thiếu một thứ thì khách **chờ**, không bị đẩy sang nhóm khác.
 - **Nhóm tự thêm và nhóm của link là MỘT nhóm** (cùng một nhóm được giữ chỗ cho mỗi khách).
 - Chưa có nhóm hợp: khách giữ trạng thái "đã kết bạn, chờ nhóm", hệ thống ghi một dòng "chờ nhóm" theo mã tỉnh (không tên, không số). Có tự tạo nhóm thì xem mục 4.8.
-- **Hạn mức thêm nhóm tách riêng khỏi hạn mức gửi tin:** mặc định 50 người/ngày, 5 người/giờ, cách nhau 2 phút, trần cứng 100/ngày (khách vượt hạn mức hôm nay sẽ chuyển sang ngày hôm sau, theo thứ tự đồng ý); khung giờ mặc định của cấu hình là 07:00 đến 22:00 (khác với 08:00 đến 20:00 của tin nhắn). Chỉnh ở trang `/zalo`. Có bốn nấc: Tắt / Chỉ nghe (người thêm tay) / Mẹ duyệt từng người / Tự thêm trong hạn mức.
+- **Hạn mức thêm nhóm tách riêng khỏi hạn mức gửi tin:** mặc định 150 người/ngày, 15 người/giờ, cách nhau 2 phút (nâng từ 50 và 5 ngày 24/11/2026, chủ dự án chốt), trần cứng 300/ngày và 30/giờ (khách vượt hạn mức hôm nay sẽ chuyển sang ngày hôm sau, theo thứ tự đồng ý); khung giờ mặc định của cấu hình là 07:00 đến 22:00 (khác với 08:00 đến 20:00 của tin nhắn). Chỉnh ở trang `/zalo`. Có bốn nấc: Tắt / Chỉ nghe (người thêm tay) / Mẹ duyệt từng người / Tự thêm trong hạn mức.
 - **Lỗi khi thêm vào nhóm được tách ba loại (24/11/2026):** lỗi **riêng người** (họ chặn việc được thêm) chỉ bỏ qua người đó; liền 4 lần cùng một nhóm thì nhóm đó tạm dừng, 6 trong 8 lần gần nhất thì dừng cầu dao (nghi Zalo hạn chế). Lỗi **cả nhóm** (nhóm đầy, bị giải tán) đánh dấu nhóm, khách được chuyển nhóm khác; 3 lần liền ở các nhóm khác nhau thì dừng cầu dao. Lỗi lạ hoặc Zalo cảnh báo dừng cầu dao ngay và **chờ người mở lại**. Người dùng chưa có mã lỗi thật của Zalo nên danh sách mã nằm ở biến `BRIDGE_PERSON_ERROR_CODES` và `BRIDGE_GROUP_ERROR_CODES` để điền sau khi thử.
 - **Khách nhắn Tin 1 mà không kết bạn quá 14 ngày** chỉ hiện nhãn "không phản hồi", **không bao giờ nhắn lại** (ngoài tin nhắc của chiến dịch nhiều lần).
 
@@ -364,7 +364,7 @@ Trang `/performance`. Mỗi chiến dịch một dòng phễu: **đã mời → 
 | Khoảng cách giữa các lần mời | tối thiểu 3 ngày (3 đến 30) |
 | Số ngày link mời còn hạn | 1 đến 90 |
 | Khách mỗi chiến dịch | tối đa 300 |
-| Thêm vào nhóm | mặc định 50 người/ngày, 5/giờ, cách 2 phút; trần 100/ngày; giờ mặc định 07:00 đến 22:00 |
+| Thêm vào nhóm | mặc định 150 người/ngày, 15/giờ, cách 2 phút; trần 300/ngày, 30/giờ; giờ mặc định 07:00 đến 22:00 |
 | Mục tiêu một nhóm | khoảng 5 khách (không tính mẹ và tài khoản cửa hàng) |
 | Giữ chỗ nhóm cho khách vừa kết bạn | 24 giờ |
 | Tự tạo nhóm | không trần nhóm/ngày, nghỉ 60 phút, từ 3 khách chờ (chỉnh từ 2), tối đa 5 khách lúc tạo |

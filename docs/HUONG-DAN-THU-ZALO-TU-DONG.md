@@ -55,7 +55,7 @@ Mỗi nấc chạy thử vài ngày với 2 đến 3 người **tự nguyện** 
    - nhóm bật "chỉ quản trị viên được thêm" (dạng lỗi này **chưa ai biết**; theo thiết kế bộ nối sẽ **dừng** vì coi là lỗi lạ, đó là hành vi đúng),
    - người đã chặn tài khoản phụ.
    Sau khi biết chắc một mã lỗi là lỗi riêng một người, thêm mã đó vào `ZALO_PERSON_ERROR_CODES` (cách nhau bằng dấu phẩy) để lần sau không làm cầu dao nhảy. **Đừng thêm mã nào chưa chắc.**
-4. Thử hạn mức: đặt tạm 2 người/ngày, duyệt 3 người: người thứ ba phải bị chặn. Trả lại 50/ngày sau khi thử.
+4. Thử hạn mức: đặt tạm 2 người/ngày, duyệt 3 người: người thứ ba phải bị chặn. Trả lại 150/ngày sau khi thử.
 5. Thử ngoài khung giờ (sau 22:00): không thêm ai.
 
 ### Những việc chỉ chạy lâu mới thấy
@@ -65,7 +65,7 @@ Mỗi nấc chạy thử vài ngày với 2 đến 3 người **tự nguyện** 
 - Lỗi 600 ("zpw_sek") đã gặp một lần ở đợt 0: nếu gặp, bộ nối dừng và cần quét lại.
 
 ### Nấc 3: "Tự thêm" (chỉ sau nhiều tuần ổn)
-Chỉ bật khi nấc 2 đã chạy ổn nhiều tuần với khách thật và không có cảnh báo nào của Zalo. Chọn nấc **Tự thêm trong hạn mức** và tick ô xác nhận đã chạy thử. Vẫn giữ hạn mức mặc định (50 người/ngày, tối đa 5/giờ, cách nhau ít nhất 2 phút). **Chưa ai biết 50 người/ngày có an toàn với Zalo không**; nếu muốn chắc hơn, bắt đầu bằng 10 đến 20 người/ngày và tăng dần.
+Chỉ bật khi nấc 2 đã chạy ổn nhiều tuần với khách thật và không có cảnh báo nào của Zalo. Chọn nấc **Tự thêm trong hạn mức** và tick ô xác nhận đã chạy thử. Vẫn giữ hạn mức mặc định (150 người/ngày, tối đa 15/giờ, cách nhau ít nhất 2 phút). **Chưa ai biết 150 người/ngày có an toàn với Zalo không**; nếu muốn chắc hơn, bắt đầu bằng 10 đến 20 người/ngày và tăng dần.
 
 ### Một nhóm cho cả hai đường (23/11/2026)
 Khách vào nhóm bằng link hay do bộ nối tự thêm thì **luôn là cùng một nhóm**. Khi khách kết bạn, hệ thống giữ chỗ một nhóm (nhóm gợi ý ở tin gửi link); bộ nối tự thêm đúng nhóm đó, không tự chọn nhóm khác. Muốn vậy mỗi nhóm cần **cả link mời lẫn mã nhóm Zalo** và đang ở trạng thái "Đang nhận khách". Nhóm được giữ cho khách mà thiếu mã hoặc thiếu link thì khách đó **chờ** (báo "chưa có nhóm hợp"), không bị thêm vào nhóm khác.
@@ -92,7 +92,7 @@ Bộ nối tự dừng khi gặp yêu cầu xác minh, captcha hay báo hạn ch
 | Ảnh Docker của bộ nối build được | Chưa build (không có daemon khi viết) |
 | Lỗi Zalo trả khi nhóm bật "chỉ quản trị viên được thêm", khi nhóm đầy, khi bị chặn | Chưa biết dạng lỗi; bộ nối dừng khi gặp lỗi lạ |
 | Thêm người **không** phải bạn vào nhóm | Chưa thử |
-| 50 người/ngày có bị Zalo hạn chế không | Chưa biết; ngưỡng của Zalo không công bố |
+| 150 người/ngày có bị Zalo hạn chế không | Chưa biết; ngưỡng của Zalo không công bố |
 | Thời gian sống của phiên Zalo | Chưa biết (đã thấy dùng lại được hơn 1 giờ) |
 | `getUserInfo` trên khách thật có trả số không | Chưa; mẫu nhỏ cho thấy phần đông không lộ số |
 | Chức năng liệt kê nhóm (`getAllGroups`, `getGroupInfo`) với Zalo thật | Chưa; nếu lỗi thì nhập mã tay ở trang Nhóm Zalo |

@@ -127,8 +127,8 @@ app:
       bridge-url: ${APP_ZALO_BRIDGE_URL:http://zalo-bridge:3100}
       # Khóa chung giữa Adh và dịch vụ cầu nối (bắt buộc khi bật; ứng dụng không khởi động nếu để trống).
       bridge-key: ${APP_ZALO_BRIDGE_KEY:}
-      # Trần cứng của số người thêm mỗi ngày; trang quản trị chỉ chỉnh được đến mức này. Mặc định 50/ngày, 5/giờ, cách nhau 2 phút.
-      max-daily: ${APP_ZALO_AUTO_MAX_DAILY:100}
+      # Trần cứng của số người thêm mỗi ngày; trang quản trị chỉ chỉnh được đến mức này. Mặc định 150/ngày, 15/giờ, cách nhau 2 phút (chủ dự án chốt 24/11/2026); trần cứng 300/ngày, 30/giờ.
+      max-daily: ${APP_ZALO_AUTO_MAX_DAILY:300}
       # D18: trần cứng số KHÁCH được nhắn chủ động (Tin 1) mỗi ngày; trang quản trị chỉ chỉnh được đến mức này (chủ shop chốt 23/11/2026: 50).
       msg-max-daily: ${APP_ZALO_AUTO_MSG_MAX_DAILY:50}
     safety:
