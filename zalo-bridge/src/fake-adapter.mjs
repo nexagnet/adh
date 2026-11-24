@@ -86,6 +86,11 @@ export class FakeAdapter {
     return { message: { msgId: 1 }, attachment: [] };
   }
 
+  async addHeart(uid, msgId, cliMsgId) {
+    if (this.heartError) throw this.heartError;
+    (this.hearts ??= []).push({ uid, msgId, cliMsgId });
+  }
+
   async sendFriendRequest(uid, text) {
     if (this.friendError) throw this.friendError;
     (this.friendRequests ??= []).push({ uid, text });
@@ -158,7 +163,8 @@ export class FakeAdapter {
   }
 
   emitMessage(uid, text) {
-    this.handlers?.onMessage?.(String(uid), text);
+    this.msgCounter = (this.msgCounter ?? 0) + 1;
+    this.handlers?.onMessage?.(String(uid), text, { msgId: String(5000 + this.msgCounter), cliMsgId: String(7000 + this.msgCounter) });
   }
 
   emitDisconnect(code) {

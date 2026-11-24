@@ -124,6 +124,7 @@ class ReplyTest extends AbstractPostgresTest {
         sender = new ZaloReplySender(replies, messages, settings);
         svc = new ZaloInboxService(new ZaloInboxProperties(true, 0.8, 0.85), fake, fake, auto, settings, new RefusalClassifier(gate), reviews,
                 comebacks, replies);
+        svc.setReactions(new ZaloReactionSender(replies, messages, auto, settings, fake, jdbc, clock));
         label.set(aiLabel("CAU_HOI", 0.95));
         scope.set(aiScope("TRONG", 0.95));
         compose.set(aiReply(GOOD));
@@ -169,6 +170,69 @@ class ReplyTest extends AbstractPostgresTest {
 
     private void freshInbound() {
         jdbc.sql("UPDATE reply_draft SET inbound_at = now()").update();
+    }
+
+    // ---------- thả tim tin không cần đáp ----------
+
+    @Test
+    void tinCamOnKhongCanDapThiThaTimKhongLuuViecKhongNhanChu() {
+        autoOn();
+        scope.set(aiScope("KHONG_CAN", 0.95));
+        says("Cảm ơn shop nhé");
+        assertThat(fake.hearts).hasSize(1);
+        assertThat(fake.hearts.get(0).uid()).isEqualTo("60000001");
+        assertThat(count("SELECT count(*) FROM reply_draft")).isZero();
+        assertThat(count("SELECT count(*) FROM zalo_auto_log WHERE action = 'THA_TIM' AND result = 'OK'")).isEqualTo(1);
+        assertThat(sender.step()).isFalse();
+        assertThat(fake.messages).isEmpty();
+    }
+
+    @Test
+    void thaTimChiOnacTuDongVaTatDuocThiTraLoiNganNhuCu() {
+        replies.setMode(Mode.DRAFT, false, "mẹ");
+        messages.setEnabled(true, "mẹ");
+        scope.set(aiScope("KHONG_CAN", 0.95));
+        says("Cảm ơn shop nhé");
+        assertThat(fake.hearts).isEmpty(); // nấc nháp không chạm khách
+        assertThat(one("state")).isEqualTo("DRAFT"); // vẫn soạn câu như trước
+        jdbc.sql("DELETE FROM reply_draft").update();
+        replies.setMode(Mode.AUTO, true, "mẹ");
+        replies.setReactEnabled(false, "mẹ");
+        says("Cảm ơn shop nhé");
+        assertThat(fake.hearts).isEmpty();
+        assertThat(one("state")).isEqualTo("READY");
+    }
+
+    @Test
+    void khongThaTimKhiAiKhongChacHoacDungKhanHoacNgoaiGio() {
+        autoOn();
+        scope.set(aiScope("KHONG_CAN", 0.8));
+        says("Cảm ơn");
+        assertThat(fake.hearts).isEmpty();
+        assertThat(one("state")).isEqualTo("READY"); // chưa đủ chắc: trả lời ngắn như cũ
+        jdbc.sql("DELETE FROM reply_draft").update();
+        scope.set(aiScope("KHONG_CAN", 0.95));
+        settings.set("campaigns.paused", "true", "test");
+        says("Cảm ơn");
+        assertThat(fake.hearts).isEmpty();
+        settings.set("campaigns.paused", "false", "test");
+        clock.set(LocalDateTime.of(2026, 11, 22, 23, 0));
+        says("Cảm ơn");
+        assertThat(fake.hearts).isEmpty();
+    }
+
+    @Test
+    void tinOkDongYVanDuocTraLoiKhongThaTimVaKhongMatCauDangCho() {
+        autoOn();
+        scope.set(aiScope("TRONG", 0.95));
+        says("Ok");
+        assertThat(fake.hearts).isEmpty();
+        assertThat(one("state")).isEqualTo("READY");
+        scope.set(aiScope("KHONG_CAN", 0.95));
+        says("Cảm ơn");
+        assertThat(fake.hearts).hasSize(1);
+        assertThat(count("SELECT count(*) FROM reply_draft WHERE state = 'READY'")).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM reply_draft WHERE state = 'SUPERSEDED'")).isZero();
     }
 
     // ---------- tắt mặc định và các nấc ----------

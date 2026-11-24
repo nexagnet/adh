@@ -42,6 +42,10 @@ public class ReplyService {
     public static final String DRAFT_TRIED_KEY = "reply.draft_tried_at";
     /** AI phải chắc chừng này là tin NẰM TRONG phạm vi mới được soạn trả lời. */
     public static final double SCOPE_MIN = 0.8;
+    /** Công tắc thả tim tin khách mà AI xác định không cần đáp (cảm ơn, biểu tượng cảm xúc). Mặc định BẬT; chỉ có tác dụng ở nấc TỰ ĐỘNG. */
+    public static final String REACT_KEY = "reply.react.enabled";
+    /** AI phải chắc chừng này là tin không cần đáp mới thả tim; dưới mức đó vẫn trả lời ngắn như trước. */
+    public static final double REACT_MIN = 0.85;
     /**
      * Nhãn "muốn mua" chỉ chuyển người thật ngay (không qua bước phạm vi) khi AI chắc từ mức này. Dưới mức đó nhãn dễ nhầm với câu hỏi chung về ưu đãi
      * ("Ưu đãi như nào"), nên để bước phân loại phạm vi quyết: câu thật sự ngoài phạm vi vẫn chuyển người thật, còn câu hỏi ưu đãi chung thì được trả lời.
@@ -117,6 +121,8 @@ public class ReplyService {
         DRAFTED,
         /** Đã xếp vào hàng chờ gửi (nấc tự động). */
         QUEUED,
+        /** Tin không cần đáp: bên gọi thả tim vào đúng tin đó (không lưu việc, không gửi chữ). */
+        REACT,
         /** Chuyển người thật. */
         HANDOFF
     }
@@ -159,6 +165,20 @@ public class ReplyService {
 
     public Mode mode() {
         return Mode.parse(settings.get(MODE_KEY).orElse(null));
+    }
+
+    /** Thả tim có đang bật không (mặc định bật). */
+    public boolean reactEnabled() {
+        return settings.get(REACT_KEY).map(v -> !"false".equalsIgnoreCase(v.strip())).orElse(true);
+    }
+
+    public void setReactEnabled(boolean on, String by) {
+        settings.set(REACT_KEY, Boolean.toString(on), by);
+    }
+
+    /** Chỉ thả tim ở nấc TỰ ĐỘNG (các nấc khác không nhắn gì tới khách). */
+    private boolean reactActive() {
+        return reactEnabled() && mode() == Mode.AUTO;
     }
 
     public boolean draftTried() {
@@ -231,6 +251,13 @@ public class ReplyService {
                         .param("t", tail(join(o.inbound, text))).param("id", o.id).update();
                 return Result.HANDOFF;
             }
+            // Tin chỉ là lời cảm ơn/biểu tượng: không đụng tới nháp hay hàng chờ đang có, chỉ thả tim.
+            if (reactActive() && v.outcome() == RefusalClassifier.Outcome.OK && (v.label() == Label.CAU_HOI || v.label() == Label.KHAC)) {
+                ReplyAssistant.Scope early = assistant.scope(latest);
+                if (early.outcome() == ReplyAssistant.Outcome.OK && early.noReply() && early.confidence() >= REACT_MIN) {
+                    return Result.REACT;
+                }
+            }
             // nháp hoặc hàng chờ chưa gửi: thay bằng việc mới, gộp chữ khách để không mất ý
             jdbc.sql("UPDATE reply_draft SET state = 'SUPERSEDED', reply_text = NULL, updated_at = now() WHERE id = :id").param("id", o.id).update();
             text = tail(join(o.inbound, text));
@@ -272,6 +299,9 @@ public class ReplyService {
         }
         // Hồ sơ chỉ được dựng (và đọc từ CSDL) khi đã qua bước phân loại phạm vi, và chỉ của đúng khách này.
         Plan p = plan(latest, text, () -> context.forCustomer(s.customerId()));
+        if (p.react) {
+            return Result.REACT;
+        }
         if (p.reply == null) {
             // Nhãn "muốn mua" chưa đủ chắc mà tin cũng ngoài phạm vi: giữ lý do khách muốn mua để người thật thấy đúng việc.
             Reason reason = wantsToBuy && p.reason == Reason.NGOAI_PHAM_VI ? Reason.KHACH_MUON_MUA : p.reason;
@@ -284,13 +314,22 @@ public class ReplyService {
     }
 
     /** Kết quả của chuỗi phân loại phạm vi, soạn câu, kiểm cứng. {@code reply} khác null nghĩa là có câu dùng được (chưa kèm chữ ký). */
-    private record Plan(String reply, Reason reason, String detail, Double confidence, String fields) {
+    private record Plan(String reply, Reason reason, String detail, Double confidence, String fields, boolean react) {
+        Plan(String reply, Reason reason, String detail, Double confidence, String fields) {
+            this(reply, reason, detail, confidence, fields, false);
+        }
+
         static Plan no(Reason r, String detail, Double c) {
             return new Plan(null, r, detail, c, null);
         }
 
+        /** Tin không cần đáp: không soạn câu, không chuyển người thật. */
+        static Plan react(double c) {
+            return new Plan(null, null, null, c, null, true);
+        }
+
         Plan withFields(String f) {
-            return new Plan(reply, reason, detail, confidence, f);
+            return new Plan(reply, reason, detail, confidence, f, react);
         }
     }
 
@@ -302,6 +341,13 @@ public class ReplyService {
         }
         if (sc.outcome() == ReplyAssistant.Outcome.INVALID) {
             return Plan.no(Reason.AI_SAI_KHUON, null, null);
+        }
+        if (sc.noReply()) {
+            if (reactActive() && sc.confidence() >= REACT_MIN) {
+                return Plan.react(sc.confidence());
+            }
+            // Thả tim đang tắt hoặc AI chưa đủ chắc: giữ cách cũ, trả lời ngắn một câu.
+            sc = new ReplyAssistant.Scope(ReplyAssistant.Outcome.OK, true, false, Math.max(sc.confidence(), SCOPE_MIN));
         }
         if (!sc.inScope() || sc.confidence() < SCOPE_MIN) {
             return Plan.no(Reason.NGOAI_PHAM_VI, null, sc.confidence());
@@ -341,6 +387,9 @@ public class ReplyService {
         }
         // Thử bằng hồ sơ mẫu GIẢ: không bao giờ đọc hay gửi dữ liệu khách thật ở ô thử.
         Plan p = plan(text, text, context::sample);
+        if (p.react) {
+            return new Preview(false, null, "Tin này không cần đáp: hệ thống sẽ thả tim vào tin (nấc tự động), không trả lời bằng chữ.");
+        }
         if (p.reply != null) {
             return new Preview(true, p.reply + signature(), "Hệ thống sẽ trả lời câu này (nấc tự động) hoặc lưu nháp (nấc nháp).");
         }

@@ -38,9 +38,9 @@ test('findUser và sendMessage (D18) chỉ nằm trong bộ điều hợp thật
   assert.match(code('zca-adapter.mjs'), /sendMessage\(\{ msg: text \}, id, group \? ThreadType\.Group : ThreadType\.User\)/);
 });
 
-test('bộ điều hợp zca-js chỉ dùng đúng mười bốn thành phần của api (thêm getAllFriends chỉ đọc để đối chiếu, hai hàm chỉ đọc nhóm, findUser và sendMessage của D18, ba hàm tạo nhóm của D19, sendFriendRequest)', () => {
+test('bộ điều hợp zca-js chỉ dùng đúng mười lăm thành phần (thêm addReaction để thả tim) của api (thêm getAllFriends chỉ đọc để đối chiếu, hai hàm chỉ đọc nhóm, findUser và sendMessage của D18, ba hàm tạo nhóm của D19, sendFriendRequest)', () => {
   const used = new Set([...code('zca-adapter.mjs').matchAll(/this\.api\??\.([A-Za-z]+)/g)].map((m) => m[1]));
-  assert.deepEqual([...used].sort(), ['addGroupDeputy', 'addUserToGroup', 'createGroup', 'enableGroupLink', 'findUser', 'getAllFriends', 'getAllGroups', 'getGroupInfo', 'getOwnId', 'getUserInfo', 'listener', 'logout', 'sendFriendRequest', 'sendMessage'].sort());
+  assert.deepEqual([...used].sort(), ['addGroupDeputy', 'addReaction', 'addUserToGroup', 'createGroup', 'enableGroupLink', 'findUser', 'getAllFriends', 'getAllGroups', 'getGroupInfo', 'getOwnId', 'getUserInfo', 'listener', 'logout', 'sendFriendRequest', 'sendMessage'].sort());
 });
 
 test('sendFriendRequest chỉ có đúng một chỗ gọi (bộ điều hợp thật), chỉ gọi từ Bridge.sendFriendRequest và chỉ khi người đó đã nhận Tin 1', () => {
@@ -124,4 +124,13 @@ test('getAllFriends (đối chiếu bạn bè, chỉ đọc) có đúng một ch
   assert.equal((b.match(/adapter\.friendUids\(/g) ?? []).length, 1);
   assert.match(code('zca-adapter.mjs'), /async friendUids\(\) \{[^}]*String\(u\?\.userId/s);
   assert.ok(!/displayName|phoneNumber|avatar/.test(code('zca-adapter.mjs').split('async friendUids()')[1].split('loginQR')[0]));
+});
+
+test('addReaction (thả tim) chỉ có một chỗ gọi ở bộ điều hợp thật, chỉ thả Reactions.HEART vào tin riêng, chỉ từ Bridge.react', () => {
+  for (const f of files) {
+    const n = (code(f).match(/\bapi\??\.addReaction\b/g) ?? []).length;
+    assert.equal(n, f === 'zca-adapter.mjs' ? 1 : 0, `${f}: addReaction`);
+  }
+  assert.match(code('zca-adapter.mjs'), /addReaction\(Reactions\.HEART, .*type: ThreadType\.User/);
+  assert.equal((code('bridge.mjs').match(/adapter\.addHeart\(/g) ?? []).length, 1);
 });

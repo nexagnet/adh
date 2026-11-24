@@ -1,6 +1,7 @@
 // Bộ điều hợp THẬT dùng thư viện không chính thức zca-js (ghim đúng 2.3.0 trong package.json và package-lock.json).
 // Thư viện giả lập Zalo Web nên trái điều khoản Zalo và tài khoản phụ có thể bị khóa; xem docs/ADR-0002.
 // Cố ý KHÔNG dùng: acceptFriendRequest, bất kỳ hàm gửi hay dò hàng loạt nào khác.
+// Từ 24/11/2026 (chủ shop duyệt) có thêm đúng MỘT hàm thả tim vào tin khách vừa nhắn: addReaction (xem Bridge.react).
 // Từ 24/11/2026 (chủ shop duyệt) có thêm đúng MỘT hàm CHỈ ĐỌC: getAllFriends, chỉ để đối chiếu người đã nhận Tin 1 (xem Bridge.checkFriends); danh sách không rời bộ nối.
 // Từ 23/11/2026 (chủ shop chốt: tài khoản phụ chủ động kết bạn) có thêm đúng MỘT hàm: sendFriendRequest, chỉ cho người đã nhận Tin 1.
 // Từ D19 (23/11/2026, chủ shop chốt) có thêm đúng ba hàm để tạo nhóm theo khu vực: createGroup, enableGroupLink, addGroupDeputy.
@@ -8,7 +9,7 @@
 // và sendMessage (văn bản, một người). Có trần ngày, khoảng nghỉ cố định, khung giờ và cầu dao ở bridge.mjs; không che việc dùng thư viện.
 // Không đặt userAgent, không đổi dấu vân tay, không proxy: dùng mặc định của thư viện, không thêm lớp nào để che.
 
-import { Zalo, AvatarSize, FriendEventType, LoginQRCallbackEventType, ThreadType } from 'zca-js';
+import { Zalo, AvatarSize, FriendEventType, LoginQRCallbackEventType, Reactions, ThreadType } from 'zca-js';
 
 export class ZcaAdapter {
   constructor() {
@@ -37,7 +38,7 @@ export class ZcaAdapter {
       // Chỉ tin nhắn RIÊNG (1-1) dạng văn bản của người khác. Không đọc tin nhóm, không đọc tệp/ảnh, không đọc lịch sử cũ.
       listener.on('message', (m) => {
         if (m.type !== ThreadType.User || m.isSelf || typeof m.data?.content !== 'string') return;
-        h.onMessage(String(m.threadId), m.data.content);
+        h.onMessage(String(m.threadId), m.data.content, { msgId: m.data.msgId, cliMsgId: m.data.cliMsgId });
       });
     }
     listener.on('disconnected', (code) => h.onDisconnected(code));
@@ -109,6 +110,11 @@ export class ZcaAdapter {
    */
   async sendText(id, text, group = false) {
     return this.api.sendMessage({ msg: text }, id, group ? ThreadType.Group : ThreadType.User);
+  }
+
+  /** Thả MỘT tim vào MỘT tin riêng của khách (đúng tin cầu nối vừa nhận). Chỗ DUY NHẤT gọi addReaction; không gửi chữ. */
+  async addHeart(uid, msgId, cliMsgId) {
+    return this.api.addReaction(Reactions.HEART, { data: { msgId: String(msgId), cliMsgId: String(cliMsgId) }, threadId: String(uid), type: ThreadType.User });
   }
 
   /** Gửi MỘT lời mời kết bạn (kèm câu ngắn) cho MỘT người đã nhận Tin 1. Chỗ DUY NHẤT gọi sendFriendRequest. Thành công trả chuỗi rỗng. */

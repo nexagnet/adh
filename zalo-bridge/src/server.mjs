@@ -45,6 +45,7 @@ export const ROUTES = [
   'GET /status',
   'GET /events',
   'GET /inbox',
+  'POST /reactions',
   'GET /groups',
   'POST /groups',
   'POST /groups/{id}/members',
@@ -106,6 +107,10 @@ export function createServer({ bridge, config, fake = null }) {
       if (route === 'POST /messages') {
         const body = await readJson(req);
         return send(200, await bridge.sendMessage({ kind: body.kind, phone: body.phone, uid: body.uid, text: body.text }));
+      }
+      if (route === 'POST /reactions') {
+        const body = await readJson(req);
+        return send(200, await bridge.react({ seq: body.seq }));
       }
       if (route === 'POST /friend-requests') {
         const body = await readJson(req);

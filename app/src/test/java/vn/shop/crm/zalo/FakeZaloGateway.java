@@ -31,6 +31,8 @@ public class FakeZaloGateway implements ZaloLink {
     public void reset() {
         status = new Status(State.LISTENING, null, true, null, Instant.parse("2026-11-22T00:00:00Z"), null);
         events.clear();
+        hearts.clear();
+        heartResult = null;
         results.clear();
         defaultResult = AddResult.ok();
         login = Login.of(LoginState.IDLE);
@@ -190,6 +192,18 @@ public class FakeZaloGateway implements ZaloLink {
             return messageResults.poll();
         }
         return defaultMessage != null ? defaultMessage : new Sent(Result.OK, null, uid, 0, false);
+    }
+
+    public record Heart(long seq, String uid) {
+    }
+
+    public final List<Heart> hearts = new ArrayList<>();
+    public Reacted heartResult;
+
+    @Override
+    public Reacted heart(long seq, String uid) {
+        hearts.add(new Heart(seq, uid));
+        return heartResult != null ? heartResult : Reacted.done();
     }
 
     public record FriendReq(String uid, String text) {

@@ -106,7 +106,7 @@ test('POST /people/lookup (D19) cần khóa, tra đúng một số, số sai kh�
 
 test('danh sách đường được phép là cố định', () => {
   assert.deepEqual(ROUTES, [
-    'GET /healthz', 'GET /status', 'GET /events', 'GET /inbox', 'GET /groups', 'POST /groups', 'POST /groups/{id}/members', 'POST /groups/{id}/deputy', 'POST /messages', 'POST /friend-requests', 'POST /people/lookup', 'POST /session/login', 'GET /session/login',
+    'GET /healthz', 'GET /status', 'GET /events', 'GET /inbox', 'POST /reactions', 'GET /groups', 'POST /groups', 'POST /groups/{id}/members', 'POST /groups/{id}/deputy', 'POST /messages', 'POST /friend-requests', 'POST /people/lookup', 'POST /session/login', 'GET /session/login',
     'POST /session/logout', 'POST /session/stop', 'POST /session/resume',
   ]);
 });

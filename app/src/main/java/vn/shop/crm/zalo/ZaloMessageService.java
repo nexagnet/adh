@@ -209,6 +209,11 @@ public class ZaloMessageService {
 
     // ---------- đọc để hiển thị và để quyết định ----------
 
+    /** Đang trong khung giờ tự gửi (dùng cho việc thả tim). */
+    public boolean inSendWindow() {
+        return inWindow();
+    }
+
     private boolean inWindow() {
         LocalTime t = clock.instant().atZone(clock.getZone()).toLocalTime();
         return !t.isBefore(cfg.props().msgWindowStart()) && t.isBefore(cfg.props().msgWindowEnd());

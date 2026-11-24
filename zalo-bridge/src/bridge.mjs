@@ -89,6 +89,8 @@ export class Bridge {
     this.attempts = 0;
     this.timer = null;
     this.busy = false;
+    this.reactable = new Map(); // seq tin đến -> mã tin Zalo (chỉ trong bộ nhớ), căn cứ duy nhất để thả tim
+    this.reactTimes = []; // giờ các lần thả tim (trong bộ nhớ) để đếm trần ngày và khoảng nghỉ cố định
     this.friendSnapshot = null; // bản danh sách bạn đã đọc gần nhất (chỉ trong bộ nhớ, không ghi đĩa, không ghi log)
     this.friendReads = { day: null, n: 0 };
     this.login = { state: 'IDLE', qr: null };
@@ -196,7 +198,7 @@ export class Bridge {
       onDisconnected: (code) => this.onDisconnected(gen, code),
     };
     // Chỉ đăng ký nghe tin nhắn khi bật cờ riêng (tắt mặc định).
-    if (this.config.inboxEnabled) handlers.onMessage = (uid, text) => this.onMessage(gen, uid, text);
+    if (this.config.inboxEnabled) handlers.onMessage = (uid, text, ref) => this.onMessage(gen, uid, text, ref);
     this.adapter.listen(handlers);
     return true;
   }
@@ -242,13 +244,21 @@ export class Bridge {
    * Tin nhắn riêng (1-1) tới tài khoản. Chỉ giữ tin của người mà CHÍNH bộ nối đã gửi Tin 1 hoặc Tin 2 (sổ gửi tin); của người lạ bỏ ngay,
    * không lưu, không ghi log. Nội dung chỉ nằm trong bộ nhớ tới khi Adh lấy đi.
    */
-  onMessage(gen, uid, text) {
+  onMessage(gen, uid, text, ref = null) {
     if (gen !== this.generation || !this.config.inboxEnabled || !ZALO_ID.test(String(uid)) || typeof text !== 'string') return;
     const body = text.trim();
     if (body.length === 0) return;
     if (!this.msgLedger.has('INVITE', String(uid)) && !this.msgLedger.has('LINK', String(uid))) return;
-    this.inbox.push({ uid: String(uid), text: body });
+    const seq = this.inbox.push({ uid: String(uid), text: body });
     const t = this.now();
+    // Mã tin để (có thể) thả tim đúng tin này sau; chỉ trong bộ nhớ, bỏ khi quá hạn, không ghi log.
+    if (ref && ZALO_ID.test(String(ref.msgId ?? '')) && ZALO_ID.test(String(ref.cliMsgId ?? ''))) {
+      this.reactable.set(seq, { uid: String(uid), msgId: String(ref.msgId), cliMsgId: String(ref.cliMsgId), at: t });
+      if (this.reactable.size > MAX_REPLYABLE) {
+        for (const [k, v] of this.reactable) if (t - v.at > REPLY_WINDOW_MS) this.reactable.delete(k);
+        while (this.reactable.size > MAX_REPLYABLE) this.reactable.delete(this.reactable.keys().next().value);
+      }
+    }
     this.replyable.set(String(uid), t);
     if (this.replyable.size > MAX_REPLYABLE) {
       for (const [k, v] of this.replyable) if (t - v > REPLY_WINDOW_MS) this.replyable.delete(k);
@@ -524,6 +534,50 @@ export class Bridge {
       if (c.code) out.code = c.code;
       if (uid) out.uid = uid;
       return out;
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  // ---------- thả tim tin khách (24/11/2026, chủ shop duyệt) ----------
+
+  /**
+   * Thả MỘT biểu tượng tim vào MỘT tin riêng mà khách vừa gửi (tin mà chính cầu nối đã nhận, qua {@code seq} của /inbox), thay vì im lặng khi
+   * khách chỉ nhắn lời xác nhận kiểu "ok". Không gửi chữ, không gửi cho ai khác, chỉ thả được vào tin đến trong 24 giờ, mỗi tin một lần.
+   * Chốt chặn cố định, công khai: cần bật cờ đọc tin riêng, khung giờ, cầu dao, một việc một lúc, khoảng nghỉ CỐ ĐỊNH reactGapMs giữa hai lần
+   * thả tim, trần reactDaily mỗi ngày. Không ngẫu nhiên hóa. Không tính vào sổ tin gửi khách (không làm trễ tin kế tiếp), nhưng lỗi lạ vẫn dừng cầu dao.
+   * @param {{seq: number}} m
+   */
+  async react(m) {
+    const seq = Number(m?.seq);
+    if (!Number.isSafeInteger(seq) || seq <= 0) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' };
+    if (!this.config.inboxEnabled) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' };
+    if (this.state === 'LOGIN_REQUIRED') return { outcome: 'SESSION_LOST', code: 'LOGIN_REQUIRED' };
+    if (this.state === 'TRIPPED' || this.state === 'STOPPED') return { outcome: 'RESTRICTED', code: 'NOT_ACTIVE' };
+    if (this.state !== 'LISTENING') return { outcome: 'SYSTEM_ERROR', code: 'NOT_CONNECTED' };
+    if (this.busy) return { outcome: 'SYSTEM_ERROR', code: 'BUSY' };
+    const t = this.now();
+    if (!inWindow(t, this.config.windowStartMin, this.config.windowEndMin)) return { outcome: 'RESTRICTED', code: 'WINDOW' }; // không dừng cầu dao: chỉ là chưa tới giờ
+    const ref = this.reactable.get(seq);
+    if (!ref || t - ref.at > REPLY_WINDOW_MS) return { outcome: 'PERSON_ERROR', code: 'NOT_REACTABLE' };
+    this.reactTimes = this.reactTimes.filter((x) => x >= t - 48 * 3600 * 1000);
+    if (this.reactTimes.filter((x) => x >= vnDayStart(t)).length >= this.config.reactDaily) return { outcome: 'RESTRICTED', code: 'REACT_LIMIT' };
+    const last = this.reactTimes.length ? Math.max(...this.reactTimes) : null;
+    if (last !== null && t - last < this.config.reactGapMs) return { outcome: 'RATE_LIMITED', retryAfterSec: Math.ceil((this.config.reactGapMs - (t - last)) / 1000) };
+    this.busy = true;
+    try {
+      this.reactTimes.push(t); // tính cả lần lỗi
+      this.reactable.delete(seq); // mỗi tin chỉ thả một lần, kể cả khi lỗi
+      let c;
+      try {
+        await withTimeout(this.adapter.addHeart(ref.uid, ref.msgId, ref.cliMsgId), this.config.addTimeoutMs);
+        c = { outcome: 'OK' };
+      } catch (e) {
+        c = classifyError(e, this.config.personErrorCodes);
+      }
+      if (c.outcome !== 'OK' && c.outcome !== 'PERSON_ERROR') this.trip(c.code ? `${c.outcome}:${c.code}` : c.outcome);
+      this.log(`thả tim: ${c.outcome}`);
+      return c.code ? { outcome: c.outcome, code: c.code } : { outcome: c.outcome };
     } finally {
       this.busy = false;
     }

@@ -19,9 +19,17 @@ public class ReplyAssistant {
 
     public enum Outcome { OK, UNAVAILABLE, INVALID }
 
-    public record Scope(Outcome outcome, boolean inScope, double confidence) {
+    /**
+     * @param noReply tin chỉ là lời khép lại câu chuyện (cảm ơn, biểu tượng cảm xúc), không cần câu trả lời; khi đó {@code inScope} là false.
+     *                Bên gọi quyết định thả tim hay vẫn trả lời ngắn.
+     */
+    public record Scope(Outcome outcome, boolean inScope, boolean noReply, double confidence) {
         static Scope of(Outcome o) {
-            return new Scope(o, false, 0);
+            return new Scope(o, false, false, 0);
+        }
+
+        Scope(Outcome outcome, boolean inScope, double confidence) {
+            this(outcome, inScope, false, confidence);
         }
     }
 
@@ -44,6 +52,9 @@ public class ReplyAssistant {
             (a) nhóm Zalo khách hàng: là gì, vào thế nào, có mất phí không, có đồng ý/chào hỏi/cảm ơn về lời mời;
             (b) ưu đãi chung: ưu đãi, khuyến mãi, giảm giá, miễn ship (không nêu sản phẩm nào, không nói muốn đặt mua), vì sao mua qua nhóm rẻ hơn;
             (c) khách hỏi bạn là người hay máy/AI/bot: luôn TRONG để được trả lời thật.
+            KHÔNG CẦN ĐÁP (scope = "KHONG_CAN"): tin CHỈ là lời khép lại câu chuyện, không hỏi gì, không nhờ gì, không chờ ai trả lời: lời cảm ơn thuần ("Cảm ơn", \
+            "Thanks"), hoặc chỉ có biểu tượng cảm xúc (👍 ❤️ 🙏). TUYỆT ĐỐI không chọn KHONG_CAN cho lời đồng ý, xác nhận hay chấp nhận lời mời ("Ok", "Vâng", "Dạ", \
+            "Được", "Đồng ý", "Ok thêm mình vào nhóm": các tin này là TRONG), cũng không cho lời chào đầu tiên ("Chào shop": TRONG) hay bất kỳ tin nào có câu hỏi hoặc yêu cầu.
             NGOÀI (scope = "NGOAI"): MỌI thứ khác: giá hay còn hàng của một sản phẩm cụ thể, thông số, nên chọn loại nào, đặt hàng, thanh toán, giao hàng \
             hay đơn cũ, bảo hành cụ thể, đổi trả, phàn nàn, chính sách của nền tảng khác, muốn nói chuyện với người thật. Tin thật sự mơ hồ hoặc không \
             hiểu được cũng là NGOAI. Tin vừa hỏi ưu đãi vừa hỏi một điều NGOÀI: chọn NGOAI. Đừng chọn NGOAI chỉ vì tin ngắn hoặc thiếu chữ "nhóm".
@@ -60,9 +71,12 @@ public class ReplyAssistant {
             "Hàng tôi nhận bị lỗi, bảo hành sao" → NGOAI
             "Ưu đãi thế nào, mà áo L còn hàng không" → NGOAI
             "Cho mình gặp người thật" → NGOAI
+            "Cảm ơn shop nhé" → KHONG_CAN
+            "👍" → KHONG_CAN
+            "Ok" → TRONG
             "Bạn là AI hay người thật vậy" → TRONG (trả lời thật là trợ lý AI)
             confidence là số từ 0 đến 1: bạn chắc đến đâu về lựa chọn của mình.
-            Chỉ trả về đúng MỘT đối tượng JSON, không thêm chữ nào khác, ví dụ: {"scope":"NGOAI","confidence":0.9}""";
+            Chỉ trả về đúng MỘT đối tượng JSON, không thêm chữ nào khác, ví dụ: {"scope":"NGOAI","confidence":0.9}. scope chỉ là TRONG, NGOAI hoặc KHONG_CAN.""";
 
     static final String COMPOSE_RULES = """
             Bạn là TRỢ LÝ AI của một cửa hàng, trả lời MỘT tin nhắn riêng của khách trên Zalo bằng tiếng Việt. Tin của khách nằm giữa hai dấu <<< và >>>. \
@@ -158,10 +172,10 @@ public class ReplyAssistant {
             }
             double conf = c.asDouble();
             String v = s.asString();
-            if (Double.isNaN(conf) || conf < 0 || conf > 1 || !(v.equals("TRONG") || v.equals("NGOAI"))) {
+            if (Double.isNaN(conf) || conf < 0 || conf > 1 || !(v.equals("TRONG") || v.equals("NGOAI") || v.equals("KHONG_CAN"))) {
                 return Scope.of(Outcome.INVALID);
             }
-            return new Scope(Outcome.OK, v.equals("TRONG"), conf);
+            return new Scope(Outcome.OK, v.equals("TRONG"), v.equals("KHONG_CAN"), conf);
         } catch (RuntimeException e) {
             return Scope.of(Outcome.INVALID);
         }
