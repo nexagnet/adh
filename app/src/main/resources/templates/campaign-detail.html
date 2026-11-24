@@ -187,6 +187,8 @@
         <div class="card"><div class="big" th:text="${campaign.clicked}">0</div><div class="label">Đã bấm link</div></div>
     </div>
 
+    </th:block>
+    <th:block th:if="${tab == 'tin'}">
     <h2>Nội dung tin (mẫu)</h2>
     <p th:text="${campaign.template}" class="mono">mẫu</p>
 
@@ -216,6 +218,8 @@
         <p class="hint" th:if="${campaign.ready > 0}">Xuất danh sách sẽ đánh dấu các lời mời trong file là "đã gửi" (kênh gửi tay).
         Hệ thống không biết tin có tới khách hay chưa. Mỗi ngày chỉ xuất tối đa theo hạn mức ở mục Gửi tin.</p>
     </details>
+    </th:block>
+    <th:block th:if="${tab == 'tong-quan'}">
 
     <h2>Lời mời</h2>
     <div class="table-wrap">

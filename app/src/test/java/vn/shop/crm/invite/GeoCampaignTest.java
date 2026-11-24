@@ -114,10 +114,10 @@ class GeoCampaignTest extends AbstractPostgresTest {
     void trangChienDichCoOChonKhuVucVaTaoDuocChienDichTheoMien() throws Exception {
         MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
         var owner = user("admin").roles("OWNER");
-        mvc.perform(get("/campaigns").with(owner)).andExpect(status().isOk())
+        mvc.perform(get("/campaigns").param("tab", "moi").with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Khu vực khách")))
                 .andExpect(content().string(containsString("Miền Nam")))
-                .andExpect(content().string(containsString("Lô nhắn hôm nay")));
+                .andExpect(content().string(containsString("theo hạn mức và khung giờ")));
         mvc.perform(post("/campaigns").with(owner).with(csrf()).param("name", "Rét miền Nam").param("count", "50")
                         .param("expiresDays", "14").param("area", "R:NAM"))
                 .andExpect(status().is3xxRedirection());

@@ -272,9 +272,11 @@ class FriendFlowTest extends AbstractPostgresTest {
         MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
         var owner = user("admin").roles("OWNER");
         long inv = invitationOf("0900000001");
+        mvc.perform(get("/campaigns/" + campaign).param("tab", "tin").with(owner))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("tài khoản Zalo phụ")));
         mvc.perform(get("/campaigns/" + campaign).with(owner))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("tài khoản Zalo phụ")))
                 .andExpect(content().string(containsString("Nhóm miền Bắc")))
                 .andExpect(content().string(containsString("nên thêm vào")));
         markSent(inv);
@@ -290,9 +292,9 @@ class FriendFlowTest extends AbstractPostgresTest {
         mvc.perform(post("/campaigns/" + campaign + "/invitations/" + inv + "/joined").with(csrf()).with(owner))
                 .andExpect(status().isBadRequest());
         mvc.perform(post("/campaigns/default-template").with(csrf()).with(owner).param("template", "Chào {ten}"))
-                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/campaigns"));
-        mvc.perform(get("/campaigns").with(owner)).andExpect(content().string(containsString("Chào {ten}")))
-                .andExpect(content().string(containsString("Đã vào nhóm")));
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/campaigns?tab=moi"));
+        mvc.perform(get("/campaigns").param("tab", "moi").with(owner)).andExpect(content().string(containsString("Chào {ten}")));
+        mvc.perform(get("/campaigns").with(owner)).andExpect(content().string(containsString("Đã vào nhóm")));
     }
 
     // ---------- gửi link nhóm cho khách tự bấm (sau khi đã kết bạn) ----------

@@ -42,6 +42,7 @@
 </div>
 <div th:fragment="campaignTabs(current)" class="tabs" role="navigation" aria-label="Các phần của chiến dịch">
     <a th:href="@{/campaigns}" th:classappend="${current == 'campaigns'} ? 'active'" th:attr="aria-current=${current == 'campaigns'} ? 'page'">Chiến dịch</a>
+    <a th:href="@{/campaigns(tab=moi)}" th:classappend="${current == 'new'} ? 'active'" th:attr="aria-current=${current == 'new'} ? 'page'">Tạo chiến dịch</a>
     <a th:href="@{/advisor}" th:classappend="${current == 'advisor'} ? 'active'" th:attr="aria-current=${current == 'advisor'} ? 'page'">Đề xuất của AI<span th:if="${@navMenu.proposalBadge() > 0}" th:text="' (' + ${@navMenu.proposalBadge()} + ')'"></span></a>
 </div>
 <div th:fragment="groupTabs(current)" class="tabs" role="navigation" aria-label="Các phần của nhóm Zalo">
