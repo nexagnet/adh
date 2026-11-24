@@ -19,6 +19,7 @@
     <span class="badge warn" th:if="${r.waitingGroup}">Chờ nhóm</span>
     <span class="badge bad" th:if="${r.overdue}">Quá hạn thêm vào nhóm</span>
     <span class="badge" th:if="${r.noReply}">Không phản hồi</span>
+    <div class="muted small" th:if="${r.status == 'FAILED' and r.lastError != null}" th:text="${r.lastError}">Zalo từ chối gửi cho người này (mã Z122)</div>
 </td>
 
 <td th:fragment="group(r)">
