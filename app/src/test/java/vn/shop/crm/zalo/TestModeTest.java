@@ -236,25 +236,6 @@ class TestModeTest extends AbstractPostgresTest {
         assertThat(count("SELECT count(*) FROM invitation WHERE status = 'READY'")).isEqualTo(5);
     }
 
-    @Test
-    void tin2CungChiGuiChoSoThu() {
-        everythingOn();
-        // 1 khách thật và 1 khách thử cùng đang chờ Tin 2 (đã kết bạn, thêm nhóm lỗi riêng người)
-        for (int n : new int[]{1, 4}) {
-            jdbc.sql("""
-                    UPDATE invitation SET status = 'FRIENDED', zalo_uid = :u, zalo_link_state = 'PENDING' WHERE id = :id""")
-                    .param("u", "U" + n).param("id", inv(n)).update();
-        }
-        assertThat(sender.step()).isEqualTo(Step.LINK_SENT);
-        assertThat(fake.messages).singleElement().satisfies(m -> {
-            assertThat(m.kind()).isEqualTo(Kind.LINK);
-            assertThat(m.uid()).isEqualTo("U4");
-        });
-        after(120);
-        // khách thật chờ Tin 2 không bị đánh dấu thất bại và không bị gửi
-        assertThat(jdbc.sql("SELECT zalo_link_state FROM invitation WHERE id = :id").param("id", inv(1)).query(String.class).single()).isEqualTo("PENDING");
-    }
-
     // ---------- tự thêm nhóm ----------
 
     @Test

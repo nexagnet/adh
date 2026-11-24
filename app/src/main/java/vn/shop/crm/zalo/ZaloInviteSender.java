@@ -9,8 +9,6 @@ import vn.shop.crm.common.ImportException;
 import vn.shop.crm.contact.ContactService;
 import vn.shop.crm.geo.VnGeo;
 import vn.shop.crm.invite.CampaignSteps;
-import vn.shop.crm.invite.GroupService;
-import vn.shop.crm.invite.GroupStatus;
 import vn.shop.crm.invite.InviteService;
 import vn.shop.crm.safety.TestMode;
 import vn.shop.crm.send.SendService;
@@ -30,8 +28,6 @@ import java.util.Optional;
  *   <li><b>Tin 1</b>: lời mời READY của chiến dịch ĐÃ ĐƯỢC DUYỆT tự gửi, mỗi khách đúng một lần (khóa bằng cập nhật có điều kiện
  *       READY→SENT trước khi gọi). Khách không còn đủ điều kiện liên hệ (đã từ chối, bị chặn, bị xóa) thì không bao giờ được gửi.
  *       Cầu nối tra mã Zalo lúc gửi; mã được lưu để khớp khi khách đồng ý kết bạn mà không cần số điện thoại.</li>
- *   <li><b>Tin 2</b> (link nhóm): chỉ cho khách đã kết bạn mà bộ nối KHÔNG thêm được vào nhóm vì lỗi riêng người; link là của chính
- *       nhóm đã giữ chỗ lúc thêm, nên nhóm thêm và nhóm qua link là một.</li>
  * </ul>
  * Không biết kết quả (hết giờ chờ, Zalo không xác nhận, sập giữa chừng) thì lời mời ở lại FAILED để người kiểm tra tay,
  * không bao giờ tự gửi lại.
@@ -44,14 +40,10 @@ public class ZaloInviteSender {
     /** Số lời mời xem xét mỗi nhịp để bỏ qua (và đóng) những khách không còn gửi được mà không làm tắc hàng. */
     private static final int SCAN = 25;
 
-    public enum Step { NOT_ACTIVE, BLOCKED, NOTHING, INVITE_SENT, LINK_SENT, FOLLOWUP_SENT, FRIEND_SENT, FAILED_ONE, RETRY, TRIPPED }
+    public enum Step { NOT_ACTIVE, BLOCKED, NOTHING, INVITE_SENT, FOLLOWUP_SENT, FRIEND_SENT, FAILED_ONE, RETRY, TRIPPED }
 
     private record Invite(long id, long campaignId, long customerId, String phone, String name, String province, String token,
                           OffsetDateTime expiresAt, String template) {
-    }
-
-    private record LinkTask(long id, long campaignId, long customerId, String phone, String uid, String name, String province,
-                            String token, Long heldGroupId, String template) {
     }
 
     private final JdbcClient jdbc;
@@ -59,7 +51,6 @@ public class ZaloInviteSender {
     private final ZaloMessageService messages;
     private final ContactService contacts;
     private final InviteService invites;
-    private final GroupService groups;
     private final SendService sends;
     private final Clock clock;
     private final ZaloCampaignIntake intake;
@@ -72,7 +63,7 @@ public class ZaloInviteSender {
     private final RainHold rain;
 
     public ZaloInviteSender(JdbcClient jdbc, AppSettings settings, ZaloMessageService messages, ContactService contacts,
-                            InviteService invites, GroupService groups, SendService sends, Clock clock,
+                            InviteService invites, SendService sends, Clock clock,
                             ZaloCampaignIntake intake, TestMode testMode, CampaignPolicy policy, CampaignSteps steps,
                             ZaloFollowupSender followups, ZaloFriendRequestSender friendRequests, CampaignAutoStop autoStop, RainHold rain) {
         this.autoStop = autoStop;
@@ -88,12 +79,11 @@ public class ZaloInviteSender {
         this.messages = messages;
         this.contacts = contacts;
         this.invites = invites;
-        this.groups = groups;
         this.sends = sends;
         this.clock = clock;
     }
 
-    /** Một nhịp: gửi tối đa MỘT tin nếu được phép. Tin 2 (khách đang chờ link) đi trước Tin 1. */
+    /** Một nhịp: gửi tối đa MỘT tin nếu được phép. */
     public Step step() {
         if (!messages.enabled() || settings.paused()) {
             return Step.NOT_ACTIVE;
@@ -102,14 +92,6 @@ public class ZaloInviteSender {
         autoStop.evaluate();
         // Chiến dịch đang tự nhận khách mới thì nhận khách mới đủ tiêu chí vào hàng chờ trước (không gọi Zalo).
         intake.intake();
-        // Tin 2 (link nhóm) không bị hạn mức ngày riêng: chỉ giờ gửi, khoảng nghỉ và cầu dao.
-        if (messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.LINK, null, null).isPresent()) {
-            return Step.BLOCKED;
-        }
-        Optional<LinkTask> link = nextLink();
-        if (link.isPresent()) {
-            return sendLink(link.get());
-        }
         // Tin nhắc của chiến dịch nhiều lần gửi (D21 PR 5b): đi trước Tin 1 của khách mới vì có hạn, cùng hạn mức ngày và khoảng nghỉ.
         ZaloFollowupSender.Step follow;
         try {
@@ -314,85 +296,6 @@ public class ZaloInviteSender {
         jdbc.sql("UPDATE invitation SET status = 'FAILED', last_error = :e WHERE id = :id").param("e", reason).param("id", c.id()).update();
         sends.recordExternal(c.id(), c.campaignId(), c.customerId(), c.phone(), CHANNEL, "FAILED", reason, c.template());
         sends.evaluateAutoStop();
-    }
-
-    // ---------- Tin 2 ----------
-
-    private Optional<LinkTask> nextLink() {
-        return jdbc.sql("""
-                        SELECT i.id, i.campaign_id, i.customer_id, c.phone, i.zalo_uid, c.name, c.province, i.token,
-                               coalesce(i.group_id, CASE WHEN i.reserved_until > now() THEN i.reserved_group_id END) AS held,
-                               k.group_link_template
-                        FROM invitation i JOIN customer c ON c.id = i.customer_id
-                        JOIN invitation_campaign k ON k.id = i.campaign_id
-                        WHERE i.zalo_link_state = 'PENDING' AND i.zalo_uid IS NOT NULL AND i.status = 'FRIENDED'
-                          AND i.group_link_sent_at IS NULL AND k.auto_send_approved_at IS NOT NULL
-                        """ + testMode.onlyTestSql("c.phone") + " ORDER BY i.id LIMIT 1")
-                .query((rs, n) -> new LinkTask(rs.getLong("id"), rs.getLong("campaign_id"), rs.getLong("customer_id"),
-                        rs.getString("phone"), rs.getString("zalo_uid"), rs.getString("name"), rs.getString("province"),
-                        rs.getString("token"), (Long) rs.getObject("held"), rs.getString("group_link_template")))
-                .optional();
-    }
-
-    private Step sendLink(LinkTask t) {
-        if (!contacts.stillEligible(t.customerId())) {
-            setLink(t.id(), "FAILED", "Không còn đủ điều kiện liên hệ");
-            return Step.FAILED_ONE;
-        }
-        // cùng nhóm với lần thêm: nhóm đã giữ chỗ; không có thì chọn theo khu vực trong các nhóm có link và đang nhận
-        Optional<GroupService.Group> group = t.heldGroupId() != null
-                ? groups.find(t.heldGroupId()).filter(g -> g.hasLink() && g.status() == GroupStatus.OPEN)
-                : groups.pickGroup(VnGeo.byCode(t.province()).orElse(null)).filter(GroupService.Group::hasLink);
-        if (group.isEmpty()) {
-            setLink(t.id(), "FAILED", "Chưa có nhóm có link để gửi Tin 2");
-            return Step.FAILED_ONE;
-        }
-        GroupService.Group g = group.get();
-        String linkTemplate = t.template() != null && !t.template().isBlank() ? t.template() : invites.groupLinkTemplate();
-        String text = invites.renderGroupLink(linkTemplate, t.name(), g.name(), g.inviteLink(), invites.linkFor(t.token()));
-        // đánh dấu trước khi gọi: nhịp chồng nhau hay sập giữa chừng không gửi Tin 2 hai lần
-        int claimed = jdbc.sql("UPDATE invitation SET zalo_link_state = 'FAILED', last_error = 'Đang gửi Tin 2' WHERE id = :id AND zalo_link_state = 'PENDING'")
-                .param("id", t.id()).update();
-        if (claimed == 0) {
-            return Step.NOTHING;
-        }
-        Delivery d = messages.sendByUid(ZaloMessageService.SCOPE_REAL, Kind.LINK, t.id(), t.uid(), text, null, null);
-        switch (d.status()) {
-            case SENT -> {
-                setLink(t.id(), "SENT", null);
-                try {
-                    invites.markGroupLinkSent(t.id(), g.id()); // giữ chỗ đúng nhóm này, gỡ khỏi hàng thêm tự động
-                } catch (ImportException e) {
-                    log.warn("Đã gửi Tin 2 nhưng không ghi được nhóm: {}", e.getClass().getSimpleName());
-                }
-                sends.recordExternal(t.id(), t.campaignId(), t.customerId(), t.phone(), CHANNEL, "SENT", "Tin 2 (link nhóm) tự gửi qua bộ nối Zalo", text);
-                return Step.LINK_SENT;
-            }
-            case PERSON_ERROR -> {
-                setLink(t.id(), "FAILED", "Zalo từ chối gửi Tin 2 (mã " + d.code() + ")");
-                return Step.FAILED_ONE;
-            }
-            case RETRY, BLOCKED -> {
-                jdbc.sql("UPDATE invitation SET zalo_link_state = 'PENDING', last_error = NULL WHERE id = :id AND zalo_link_state = 'FAILED'")
-                        .param("id", t.id()).update();
-                return Step.RETRY;
-            }
-            default -> {
-                if (d.certainlyNotSent()) {
-                    jdbc.sql("UPDATE invitation SET zalo_link_state = 'PENDING', last_error = NULL WHERE id = :id AND zalo_link_state = 'FAILED'")
-                            .param("id", t.id()).update();
-                } else {
-                    setLink(t.id(), "FAILED", "Không rõ Tin 2 đã gửi chưa (" + d.code() + "). Hãy kiểm tra trên Zalo");
-                    sends.evaluateAutoStop();
-                }
-                return Step.TRIPPED;
-            }
-        }
-    }
-
-    private void setLink(long invitationId, String state, String error) {
-        jdbc.sql("UPDATE invitation SET zalo_link_state = :s, last_error = :e WHERE id = :id")
-                .param("s", state).param("e", error, java.sql.Types.VARCHAR).param("id", invitationId).update();
     }
 
     // ---------- duyệt chiến dịch ----------

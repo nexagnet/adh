@@ -60,7 +60,6 @@ public class CampaignController {
                         contacts.countEligibleNotInvited(vn.shop.crm.geo.GeoArea.region(r).code()))).toList());
         model.addAttribute("unknownAvailable", contacts.countEligibleNotInvited(vn.shop.crm.geo.GeoArea.UNKNOWN));
         model.addAttribute("defaultTemplate", invites.defaultTemplate());
-        model.addAttribute("groupLinkTemplate", invites.groupLinkTemplate());
         return "campaigns";
     }
 
@@ -83,14 +82,6 @@ public class CampaignController {
     public String saveTemplate(@RequestParam(required = false) String template, RedirectAttributes redirect) {
         invites.saveDefaultTemplate(template);
         redirect.addFlashAttribute("flash", "Đã lưu nội dung tin mặc định. Chiến dịch mới sẽ dùng nội dung này.");
-        return "redirect:/campaigns";
-    }
-
-    /** Chủ shop soạn mẫu tin gửi link nhóm cho khách đã kết bạn (để trống = dùng lại mẫu có sẵn). */
-    @PostMapping("/campaigns/group-link-template")
-    public String saveGroupLinkTemplate(@RequestParam(required = false) String template, RedirectAttributes redirect) {
-        invites.saveGroupLinkTemplate(template);
-        redirect.addFlashAttribute("flash", "Đã lưu nội dung tin gửi link nhóm.");
         return "redirect:/campaigns";
     }
 
@@ -139,7 +130,6 @@ public class CampaignController {
         model.addAttribute("comebackOwn", comebacks.campaignMode(id));
         model.addAttribute("comebackSystem", comebacks.mode());
         model.addAttribute("comebackModes", vn.shop.crm.inbox.ComebackService.Mode.values());
-        model.addAttribute("defaultGroupLinkTemplate", invites.groupLinkTemplate());
         model.addAttribute("sysStopPct", vn.shop.crm.zalo.CampaignAutoStop.SYSTEM_PCT);
         model.addAttribute("minStopSent", vn.shop.crm.zalo.CampaignAutoStop.MIN_SENT);
         model.addAttribute("stoppedReason", autoStop.stoppedReason(id).orElse(null));
@@ -191,17 +181,15 @@ public class CampaignController {
     }
 
     /**
-     * Nhóm Zalo đích riêng của chiến dịch (D21 PR 6): chỉ làm chặt hơn hệ thống ("chỉ gửi link nhóm", không cho vào nhóm tự tạo),
-     * và nội dung Tin 2 riêng. Nút "Theo hệ thống" (reset) xóa hết.
+     * Nhóm Zalo đích riêng của chiến dịch (D21 PR 6): chỉ làm chặt hơn hệ thống (không cho vào nhóm tự tạo).
+     * Nút "Theo hệ thống" (reset) xóa hết.
      */
     @PostMapping("/campaigns/{id}/group-target")
-    public String saveGroupTarget(@PathVariable long id, @RequestParam(defaultValue = "false") boolean linkOnly,
-                                  @RequestParam(defaultValue = "false") boolean allowCreation,
-                                  @RequestParam(required = false) String linkTemplate,
+    public String saveGroupTarget(@PathVariable long id, @RequestParam(defaultValue = "false") boolean allowCreation,
                                   @RequestParam(defaultValue = "false") boolean reset, RedirectAttributes redirect) {
         invites.campaign(id).orElseThrow(() -> new ImportException("Không tìm thấy chiến dịch."));
         var target = reset ? vn.shop.crm.zalo.CampaignGroupTarget.Target.SYSTEM
-                : new vn.shop.crm.zalo.CampaignGroupTarget.Target(linkOnly, allowCreation, linkTemplate);
+                : new vn.shop.crm.zalo.CampaignGroupTarget.Target(allowCreation);
         groupTarget.save(id, target, ContactService.actor());
         redirect.addFlashAttribute("tab", "nhom");
         redirect.addFlashAttribute("flash", reset
@@ -328,15 +316,6 @@ public class CampaignController {
                        @RequestParam(required = false) String back, RedirectAttributes redirect) {
         invites.markLeft(invitationId);
         redirect.addFlashAttribute("flash", "Đã ghi: khách đã rời nhóm. Số khách thật của nhóm giảm 1 (nếu khách đó đã được tính).");
-        return redirectTo(id, back);
-    }
-
-    /** Người gửi đã dán tin kèm link nhóm cho khách đã kết bạn (khách tự bấm). Hệ thống không gửi gì. */
-    @PostMapping("/campaigns/{id}/invitations/{invitationId}/group-link-sent")
-    public String groupLinkSent(@PathVariable long id, @PathVariable long invitationId, @RequestParam long groupId,
-                                @RequestParam(required = false) String back, RedirectAttributes redirect) {
-        invites.markGroupLinkSent(invitationId, groupId);
-        redirect.addFlashAttribute("flash", "Đã ghi: đã gửi link nhóm cho khách. Khi thấy khách vào nhóm, bấm \"Đã vào nhóm\".");
         return redirectTo(id, back);
     }
 

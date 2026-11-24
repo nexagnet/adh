@@ -38,8 +38,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * D21 PR 6: nhóm Zalo đích riêng của chiến dịch chỉ làm CHẶT hơn hệ thống. "Chỉ gửi link nhóm" thì khách kết bạn KHÔNG bị bộ nối tự thêm vào nhóm
- * mà nhận Tin 2 (link nhóm) để tự bấm; không cho gom vào nhóm mới tự tạo; Tin 2 riêng của chiến dịch. Để trống thì chạy y như trước.
+ * D21 PR 6: nhóm Zalo đích riêng của chiến dịch chỉ làm CHẶT hơn hệ thống: tắt "cho gom vào nhóm mới tự tạo". Để trống thì chạy y như trước.
+ * (Tin 2 và chế độ "chỉ gửi link nhóm" đã bỏ 24/11/2026.)
  */
 @Import(ZaloTestConfig.class)
 @TestPropertySource(properties = {
@@ -126,47 +126,7 @@ class CampaignGroupTargetTest extends AbstractPostgresTest {
     }
 
     @Test
-    void chiGuiLinkNhomThiKhongTuThemMaGuiTin2ChoKhachTuBam() {
-        target.save(campaign, new Target(true, true, null), "mẹ");
-        long inv = friend();
-        assertThat(col("zalo_add_state", inv)).isNull();
-        assertThat(col("zalo_link_state", inv)).isEqualTo("PENDING");
-        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.NOTHING);
-        assertThat(fake.adds).isEmpty(); // bộ nối không thêm ai vào nhóm
-        after(120);
-        assertThat(sender.step()).isEqualTo(Step.LINK_SENT);
-        var link = fake.messages.get(fake.messages.size() - 1);
-        assertThat(link.kind()).isEqualTo(Kind.LINK);
-        assertThat(link.text()).contains("https://zalo.me/g/bac");
-        assertThat(col("zalo_link_state", inv)).isEqualTo("SENT");
-        assertThat(fake.adds).isEmpty();
-    }
-
-    @Test
-    void chiGuiLinkNhomNhungChuaBatTuGuiThiKhongXepTinNao() {
-        target.save(campaign, new Target(true, true, null), "mẹ");
-        messages.setEnabled(false, "mẹ");
-        assertThat(sender.step()).isEqualTo(Step.NOT_ACTIVE);
-        // khách kết bạn khi công tắc tắt: không xếp tin, không thêm nhóm
-        jdbc.sql("UPDATE invitation SET status = 'SENT', sent_at = now(), zalo_target_uid = '777' WHERE id = (SELECT min(id) FROM invitation)").update();
-        fake.pushAdd("777", null, 1);
-        zalo.poll();
-        assertThat(jdbc.sql("SELECT count(*) FROM invitation WHERE zalo_link_state IS NOT NULL OR zalo_add_state IS NOT NULL")
-                .query(Long.class).single()).isZero();
-        assertThat(fake.adds).isEmpty();
-    }
-
-    @Test
-    void tin2RiengCuaChienDichDuocDungThayMauChung() {
-        target.save(campaign, new Target(true, true, "Link nhóm riêng của đợt này: {link_nhom}"), "mẹ");
-        friend();
-        after(120);
-        assertThat(sender.step()).isEqualTo(Step.LINK_SENT);
-        assertThat(fake.messages.get(fake.messages.size() - 1).text()).isEqualTo("Link nhóm riêng của đợt này: https://zalo.me/g/bac");
-    }
-
-    @Test
-    void khachCuaChienDichChiLinkVaChienDichTatTaoNhomKhongBiGomVaoNhomMoi() {
+    void chienDichTatTaoNhomThiKhachKhongBiGomVaoNhomMoi() {
         // khách ở miền Nam, chưa có nhóm hợp khu vực: bình thường sẽ nằm trong danh sách chờ tạo nhóm
         jdbc.sql("UPDATE customer SET province = 'tphcm'").update();
         long inv = friend();
@@ -174,34 +134,23 @@ class CampaignGroupTargetTest extends AbstractPostgresTest {
         var all = creation.waitingCustomers();
         long before = all.stream().filter(w -> w.invitationId() == inv).count();
         assertThat(before).isEqualTo(1); // trước khi đặt gì, khách này đang chờ nhóm mới
-        target.save(campaign, new Target(false, false, null), "mẹ"); // tắt "cho gom vào nhóm mới tự tạo"
-        assertThat(creation.waitingCustomers().stream().filter(w -> w.invitationId() == inv)).isEmpty();
-        target.save(campaign, new Target(true, true, null), "mẹ"); // chỉ gửi link: cũng không gom
+        target.save(campaign, new Target(false), "mẹ"); // tắt "cho gom vào nhóm mới tự tạo"
         assertThat(creation.waitingCustomers().stream().filter(w -> w.invitationId() == inv)).isEmpty();
         target.save(campaign, Target.SYSTEM, "mẹ");
         assertThat(creation.waitingCustomers().stream().filter(w -> w.invitationId() == inv).count()).isEqualTo(before);
     }
 
     @Test
-    void mauKhongCoLinkBiTuChoiVaKhongLuu() {
-        assertThatThrownBy(() -> target.save(campaign, new Target(false, true, "Mời mình vào nhóm nhé"), "mẹ"))
-                .isInstanceOf(ImportException.class).hasMessageContaining("link_nhom");
-        assertThat(target.load(campaign)).isEqualTo(Target.SYSTEM);
-    }
-
-    @Test
     void trangLuuRoiHienLaiVaNutTheoHeThongXoa() throws Exception {
         MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
-        mvc.perform(post("/campaigns/" + campaign + "/group-target").with(csrf()).param("linkOnly", "true")).andExpect(status().is3xxRedirection());
+        mvc.perform(post("/campaigns/" + campaign + "/group-target").with(csrf()).param("allowCreation", "false")).andExpect(status().is3xxRedirection());
         assertThat(target.load(campaign)).isEqualTo(Target.SYSTEM); // chưa đăng nhập thì không lưu
         mvc.perform(post("/campaigns/" + campaign + "/group-target").with(user("admin")).with(csrf())
-                        .param("linkOnly", "true").param("allowCreation", "true").param("linkTemplate", "Vào nhóm: {link_nhom}"))
+                        .param("allowCreation", "false"))
                 .andExpect(redirectedUrl("/campaigns/" + campaign));
-        assertThat(target.load(campaign)).isEqualTo(new Target(true, true, "Vào nhóm: {link_nhom}"));
+        assertThat(target.load(campaign)).isEqualTo(new Target(false));
         mvc.perform(get("/campaigns/" + campaign + "?tab=nhom").with(user("admin")))
                 .andExpect(status().isOk()).andExpect(content().string(containsString("Nhóm Zalo của chiến dịch")));
-        mvc.perform(post("/campaigns/" + campaign + "/group-target").with(user("admin")).with(csrf()).param("linkTemplate", "thiếu link"))
-                .andExpect(status().isBadRequest()).andExpect(content().string(containsString("link_nhom")));
         mvc.perform(post("/campaigns/" + campaign + "/group-target").with(user("admin")).with(csrf()).param("reset", "true"))
                 .andExpect(redirectedUrl("/campaigns/" + campaign));
         assertThat(target.load(campaign)).isEqualTo(Target.SYSTEM);

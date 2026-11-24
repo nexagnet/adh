@@ -29,9 +29,7 @@ File này dành cho AI (hoặc người) vào làm tiếp mà **không đọc đ
 
 > Chào anh/chị [Tên khách], em bên [Tên shop]. Anh/chị dùng sản phẩm shop gửi thấy ổn không ạ? Em mời mình vào nhóm Zalo khách hàng [Miền Trung/Miền Nam] để được hướng dẫn sử dụng sản phẩm và nhận ưu đãi. Anh chị mua trực tiếp qua nhóm sẽ rẻ hơn mua qua tiktok 10% và được miễn ship đó ạ. Anh/chị đồng ý kết bạn, em sẽ thêm anh chị vào nhóm ạ. Không cần thì anh/chị bỏ qua, em sẽ không nhắn lại ạ.
 
-**Tin 2** (chỉ gửi khi việc tự thêm vào nhóm lỗi theo từng người):
-
-> Mình vào nhóm theo link này nhé: [Link nhóm].
+**Tin 2 (gửi link nhóm) ĐÃ BỎ ngày 24/11/2026 (V47, chủ dự án: "bỏ phần nhắn tin lần 2").** Không còn mẫu tin, ô soạn, chế độ "chỉ gửi link nhóm", nút "Đã gửi link nhóm" hay đường tự gửi link. Thêm vào nhóm lỗi riêng người thì khách ở trạng thái lỗi (`zalo_add_state = FAILED`) ở trang `/zalo` để người thử lại hoặc tự xử lý; hệ thống không gửi gì thêm cho khách. Đừng thêm lại nếu chưa có lời duyệt mới. Các chỗ khác trong file này còn nhắc "Tin 2" là lịch sử.
 
 ## 3. Quyết định D18 (23/11/2026): tự gửi Tin 1, và những điều KHÔNG được làm
 

@@ -29,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * D18: hệ thống TỰ gửi Tin 1 (và Tin 2) cho khách của chiến dịch thật qua bộ nối giả. Khóa các chốt chặn: tắt mặc định, phải duyệt chiến dịch,
+ * D18: hệ thống TỰ gửi Tin 1 cho khách của chiến dịch thật qua bộ nối giả. Khóa các chốt chặn: tắt mặc định, phải duyệt chiến dịch,
  * hạn mức ngày, khoảng nghỉ CỐ ĐỊNH, khung giờ, mỗi khách một lần, không gửi cho người không đủ điều kiện, lỗi lạ thì cầu dao nhảy.
  */
 @Import(ZaloTestConfig.class)
@@ -230,28 +230,6 @@ class ZaloAutoSendTest extends AbstractPostgresTest {
         assertThat(messages.limits()).isEqualTo(new ZaloMessageService.Limits(50, 100));
     }
 
-    /** 23/11/2026: hạn mức ngày là số KHÁCH được nhắn chủ động; Tin 2 không tính và không bị chặn bởi hạn mức đó, vẫn theo khoảng nghỉ. */
-    @Test
-    void hanMucNgayChiTinhTin1ConTin2KhongBiChan() {
-        ready(ZaloMode.AUTO);
-        messages.setLimits(1, 100, "mẹ");
-        int a = first();
-        assertThat(sender.step()).isEqualTo(Step.INVITE_SENT);
-        String uid = col("zalo_target_uid", a);
-        fake.pushAdd(uid, null, 1);
-        zalo.poll();
-        fake.willReturn(AddResult.of(Outcome.PERSON_ERROR, "Z240"));
-        assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.PERSON_FAILED);
-        after(100);
-        assertThat(messages.usedToday(null)).isEqualTo(1);
-        assertThat(sender.step()).isEqualTo(Step.LINK_SENT); // đã đủ 1 khách nhưng Tin 2 vẫn đi
-        assertThat(messages.usedToday(null)).isEqualTo(1); // Tin 2 không tính vào số khách
-        after(100);
-        assertThat(sender.step()).isEqualTo(Step.BLOCKED); // khách thứ hai (Tin 1) bị chặn bởi hạn mức ngày
-        assertThat(fake.messages.stream().filter(m -> m.kind() == Kind.INVITE)).hasSize(1);
-        assertThat(messages.quota().maxDaily()).isEqualTo(50);
-    }
-
     /** D21 PR 5b: tin nhắc (FOLLOWUP2/3) là tin shop chủ động nhắn nên tính vào hạn mức ngày cùng Tin 1, và chịu khoảng nghỉ chung. */
     @Test
     void tinNhacTinhVaoHanMucNgayCungTin1() {
@@ -266,7 +244,6 @@ class ZaloAutoSendTest extends AbstractPostgresTest {
         after(100);
         assertThat(messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.FOLLOWUP3, null, null)).contains(ZaloMessageService.Block.DAILY_LIMIT);
         assertThat(messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.INVITE, null, null)).contains(ZaloMessageService.Block.DAILY_LIMIT);
-        assertThat(messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.LINK, null, null)).isEmpty(); // Tin 2 vẫn không bị hạn mức ngày chặn
         assertThat(fake.messages.stream().filter(m -> m.kind() == Kind.FOLLOWUP2)).hasSize(1);
     }
 
@@ -378,7 +355,7 @@ class ZaloAutoSendTest extends AbstractPostgresTest {
         assertThat(cfg.trippedReason()).isEqualTo("NHIEU_KHONG_TIM_THAY");
     }
 
-    // ---------- khớp kết bạn theo mã Zalo, Tin 2 ----------
+    // ---------- khớp kết bạn theo mã Zalo ----------
 
     @Test
     void khachKetBanKhopTheoMaDaLuuKhongCanSoDienThoai() {
@@ -402,7 +379,7 @@ class ZaloAutoSendTest extends AbstractPostgresTest {
     }
 
     @Test
-    void themNhomLoiRiengNguoiThiTuGuiTin2LinkCuaChinhNhomDoMotLan() {
+    void themNhomLoiRiengNguoiThiKhongGuiTin2MaChoNguoiXuLy() {
         ready(ZaloMode.AUTO);
         int a = first();
         sender.step();
@@ -411,19 +388,12 @@ class ZaloAutoSendTest extends AbstractPostgresTest {
         zalo.poll();
         fake.willReturn(AddResult.of(Outcome.PERSON_ERROR, "Z240"));
         assertThat(zalo.addNext()).isEqualTo(ZaloAutoService.Step.PERSON_FAILED);
-        assertThat(col("zalo_link_state", a)).isEqualTo("PENDING");
+        // Tin 2 đã bỏ (24/11/2026): khách ở lại trạng thái lỗi để người xử lý, không có link nào được gửi
+        assertThat(col("zalo_link_state", a)).isNull();
+        assertThat(col("zalo_add_state", a)).isEqualTo("FAILED");
         after(120);
-        assertThat(sender.step()).isEqualTo(Step.LINK_SENT); // Tin 2 đi trước Tin 1 của khách khác
-        var link = fake.messages.get(fake.messages.size() - 1);
-        assertThat(link.kind()).isEqualTo(Kind.LINK);
-        assertThat(link.uid()).isEqualTo(uid);
-        assertThat(link.text()).contains("https://zalo.me/g/bac"); // cùng một nhóm với lần thêm
-        assertThat(col("zalo_link_state", a)).isEqualTo("SENT");
-        assertThat(col("group_link_sent_at", a)).isNotNull();
-        assertThat(col("zalo_add_state", a)).isNull(); // đã gỡ khỏi hàng thêm tự động: khách tự vào bằng link
-        after(120);
-        assertThat(sender.step()).isEqualTo(Step.INVITE_SENT); // không gửi Tin 2 lần hai
-        assertThat(fake.messages.stream().filter(m -> m.kind() == Kind.LINK)).hasSize(1);
+        assertThat(sender.step()).isEqualTo(Step.INVITE_SENT); // chỉ là Tin 1 của khách kế tiếp
+        assertThat(fake.messages.stream().filter(m -> m.kind() == Kind.LINK)).isEmpty();
     }
 
     @Test

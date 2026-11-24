@@ -245,7 +245,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
                         JOIN invitation_campaign k ON k.id = i.campaign_id
                         WHERE i.status = 'FRIENDED' AND i.zalo_uid IS NOT NULL AND i.group_id IS NULL
-                          AND k.allow_group_creation AND k.group_delivery IS NULL
+                          AND k.allow_group_creation
                           AND i.group_link_sent_at IS NULL
                           AND (i.reserved_group_id IS NULL OR i.reserved_until <= now())
                           AND (i.zalo_add_state IS NULL OR i.zalo_add_state IN ('WAITING_APPROVAL', 'QUEUED'))
@@ -477,7 +477,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
                         JOIN invitation i ON i.id = m.invitation_id
                         JOIN invitation_campaign k ON k.id = i.campaign_id
                         WHERE m.proposal_id = :p AND i.status = 'FRIENDED' AND i.zalo_uid IS NOT NULL AND i.group_id IS NULL
-                          AND k.allow_group_creation AND k.group_delivery IS NULL
+                          AND k.allow_group_creation
                           AND (i.zalo_add_state IS NULL OR i.zalo_add_state IN ('WAITING_APPROVAL', 'QUEUED'))
                         ORDER BY i.friended_at NULLS LAST, i.id""")
                 .param("p", proposalId).query((rs, n) -> new Member(rs.getLong(1), rs.getLong(2), rs.getString(3))).list()
