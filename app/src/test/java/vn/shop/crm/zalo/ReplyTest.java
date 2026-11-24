@@ -466,7 +466,8 @@ class ReplyTest extends AbstractPostgresTest {
         says("Ưu đãi như nào");
         String compose = systems.stream().filter(s -> s.startsWith("Bạn là TRỢ LÝ AI")).findFirst().orElseThrow();
         assertThat(compose).contains("THẬT NGẮN").contains("chỉ MỘT câu và dưới 120 ký tự").contains("không nhắc lại câu hỏi hay điều khách vừa nói")
-                .contains("\"Mình kết bạn rồi nha\" → \"Dạ em thêm anh/chị vào nhóm ngay ạ.\"").contains("bạn nhân viên bán hàng thân thiện")
+                .contains("\"Mình kết bạn rồi nha\" → \"Dạ em thêm bác vào nhóm ngay ạ.\"").contains("gọi khách là \"bác\"")
+                .contains("\"Ưu đãi như nào\" → \"Dạ bác mua trực tiếp qua nhóm sẽ rẻ hơn mua qua TikTok 10% và được miễn ship ạ.\"").contains("bạn nhân viên bán hàng thân thiện")
                 .contains("Chỉ trả lời đúng chủ đề").contains("\"Ưu đãi như nào\" → \"Dạ");
         assertThat(compose).contains("Không giả làm người hay chủ shop").contains("không tự đặt tên")
                 .contains("trả lời thật là trợ lý AI của cửa hàng").contains("không né, không chối, không khẳng định mình là người");
