@@ -26,3 +26,14 @@ Mặc định (chủ shop chốt 23/11): cửa hàng bán chủ yếu **áo đi�
 
 ## Không làm ở giai đoạn 1
 AI trả lời trong nhóm Zalo, nhiều người trong đội bán hàng (Chatwoot), tra cứu nhiều sản phẩm, tóm tắt việc.
+
+## Cách đưa tin của khách cho AI và các câu mẫu (24/11/2026, sau chạy thử pilot)
+
+Chạy thử thật cho thấy AI hay hiểu sai câu hỏi chung về ưu đãi ("Ưu đãi như nào") thành "muốn mua" hoặc "ngoài phạm vi". Đã sửa theo cách làm tốt nhất:
+
+- **Mỗi lượt gọi AI có hai phần**: tin hệ thống (vai trò, bối cảnh, định nghĩa nhãn, ví dụ, khuôn JSON) và tin người dùng (chỉ văn bản khách đã che, nằm giữa `<<<` `>>>`). `temperature` 0, chế độ JSON, parser chặt (đúng các khóa, nhãn lạ thì bỏ).
+- **Bối cảnh cố định cho AI** (không có dữ liệu cá nhân): khách vừa nhận lời mời vào nhóm có nhắc ưu đãi 10% và miễn ship, nên "ưu đãi" nói chung là ưu đãi khi vào nhóm.
+- **Nhãn có thứ tự quyết định và ví dụ đúng/sai**: TU_CHOI, KHIEU_NAI, MUON_MUA (chỉ khi nói rõ muốn mua hoặc hỏi giá/còn hàng một sản phẩm cụ thể), CAU_HOI (hỏi chung về nhóm và ưu đãi, KHÔNG phải MUON_MUA), KHAC. Phạm vi trả lời cũng có hai chủ đề TRONG và danh sách ví dụ TRONG/NGOAI.
+- **Nhãn MUON_MUA chỉ chuyển người thật ngay khi AI chắc từ 0,9** (`ReplyService.BUY_HANDOFF_MIN`); dưới đó bước phạm vi quyết, và nếu ngoài phạm vi thì vẫn chuyển người thật với lý do "muốn mua".
+- **Không ghép tin trước khi phân loại phạm vi**: bước phạm vi chỉ xét tin MỚI NHẤT (tin cũ trong nháp đã qua bước này). Khi soạn câu, các tin liên tiếp được tách thành "Tin 1, Tin 2 (mới nhất)" thay vì dính bằng dấu `|`. Việc đã chuyển người thật vẫn ghi tiếp tin mới vào cùng việc, không nhờ AI chen vào.
+- **Bộ câu mẫu** nằm trong `ReplyTest.boCauMauDuongDiDungKhiAiGanNhanKhacNhau`; dán cùng các câu đó vào ô "Thử một câu" ở `/zalo/reply` để thử với DeepSeek thật trước khi bật nấc Tự động.

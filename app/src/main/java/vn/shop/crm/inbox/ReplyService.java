@@ -42,6 +42,11 @@ public class ReplyService {
     public static final String DRAFT_TRIED_KEY = "reply.draft_tried_at";
     /** AI phải chắc chừng này là tin NẰM TRONG phạm vi mới được soạn trả lời. */
     public static final double SCOPE_MIN = 0.8;
+    /**
+     * Nhãn "muốn mua" chỉ chuyển người thật ngay (không qua bước phạm vi) khi AI chắc từ mức này. Dưới mức đó nhãn dễ nhầm với câu hỏi chung về ưu đãi
+     * ("Ưu đãi như nào"), nên để bước phân loại phạm vi quyết: câu thật sự ngoài phạm vi vẫn chuyển người thật, còn câu hỏi ưu đãi chung thì được trả lời.
+     */
+    public static final double BUY_HANDOFF_MIN = 0.9;
     static final int KEEP_DAYS = 30;
     static final int TEXT_MAX = 500;
     /** Cầu nối chỉ cho trả lời người vừa nhắn trong 24 giờ; nhỏ hơn một chút để không chạm biên. */
@@ -209,6 +214,7 @@ public class ReplyService {
         if (mode() == Mode.OFF) {
             return Result.NONE;
         }
+        final String latest = text;
         Optional<Open> open = open(s.uid());
         if (open.isPresent()) {
             Open o = open.get();
@@ -226,14 +232,19 @@ public class ReplyService {
             text = tail(join(o.inbound, text));
         }
         try {
-            return decide(s, v, text, at);
+            return decide(s, v, latest, text, at);
         } catch (DataIntegrityViolationException e) {
             log.warn("Trùng việc trả lời cho một khách: bỏ qua");
             return Result.NONE;
         }
     }
 
-    private Result decide(Subject s, Verdict v, String text, Instant at) {
+    /**
+     * @param latest tin MỚI NHẤT của khách: nhãn {@code v} và bước phân loại phạm vi chỉ xét tin này. Tin trước (nếu có nháp chưa xử lý) đã qua bước phạm vi
+     *               ở lần trước, nên không đưa lại vào đây để một tin cũ không làm tin mới bị coi là "vừa trong vừa ngoài".
+     * @param text   chữ khách đã gộp (tin trước | tin mới): để AI soạn một câu trả lời đủ ý và để lưu cho người thật xem
+     */
+    private Result decide(Subject s, Verdict v, String latest, String text, Instant at) {
         switch (v.outcome()) {
             case UNAVAILABLE -> {
                 return handoff(s, Reason.AI_LOI, null, null, text, at);
@@ -248,16 +259,19 @@ public class ReplyService {
         if (label == Label.TU_CHOI) {
             return handoff(s, Reason.KHACH_TU_CHOI, null, v.confidence(), text, at);
         }
-        if (label == Label.MUON_MUA) {
+        boolean wantsToBuy = label == Label.MUON_MUA;
+        if (wantsToBuy && v.confidence() >= BUY_HANDOFF_MIN) {
             return handoff(s, Reason.KHACH_MUON_MUA, null, v.confidence(), text, at);
         }
         if (label == Label.KHIEU_NAI) {
             return handoff(s, Reason.KHACH_KHIEU_NAI, null, v.confidence(), text, at);
         }
         // Hồ sơ chỉ được dựng (và đọc từ CSDL) khi đã qua bước phân loại phạm vi, và chỉ của đúng khách này.
-        Plan p = plan(text, () -> context.forCustomer(s.customerId()));
+        Plan p = plan(latest, text, () -> context.forCustomer(s.customerId()));
         if (p.reply == null) {
-            return handoff(s, p.reason, p.detail, p.confidence, text, p.fields, at);
+            // Nhãn "muốn mua" chưa đủ chắc mà tin cũng ngoài phạm vi: giữ lý do khách muốn mua để người thật thấy đúng việc.
+            Reason reason = wantsToBuy && p.reason == Reason.NGOAI_PHAM_VI ? Reason.KHACH_MUON_MUA : p.reason;
+            return handoff(s, reason, p.detail, p.confidence, text, p.fields, at);
         }
         Mode mode = mode();
         String state = mode == Mode.AUTO ? "READY" : "DRAFT";
@@ -277,8 +291,8 @@ public class ReplyService {
     }
 
     /** Bước phân loại phạm vi không nhận hồ sơ khách; chỉ bước soạn câu mới nhận (và chỉ khi tin nằm trong phạm vi). */
-    private Plan plan(String text, java.util.function.Supplier<ReplyContext.Built> profile) {
-        ReplyAssistant.Scope sc = assistant.scope(text);
+    private Plan plan(String latest, String text, java.util.function.Supplier<ReplyContext.Built> profile) {
+        ReplyAssistant.Scope sc = assistant.scope(latest);
         if (sc.outcome() == ReplyAssistant.Outcome.UNAVAILABLE) {
             return Plan.no(Reason.AI_LOI, null, null);
         }
@@ -322,7 +336,7 @@ public class ReplyService {
             return new Preview(false, null, "Hãy gõ một câu khách có thể nhắn.");
         }
         // Thử bằng hồ sơ mẫu GIẢ: không bao giờ đọc hay gửi dữ liệu khách thật ở ô thử.
-        Plan p = plan(text, context::sample);
+        Plan p = plan(text, text, context::sample);
         if (p.reply != null) {
             return new Preview(true, p.reply + signature(), "Hệ thống sẽ trả lời câu này (nấc tự động) hoặc lưu nháp (nấc nháp).");
         }
