@@ -4,7 +4,7 @@
 
 **Yêu cầu của chủ dự án (23/11/2026):** lấy thời tiết, khách, khu vực... đưa cho AI (DeepSeek) **đề xuất chiến dịch và thời gian áp dụng, kèm lý do**. Chiến dịch hiện nay (tên, một khu vực, số khách, số ngày link, nội dung tin) quá đơn giản; cấu hình chưa đủ để phát huy hệ thống và AI.
 
-**Nguyên tắc cứng:** AI chỉ **đề xuất**. AI không tạo chiến dịch, không duyệt tự gửi, không gửi gì. Người dùng xem lý do rồi bấm duyệt bằng tay. Mọi ràng buộc D18 (hạn mức, khung giờ 08:00 đến 20:00, nghỉ cố định, cầu dao, 50 khách/ngày, mỗi khách một Tin 1) và cấm né phát hiện bot **không đổi**: đề xuất chỉ được nằm **bên trong** các giới hạn đó, không bao giờ nới chúng.
+**Nguyên tắc cứng:** AI chỉ **đề xuất**. AI không tạo chiến dịch, không duyệt tự gửi, không gửi gì. Người dùng xem lý do rồi bấm duyệt bằng tay. Mọi ràng buộc D18 (hạn mức, khung giờ 08:00 đến 22:00, nghỉ cố định, cầu dao, 50 khách/ngày, mỗi khách một Tin 1) và cấm né phát hiện bot **không đổi**: đề xuất chỉ được nằm **bên trong** các giới hạn đó, không bao giờ nới chúng.
 
 ## 1. Luồng dữ liệu
 
@@ -63,7 +63,7 @@ Một lượt gọi (`AiGate`), tối đa **3 đề xuất**, đúng khuôn JSON
 ```
 
 Kiểm cứng bằng mã (không dùng AI kiểm AI), đề xuất sai thì **bỏ**, không sửa hộ:
-- `area` phải là mã khu vực có trong snapshot; `batch_size` từ 1 đến min(số đủ điều kiện của khu vực, trần chiến dịch); ngày bắt đầu từ hôm nay (giờ Việt Nam), kéo dài tối đa 14 ngày; khung giờ nằm trong 08:00–20:00 và rộng ít nhất 1 giờ; `daily_cap` không quá hạn mức ngày hiện hành.
+- `area` phải là mã khu vực có trong snapshot; `batch_size` từ 1 đến min(số đủ điều kiện của khu vực, trần chiến dịch); ngày bắt đầu từ hôm nay (giờ Việt Nam), kéo dài tối đa 14 ngày; khung giờ nằm trong 08:00–22:00 và rộng ít nhất 1 giờ; `daily_cap` không quá hạn mức ngày hiện hành.
 - Chữ (`title`, `reasons`, `risks`, `message_angle`) có giới hạn độ dài, không đường dẫn, không số điện thoại, không ký tự điều khiển; chỉ để người dùng đọc, **không bao giờ được gửi cho khách**.
 - **Độ tin cậy bị mã chặn trần:** chưa đủ 30 tin đã nhắn thì không quá 0,6; không có dự báo thời tiết thì không quá 0,7. AI không được tự nâng độ tin cậy lên khi thiếu dữ liệu.
 - `message_angle` chỉ là hướng nhấn để người dùng cân nhắc sửa Tin 1. Tin 1 vẫn là mẫu người dùng đã chốt; AI soạn nguyên văn tin (nếu làm) là bước sau, phải qua bộ kiểm giống `ReplyValidator` và người dùng sửa trước khi dùng.
@@ -83,7 +83,7 @@ Yêu cầu: "tập trung nghiệp vụ nhắn tin vào chiến dịch để AI �
 
 | Tầng | Chứa gì | Ở đâu |
 |---|---|---|
-| **Hệ thống (an toàn, toàn cục)** | công tắc tổng, cầu dao, tạm dừng tất cả, tài khoản Zalo, khóa AI, trần cứng (50 khách/ngày, nghỉ tối thiểu 100 giây, khung giờ tối đa 08:00–20:00, trần số lần 3, phanh khẩn cấp bộ nối), chế độ cách ly khách thật | `/zalo` (giữ nguyên, không chuyển vào chiến dịch) |
+| **Hệ thống (an toàn, toàn cục)** | công tắc tổng, cầu dao, tạm dừng tất cả, tài khoản Zalo, khóa AI, trần cứng (50 khách/ngày, nghỉ tối thiểu 100 giây, khung giờ tối đa 08:00–22:00, trần số lần 3, phanh khẩn cấp bộ nối), chế độ cách ly khách thật | `/zalo` (giữ nguyên, không chuyển vào chiến dịch) |
 | **Chiến dịch (nghiệp vụ)** | phạm vi khách, lịch, nhịp, chuỗi tin, nhóm đích, khách quay lại, tự nhận khách mới, chế độ thử/thật | trang chi tiết chiến dịch, chia tab |
 
 Giá trị hiệu lực luôn là `min/hẹp hơn(hệ thống, chiến dịch)`, tính ở MỘT hàm duy nhất (`CampaignPolicy.effective(...)`) mà đường gửi bắt buộc dùng. Chiến dịch **không bao giờ nới** được giới hạn hệ thống; ô để trống nghĩa là "theo hệ thống", nên chiến dịch cũ chạy y như trước. Mọi chốt chặn hiện có (công tắc, nấc, khung giờ, nghỉ cố định, cầu dao, 50 khách/ngày, không `Random`, không né phát hiện) vẫn chạy **sau** bước này.
@@ -91,7 +91,7 @@ Giá trị hiệu lực luôn là `min/hẹp hơn(hệ thống, chiến dịch)`
 ### 5.2 Mô hình chiến dịch (các tab)
 
 1. **Khách:** khu vực (một hoặc nhiều mã R:/S:/P:), độ mới của lần mua (`min/max_days_since_purchase`), thứ tự lấy khách (`pick_order`: duyệt sớm nhất, mua mới nhất, mua cũ nhất), số khách tối đa, tự nhận khách mới (chuyển từ nút hiện có).
-2. **Lịch và nhịp:** `start_on`/`end_on`, khung giờ riêng (chỉ hẹp hơn 08:00–20:00), hạn mức khách/ngày riêng (chỉ thấp hơn hạn mức chung), nghỉ giữa hai tin riêng (chỉ cao hơn sàn).
+2. **Lịch và nhịp:** `start_on`/`end_on`, khung giờ riêng (chỉ hẹp hơn 08:00–22:00), hạn mức khách/ngày riêng (chỉ thấp hơn hạn mức chung), nghỉ giữa hai tin riêng (chỉ cao hơn sàn).
 3. **Chuỗi tin (mục 5.3):** số lần gửi, nội dung và khoảng cách từng lần.
 4. **Nhóm đích:** kiểu (nhóm khu vực tự thêm / link nhóm cố định / tự tạo nhóm khi đầy), mẫu tên nhóm, Tin 2 (link nhóm).
 5. **Khách quay lại:** chính sách riêng của chiến dịch (Tắt / Chỉ tạo việc / Tự động) cho khách từng từ chối nhắn lại muốn mua.
@@ -120,7 +120,7 @@ Chốt an toàn (mã chặn, không dựa vào lời hứa của AI hay người
 | Nhóm | Núm | Ghi chú |
 |---|---|---|
 | Đối tượng | khu vực nhiều mã; số lần mua (hiện chỉ mua một lần); thời gian từ lần mua cuối (min/max ngày); loại hàng đã mua (nhóm hàng: áo điều hòa, pin, phụ kiện; xem câu hỏi mở); tình trạng đơn (giao rồi bao nhiêu ngày); loại trừ khách đã vào nhóm | khách từ chối, bị chặn, cần kiểm tra **luôn** bị loại, không có núm để bật lại |
-| Lịch | ngày bắt đầu/kết thúc; ngày trong tuần được gửi; khung giờ riêng, có thể khác theo vùng (múi giờ giống nhau nhưng thói quen khác); tránh ngày lễ do người dùng chọn | khung giờ luôn nằm trong 08:00–20:00 |
+| Lịch | ngày bắt đầu/kết thúc; ngày trong tuần được gửi; khung giờ riêng, có thể khác theo vùng (múi giờ giống nhau nhưng thói quen khác); tránh ngày lễ do người dùng chọn | khung giờ luôn nằm trong 08:00–22:00 |
 | Điều kiện hoãn | hoãn gửi cho một vùng khi dự báo mưa lớn hoặc thời tiết xấu (dùng `weather_forecast`) | chỉ **hoãn**, không bao giờ làm gửi nhanh hơn hay nhiều hơn; hết điều kiện thì tiếp tục trong hạn mức |
 | Nhịp | hạn mức khách/ngày riêng; nghỉ riêng; tăng dần theo ngày (đợt khởi động nhẹ rồi nâng tới hạn mức chiến dịch) | tăng dần là bậc thang cố định do người đặt, không ngẫu nhiên |
 | Mục tiêu và đo lường | mục tiêu chính (kết bạn, vào nhóm, mua lại); mỗi chiến dịch tự ghi phễu: đã nhắn, kết bạn, vào nhóm, từ chối, mua lại; theo bước, khung giờ, ngày trong tuần | số liệu này quay lại làm dữ liệu cho AI |

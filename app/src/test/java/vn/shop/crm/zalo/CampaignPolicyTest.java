@@ -206,7 +206,7 @@ class CampaignPolicyTest extends AbstractPostgresTest {
         messages.setLimits(10, 120, "mẹ");
         assertThatThrownBy(() -> policy.save(campaign, raw(null, null, LocalTime.of(6, 0), LocalTime.of(10, 0), null, null), "mẹ"))
                 .isInstanceOf(ImportException.class).hasMessageContaining("không được nới");
-        assertThatThrownBy(() -> policy.save(campaign, raw(null, null, LocalTime.of(9, 0), LocalTime.of(21, 0), null, null), "mẹ"))
+        assertThatThrownBy(() -> policy.save(campaign, raw(null, null, LocalTime.of(9, 0), LocalTime.of(23, 0), null, null), "mẹ"))
                 .isInstanceOf(ImportException.class);
         assertThatThrownBy(() -> policy.save(campaign, raw(null, null, null, null, 11, null), "mẹ"))
                 .isInstanceOf(ImportException.class).hasMessageContaining("không được cao hơn");
@@ -239,7 +239,7 @@ class CampaignPolicyTest extends AbstractPostgresTest {
         assertThat(sys.dailyCap()).isEqualTo(3);
         assertThat(sys.gapSeconds()).isEqualTo(600);
         assertThat(sys.windowFrom()).isEqualTo(LocalTime.of(8, 0));
-        assertThat(sys.windowTo()).isEqualTo(LocalTime.of(20, 0));
+        assertThat(sys.windowTo()).isEqualTo(LocalTime.of(22, 0));
     }
 
     @Test
@@ -248,11 +248,11 @@ class CampaignPolicyTest extends AbstractPostgresTest {
         policy.saveClamped(campaign, raw(TODAY, TODAY.plusDays(5), LocalTime.of(6, 0), LocalTime.of(23, 0), 40, null), "mẹ");
         var r = policy.load(campaign);
         assertThat(r.windowFrom()).isEqualTo(LocalTime.of(8, 0));
-        assertThat(r.windowTo()).isEqualTo(LocalTime.of(20, 0));
+        assertThat(r.windowTo()).isEqualTo(LocalTime.of(22, 0));
         assertThat(r.dailyCap()).isEqualTo(5);
         assertThat(r.gapSeconds()).isNull();
         // khung giờ sau khi kẹp mà quá hẹp thì bỏ khung giờ riêng, theo hệ thống
-        policy.saveClamped(campaign, raw(null, null, LocalTime.of(19, 30), LocalTime.of(23, 0), null, null), "mẹ");
+        policy.saveClamped(campaign, raw(null, null, LocalTime.of(21, 30), LocalTime.of(23, 0), null, null), "mẹ");
         assertThat(policy.load(campaign).windowFrom()).isNull();
         assertThat(policy.load(campaign).windowTo()).isNull();
     }

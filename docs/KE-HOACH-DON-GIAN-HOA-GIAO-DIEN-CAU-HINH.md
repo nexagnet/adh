@@ -84,7 +84,7 @@ Tab 1  TÌNH TRẠNG (mặc định)
   Đăng nhập: Đã nối ✓            [Đăng xuất]
   Tự gửi tin:  (BẬT/TẮT) công tắc lớn      [Dừng ngay]
   Sức khỏe tài khoản: 1 dòng + cảnh báo nếu có
-  Hôm nay: nhắn 4/10 · lời mời 3/10 · giờ gửi 08:00 đến 20:00
+  Hôm nay: nhắn 4/10 · lời mời 3/10 · giờ gửi 08:00 đến 22:00
 Tab 2  GIỚI HẠN AN TOÀN
   Khách nhắn mỗi ngày [10]   Lời mời kết bạn mỗi ngày [10]   [Lưu]
   [ gập Nâng cao ] nghỉ giữa tin, thêm nhóm mỗi giờ/ngày, phút nghỉ,  [Khôi phục mặc định]

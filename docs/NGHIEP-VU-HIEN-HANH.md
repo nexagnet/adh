@@ -53,7 +53,7 @@ Khách mua (TikTok) ─► hãng giao hàng (Viettel Post / J&T)
 5. Chiến dịch: ai, khi nào, bao nhiêu khách một ngày, mấy lần nhắn
         │   (AI có thể đề xuất chiến dịch; bạn duyệt)
         ▼
-6. Tin 1 tự gửi (08:00–20:00, nghỉ cố định, tối đa 50 khách/ngày)
+6. Tin 1 tự gửi (08:00–22:00, nghỉ cố định, tối đa 50 khách/ngày)
         │
         ├─ khách im lặng ........ không nhắn lại (hoặc nhắc tối đa 2 lần nếu chiến dịch bật)
         ├─ khách nhắn "đừng nhắn nữa" → AI ghi sổ từ chối, không bao giờ nhắn lại
@@ -126,7 +126,7 @@ Chiến dịch là "một đợt mời": chọn **ai** (khu vực: miền, vùng
 
 **Mỗi khách chỉ có một lời mời trong đời.** Khách đã có lời mời ở bất kỳ trạng thái nào thì không vào chiến dịch mới.
 
-**Lịch và nhịp riêng của chiến dịch (D21, V37):** ngày bắt đầu và kết thúc, khung giờ riêng, hạn mức ngày riêng, khoảng nghỉ riêng. Chỉ được **hẹp hơn** hệ thống: khung giờ là phần giao với 08:00 đến 20:00, hạn mức chỉ thấp hơn, khoảng nghỉ chỉ dài hơn. Nhập giá trị nới hơn thì bị từ chối. Chiến dịch chưa tới ngày thì hiện "đang chờ".
+**Lịch và nhịp riêng của chiến dịch (D21, V37):** ngày bắt đầu và kết thúc, khung giờ riêng, hạn mức ngày riêng, khoảng nghỉ riêng. Chỉ được **hẹp hơn** hệ thống: khung giờ là phần giao với 08:00 đến 22:00, hạn mức chỉ thấp hơn, khoảng nghỉ chỉ dài hơn. Nhập giá trị nới hơn thì bị từ chối. Chiến dịch chưa tới ngày thì hiện "đang chờ".
 
 **Mời 1 đến 3 lần (D21, V38 đến V40):**
 - Mặc định **1 lần** (chỉ Tin 1). Có thể chọn 2 hoặc 3 lần; **trần cứng 3 lần cho một khách** (trong mã, không chỉnh được).
@@ -156,7 +156,7 @@ Tin không kèm link: khách chỉ cần đồng ý kết bạn. Tin này là ti
 
 | Chốt | Giá trị |
 |---|---|
-| Giờ gửi | chỉ **08:00 đến 20:00** |
+| Giờ gửi | chỉ **08:00 đến 22:00** |
 | Hạn mức | tính theo **số khách được nhắn chủ động** (Tin 1 và tin nhắc): mặc định **10 khách/ngày**, chỉnh được tới **trần cứng 50 khách/ngày** (bạn chốt 23/11: "50 khách, không giới hạn số tin") |
 | Không tính vào hạn mức | Tin 2, tin mẫu trả lời khách đã nhắn mình, câu AI trả lời. Nhưng chúng **vẫn** theo giờ gửi, khoảng nghỉ và cầu dao |
 | Khoảng nghỉ | **cố định** giữa hai tin: mặc định 120 giây, tối thiểu 100 giây. **Không ngẫu nhiên** |
@@ -182,7 +182,7 @@ Muốn tự gửi chạy cần **ba thứ cùng lúc**: biến môi trường t�
 - Muốn tự thêm được, nhóm cần đủ: có link mời, có mã nhóm Zalo, đang "nhận khách", và tài khoản cửa hàng đã ở trong nhóm. Thiếu một thứ thì khách **chờ**, không bị đẩy sang nhóm khác.
 - **Nhóm tự thêm và nhóm của link là MỘT nhóm** (cùng một nhóm được giữ chỗ cho mỗi khách).
 - Chưa có nhóm hợp: khách giữ trạng thái "đã kết bạn, chờ nhóm", hệ thống ghi một dòng "chờ nhóm" theo mã tỉnh (không tên, không số). Có tự tạo nhóm thì xem mục 4.8.
-- **Hạn mức thêm nhóm tách riêng khỏi hạn mức gửi tin:** mặc định 150 người/ngày, 15 người/giờ, cách nhau 2 phút (nâng từ 50 và 5 ngày 24/11/2026, chủ dự án chốt), trần cứng 300/ngày và 30/giờ (khách vượt hạn mức hôm nay sẽ chuyển sang ngày hôm sau, theo thứ tự đồng ý); khung giờ mặc định của cấu hình là 07:00 đến 22:00 (khác với 08:00 đến 20:00 của tin nhắn). Chỉnh ở trang `/zalo`. Có bốn nấc: Tắt / Chỉ nghe (người thêm tay) / Mẹ duyệt từng người / Tự thêm trong hạn mức.
+- **Hạn mức thêm nhóm tách riêng khỏi hạn mức gửi tin:** mặc định 150 người/ngày, 15 người/giờ, cách nhau 2 phút (nâng từ 50 và 5 ngày 24/11/2026, chủ dự án chốt), trần cứng 300/ngày và 30/giờ (khách vượt hạn mức hôm nay sẽ chuyển sang ngày hôm sau, theo thứ tự đồng ý); khung giờ mặc định của cấu hình là 07:00 đến 22:00 (khác với 08:00 đến 22:00 của tin nhắn). Chỉnh ở trang `/zalo`. Có bốn nấc: Tắt / Chỉ nghe (người thêm tay) / Mẹ duyệt từng người / Tự thêm trong hạn mức.
 - **Lỗi khi thêm vào nhóm được tách ba loại (24/11/2026):** lỗi **riêng người** (họ chặn việc được thêm) chỉ bỏ qua người đó; liền 4 lần cùng một nhóm thì nhóm đó tạm dừng, 6 trong 8 lần gần nhất thì dừng cầu dao (nghi Zalo hạn chế). Lỗi **cả nhóm** (nhóm đầy, bị giải tán) đánh dấu nhóm, khách được chuyển nhóm khác; 3 lần liền ở các nhóm khác nhau thì dừng cầu dao. Lỗi lạ hoặc Zalo cảnh báo dừng cầu dao ngay và **chờ người mở lại**. Người dùng chưa có mã lỗi thật của Zalo nên danh sách mã nằm ở biến `BRIDGE_PERSON_ERROR_CODES` và `BRIDGE_GROUP_ERROR_CODES` để điền sau khi thử.
 - **Khách nhắn Tin 1 mà không kết bạn quá 14 ngày** chỉ hiện nhãn "không phản hồi", **không bao giờ nhắn lại** (ngoài tin nhắc của chiến dịch nhiều lần).
 
@@ -271,7 +271,7 @@ Yêu cầu của bạn: lấy thời tiết, khách, khu vực đưa cho AI đ�
 
 - **AI chỉ đề xuất.** Không tạo chiến dịch, không duyệt gửi, không gửi gì. Bạn đọc lý do rồi bấm **"Duyệt và tạo chiến dịch"** hoặc **"Bỏ qua"** (ghi lý do bỏ qua).
 - **Chỉ gửi AI số liệu tổng hợp ẩn danh:** đếm khách theo vùng, độ mới của lần mua, phễu lời mời, thời tiết 48 giờ, mùa, các dịp sắp tới (Black Friday, 12.12, Giáng sinh, Tết dương, Tết âm), giới hạn hiện hành. **Không bao giờ** có tên, số điện thoại, địa chỉ, mã Zalo, nội dung tin, tên hàng. Vùng hoặc tỉnh dưới **10 khách** bị ẩn để không suy ngược ra từng người. Bạn xem được **đúng JSON đã gửi** ở "Xem số liệu đã gửi cho AI".
-- **AI trả tối đa 3 đề xuất** (khu vực, số khách, ngày bắt đầu và kết thúc, khung giờ, hạn mức ngày, hướng nhấn, lý do, rủi ro, độ tin cậy). **Mã kiểm cứng và bỏ** đề xuất sai: khu vực lạ, vượt trần, ngày đã qua, kéo dài quá 14 ngày, khung giờ ngoài 08:00 đến 20:00. **Độ tin cậy bị mã chặn trần:** chưa đủ 30 tin đã nhắn thì không quá 0,6; không có dự báo thời tiết thì không quá 0,7.
+- **AI trả tối đa 3 đề xuất** (khu vực, số khách, ngày bắt đầu và kết thúc, khung giờ, hạn mức ngày, hướng nhấn, lý do, rủi ro, độ tin cậy). **Mã kiểm cứng và bỏ** đề xuất sai: khu vực lạ, vượt trần, ngày đã qua, kéo dài quá 14 ngày, khung giờ ngoài 08:00 đến 22:00. **Độ tin cậy bị mã chặn trần:** chưa đủ 30 tin đã nhắn thì không quá 0,6; không có dự báo thời tiết thì không quá 0,7.
 - **Duyệt chỉ tạo chiến dịch chưa duyệt tự gửi**, dùng mẫu tin mặc định của cửa hàng (**không dùng chữ AI soạn**). Việc bấm "Duyệt cho hệ thống tự gửi" vẫn là một cú bấm riêng. Lịch, khung giờ và hạn mức AI gợi ý được đặt vào chiến dịch nhưng **kẹp trong trần hệ thống**.
 - Giới hạn: bấm "Nhờ AI đề xuất" tối đa **5 lần mỗi ngày**; đề xuất quá ngày bắt đầu tự hết hạn.
 - Cần `APP_AI_ADVISOR_ENABLED` (và cả `APP_AI_ENABLED`); nên bật thêm thời tiết để AI có dữ liệu. Chưa có lịch sử phản hồi thật nên đề xuất đầu tiên sẽ có **độ tin cậy thấp** (đúng thiết kế).
@@ -355,7 +355,7 @@ Trang `/performance`. Mỗi chiến dịch một dòng phễu: **đã mời → 
 
 | Việc | Giá trị |
 |---|---|
-| Khung giờ gửi tin | 08:00 đến 20:00 |
+| Khung giờ gửi tin | 08:00 đến 22:00 |
 | Khách nhắn chủ động mỗi ngày | mặc định 10, trần cứng **50** |
 | Nghỉ giữa hai tin | cố định 120 giây (tối thiểu 100) |
 | Phanh khẩn cấp ở bộ nối | 150 tin/ngày (mọi loại tin) |
@@ -400,7 +400,7 @@ Quy ước: khi hai nơi mâu thuẫn, **`CLAUDE.md` thắng**, rồi tới `doc
 6. **AI "ba việc còn dừng":** bản cũ ghi AI chỉ mới nhận diện từ chối, còn nhận ra khách muốn mua/khiếu nại, soạn nháp, tóm tắt "chờ duyệt". Thực tế mã đã có: khách quay lại muốn mua, AI trả lời tin riêng, bảo hành và khiếu nại, AI đề xuất chiến dịch (đều tắt, chưa thử thật). **Vẫn chưa làm:** tóm tắt việc hằng ngày cho mẹ và trợ lý trả lời trong nhóm.
 7. **Tên nhóm:** bản cũ đề xuất `Pin ADH - Khu vực - 01`. **Đã chốt** `Áo điều hòa ADH - Khu vực - 01` (cửa hàng bán chủ yếu áo điều hòa).
 8. **Chữ "pin" và "mẹ gửi tay":** Tin 1 mặc định trong mã nay nói "sản phẩm" (không còn "pin"), nhưng nếu mẹ từng lưu bản Tin 1 cũ có chữ "pin" ở trang *Chiến dịch* thì bản lưu đó vẫn dùng; cần sửa tay. Một số chữ trong giao diện và chú thích mã còn ghi "mẹ gửi tay, hệ thống không tự gửi" (ví dụ chú thích Tin 2 trong mã mời); dọn cùng lúc xóa màn nhắn tay.
-9. **Khung giờ:** gửi tin 08:00 đến 20:00, nhưng **thêm vào nhóm** có khung giờ mặc định riêng 07:00 đến 22:00 trong cấu hình. Hai thứ tách nhau; nếu muốn thống nhất cần bạn quyết.
+9. **Khung giờ:** gửi tin 08:00 đến 22:00, nhưng **thêm vào nhóm** có khung giờ mặc định riêng 07:00 đến 22:00 trong cấu hình. Hai thứ tách nhau; nếu muốn thống nhất cần bạn quyết.
 10. **Chiến dịch thử đã xóa (24/11/2026):** migration `V45` bỏ hai bảng `test_run` và `test_target`; `TestMode` không còn truy vấn `test_target`.
 11. **Tài liệu thiết kế D21 ghi "PR 2 chưa có giao diện nên chưa dùng được từ web"**: đã cũ. Trang `/advisor` có từ PR 3 (#85).
 12. **Tài liệu `BAN-GIAO.md` mục 1 đến 10** đã cũ (ghi "chưa deploy", "không tự gửi tin"...). Đừng làm theo; đã thay bởi mục 0 của nó và `CLAUDE.md`.

@@ -29,7 +29,7 @@ Chia số theo vai (mỗi số chỉ nhận Tin 1 một lần): hai số nhận 
 ## 1. Trả lời nhanh các câu hỏi
 
 0. **Giao diện mới (23/11/2026):** menu "Mời vào nhóm" xếp theo luồng làm việc (Danh sách mời, Chiến dịch mời, **Đề xuất của AI** có số đề xuất đang chờ, Hiệu quả chiến dịch, Nhóm Zalo, Zalo tài khoản phụ); từ 24/11 menu gọn còn ba nhóm (Hằng ngày, Chiến dịch, Cài đặt) và mục "Khác" gập lại; "Đề xuất của AI", "Chờ vào nhóm" và "Gán mã nhóm" là tab của trang cha; màn Chạy thử trên Zalo đã xóa; "Lô nhắn hôm nay" (`/today`) chỉ là đường dự phòng, sẽ bỏ sau khi thử xong. `/zalo` chia 4 tab (`?tab=tinh-trang|gioi-han|nhom|thu`), `/zalo/reply` chia 4 tab (`hom-nay|bat-tat|thong-tin|nang-cao`). Nhóm "Trợ lý AI" có thêm mục **Trợ lý AI trả lời khách** (`/zalo/reply`, trước đây phải đi vòng từ `/zalo` mới thấy). Tổng quan có khối **"Tự gửi tin hôm nay"** (công tắc, số khách đã nhắn so với hạn mức, số chiến dịch đã duyệt tự gửi, số đề xuất AI đang chờ).
-1. **Giao diện chạy thử đã đúng nghiệp vụ chưa?** Phần mời (Tin 1, kết bạn, thêm nhóm, hạn mức, giờ 08:00 đến 20:00, nghỉ cố định, cầu dao) đúng. Đã sửa và bổ sung: ghi rõ màn này **không kiểm AI**, và nhắc "mỗi số một Tin 1". Đã sửa cấu hình máy chủ: trần 50 khách/ngày bị cài nhầm 25 trong file compose (và không có tác dụng vì tên biến không khớp); nay đúng 50.
+1. **Giao diện chạy thử đã đúng nghiệp vụ chưa?** Phần mời (Tin 1, kết bạn, thêm nhóm, hạn mức, giờ 08:00 đến 22:00, nghỉ cố định, cầu dao) đúng. Đã sửa và bổ sung: ghi rõ màn này **không kiểm AI**, và nhắc "mỗi số một Tin 1". Đã sửa cấu hình máy chủ: trần 50 khách/ngày bị cài nhầm 25 trong file compose (và không có tác dụng vì tên biến không khớp); nay đúng 50.
 2. **Trang nào xóa sau khi thử xong?** Xem mục 7. Chưa xóa gì; chỉ xóa khi bạn báo thử xong.
 3. **Bật hết cờ trên máy chủ?** Được và an toàn: cờ ở máy chủ chỉ **mở khóa** tính năng, không tự gửi gì. Việc gửi thật chỉ xảy ra khi bạn bật công tắc trên web. Xem mục 2.
 4. **Có cần cấu hình tài khoản Zalo chốt đơn của mẹ không?** Không đăng nhập, không nhập mật khẩu hay mã nào của mẹ vào hệ thống (cầu nối chỉ đăng nhập tài khoản phụ và từ chối mọi tài khoản khác). Mẹ chỉ cần: (a) là bạn Zalo với tài khoản phụ, (b) bật cho "tìm bằng số điện thoại" trong Zalo của mẹ, (c) bạn nhập **số điện thoại của mẹ** ở `/zalo` mục "Mẹ làm phó nhóm" để mẹ được thêm làm phó nhóm khi hệ thống tạo nhóm. Mẹ xử lý "việc cần người thật" bằng đăng nhập quản trị hiện có (hiện chỉ có một tài khoản). **Chưa chốt:** mẹ trả lời khách từ đâu (Zalo của chính mẹ khác với cuộc trò chuyện khách đang có với tài khoản phụ); lúc thử, người thật trả lời bằng điện thoại giữ tài khoản phụ.
@@ -71,7 +71,7 @@ Triển khai bản mới (PR của hướng dẫn này) cũng sửa trần 50 kh
 
 ## 4. Các giai đoạn thử
 
-Chỉ gửi trong **08:00 đến 20:00**; ngoài giờ hệ thống tự chờ. Hạn mức: ở `/zalo` mục "Tự gửi tin cho khách", đặt **5 khách/ngày**, nghỉ **120 giây** cho đợt thử (trần thật là 50).
+Chỉ gửi trong **08:00 đến 22:00**; ngoài giờ hệ thống tự chờ. Hạn mức: ở `/zalo` mục "Tự gửi tin cho khách", đặt **5 khách/ngày**, nghỉ **120 giây** cho đợt thử (trần thật là 50).
 
 ### Giai đoạn A: chiến dịch thật cho vài số thử đầu tiên (2 đến 3 số)
 
@@ -123,7 +123,7 @@ Chỉ làm khi đã bật `APP_AI_ADVISOR_ENABLED` (mục 2). **AI chỉ đề x
 2. **Trước khi đọc đề xuất**, mở "Xem số liệu đã gửi cho AI" và đọc đúng đoạn JSON đã gửi: chỉ được có con số, mã khu vực và nhãn cố định. Thấy tên, số điện thoại, địa chỉ hay mã nào của khách thì **dừng, tắt `APP_AI_ADVISOR_ENABLED` và báo người sửa**. (Số liệu là tổng hợp từ khách trong hệ thống, kể cả khách thật; đang ở chế độ thử thì AI vẫn thấy con số tổng hợp nhưng không ai bị nhắn.)
 3. Đọc từng đề xuất: khu vực, số khách, ngày, khung giờ, hạn mức ngày, **lý do, rủi ro, độ tin cậy**. Chưa có lịch sử gửi thật nên độ tin cậy đầu tiên thấp là **đúng**; AI nói "chưa đủ dữ liệu" cũng là kết quả hợp lệ.
 4. Bấm **Duyệt và tạo chiến dịch** cho một đề xuất: chiến dịch mới hiện ở `/campaigns` với ngày, khung giờ, hạn mức ngày AI gợi ý (tự hạ xuống nếu vượt giới hạn chung); mẫu Tin 1 vẫn là mẫu cửa hàng, **không** dùng chữ của AI. Chiến dịch **chưa duyệt tự gửi**. Với đề xuất khác, bấm **Bỏ qua** và ghi lý do (để sau này đo AI đoán trúng hay trượt).
-5. Kỳ vọng: không đề xuất nào vượt 14 ngày, ngoài 08:00 đến 20:00 hay quá hạn mức ngày hiện hành; đề xuất quá hạn tự thành "hết hạn". Có đề xuất như vậy thì **báo lỗi**.
+5. Kỳ vọng: không đề xuất nào vượt 14 ngày, ngoài 08:00 đến 22:00 hay quá hạn mức ngày hiện hành; đề xuất quá hạn tự thành "hết hạn". Có đề xuất như vậy thì **báo lỗi**.
 
 ### Giai đoạn E: lịch và nhịp riêng, gửi mời 1 đến 3 lần
 
@@ -154,7 +154,7 @@ Dùng một chiến dịch gửi cho số thử (khách giả hoặc nhóm B), c
 
 | Hiện tượng | Làm gì |
 |---|---|
-| Không gửi gì dù đã bật | Xem `/zalo` mục "Tự gửi tin cho khách" (công tắc, số đã nhắn hôm nay, trong hay ngoài giờ gửi) và "Nhật ký gần đây". Phần lớn là chờ khoảng nghỉ hoặc ngoài 08:00 đến 20:00; ở chi tiết chiến dịch có huy hiệu "Chưa gửi: ..." nói lý do |
+| Không gửi gì dù đã bật | Xem `/zalo` mục "Tự gửi tin cho khách" (công tắc, số đã nhắn hôm nay, trong hay ngoài giờ gửi) và "Nhật ký gần đây". Phần lớn là chờ khoảng nghỉ hoặc ngoài 08:00 đến 22:00; ở chi tiết chiến dịch có huy hiệu "Chưa gửi: ..." nói lý do |
 | Cầu dao nhảy (trang `/zalo` báo đã tự dừng kèm lý do) | **Đừng mở lại ngay.** Đọc lý do, báo người SSH xem log cầu nối; mở lại chỉ khi hiểu lý do |
 | Tài khoản phụ bị Zalo cảnh báo hoặc khóa | Dừng toàn bộ (mục 6), xem `HUONG-DAN-THU-ZALO-TU-DONG.md` mục 3. Không đăng nhập đi đăng nhập lại |
 | AI báo lỗi, hết lượt hoặc sai khuôn | Việc chuyển người thật, khách đó tạm dừng; không gì tự ghi từ chối. Kiểm khóa và tên mô hình |
