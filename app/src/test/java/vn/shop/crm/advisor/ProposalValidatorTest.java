@@ -163,4 +163,31 @@ class ProposalValidatorTest {
         // lý do có link thì bị ẩn
         assertThat(check("{\"proposals\":[],\"skip_reason\":\"vào http://x.com\"}").skipReason()).contains("đã ẩn");
     }
+
+    @Test
+    void batchKhongDuocVuotHanMucNgayNhanSoNgay() {
+        // 8 ngày x 10 khách = 80 nên 30 là hợp lệ; 2 ngày x 10 = 20 nên 30 không được
+        assertThat(check(wrap(one())).accepted()).hasSize(1);
+        rejected(one("end_date", "\"2026-11-26\""), "vượt số khách gửi được");
+    }
+
+    @Test
+    void khongDeXuatTrungKhuVucVaThoiGianVoiChienDichDangCho() {
+        var base = snapshot(0, true);
+        var running = new AdvisorSnapshot.CampaignInfo("R:NAM", "DANG_GUI", "2026-11-22", "2026-11-30", "09:00", "11:00", 10, 40, 25, 15);
+        var snap = new AdvisorSnapshot(base.generatedOn(), base.calendar(), base.limits(), base.overall(), base.areas(), base.sendSlots(), List.of(running));
+        var o = ProposalValidator.validate(wrap(one()), snap, TODAY);
+        assertThat(o.accepted()).isEmpty();
+        assertThat(o.rejected().getFirst()).contains("trùng khu vực và thời gian");
+        // sau khi chiến dịch kia kết thúc thì được
+        var later = ProposalValidator.validate(wrap(one("start_date", "\"2026-12-01\"", "end_date", "\"2026-12-09\"")), snap, TODAY);
+        assertThat(later.accepted()).hasSize(1);
+        // khu vực khác miền thì không vướng
+        var other = ProposalValidator.validate(wrap(one("area", "\"S:DB_SONG_HONG\"", "batch_size", "15")), snap, TODAY);
+        assertThat(other.accepted()).hasSize(1);
+        // chiến dịch đã xong hoặc không có khách chờ thì không chặn
+        var done = new AdvisorSnapshot.CampaignInfo("R:NAM", "XONG", "2026-11-22", "2026-11-30", null, null, 10, 40, 0, 40);
+        var snap2 = new AdvisorSnapshot(base.generatedOn(), base.calendar(), base.limits(), base.overall(), base.areas(), base.sendSlots(), List.of(done));
+        assertThat(ProposalValidator.validate(wrap(one()), snap2, TODAY).accepted()).hasSize(1);
+    }
 }

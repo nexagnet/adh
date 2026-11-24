@@ -162,6 +162,17 @@ final class ProposalValidator {
             return "chiến dịch kéo dài tối đa " + MAX_DAYS + " ngày và ngày kết thúc không trước ngày bắt đầu";
         }
 
+        long days = ChronoUnit.DAYS.between(start, end) + 1;
+        if ((long) batch > (long) cap * days) {
+            return "batch_size " + batch + " vượt số khách gửi được trong chiến dịch (" + cap + " khách mỗi ngày x " + days
+                    + " ngày = " + (long) cap * days + "): khách dư sẽ hết hạn mà chưa được nhắn";
+        }
+        for (AdvisorSnapshot.CampaignInfo c : snap.campaigns()) {
+            if (c.open() && overlapsScope(c.scope(), area) && overlapsDates(c, start, end)) {
+                return "trùng khu vực và thời gian với một chiến dịch đang chạy hoặc còn khách chờ (" + c.ready() + " khách chờ gửi)";
+            }
+        }
+
         String f = n.get("window_from").asString();
         String t = n.get("window_to").asString();
         if (!TIME.matcher(f).matches() || !TIME.matcher(t).matches()) {
@@ -217,6 +228,35 @@ final class ProposalValidator {
         boolean capped = confidence > ceiling;
         return new AdvisorProposal(title, area, batch, start, end, from, to, cap, angle, reasons, risks,
                 Math.min(confidence, ceiling), capped);
+    }
+
+    /** Hai khu vực có chung tỉnh nào không. "ALL" là mọi nơi, "U" là chưa rõ tỉnh. */
+    static boolean overlapsScope(String campaignScope, String area) {
+        if (campaignScope == null || campaignScope.isBlank() || "ALL".equals(campaignScope)) {
+            return true;
+        }
+        if (campaignScope.equals(area)) {
+            return true;
+        }
+        var a = vn.shop.crm.geo.GeoArea.parse(campaignScope);
+        var b = vn.shop.crm.geo.GeoArea.parse(area);
+        if (a.isEmpty() || b.isEmpty()) {
+            return false;
+        }
+        Set<String> pa = new HashSet<>();
+        vn.shop.crm.geo.VnGeo.in(a.get()).forEach(p -> pa.add(p.code()));
+        return vn.shop.crm.geo.VnGeo.in(b.get()).stream().anyMatch(p -> pa.contains(p.code()));
+    }
+
+    /** Khoảng ngày của chiến dịch (null = không giới hạn đầu hoặc cuối) có giao với [start, end] không. */
+    static boolean overlapsDates(AdvisorSnapshot.CampaignInfo c, LocalDate start, LocalDate end) {
+        try {
+            LocalDate cs = c.startOn() == null ? null : LocalDate.parse(c.startOn());
+            LocalDate ce = c.endOn() == null ? null : LocalDate.parse(c.endOn());
+            return (cs == null || !cs.isAfter(end)) && (ce == null || !ce.isBefore(start));
+        } catch (DateTimeException e) {
+            return true;
+        }
     }
 
     private static List<String> lines(JsonNode n, int min, int max) {
