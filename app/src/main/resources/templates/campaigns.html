@@ -21,8 +21,8 @@
             </form>
         </div>
     </header>
-    <nav th:replace="~{fragments :: campaignTabs('campaigns')}"></nav>
-    <details class="notice">
+    <nav th:replace="~{fragments :: campaignTabs(${tab == 'moi' ? 'new' : 'campaigns'})}"></nav>
+    <details class="notice" th:if="${tab == 'ds'}">
         <summary>Cách làm (tài khoản Zalo phụ)</summary>
         <ol>
             <li>Tạo chiến dịch (có thể chỉ chọn khách một miền, ví dụ trời rét thì chọn miền cần nhắn), hoặc duyệt một đề xuất ở <a th:href="@{/advisor}">Đề xuất của AI</a> để có sẵn khu vực, ngày, khung giờ và hạn mức ngày.</li>
@@ -30,7 +30,6 @@
             <li>Vào trang chi tiết chiến dịch: đặt lịch và nhịp riêng (chỉ được chặt hơn giới hạn chung), chọn số lần gửi (1 đến 3), rồi bấm <em>Duyệt cho hệ thống tự gửi</em>. Hệ thống gửi Tin 1 một lần cho mỗi khách, trong giờ và hạn mức ngày đã đặt ở <a th:href="@{/zalo}">Zalo tài khoản phụ</a>. Khách nào đồng ý kết bạn thì tự được thêm vào nhóm Zalo cùng khu vực.</li>
             <li>Muốn khách mới nhập về tự vào chiến dịch (khỏi duyệt từng người): bấm <em>Bật tự nhận khách mới</em> ở trang chi tiết.</li>
             <li>Khách từ chối hoặc nhắn xin ngừng nhận tin thì trợ lý AI ghi sổ (xem lại ở <a th:href="@{/handoffs}">Việc cần người thật xử lý</a>, có nút Hoàn tác): số này không bao giờ được nhắn lại.</li>
-            <li>Chỉ khi tự gửi chưa chạy (cách dự phòng, sẽ bỏ sau khi thử xong): mở <a th:href="@{/today}">Lô nhắn hôm nay</a>, nhắn tay từng người bằng tài khoản Zalo phụ rồi bấm <em>Đã nhắn</em>, <em>Đã kết bạn</em>, <em>Đã vào nhóm</em>.</li>
         </ol>
         Gửi tin tư vấn cho khách chưa đồng ý nhận tin có thể bị Zalo hạn chế tài khoản và có rủi ro pháp lý; chủ cửa hàng đã nhận rủi ro này,
         nên giữ lô nhỏ, một lần duy nhất, và tôn trọng ngay mọi lời xin ngừng nhận tin.
@@ -41,19 +40,19 @@
         <strong>Đang TẠM DỪNG tất cả chiến dịch</strong>
         <span th:if="${!pausedReason.isEmpty()}" th:text="'Lý do: ' + ${pausedReason}">Lý do</span>
     </div>
-    <div class="notice info" th:unless="${paused}">
+    <div class="notice info" th:if="${!paused and tab == 'moi'}">
         <strong>Tạo chiến dịch chưa gửi gì</strong>
         Hệ thống chỉ tự gửi khi công tắc ở <a th:href="@{/zalo}">Zalo tài khoản phụ</a> đã bật và bạn đã duyệt chiến dịch ở trang chi tiết. Đang ở chế độ thử thì chỉ nhắn các số thử.
     </div>
 
-    <div class="cards c4">
+    <div class="cards c4" th:if="${tab == 'ds'}">
         <div class="card"><div class="big" th:text="${contact.eligible}">0</div><div class="label">Đã duyệt, đủ điều kiện mời</div></div>
         <div class="card"><div class="big" th:text="${stats.invitations}">0</div><div class="label">Lời mời đã tạo</div></div>
         <div class="card"><div class="big" th:text="${stats.clicked}">0</div><div class="label">Lượt bấm link (không phải số người đã vào nhóm)</div></div>
         <a class="card" th:href="@{/groups}"><div class="big" th:text="${stats.openGroups}">0</div><div class="label">Nhóm đang nhận khách</div></a>
     </div>
 
-    <form th:action="@{/campaigns}" method="post" th:unless="${paused}" class="stack">
+    <form th:action="@{/campaigns}" method="post" th:if="${!paused and tab == 'moi'}" class="stack">
         <div class="panel stack">
             <h2>Bước 1. Chọn khu vực và số khách</h2>
             <div class="formrow">
@@ -74,7 +73,7 @@
                 <span th:each="r : ${regionCounts}"><strong th:text="${r.count}">0</strong> <span th:text="${r.label}">Miền Nam</span>, </span>
                 <strong th:text="${unknownAvailable}">0</strong> chưa rõ khu vực.
                 Các nhóm còn <span th:text="${stats.openGroups}">2</span> nhóm đang nhận khách. Lấy khách được duyệt sớm nhất trong khu vực đã chọn.</p>
-            <p class="muted">Tạo chiến dịch lớn không có nghĩa là nhắn cùng lúc: hệ thống chỉ đưa ra từng lô nhỏ mỗi ngày ở mục <a th:href="@{/today}">Lô nhắn hôm nay</a>.</p>
+            <p class="muted">Tạo chiến dịch lớn không có nghĩa là nhắn cùng lúc: hệ thống chỉ tự gửi từng lô nhỏ mỗi ngày, theo hạn mức và khung giờ.</p>
         </div>
 
         <div class="panel stack">
@@ -94,7 +93,7 @@
     </form>
 
 
-    <details class="more">
+    <details class="more" th:if="${tab == 'moi'}">
         <summary>Nội dung tin mặc định</summary>
         <form th:action="@{/campaigns/default-template}" method="post" class="stack">
             <p class="muted">Soạn một lần ở đây, các chiến dịch mới sẽ điền sẵn nội dung này (vẫn sửa được cho từng chiến dịch). Để trống rồi lưu thì dùng lại nội dung có sẵn.</p>
@@ -104,13 +103,15 @@
         </form>
     </details>
 
-    <section>
+    <section th:if="${tab == 'ds'}">
         <h2>Các chiến dịch</h2>
         <div class="table-wrap" th:if="${!campaigns.isEmpty()}">
             <table data-filter data-sticky>
-                <tr><th>Chiến dịch</th><th>Khu vực</th><th>Tạo lúc</th><th>Lời mời</th><th>Chưa gửi</th><th>Đã nhắn</th><th>Đã kết bạn</th><th>Đã vào nhóm</th><th>Đã bấm link</th></tr>
+                <tr><th>Chiến dịch</th><th>Tự gửi</th><th>Khu vực</th><th>Tạo lúc</th><th>Lời mời</th><th>Chưa gửi</th><th>Đã nhắn</th><th>Đã kết bạn</th><th>Đã vào nhóm</th><th>Đã bấm link</th></tr>
                 <tr th:each="c : ${campaigns}">
                     <td><a th:href="@{/campaigns/{id}(id=${c.id})}" th:text="${c.name}">Đợt 1</a></td>
+                    <td><span class="badge ok" th:if="${@zaloInviteSender.approved(c.id)}">Đã duyệt</span>
+                        <span class="badge" th:unless="${@zaloInviteSender.approved(c.id)}">Chưa duyệt</span></td>
                     <td th:text="${c.scopeLabel}">Miền Nam</td>
                     <td th:text="${#temporals.format(c.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
                     <td th:text="${c.total}">0</td>

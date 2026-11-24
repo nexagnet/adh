@@ -46,7 +46,9 @@ public class CampaignController {
     }
 
     @GetMapping("/campaigns")
-    public String list(Model model) {
+    public String list(@RequestParam(defaultValue = "ds") String tab, Model model) {
+        // "moi" = tab tạo chiến dịch; mọi giá trị khác về danh sách (tab mặc định).
+        model.addAttribute("tab", "moi".equals(tab) ? "moi" : "ds");
         model.addAttribute("campaigns", invites.campaigns());
         model.addAttribute("stats", invites.stats());
         model.addAttribute("contact", contacts.stats());
@@ -72,8 +74,8 @@ public class CampaignController {
                          @RequestParam(defaultValue = "14") int expiresDays, @RequestParam int count,
                          @RequestParam(required = false) String area, RedirectAttributes redirect) {
         long id = invites.createCampaign(name, template, expiresDays, count, area);
-        redirect.addFlashAttribute("flash", "Đã tạo chiến dịch. Chưa có tin nào được gửi: mỗi ngày mở mục "
-                + "\"Lô nhắn hôm nay\" để nhắn từng người theo hạn mức.");
+        redirect.addFlashAttribute("flash", "Đã tạo chiến dịch. Chưa có tin nào được gửi: hãy xem lại lịch và số lần gửi, "
+                + "rồi duyệt cho hệ thống tự gửi ở tab \"Tổng quan và lời mời\".");
         return "redirect:/campaigns/" + id;
     }
 
@@ -82,7 +84,7 @@ public class CampaignController {
     public String saveTemplate(@RequestParam(required = false) String template, RedirectAttributes redirect) {
         invites.saveDefaultTemplate(template);
         redirect.addFlashAttribute("flash", "Đã lưu nội dung tin mặc định. Chiến dịch mới sẽ dùng nội dung này.");
-        return "redirect:/campaigns";
+        return "redirect:/campaigns?tab=moi";
     }
 
     /** Các tab của trang chi tiết chiến dịch (D21 PR 8). Mỗi cài đặt nằm ở đúng một tab; mặc định là tab đầu. */
