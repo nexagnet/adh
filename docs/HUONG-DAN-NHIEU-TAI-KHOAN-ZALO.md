@@ -45,7 +45,7 @@ Máy thứ hai chỉ chạy cầu nối (`infra/docker-compose.bridge-only.yml`)
 ## 5. Bật chạy thật (theo thứ tự, đừng nhảy cóc)
 
 1. Giữ `APP_ZALO_LIVE_2=false`. Tài khoản 2 chỉ được liên hệ số trong danh sách thử, kể cả khi tài khoản 1 đang chạy thật.
-2. Mở `/zalo`, chọn tài khoản 2 và **Đăng nhập bằng QR**. Nếu đang đặt mã `0`, lần quét đầu sẽ hiện mã để đối chiếu. Sau khi xác nhận đúng, ghi mã đó vào `ZALO_ACCOUNT_ID` trong `.env.bridge` trên máy hai (hoặc `ZALO_ACCOUNT_ID_2` trong `.env` nếu chạy cùng máy), tạo lại cầu nối 2 và quét lại.
+2. Mở `/zalo`, chọn tài khoản 2, vào tab **Cấu hình** rồi chọn **Đăng nhập bằng QR**. Nếu đang đặt mã `0`, lần quét đầu sẽ hiện mã để đối chiếu. Sau khi xác nhận đúng, ghi mã đó vào `ZALO_ACCOUNT_ID` trong `.env.bridge` trên máy hai (hoặc `ZALO_ACCOUNT_ID_2` trong `.env` nếu chạy cùng máy), tạo lại cầu nối 2 và quét lại.
 3. Khi hai cầu nối đã đăng nhập đúng, chọn **Bật tài khoản này** ở tài khoản 2. Ứng dụng khóa dấu của hai tài khoản Zalo, từ chối cầu nối trùng hoặc khác với dấu đã được xác nhận. Bộ hẹn giờ vẫn chờ `APP_ZALO_MULTI_ENABLED=true`.
 4. Ở tài khoản 2, chọn nấc, đặt hạn mức thấp, tra và xác nhận phó nhóm. Ở tab Giới hạn, đặt **trần tổng** (mặc định 50).
 5. Đặt `APP_ZALO_MULTI_ENABLED=true` và tạo lại container app để chạy thử tài khoản 2. Khi cầu nối thử sẵn sàng và còn hạn mức, hệ thống ưu tiên giao số thử chưa được gắn cho cầu nối này. Khách thường tiếp tục được phân cho tài khoản đang chạy thật.

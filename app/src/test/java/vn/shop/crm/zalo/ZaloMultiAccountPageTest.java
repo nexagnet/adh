@@ -56,6 +56,25 @@ class ZaloMultiAccountPageTest extends AbstractPostgresTest {
     }
 
     @Test
+    void cauHinhHienTrangThaiVaGiuTungTaiKhoanKhiThaoTac() throws Exception {
+        mvc.perform(get("/zalo?tab=cau-hinh&account=2").with(owner())).andExpect(status().isOk())
+                .andExpect(content().string(containsString("id=\"zalo-account-config\"")))
+                .andExpect(content().string(containsString("Cấu hình tài khoản Zalo")))
+                .andExpect(content().string(containsString("Chỉ dùng số thử")))
+                .andExpect(content().string(containsString("/zalo/login/start?account=2")))
+                .andExpect(content().string(containsString("/zalo/accounts/2/enabled?account=2")));
+
+        mvc.perform(post("/zalo/accounts/2/enabled?account=2").param("on", "false").param("tab", "cau-hinh")
+                        .with(owner()).with(csrf()))
+                .andExpect(redirectedUrl("/zalo?tab=cau-hinh&account=2"));
+
+        mvc.perform(get("/zalo?tab=cau-hinh&account=1").with(owner())).andExpect(status().isOk())
+                .andExpect(content().string(containsString("id=\"zalo-account-config\"")))
+                .andExpect(content().string(containsString("Có thể gửi cho khách thật")))
+                .andExpect(content().string(not(containsString("/zalo/accounts/1/enabled"))));
+    }
+
+    @Test
     void coHaiTaiKhoanThiHienThanhChonVaNhoLuaChonTrongPhien() throws Exception {
         MockHttpSession session = new MockHttpSession();
         mvc.perform(get("/zalo").with(owner()).session(session)).andExpect(status().isOk())
@@ -110,7 +129,7 @@ class ZaloMultiAccountPageTest extends AbstractPostgresTest {
                 .andExpect(redirectedUrl("/zalo/login?account=2"));
         mvc.perform(get("/zalo?account=1").with(owner()).session(session)).andExpect(status().isOk());
         mvc.perform(get("/zalo/login?account=2").with(owner()).session(session)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("href=\"/zalo?account=2\"")))
+                .andExpect(content().string(containsString("href=\"/zalo?tab=cau-hinh&amp;account=2\"")))
                 .andExpect(content().string(containsString("data:image/png;base64,BAUG")))
                 .andExpect(content().string(not(containsString("data:image/png;base64,AQID"))));
         mvc.perform(get("/zalo/login").with(owner()).session(session)).andExpect(status().isBadRequest());

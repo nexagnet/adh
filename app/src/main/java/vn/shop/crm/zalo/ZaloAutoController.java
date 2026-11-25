@@ -70,7 +70,8 @@ public class ZaloAutoController {
     }
 
     static final java.util.List<Tab> TABS = java.util.List.of(
-            new Tab("tinh-trang", "Tình trạng"), new Tab("gioi-han", "Giới hạn"), new Tab("nhom", "Nhóm"),
+            new Tab("tinh-trang", "Tình trạng"), new Tab("cau-hinh", "Cấu hình"),
+            new Tab("gioi-han", "Giới hạn"), new Tab("nhom", "Nhóm"),
             new Tab("thu", "Thử và nhật ký"));
 
     @GetMapping
@@ -322,11 +323,12 @@ public class ZaloAutoController {
 
     /** Tạm ngưng hoặc bật lại một tài khoản thêm. Khách đã gắn tài khoản đó ở yên, không chuyển sang tài khoản khác. */
     @PostMapping("/accounts/{id}/enabled")
-    public String accountEnabled(@PathVariable long id, @RequestParam boolean on, RedirectAttributes redirect) {
+    public String accountEnabled(@PathVariable long id, @RequestParam boolean on,
+                                 @RequestParam(defaultValue = "tinh-trang") String tab, RedirectAttributes redirect) {
         accounts.setEnabled(id, on);
         redirect.addAttribute("account", id);
         redirect.addFlashAttribute("flash", on ? "Đã bật tài khoản " + id + "." : "Đã tạm ngưng tài khoản " + id + ": không gửi, không đọc tin.");
-        return "redirect:/zalo?tab=tinh-trang";
+        return "cau-hinh".equals(tab) ? "redirect:/zalo?tab=cau-hinh" : "redirect:/zalo?tab=tinh-trang";
     }
 
     @PostMapping("/messages/friend-limit")

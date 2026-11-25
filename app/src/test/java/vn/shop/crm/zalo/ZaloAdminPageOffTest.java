@@ -38,6 +38,10 @@ class ZaloAdminPageOffTest extends AbstractPostgresTest {
         mvc.perform(get("/zalo").with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Bộ nối Zalo đang tắt")))
                 .andExpect(content().string(not(containsString("Quét mã QR"))));
+        mvc.perform(get("/zalo?tab=cau-hinh").with(owner)).andExpect(status().isOk())
+                .andExpect(content().string(containsString("id=\"zalo-account-config\"")))
+                .andExpect(content().string(containsString("Đang tắt trong cấu hình máy chủ")))
+                .andExpect(content().string(not(containsString("/zalo/login/start"))));
         mvc.perform(get("/").with(owner)).andExpect(content().string(not(containsString("Bộ nối Zalo đã DỪNG"))));
     }
 

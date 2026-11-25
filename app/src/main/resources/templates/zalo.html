@@ -29,7 +29,7 @@
            th:text="${a.label} + (${a.enabled} ? '' : ' (tạm ngưng)')" th:classappend="${a.id == account} ? 'active'"
            th:attr="aria-current=${a.id == account} ? 'page'">Tài khoản phụ 1</a>
     </nav>
-    <div class="notice info" th:if="${multi}">
+    <div class="notice info" th:if="${multi and tab != 'cau-hinh'}">
         Đang xem và chỉnh <strong th:text="${accountLabel}">Tài khoản phụ 1</strong>.
         Đăng nhập, hạn mức riêng, nhóm và phó nhóm áp dụng cho tài khoản đang xem. Mỗi khách gắn cố định một tài khoản từ lúc nhắn Tin 1.
         <span th:unless="${multiRunning}">Việc chạy nhiều tài khoản <strong>chưa bật</strong> ở cấu hình triển khai nên chỉ tài khoản 1 đang gửi tin.</span>
@@ -42,6 +42,10 @@
         <a th:each="t : ${tabs}" th:href="@{/zalo(tab=${t.key}, account=${account})}" th:text="${t.label}"
            th:classappend="${t.key == tab} ? 'active'" th:attr="aria-current=${t.key == tab} ? 'page'">Tình trạng</a>
     </nav>
+
+    <th:block th:if="${tab == 'cau-hinh'}">
+        <section th:replace="~{zalo-config :: accountConfig}"></section>
+    </th:block>
 
     <section th:if="${tab == 'thu'}" class="panel stack" id="che-do-thu">
         <h2>Chế độ thử: chỉ nhắn các số thử đã khai báo</h2>

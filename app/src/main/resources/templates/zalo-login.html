@@ -50,7 +50,7 @@
 
     <div class="formrow">
         <form th:action="@{/zalo/login/start(account=${account})}" method="post" th:unless="${waiting}"><button type="submit" class="btn">Tạo mã QR mới</button></form>
-        <a class="btn secondary" th:href="@{/zalo(account=${account})}">Quay lại trang Zalo</a>
+        <a class="btn secondary" th:href="@{/zalo(tab='cau-hinh', account=${account})}">Về cấu hình tài khoản</a>
     </div>
 </main>
 </body>
