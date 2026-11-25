@@ -281,38 +281,73 @@ public class ZaloMessageService {
         return countSince(startOfDay(), scope, true);
     }
 
-    /** Lần gửi tin chủ động kế tiếp: lúc dự kiến ({@code at}, rỗng nếu chưa biết) và lý do đang chờ ({@code reason}, rỗng nếu chỉ đang đếm khoảng nghỉ). */
+    /** Lần gửi kế tiếp: lúc dự kiến ({@code at}, rỗng nếu chưa biết) và lý do đang chờ, luôn có để hiện cho người đọc. */
     public record NextSend(Instant at, String reason) {
     }
 
-    /** Để hiện bộ đếm ngược trên giao diện. Chỉ đọc, không đổi gì. */
-    public NextSend nextSend() {
+    /** Mã lời mời của dòng sổ gần nhất (rỗng nếu không có hoặc đang gọi dở): khách duy nhất được hưởng khoảng nghỉ 7 giây. Chỉ đọc. */
+    public Optional<Long> lastRefId() {
+        return jdbc.sql("SELECT ref_id FROM zalo_msg_log WHERE outcome <> 'DANG_GOI' AND ref_id IS NOT NULL ORDER BY at DESC, id DESC LIMIT 1")
+                .query(Long.class).optional();
+    }
+
+    /** Khoảng nghỉ thật áp cho việc {@code kind} của lời mời {@code refId} lúc này (nghỉ 7 giây cùng khách hoặc nghỉ giữa các khách). Chỉ đọc. */
+    public int gapSecondsFor(Kind kind, Long refId) {
+        int gap = kind.answersInbound() ? Math.min(REPLY_GAP_SECONDS, limits().gapSeconds()) : limits().gapSeconds();
+        return Math.min(gap, sameCustomerGap(kind, refId).orElse(gap));
+    }
+
+    /**
+     * Để hiện bộ đếm ngược trên giao diện: việc {@code kind} của lời mời {@code refId} (null = một Tin 1 của khách khác) đang chờ gì và khi nào
+     * được gửi. Dùng đúng {@link #blocker} và đúng khoảng nghỉ của chính việc đó. Chỉ đọc, không đổi gì.
+     */
+    public NextSend waitFor(Kind kind, Long refId) {
         if (settings.paused()) {
             return new NextSend(null, "Đang tạm dừng tất cả. Bỏ tạm dừng thì hệ thống gửi tiếp");
         }
-        Optional<Block> b = blocker(SCOPE_REAL, Kind.INVITE, null, null);
+        Optional<Block> b = blocker(SCOPE_REAL, kind, refId, null, null);
         Instant now = clock.instant();
         if (b.isEmpty()) {
-            return new NextSend(now, null);
+            return new NextSend(now, "Đã đến lượt, hệ thống gửi ở nhịp kiểm tra kế tiếp");
         }
-        Limits l = limits();
         switch (b.get()) {
             case GAP -> {
                 Instant last = lastAt(null);
-                return new NextSend(last == null ? now : last.plusSeconds(l.gapSeconds()), null);
+                int gap = gapSecondsFor(kind, refId);
+                String why = gap == SAME_CUSTOMER_GAP_SECONDS && sameCustomerGap(kind, refId).isPresent()
+                        ? "Nghỉ " + gap + " giây giữa hai việc của cùng một khách"
+                        : "Nghỉ " + gap + " giây giữa hai khách";
+                return new NextSend(last == null ? now : last.plusSeconds(gap), why);
             }
             case DAILY_LIMIT, OUTSIDE_WINDOW -> {
                 LocalDateTime n = LocalDateTime.ofInstant(now, clock.getZone());
                 LocalTime ws = cfg.props().msgWindowStart();
                 boolean today = b.get() == Block.OUTSIDE_WINDOW && n.toLocalTime().isBefore(ws);
                 LocalDate day = today ? n.toLocalDate() : n.toLocalDate().plusDays(1);
-                return new NextSend(day.atTime(ws).atZone(clock.getZone()).toInstant(),
-                        b.get() == Block.DAILY_LIMIT ? "Đã đủ hạn mức ngày, tiếp tục vào ngày mai" : "Ngoài khung giờ gửi, tiếp tục khi mở khung giờ");
+                String why;
+                if (b.get() == Block.OUTSIDE_WINDOW) {
+                    why = "Ngoài khung giờ gửi (" + ws + " đến " + cfg.props().msgWindowEnd() + "), tiếp tục lúc " + ws;
+                } else if (kind == Kind.FRIEND) {
+                    why = "Đã đủ " + friendDaily() + " lời mời kết bạn hôm nay, tiếp tục vào ngày mai";
+                } else {
+                    why = "Đã đủ " + limits().daily() + " khách được nhắn hôm nay, tiếp tục vào ngày mai";
+                }
+                return new NextSend(day.atTime(ws).atZone(clock.getZone()).toInstant(), why);
             }
             default -> {
                 return new NextSend(null, b.get().label());
             }
         }
+    }
+
+    /** Như {@link #waitFor} cho lời mời kết bạn của lời mời {@code refId} (để nơi hiển thị không phải nhắc tới loại tin kết bạn). */
+    public NextSend waitForFriendRequest(long refId) {
+        return waitFor(Kind.FRIEND, refId);
+    }
+
+    /** Khi không có việc nào xếp hàng: chỉ cho biết hệ thống có đang bị chặn chung hay không. */
+    public NextSend nextSend() {
+        return waitFor(Kind.INVITE, null);
     }
 
     public Quota quota() {
@@ -336,9 +371,9 @@ public class ZaloMessageService {
     }
 
     /**
-     * Như trên, thêm {@code refId} (mã lời mời của chính tin sắp gửi). Chỉ dùng để một lời mời kết bạn đi NGAY sau khi Zalo vừa từ chối
-     * Tin 1 của chính khách đó vì khách không nhận tin người lạ (Z122): Tin 1 đó chưa tới khách nên không tính thêm một khoảng nghỉ nữa
-     * (25/11/2026), nếu không khách phải chờ hai lần nghỉ liền; Tin 1 gửi OK thì chờ 7 giây cố định. Khoảng nghỉ giữa các KHÁCH khác nhau, hạn mức ngày, cầu dao, khung giờ giữ nguyên.
+     * Như trên, thêm {@code refId} (mã lời mời của chính việc sắp gửi): nếu dòng sổ gần nhất là Tin 1 hoặc lời mời kết bạn của CHÍNH lời mời đó
+     * (kể cả Tin 1 bị Zalo từ chối vì khách không nhận tin người lạ, Z122) thì chỉ chờ {@link #SAME_CUSTOMER_GAP_SECONDS} giây cố định (25/11/2026),
+     * ngược lại chờ khoảng nghỉ chung giữa các KHÁCH. Hạn mức ngày, cầu dao, khung giờ giữ nguyên.
      */
     public Optional<Block> blocker(String scope, Kind kind, Long refId, Integer scopeDaily, Integer scopeGap) {
         if (!enabled()) {

@@ -87,7 +87,7 @@ public class ZaloFriendRequestSender {
         if (!messages.enabled() || settings.paused()) {
             return Step.NOT_ACTIVE;
         }
-        // Chưa đủ khoảng nghỉ vẫn xem tiếp danh sách: khách vừa bị chặn Tin 1 (Z122) được kết bạn ngay, không chờ thêm một lần nghỉ.
+        // Chưa đủ khoảng nghỉ chung vẫn xem tiếp danh sách: từng khách kiểm lại theo mã lời mời (khách vừa nhận Tin 1 hoặc vừa bị Zalo chặn Tin 1 (Z122) chờ 7 giây cố định, không chờ nghỉ giữa các khách).
         var general = messages.blocker(ZaloMessageService.SCOPE_REAL, ZaloMessenger.Kind.FRIEND, null, null);
         if (general.isPresent() && general.get() != ZaloMessageService.Block.GAP) {
             return Step.BLOCKED;

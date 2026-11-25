@@ -82,5 +82,21 @@
         </div>
     </div>
 </nav>
+<th:block th:fragment="nextSend(q)">
+<div class="hint" id="next-send" th:attr="data-at=${q.next().at() != null ? q.next().at().toEpochMilli() : ''}">
+        <p><strong>Việc kế tiếp: </strong>
+            <span th:if="${q.first() != null}"><span th:text="${q.first().what()}">Tin 1</span> cho <span th:text="${q.first().who()}">khách</span></span>
+            <span th:if="${q.first() == null}">chưa có khách nào đang xếp hàng</span></p>
+        <p><strong>Còn chờ: </strong><span class="mono" data-countdown th:text="${q.next().at() != null ? '...' : '-'}">-</span>
+            <span class="muted" th:text="'(' + ${q.next().reason()} + ')'"></span></p>
+        <th:block th:if="${#lists.size(q.upcoming()) > 1}">
+            <p><strong>Sau đó:</strong></p>
+            <ol class="muted">
+                <li th:each="it, st : ${q.upcoming()}" th:if="${!st.first}"><span th:text="${it.what()}">Tin 1</span> cho <span th:text="${it.who()}">khách</span></li>
+            </ol>
+        </th:block>
+        <p class="muted" th:each="n : ${q.notes()}" th:text="${n}"></p>
+        <p class="muted">Chỉ để xem: hệ thống gửi từng việc một ở nhịp kiểm tra kế tiếp, thời gian chờ có thể lệch vài giây.</p></div>
+</th:block>
 </body>
 </html>

@@ -193,6 +193,8 @@
             · hôm nay đã nhắn <strong th:text="${msg.usedToday}">0</strong>/<strong th:text="${msg.limits.daily}">10</strong> khách
             · khoảng nghỉ <strong th:text="${msg.limits.gapSeconds}">120</strong> giây
             · <span th:text="${msg.inWindow ? 'đang trong giờ gửi' : 'đang ngoài giờ gửi'}">trong giờ</span></p>
+        <div th:replace="~{fragments :: nextSend(${queue})}"></div>
+        <script th:src="@{/countdown.js}" defer></script>
         <div class="actions">
             <form th:action="@{/zalo/messages/switch}" method="post" th:unless="${msg.enabled}">
                 <input type="hidden" name="on" value="true"><button type="submit" class="btn">Bật tự gửi tin</button>
