@@ -65,6 +65,7 @@ public record ZaloAutoProperties(
         if (friendMaxDaily < 1) {
             friendMaxDaily = 1;
         }
+
         if (friendDefaultDaily < 0 || friendDefaultDaily > friendMaxDaily) {
             friendDefaultDaily = Math.min(10, friendMaxDaily);
         }

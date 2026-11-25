@@ -175,12 +175,12 @@ public class ZcaBridgeGateway implements ZaloLink {
     /** Mã không gửi được vì chính cầu nối từ chối TRƯỚC khi chạm Zalo (xem bridge.mjs): chắc chắn chưa có tin nào đi. */
     private static final java.util.Set<String> NOT_SENT_CODES = java.util.Set.of("BUSY", "NOT_CONNECTED", "NOT_ACTIVE", "WINDOW",
             "MSG_LIMIT", "FRIEND_LIMIT", "LOGIN_REQUIRED", "BAD_INPUT", "BAD_PHONE", "BAD_ID", "NOT_REPLYABLE",
-            "NO_INVITE", "NO_PREVIOUS", "CUSTOMER_REPLIED");
+            "NO_INVITE", "NO_PREVIOUS", "CUSTOMER_REPLIED", "FRIEND_REQUESTED", ZaloMessageService.FRIEND_LIST_FULL);
 
     @Override
     public Sent sendByPhone(Kind kind, String phoneDigits, String text) {
-        if (kind.followup()) {
-            return Sent.of(Result.PERSON_ERROR, "BAD_INPUT", true); // tin nhắc chỉ theo mã Zalo của người đã nhận Tin 1
+        if (kind.followup() || kind == Kind.ASK_FRIEND) {
+            return Sent.of(Result.PERSON_ERROR, "BAD_INPUT", true); // tin nhắc và tin nhờ kết bạn lại chỉ theo mã Zalo của người đã nhận Tin 1
         }
         if (phoneDigits == null || !phoneDigits.matches("\\d{8,15}")) {
             return Sent.of(Result.PERSON_ERROR, "BAD_PHONE", true);

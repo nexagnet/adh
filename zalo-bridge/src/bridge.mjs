@@ -500,20 +500,24 @@ export class Bridge {
    * Loại FOLLOWUP2 và FOLLOWUP3 (D21, tin nhắc của chiến dịch nhiều lần gửi): chỉ theo mã Zalo, chỉ cho người ĐÃ nhận Tin 1 qua chính cầu nối này
    * (sổ có INVITE), FOLLOWUP3 còn cần FOLLOWUP2 đã gửi; mỗi loại một lần cho một người; người đang nhắn tới (trong 24 giờ, chưa được trả lời) thì không nhắc.
    * Cần bật cờ đọc tin riêng (không nghe được khách xin ngừng thì không nhắc). Vẫn chịu khung giờ, trần ngày, khoảng nghỉ và cầu dao chung; không có đường nào nhắn người chưa từng nhận Tin 1.
-   * @param {{kind: 'INVITE'|'LINK'|'WELCOME'|'REPLY'|'FOLLOWUP2'|'FOLLOWUP3', phone?: string, uid?: string, text: string}} m
+   * Loại ASK_FRIEND (25/11/2026, Zalo báo danh sách lời mời đầy Z223): MỘT tin nhờ người ĐÃ nhận Tin 1 chủ động kết bạn lại; chỉ theo mã Zalo, mỗi người một lần,
+   * không gửi cho người đã được gửi lời mời kết bạn hoặc đang nhắn tới; cùng khung giờ, trần ngày, khoảng nghỉ và cầu dao như tin khác.
+   * @param {{kind: 'INVITE'|'LINK'|'WELCOME'|'REPLY'|'FOLLOWUP2'|'FOLLOWUP3'|'ASK_FRIEND', phone?: string, uid?: string, text: string}} m
    */
   async sendMessage(m) {
     const kind = m?.kind;
     const text = typeof m?.text === 'string' ? m.text : '';
-    if (!['INVITE', 'LINK', 'WELCOME', 'REPLY', 'FOLLOWUP2', 'FOLLOWUP3'].includes(kind) || text.trim().length === 0 || text.length > MAX_TEXT) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' };
+    if (!['INVITE', 'LINK', 'WELCOME', 'REPLY', 'FOLLOWUP2', 'FOLLOWUP3', 'ASK_FRIEND'].includes(kind) || text.trim().length === 0 || text.length > MAX_TEXT) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' };
     const isReply = kind === 'WELCOME' || kind === 'REPLY'; // trả lời người vừa nhắn tới
     const isFollow = kind === 'FOLLOWUP2' || kind === 'FOLLOWUP3'; // tin nhắc cho người đã nhận Tin 1
+    const isAsk = kind === 'ASK_FRIEND'; // tin nhờ người đã nhận Tin 1 chủ động kết bạn lại (lời mời kết bạn không gửi được vì Zalo báo danh sách đầy, Z223)
     const phone = m.phone === undefined || m.phone === null ? null : String(m.phone).replace(/\D/g, '');
     const uidIn = m.uid === undefined || m.uid === null ? null : String(m.uid);
     if ((phone === null) === (uidIn === null)) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' }; // đúng một trong hai
     if (phone !== null && !/^\d{8,15}$/.test(phone)) return { outcome: 'PERSON_ERROR', code: 'BAD_PHONE' };
     if (uidIn !== null && !ZALO_ID.test(uidIn)) return { outcome: 'PERSON_ERROR', code: 'BAD_ID' };
     if (isReply && (uidIn === null || !this.config.inboxEnabled)) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' };
+    if (isAsk && uidIn === null) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' };
     if (isFollow && (uidIn === null || !this.config.inboxEnabled)) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' }; // chỉ nhắc khi đang nghe tin riêng, để nghe được khách xin ngừng
     if (this.state === 'LOGIN_REQUIRED') return { outcome: 'SESSION_LOST', code: 'LOGIN_REQUIRED' };
     if (this.state === 'TRIPPED' || this.state === 'STOPPED') return { outcome: 'RESTRICTED', code: 'NOT_ACTIVE' };
@@ -531,7 +535,10 @@ export class Bridge {
     const last = this.msgLedger.last();
     // Gửi lại Tin 1 cho người VỪA được gửi lời mời kết bạn: cùng một người nên chỉ chờ khoảng cố định ngắn (samePersonGapMs), không phải khoảng nghỉ giữa các khách.
     const ownFriend = kind === 'INVITE' && uidIn !== null && last !== null && this.lastFriend && this.lastFriend.at === last && this.lastFriend.uid === String(uidIn);
-    const gapMs = ownFriend ? Math.min(this.config.samePersonGapMs, this.config.msgGapMs)
+    // Tin nhờ kết bạn lại đi ngay sau Tin 1 hoặc sau lần thử gửi lời mời (Z223) CỦA CHÍNH người đó: cũng chỉ chờ khoảng cố định ngắn.
+    const ownAsk = isAsk && last !== null && ((this.lastFriend && this.lastFriend.at === last && this.lastFriend.uid === String(uidIn))
+      || (this.lastInvite && this.lastInvite.at === last && this.lastInvite.uid === String(uidIn)));
+    const gapMs = ownFriend || ownAsk ? Math.min(this.config.samePersonGapMs, this.config.msgGapMs)
       : isReply ? Math.min(this.config.replyGapMs, this.config.msgGapMs) : this.config.msgGapMs; // tin trả lời có khoảng nghỉ cố định ngắn hơn
     if (last !== null && t - last < gapMs) {
       return { outcome: 'RATE_LIMITED', retryAfterSec: Math.ceil((gapMs - (t - last)) / 1000) };
@@ -545,6 +552,13 @@ export class Bridge {
       // chỉ nhắc người đã nhận Tin 1 từ chính cầu nối này; lần nhắc sau cần lần nhắc trước đã gửi; người đang nhắn tới thì để người thật xem
       if (!this.msgLedger.has('INVITE', uidIn)) return { outcome: 'PERSON_ERROR', code: 'NO_INVITE' };
       if (kind === 'FOLLOWUP3' && !this.msgLedger.has('FOLLOWUP2', uidIn)) return { outcome: 'PERSON_ERROR', code: 'NO_PREVIOUS' };
+      const said = this.replyable.get(uidIn);
+      if (said !== undefined && t - said <= REPLY_WINDOW_MS) return { outcome: 'PERSON_ERROR', code: 'CUSTOMER_REPLIED' };
+    }
+    if (isAsk) {
+      // chỉ nhờ người đã nhận Tin 1 từ chính cầu nối này; đã được gửi lời mời kết bạn thì không nhờ nữa (lời nói sẽ sai); người đang nhắn tới thì để người thật xem
+      if (!this.msgLedger.has('INVITE', uidIn)) return { outcome: 'PERSON_ERROR', code: 'NO_INVITE' };
+      if (this.friendLedger.has('FRIEND', uidIn)) return { outcome: 'PERSON_ERROR', code: 'FRIEND_REQUESTED' };
       const said = this.replyable.get(uidIn);
       if (said !== undefined && t - said <= REPLY_WINDOW_MS) return { outcome: 'PERSON_ERROR', code: 'CUSTOMER_REPLIED' };
     }
@@ -720,7 +734,11 @@ export class Bridge {
         this.friendLedger.markSent('FRIEND', uid); // thư viện không ném lỗi nghĩa là Zalo đã nhận (thành công trả chuỗi rỗng)
         c = { outcome: 'OK' };
       } catch (e) {
-        c = classifyError(e, this.config.personErrorCodes);
+        c = classifyError(e, new Set([...this.config.personErrorCodes, ...this.config.friendListFullCodes]));
+        // Z223: danh sách lời mời đang chờ của tài khoản phụ đã đầy. Zalo từ chối, lời mời chưa đi: không dừng cầu dao (Adh tạm dừng riêng phần kết bạn).
+        if (c.outcome === 'PERSON_ERROR' && /^Z\d+$/.test(c.code ?? '') && this.config.friendListFullCodes.has(c.code.slice(1))) {
+          c = { outcome: 'PERSON_ERROR', code: 'FRIEND_LIST_FULL' };
+        }
       }
       if (c.outcome !== 'OK' && c.outcome !== 'PERSON_ERROR') {
         this.trip(c.code ? `${c.outcome}:${c.code}` : c.outcome);

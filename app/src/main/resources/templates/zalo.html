@@ -193,6 +193,13 @@
             · hôm nay đã nhắn <strong th:text="${msg.usedToday}">0</strong>/<strong th:text="${msg.limits.daily}">10</strong> khách
             · khoảng nghỉ <strong th:text="${msg.limits.gapSeconds}">120</strong> giây
             · <span th:text="${msg.inWindow ? 'đang trong giờ gửi' : 'đang ngoài giờ gửi'}">trong giờ</span></p>
+        <div class="notice bad" id="loi-moi-day" th:if="${friendPausedUntil != null}">
+            <strong>Zalo báo danh sách lời mời kết bạn đã đầy</strong>
+            Hệ thống tạm dừng <strong>riêng việc gửi lời mời kết bạn</strong> đến <span th:text="${#temporals.format(friendPausedUntil, 'HH:mm dd/MM')}">08:00 26/11</span>.
+            Tin 1 và việc thêm vào nhóm vẫn chạy bình thường. Khách đã nhận Tin 1 mà chưa được mời kết bạn sẽ nhận thêm <strong>một tin nhờ họ chủ động kết bạn lại</strong>
+            (sửa nội dung ở trang chiến dịch, tab "Chuỗi tin"). Muốn gửi lại lời mời sớm: hủy bớt lời mời cũ trong Zalo
+            (Danh bạ, Lời mời kết bạn, Đã gửi), rồi vào tab "Hạn mức" bấm <em>Gửi lại lời mời ngay</em>.
+        </div>
         <div th:replace="~{fragments :: nextSend(${queue})}"></div>
         <script th:src="@{/countdown.js}" defer></script>
         <div class="actions">
@@ -218,6 +225,9 @@
         <form class="formrow" th:action="@{/zalo/messages/friend-limit}" method="post">
             <label class="field">Số lời mời kết bạn mỗi ngày <input type="number" name="daily" th:value="${friendDaily}" min="0" th:max="${friendMax}"></label>
             <button type="submit" class="btn">Lưu hạn mức lời mời</button>
+        </form>
+        <form th:action="@{/zalo/messages/friend-resume}" method="post" th:if="${friendPausedUntil != null}">
+            <button type="submit" class="btn secondary">Gửi lại lời mời ngay</button>
         </form>
         <p class="hint">Chiến dịch chỉ được tự gửi sau khi bạn bấm <em>Duyệt cho hệ thống tự gửi</em> ở trang chi tiết chiến dịch (tự tạo, hoặc từ <a th:href="@{/advisor}">Đề xuất của AI</a>).
             Chiến dịch gửi nhiều lần chỉ nhắc khi trợ lý AI đang đọc tin riêng để nghe được khách xin ngừng (mục "Nhận diện khách từ chối bằng AI" ở trang <a th:href="@{/zalo/reply(tab=bat-tat)}">Trợ lý AI trả lời khách</a>).

@@ -68,6 +68,24 @@ class ZaloGatewayShapeTest {
                 .doesNotContain("sendByPhone", "sendByUid", "addToGroup", "createGroup", "findByPhone", "while", "Random");
     }
 
+    /** 25/11/2026: tin nhờ khách kết bạn lại (Kind.ASK_FRIEND) chỉ có MỘT nơi gửi, chỉ theo mã Zalo, và chỉ khi lời mời kết bạn đang tạm dừng vì Z223. */
+    @Test
+    void tinNhoKetBanLaiChiGuiTuMotNoiVaChiTheoMaZalo() throws IOException {
+        List<String> users = new java.util.ArrayList<>();
+        try (Stream<Path> all = Files.walk(Path.of("src/main/java"))) {
+            for (Path f : all.filter(x -> x.toString().endsWith(".java")).toList()) {
+                if (Files.readString(f).contains("Kind.ASK_FRIEND")) {
+                    users.add(f.getFileName().toString());
+                }
+            }
+        }
+        assertThat(users).containsExactlyInAnyOrder("ZaloFriendAskSender.java", "ZaloMessageService.java", "ZcaBridgeGateway.java");
+        String sender = Files.readString(Path.of("src/main/java/vn/shop/crm/zalo/ZaloFriendAskSender.java"));
+        assertThat(sender).contains("Kind.ASK_FRIEND", "sendByUid", "friendPausedUntil", "friend_ask_at IS NULL", "friend_request_at IS NULL", "inbound_at IS NULL",
+                        "tin1_blocked_at IS NULL", "policy.blocker", "testMode.onlyTestSql", "contacts.stillEligible", "hasUnresolved", "UNKNOWN")
+                .doesNotContain("sendByPhone", "addToGroup", "createGroup", "findByPhone", "while", "Random");
+    }
+
     @Test
     void taoNhomChiCoMotHamVaKhongCoViecNguyHiem() {
         assertThat(names(ZaloGroupMaker.class)).containsExactly("createGroup", "setDeputy");

@@ -41,6 +41,7 @@ class ZaloAdminPageTest extends AbstractPostgresTest {
     @Autowired FakeZaloGateway fake;
     @Autowired ZaloAutoSettings cfg;
     @Autowired GroupService groups;
+    @Autowired ZaloMessageService messages;
     MockMvc mvc;
 
     @BeforeEach
@@ -188,6 +189,21 @@ class ZaloAdminPageTest extends AbstractPostgresTest {
         mvc.perform(get("/zalo").param("tab", "gioi-han").with(owner())).andExpect(status().isOk()).andExpect(content().string(containsString("tự gửi lời mời kết bạn")));
         mvc.perform(post("/zalo/messages/friend-limit").with(owner()).with(csrf()).param("daily", "0"))
                 .andExpect(status().is3xxRedirection());
+    }
+
+    @Test
+    void trangHienRoKhiZaloBaoDanhSachLoiMoiDayVaChoBamGuiLai() throws Exception {
+        messages.pauseFriendRequests("system");
+        mvc.perform(get("/zalo").with(owner())).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Zalo báo danh sách lời mời kết bạn đã đầy")))
+                .andExpect(content().string(containsString("Tin 1 và việc thêm vào nhóm vẫn chạy")));
+        mvc.perform(post("/zalo/messages/friend-resume").with(owner()).with(csrf())).andExpect(status().is3xxRedirection());
+        assertThat(messages.friendPausedUntil()).isEmpty();
+        mvc.perform(post("/zalo/messages/friend-resume").with(staff()).with(csrf())).andExpect(status().isForbidden());
+    }
+
+    private static org.springframework.test.web.servlet.request.RequestPostProcessor staff() {
+        return user("nhanvien").roles("STAFF");
     }
 
     @Test

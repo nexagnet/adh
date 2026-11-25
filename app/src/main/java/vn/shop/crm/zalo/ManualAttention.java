@@ -1,0 +1,106 @@
+package vn.shop.crm.zalo;
+
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.stereotype.Service;
+import vn.shop.crm.common.ImportException;
+
+import java.time.Clock;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Tab "Cần xử lý tay" của chiến dịch (25/11/2026): gom khách mà hệ thống KHÔNG tự xử lý tiếp được, để người xem rồi quyết định.
+ * Gồm (1) khách Tin 1 không gửi được (trạng thái FAILED, kèm lý do), (2) khách lời mời kết bạn hoặc tin nhờ kết bạn lại "không rõ đã gửi chưa" (UNKNOWN).
+ * Chỉ có hai việc, đều do người bấm, không việc nào gọi Zalo trực tiếp: "Gửi lại kết bạn" (MỘT lần cho mỗi khách) chỉ trả lời mời về hàng chờ kết bạn
+ * để {@link ZaloFriendRequestSender} gửi qua cổng chung (giờ, khoảng nghỉ, hạn mức, cầu dao); "Đã xử lý" ẩn khách khỏi tab. Không xóa gì, không đụng số điện thoại.
+ */
+@Service
+public class ManualAttention {
+
+    private static final int LIMIT = 200;
+
+    public record Row(long id, String who, List<String> problems, boolean canResendFriend) {
+    }
+
+    private final JdbcClient jdbc;
+    private final ZaloMessageService messages;
+    private final Clock clock;
+
+    public ManualAttention(JdbcClient jdbc, ZaloMessageService messages, Clock clock) {
+        this.jdbc = jdbc;
+        this.messages = messages;
+        this.clock = clock;
+    }
+
+    private static final String WHERE = """
+            i.campaign_id = :c AND i.attention_done_at IS NULL AND (
+                i.status = 'FAILED'
+                OR (i.friend_request_outcome = 'UNKNOWN' AND i.friended_at IS NULL AND i.joined_at IS NULL)
+                OR (i.friend_ask_outcome = 'UNKNOWN' AND i.friended_at IS NULL AND i.joined_at IS NULL))""";
+
+    public long count(long campaignId) {
+        return jdbc.sql("SELECT count(*) FROM invitation i WHERE " + WHERE).param("c", campaignId).query(Long.class).single();
+    }
+
+    public List<Row> rows(long campaignId) {
+        return jdbc.sql("""
+                        SELECT i.id, c.name, c.phone, i.status, i.last_error, i.friend_request_outcome, i.friend_request_retry_at, i.friend_ask_outcome,
+                               i.friended_at, i.joined_at, i.inbound_at
+                        FROM invitation i JOIN customer c ON c.id = i.customer_id
+                        """ + "WHERE " + WHERE + " ORDER BY i.id LIMIT :n")
+                .param("c", campaignId).param("n", LIMIT)
+                .query((rs, n) -> {
+                    List<String> problems = new ArrayList<>();
+                    if ("FAILED".equals(rs.getString("status"))) {
+                        String why = rs.getString("last_error");
+                        problems.add("Tin 1 không gửi được" + (why == null || why.isBlank() ? "." : ": " + why.strip()));
+                    }
+                    boolean friendUnknown = "UNKNOWN".equals(rs.getString("friend_request_outcome"));
+                    boolean retried = rs.getObject("friend_request_retry_at") != null;
+                    if (friendUnknown) {
+                        problems.add("Chưa rõ lời mời kết bạn đã gửi chưa. Hãy mở Zalo của tài khoản phụ kiểm tra"
+                                + (retried ? " (đã gửi lại một lần rồi, không gửi lại thêm được)." : "."));
+                    }
+                    if ("UNKNOWN".equals(rs.getString("friend_ask_outcome"))) {
+                        problems.add("Chưa rõ tin nhờ khách kết bạn lại đã gửi chưa. Hãy mở Zalo của tài khoản phụ kiểm tra.");
+                    }
+                    boolean can = friendUnknown && !retried && "SENT".equals(rs.getString("status")) && rs.getObject("friended_at") == null
+                            && rs.getObject("joined_at") == null && rs.getObject("inbound_at") == null;
+                    return new Row(rs.getLong("id"), who(rs.getString("name"), rs.getString("phone")), problems, can);
+                }).list();
+    }
+
+    /** Tên và bốn số cuối: đủ để nhận ra khách, không lộ cả số điện thoại trên màn hình. */
+    private static String who(String name, String phone) {
+        String n = name == null || name.isBlank() ? "Khách chưa có tên" : name.strip();
+        String p = phone == null ? "" : phone.replaceAll("\\D", "");
+        return p.length() >= 4 ? n + " (số …" + p.substring(p.length() - 4) + ")" : n;
+    }
+
+    /**
+     * Trả lời mời về hàng chờ kết bạn, đúng MỘT lần cho mỗi khách (cột {@code friend_request_retry_at}). Chỉ khi lời mời đang "không rõ" và khách chưa kết bạn,
+     * chưa vào nhóm, chưa nhắn riêng lại. Không gọi Zalo ở đây; việc gửi vẫn do nhịp tự gửi lo, theo đủ chốt chặn.
+     */
+    public void resendFriend(long campaignId, long invitationId, String by) {
+        int n = jdbc.sql("""
+                        UPDATE invitation SET friend_request_at = NULL, friend_request_outcome = NULL, friend_request_retry_at = :now
+                        WHERE id = :id AND campaign_id = :c AND status = 'SENT' AND friend_request_outcome = 'UNKNOWN' AND friend_request_retry_at IS NULL
+                          AND friended_at IS NULL AND joined_at IS NULL AND inbound_at IS NULL""")
+                .param("id", invitationId).param("c", campaignId).param("now", OffsetDateTime.now(clock)).update();
+        if (n == 0) {
+            throw new ImportException("Không gửi lại kết bạn được: khách này đã được gửi lại một lần, hoặc đã kết bạn, vào nhóm, nhắn lại, hoặc lời mời không còn ở trạng thái \"chưa rõ\".");
+        }
+        messages.audit("GUI_LAI_KET_BAN", invitationId, by);
+    }
+
+    /** Ẩn khách khỏi tab (người đã xem và tự xử lý). Không đổi trạng thái lời mời. */
+    public void markDone(long campaignId, long invitationId, String by) {
+        int n = jdbc.sql("UPDATE invitation SET attention_done_at = :now WHERE id = :id AND campaign_id = :c AND attention_done_at IS NULL")
+                .param("id", invitationId).param("c", campaignId).param("now", OffsetDateTime.now(clock)).update();
+        if (n == 0) {
+            throw new ImportException("Không tìm thấy khách cần xử lý này (có thể đã được đánh dấu rồi).");
+        }
+        messages.audit("DA_XU_LY_TAY", invitationId, by);
+    }
+}

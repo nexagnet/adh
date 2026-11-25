@@ -57,7 +57,9 @@ public class ZaloQueueView {
         List<String> notes = new ArrayList<>();
         Map<Long, Boolean> open = new HashMap<>();
         List<Row> rows = new ArrayList<>();
-        if (messages.friendUsedToday() >= messages.friendDaily()) {
+        if (messages.friendPausedUntil().isPresent()) {
+            notes.add("Zalo báo danh sách lời mời kết bạn đã đầy (Z223): hệ thống tạm dừng gửi lời mời kết bạn, Tin 1 và thêm vào nhóm vẫn chạy.");
+        } else if (messages.friendUsedToday() >= messages.friendDaily()) {
             notes.add("Lời mời kết bạn đã đủ " + messages.friendDaily() + " hôm nay: hệ thống chuyển sang Tin 1, lời mời kết bạn tiếp tục vào ngày mai.");
         } else {
             addAll(rows, friendRows(), open);

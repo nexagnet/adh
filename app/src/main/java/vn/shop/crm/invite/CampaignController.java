@@ -27,6 +27,7 @@ public class CampaignController {
     private final vn.shop.crm.zalo.CampaignAutoStop autoStop;
     private final vn.shop.crm.zalo.CampaignGroupTarget groupTarget;
     private final vn.shop.crm.inbox.ComebackService comebacks;
+    private final vn.shop.crm.zalo.ManualAttention attention;
     private final CampaignArchive archive;
 
     public CampaignController(InviteService invites, ContactService contacts, AppSettings settings,
@@ -34,7 +35,8 @@ public class CampaignController {
                               vn.shop.crm.zalo.ZaloCampaignIntake intake, vn.shop.crm.zalo.CampaignPolicy policy,
                               CampaignSteps steps, vn.shop.crm.zalo.CampaignAutoStop autoStop,
                               vn.shop.crm.zalo.CampaignGroupTarget groupTarget, vn.shop.crm.inbox.ComebackService comebacks,
-                              vn.shop.crm.zalo.ZaloQueueView queueView, CampaignArchive archive) {
+                              vn.shop.crm.zalo.ZaloQueueView queueView, CampaignArchive archive, vn.shop.crm.zalo.ManualAttention attention) {
+        this.attention = attention;
         this.archive = archive;
         this.comebacks = comebacks;
         this.groupTarget = groupTarget;
@@ -101,7 +103,7 @@ public class CampaignController {
 
     static final java.util.List<Tab> TABS = java.util.List.of(
             new Tab("tong-quan", "Tổng quan và lời mời"), new Tab("lich", "Lịch và điều kiện gửi"),
-            new Tab("tin", "Chuỗi tin"), new Tab("nhom", "Nhóm Zalo và khách quay lại"));
+            new Tab("tin", "Chuỗi tin"), new Tab("nhom", "Nhóm Zalo và khách quay lại"), new Tab("can-xu-ly", "Cần xử lý tay"));
 
     /** Tab được chọn: tham số {@code tab}, hoặc tab vừa lưu (gửi qua thuộc tính flash để địa chỉ chuyển hướng không đổi); lạ thì về tab đầu. */
     private static String pickTab(String param, Model model) {
@@ -136,6 +138,11 @@ public class CampaignController {
         model.addAttribute("minGapDays", CampaignSteps.MIN_GAP_DAYS);
         model.addAttribute("stopFooter", CampaignSteps.STOP_FOOTER);
         model.addAttribute("multiTemplate", InviteService.MULTI_TEMPLATE);
+        model.addAttribute("attentionCount", attention.count(id));
+        model.addAttribute("attention", "can-xu-ly".equals(model.asMap().get("tab")) ? attention.rows(id) : java.util.List.of());
+        model.addAttribute("friendAsk", steps.friendAskMessage(id));
+        model.addAttribute("friendAskDefault", vn.shop.crm.zalo.ZaloFriendAskSender.DEFAULT_TEXT);
+        model.addAttribute("friendAskMax", vn.shop.crm.zalo.ZaloFriendAskSender.MAX_TEXT);
         model.addAttribute("extra", policy.loadExtra(id));
         model.addAttribute("groupTarget", groupTarget.load(id));
         model.addAttribute("comebackOwn", comebacks.campaignMode(id));
@@ -253,6 +260,32 @@ public class CampaignController {
         steps.saveFirstMessage(id, template, ContactService.actor());
         redirect.addFlashAttribute("tab", "tin");
         redirect.addFlashAttribute("flash", "Đã lưu nội dung Tin 1 của chiến dịch.");
+        return "redirect:/campaigns/" + id;
+    }
+
+    /** Tab "Cần xử lý tay": gửi lại lời mời kết bạn MỘT lần cho khách "chưa rõ đã gửi chưa" (trả về hàng chờ, không gọi Zalo ngay). */
+    @PostMapping("/campaigns/{id}/attention/{invitationId}/resend-friend")
+    public String resendFriend(@PathVariable long id, @PathVariable long invitationId, RedirectAttributes redirect) {
+        attention.resendFriend(id, invitationId, ContactService.actor());
+        redirect.addFlashAttribute("tab", "can-xu-ly");
+        redirect.addFlashAttribute("flash", "Đã đưa khách về hàng chờ kết bạn. Hệ thống gửi lại một lần ở nhịp kế tiếp, theo hạn mức, khung giờ và khoảng nghỉ.");
+        return "redirect:/campaigns/" + id + "?tab=can-xu-ly";
+    }
+
+    /** Tab "Cần xử lý tay": đánh dấu đã xử lý (ẩn khỏi tab, không đổi gì khác). */
+    @PostMapping("/campaigns/{id}/attention/{invitationId}/done")
+    public String attentionDone(@PathVariable long id, @PathVariable long invitationId, RedirectAttributes redirect) {
+        attention.markDone(id, invitationId, ContactService.actor());
+        redirect.addFlashAttribute("flash", "Đã đánh dấu đã xử lý.");
+        return "redirect:/campaigns/" + id + "?tab=can-xu-ly";
+    }
+
+    /** Sửa nội dung tin nhờ khách kết bạn lại (gửi khi Zalo báo danh sách lời mời đầy). */
+    @PostMapping("/campaigns/{id}/friend-ask-message")
+    public String saveFriendAskMessage(@PathVariable long id, @RequestParam String template, RedirectAttributes redirect) {
+        steps.saveFriendAskMessage(id, template, ContactService.actor());
+        redirect.addFlashAttribute("tab", "tin");
+        redirect.addFlashAttribute("flash", "Đã lưu nội dung tin nhờ khách kết bạn lại.");
         return "redirect:/campaigns/" + id;
     }
 

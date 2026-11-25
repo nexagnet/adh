@@ -14,6 +14,36 @@
         <a th:each="t : ${tabs}" th:href="@{/campaigns/{id}(id=${campaign.id}, tab=${t.key})}" th:text="${t.label}"
            th:classappend="${t.key == tab} ? 'active'" th:attr="aria-current=${t.key == tab} ? 'page'">Tổng quan</a>
     </nav>
+    <div class="notice bad" th:if="${tab != 'can-xu-ly' and attentionCount > 0}">
+        Có <strong th:text="${attentionCount}">3</strong> khách cần bạn xử lý tay.
+        <a th:href="@{/campaigns/{id}(id=${campaign.id}, tab='can-xu-ly')}">Xem ở tab "Cần xử lý tay"</a>
+    </div>
+    <div class="panel stack" th:if="${tab == 'can-xu-ly'}">
+        <h2>Khách cần xử lý tay</h2>
+        <p class="hint">Hệ thống không tự làm tiếp cho những khách này. <strong>Tin 1 không gửi được</strong>: xem lý do rồi tự nhắn trên Zalo nếu cần.
+            <strong>Chưa rõ lời mời kết bạn đã gửi chưa</strong>: mở Zalo của tài khoản phụ xem đã có lời mời chưa; nếu chưa, bấm <em>Gửi lại kết bạn</em>
+            (chỉ được <strong>một lần</strong> cho mỗi khách, hệ thống gửi ở nhịp kế tiếp theo hạn mức và khoảng nghỉ). Xong việc thì bấm <em>Đã xử lý</em> để ẩn khỏi danh sách; việc này không xóa khách hay số điện thoại.</p>
+        <p class="muted" th:if="${#lists.isEmpty(attention)}">Không có khách nào cần xử lý tay.</p>
+        <table th:unless="${#lists.isEmpty(attention)}">
+            <thead><tr><th>Khách</th><th>Vấn đề</th><th></th></tr></thead>
+            <tbody>
+            <tr th:each="a : ${attention}">
+                <td th:text="${a.who}">Khách (số …1234)</td>
+                <td><div th:each="p : ${a.problems}" th:text="${p}">Tin 1 không gửi được</div></td>
+                <td>
+                    <div class="actions">
+                        <form th:action="@{/campaigns/{id}/attention/{inv}/resend-friend(id=${campaign.id}, inv=${a.id})}" method="post" th:if="${a.canResendFriend}">
+                            <button type="submit" class="btn secondary">Gửi lại kết bạn</button>
+                        </form>
+                        <form th:action="@{/campaigns/{id}/attention/{inv}/done(id=${campaign.id}, inv=${a.id})}" method="post">
+                            <button type="submit" class="btn secondary">Đã xử lý</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
     <div class="panel stack" th:if="${tab == 'tong-quan' and campaign.archived()}">
         <h2>Chiến dịch đã lưu trữ</h2>
         <p><span class="badge">ĐÃ LƯU TRỮ</span> Hệ thống không tự gửi gì cho chiến dịch này và AI đề xuất chiến dịch không còn coi nó là đang chạy.
@@ -152,6 +182,17 @@
                 </details>
                 <div class="actions"><button type="submit" class="btn secondary">Lưu Tin 1</button></div>
                 <p class="hint">Chỉ sửa được khi chưa gửi Tin 1 cho khách nào của chiến dịch này.</p>
+            </form>
+        </details>
+        <details>
+            <summary>Sửa tin nhờ khách kết bạn lại</summary>
+            <form th:action="@{/campaigns/{id}/friend-ask-message(id=${campaign.id})}" method="post" class="stack">
+                <p class="hint">Zalo giới hạn số lời mời kết bạn đang chờ. Khi báo đầy, hệ thống tạm dừng gửi lời mời và gửi <strong>một tin</strong> cho khách đã nhận Tin 1 mà chưa được mời,
+                    nhờ họ chủ động kết bạn lại với tài khoản phụ. Mỗi khách đúng một lần, theo hạn mức lời mời mỗi ngày, khung giờ và khoảng nghỉ như các tin khác. Tin còn chỗ điền chưa thay được thì không gửi.</p>
+                <label class="field">Nội dung tin
+                    <textarea name="template" rows="3" th:maxlength="${friendAskMax}" th:text="${friendAsk}">Tin nhờ kết bạn lại</textarea></label>
+                <p class="hint">Chỗ điền dùng được: {ten}, {cua_hang}. Mẫu mặc định: <span th:text="${friendAskDefault}">Mẫu</span></p>
+                <div class="actions"><button type="submit" class="btn secondary">Lưu tin nhờ kết bạn lại</button></div>
             </form>
         </details>
         <form th:action="@{/campaigns/{id}/touches(id=${campaign.id})}" method="post" class="stack">

@@ -152,6 +152,36 @@ public class CampaignSteps {
         messages.audit("SUA_TIN_1", campaignId, by);
     }
 
+    /** Nội dung tin nhờ khách kết bạn lại (khi Zalo báo danh sách lời mời đầy) của chiến dịch; mẫu mặc định nếu chưa sửa. */
+    public String friendAskMessage(long campaignId) {
+        String t = jdbc.sql("SELECT friend_ask_template FROM invitation_campaign WHERE id = :id").param("id", campaignId)
+                .query(String.class).optional().orElse(null);
+        return t == null || t.isBlank() ? vn.shop.crm.zalo.ZaloFriendAskSender.DEFAULT_TEXT : t;
+    }
+
+    /**
+     * Sửa nội dung tin nhờ khách kết bạn lại của chiến dịch (25/11/2026). Khác Tin 1, sửa được bất cứ lúc nào vì tin này gửi sau, đúng một lần cho mỗi
+     * khách; khách đã nhận rồi giữ nguyên tin cũ. Chỗ điền lạ bị từ chối khi lưu; tin còn {...} chưa thay được không bao giờ được gửi.
+     */
+    @Transactional
+    public void saveFriendAskMessage(long campaignId, String template, String by) {
+        String tpl = template == null ? "" : template.strip();
+        if (tpl.isEmpty()) {
+            throw new ImportException("Nội dung tin không được để trống.");
+        }
+        if (tpl.length() > vn.shop.crm.zalo.ZaloFriendAskSender.MAX_TEXT) {
+            throw new ImportException("Nội dung tin quá dài (tối đa " + vn.shop.crm.zalo.ZaloFriendAskSender.MAX_TEXT + " ký tự).");
+        }
+        InviteService.checkTemplate(tpl).ifPresent(msg -> {
+            throw new ImportException(msg);
+        });
+        int n = jdbc.sql("UPDATE invitation_campaign SET friend_ask_template = :t WHERE id = :id").param("t", tpl).param("id", campaignId).update();
+        if (n == 0) {
+            throw new ImportException("Không tìm thấy chiến dịch.");
+        }
+        messages.audit("SUA_TIN_NHO_KET_BAN", campaignId, by);
+    }
+
     /** Khóa dòng chiến dịch (hai lần lưu cùng lúc không đè nhau) và trả nội dung Tin 1 hiện tại. */
     private String lockFirstMessage(long campaignId) {
         return jdbc.sql("SELECT message_template FROM invitation_campaign WHERE id = :id FOR UPDATE").param("id", campaignId)
