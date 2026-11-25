@@ -54,10 +54,17 @@ public class ZaloReactionSender {
                 return false;
             }
             ZaloGateway.Status st = link.status();
+            if (st.state() == ZaloGateway.State.TRIPPED) {
+                cfg.trip(ZaloAutoService.bridgeTripReason(st), "system");
+                return false;
+            }
             if (st.state() != ZaloGateway.State.LISTENING || !Boolean.TRUE.equals(st.accountOk())) {
                 return false;
             }
             ZaloReactor.Reacted r = link.heart(seq, uid);
+            if (ZaloAutoSettings.haltsAllAccounts(r.tripReason())) {
+                cfg.trip(r.tripReason(), "system");
+            }
             cfg.log(ACTION, invitationId, null, r.ok() ? "OK" : "LOI", r.code(), "system");
             return r.ok();
         } catch (RuntimeException e) {

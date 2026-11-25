@@ -98,6 +98,7 @@ public class ZaloAutoController {
         model.addAttribute("effective", cfg.effectiveMode());
         model.addAttribute("tripped", cfg.tripped());
         model.addAttribute("trippedReason", cfg.trippedReason());
+        model.addAttribute("sharedHaltSource", cfg.sharedHaltSource());
         model.addAttribute("trippedAt", cfg.trippedAt() == null ? null
                 : LocalDateTime.ofInstant(cfg.trippedAt(), cfg.clock().getZone()));
         model.addAttribute("props", cfg.props());
@@ -323,7 +324,8 @@ public class ZaloAutoController {
     @PostMapping("/accounts/{id}/enabled")
     public String accountEnabled(@PathVariable long id, @RequestParam boolean on, RedirectAttributes redirect) {
         accounts.setEnabled(id, on);
-        redirect.addFlashAttribute("flash", on ? "Đã bật lại tài khoản " + id + "." : "Đã tạm ngưng tài khoản " + id + ": không gửi, không đọc tin.");
+        redirect.addAttribute("account", id);
+        redirect.addFlashAttribute("flash", on ? "Đã bật tài khoản " + id + "." : "Đã tạm ngưng tài khoản " + id + ": không gửi, không đọc tin.");
         return "redirect:/zalo?tab=tinh-trang";
     }
 

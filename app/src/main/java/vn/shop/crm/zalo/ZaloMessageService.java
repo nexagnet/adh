@@ -601,7 +601,7 @@ public class ZaloMessageService {
             }
             ZaloGateway.Status st = link.status();
             if (st.state() == ZaloGateway.State.TRIPPED) {
-                tripAndStop("BRIDGE_" + (st.tripReason() == null ? "TRIPPED" : st.tripReason()));
+                tripAndStop(ZaloAutoService.bridgeTripReason(st));
                 return Delivery.blocked(Block.MODE_OFF);
             }
             if (Boolean.FALSE.equals(st.accountOk())) {
@@ -633,7 +633,10 @@ public class ZaloMessageService {
     private Delivery finish(long logId, Sent s) {
         try {
             if (s.result() == Result.OK) {
-                setOutcome(logId, "OK", null);
+                setOutcome(logId, "OK", s.code());
+                if ("PARTIAL".equals(s.code())) {
+                    observePartialDelivery();
+                }
                 return new Delivery(Status.SENT, null, s);
             }
             if (s.notSent()) {
@@ -669,6 +672,16 @@ public class ZaloMessageService {
             log.warn("Lỗi sau khi gửi tin: {}", e.getClass().getSimpleName());
             tripAndStop("TIN_INTERRUPTED");
             return new Delivery(Status.TRIPPED, null, Sent.of(Result.SYSTEM_ERROR, "INTERRUPTED", false));
+        }
+    }
+
+    /** Phần đầu đã được xác nhận. Cầu nối vẫn có thể đã dừng vì lỗi ở phần sau. */
+    private void observePartialDelivery() {
+        ZaloGateway.Status status = link.status();
+        if (status.state() == ZaloGateway.State.TRIPPED) {
+            cfg.trip(ZaloAutoService.bridgeTripReason(status), "system");
+        } else if (!status.listening()) {
+            cfg.trip("TIN_INTERRUPTED", "system");
         }
     }
 

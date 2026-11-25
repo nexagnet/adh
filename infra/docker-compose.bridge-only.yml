@@ -1,5 +1,5 @@
 # MÁY CHỦ THỨ HAI chỉ chạy cầu nối Zalo của tài khoản phụ (D23, docs/HUONG-DAN-NHIEU-TAI-KHOAN-ZALO.md mục 4). Ứng dụng và cơ sở dữ liệu
-# vẫn chỉ ở máy chủ chính; máy này không có dữ liệu khách ngoài những gì cầu nối tạm giữ trong bộ nhớ.
+# vẫn chỉ ở máy chủ chính. Cầu nối giữ phiên và hàng tin riêng mã hóa, cùng sổ hạn mức, trong volume riêng.
 # Chạy: docker compose -f docker-compose.bridge-only.yml --env-file .env.bridge up -d
 # CỔNG CẦU NỐI KHÔNG ĐƯỢC MỞ RA INTERNET: chỉ gắn vào địa chỉ riêng của đường hầm giữa hai máy (WireGuard hoặc Tailscale), đặt ở BRIDGE_BIND.
 # Cố ý KHÔNG đặt proxy, IP, dấu vân tay hay userAgent riêng (luật D23: không làm gì để Zalo không liên kết các tài khoản). Tách máy chủ chỉ vì đủ RAM.
@@ -11,6 +11,7 @@ services:
       BRIDGE_KEY: ${APP_ZALO_BRIDGE_KEY:?Hãy đặt APP_ZALO_BRIDGE_KEY trong file .env.bridge}
       SESSION_KEY: ${ZALO_SESSION_KEY:?Hãy đặt ZALO_SESSION_KEY trong file .env.bridge}
       ZALO_ACCOUNT_ID: ${ZALO_ACCOUNT_ID:-}
+      APP_ZALO_AUTO_MAX_DAILY: ${APP_ZALO_AUTO_MAX_DAILY:-300}
       BRIDGE_PERSON_ERROR_CODES: ${ZALO_PERSON_ERROR_CODES:-}
       BRIDGE_MSG_DAILY: ${BRIDGE_MSG_DAILY:-150}
       BRIDGE_FRIEND_DAILY: ${BRIDGE_FRIEND_DAILY:-50}

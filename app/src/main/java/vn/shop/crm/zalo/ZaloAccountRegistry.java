@@ -1,7 +1,10 @@
 package vn.shop.crm.zalo;
 
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionTemplate;
+import vn.shop.crm.common.ImportException;
 
 import java.util.List;
 
@@ -15,12 +18,16 @@ public class ZaloAccountRegistry {
 
     private final ZaloAccountRoutes routes;
     private final JdbcClient jdbc;
+    private final ZaloBridgeIdentity identity;
+    private final TransactionTemplate tx;
     private final boolean multiEnabled;
 
-    public ZaloAccountRegistry(ZaloAccountRoutes routes, JdbcClient jdbc,
+    public ZaloAccountRegistry(ZaloAccountRoutes routes, JdbcClient jdbc, ZaloBridgeIdentity identity, TransactionTemplate tx,
                                @org.springframework.beans.factory.annotation.Value("${app.zalo.multi.enabled:false}") boolean multiEnabled) {
         this.routes = routes;
         this.jdbc = jdbc;
+        this.identity = identity;
+        this.tx = tx;
         this.multiEnabled = multiEnabled;
     }
 
@@ -34,7 +41,7 @@ public class ZaloAccountRegistry {
     public void ensureRows() {
         for (long id : routes.accountIds()) {
             if (id != ZaloAccountContext.DEFAULT_ACCOUNT) {
-                jdbc.sql("INSERT INTO zalo_account (id, label) VALUES (:id, :l) ON CONFLICT (id) DO NOTHING")
+                jdbc.sql("INSERT INTO zalo_account (id, label, enabled) VALUES (:id, :l, false) ON CONFLICT (id) DO NOTHING")
                         .param("id", id).param("l", "Tài khoản phụ " + id).update();
             }
         }
@@ -46,7 +53,8 @@ public class ZaloAccountRegistry {
             return List.of(ZaloAccountContext.DEFAULT_ACCOUNT);
         }
         ensureRows();
-        List<Long> enabled = jdbc.sql("SELECT id FROM zalo_account WHERE enabled ORDER BY id").query(Long.class).list();
+        List<Long> enabled = jdbc.sql("SELECT id FROM zalo_account WHERE enabled AND (id = 1 OR account_tag IS NOT NULL) ORDER BY id")
+                .query(Long.class).list();
         return routes.accountIds().stream().filter(enabled::contains).sorted().toList();
     }
 
@@ -61,7 +69,7 @@ public class ZaloAccountRegistry {
     /** Mọi tài khoản đã khai báo cầu nối, tài khoản 1 trước (để hiện và chuyển qua lại ở trang Zalo). */
     public List<View> views() {
         ensureRows();
-        var rows = jdbc.sql("SELECT id, label, enabled FROM zalo_account ORDER BY id")
+        var rows = jdbc.sql("SELECT id, label, enabled AND (id = 1 OR account_tag IS NOT NULL) AS enabled FROM zalo_account ORDER BY id")
                 .query((rs, i) -> new View(rs.getLong("id"), rs.getString("label"), rs.getBoolean("enabled"))).list();
         return rows.stream().filter(v -> routes.has(v.id())).toList();
     }
@@ -71,15 +79,45 @@ public class ZaloAccountRegistry {
         return routes.has(id);
     }
 
+    public boolean multipleConfigured() {
+        return routes.accountIds().size() > 1;
+    }
+
     /**
      * Bật hoặc tạm ngưng một tài khoản THÊM (tài khoản 1 luôn chạy). Tạm ngưng thì bộ hẹn giờ bỏ qua nó (không gửi, không đọc tin); khách đã
      * gắn tài khoản đó ở yên, KHÔNG chuyển sang tài khoản khác.
      */
     public void setEnabled(long id, boolean on) {
         if (id == ZaloAccountContext.DEFAULT_ACCOUNT || !routes.has(id)) {
-            throw new vn.shop.crm.common.ImportException("Chỉ bật hoặc tạm ngưng được các tài khoản thêm đã khai báo cầu nối.");
+            throw new ImportException("Chỉ bật hoặc tạm ngưng được các tài khoản thêm đã khai báo cầu nối.");
         }
         ensureRows();
-        jdbc.sql("UPDATE zalo_account SET enabled = :on WHERE id = :id").param("on", on).param("id", id).update();
+        if (!on) {
+            jdbc.sql("UPDATE zalo_account SET enabled = false WHERE id = :id").param("id", id).update();
+            return;
+        }
+        enableVerified(id);
+    }
+
+    private void enableVerified(long id) {
+        long primaryId = ZaloAccountContext.DEFAULT_ACCOUNT;
+        var primary = routes.target(primaryId).status();
+        var extra = routes.target(id).status();
+        if (!ZaloBridgeIdentity.usable(primary) || !ZaloBridgeIdentity.usable(extra)) {
+            throw new ImportException("Cần đăng nhập đúng tài khoản ở cả cầu nối chính và cầu nối mới trước khi bật.");
+        }
+        if (primary.accountTag().equals(extra.accountTag())) {
+            throw new ImportException("Hai cầu nối đang dùng cùng một tài khoản Zalo.");
+        }
+        try {
+            tx.executeWithoutResult(status -> {
+                if (!identity.pin(primaryId, primary.accountTag()) || !identity.pin(id, extra.accountTag())) {
+                    throw new ImportException("Dấu tài khoản cầu nối khác với tài khoản Zalo đã xác nhận.");
+                }
+                jdbc.sql("UPDATE zalo_account SET enabled = true WHERE id = :id").param("id", id).update();
+            });
+        } catch (DuplicateKeyException ex) {
+            throw new ImportException("Cầu nối này đã thuộc về một tài khoản Zalo khác trong Adh.");
+        }
     }
 }

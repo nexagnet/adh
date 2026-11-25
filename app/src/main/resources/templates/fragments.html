@@ -48,7 +48,7 @@
 <div th:fragment="groupTabs(current)" class="tabs" role="navigation" aria-label="Các phần của nhóm Zalo">
     <a th:href="@{/groups}" th:classappend="${current == 'groups'} ? 'active'" th:attr="aria-current=${current == 'groups'} ? 'page'">Nhóm Zalo</a>
     <a th:href="@{/friends}" th:classappend="${current == 'friends'} ? 'active'" th:attr="aria-current=${current == 'friends'} ? 'page'">Chờ vào nhóm<span th:if="${@navMenu.friendBadge() > 0}" th:text="' (' + ${@navMenu.friendBadge()} + ')'"></span></a>
-    <a th:href="@{/zalo/groups}" th:classappend="${current == 'zalo-groups'} ? 'active'" th:attr="aria-current=${current == 'zalo-groups'} ? 'page'">Gán mã nhóm Zalo</a>
+    <a th:href="${current == 'zalo-groups'} ? @{/zalo/groups(account=${account})} : @{/zalo/groups}" th:classappend="${current == 'zalo-groups'} ? 'active'" th:attr="aria-current=${current == 'zalo-groups'} ? 'page'">Gán mã nhóm Zalo</a>
 </div>
 <nav th:fragment="nav" class="nav" aria-label="Menu chính">
     <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Mở hoặc đóng menu">

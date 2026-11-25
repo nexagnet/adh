@@ -434,9 +434,10 @@ public class ReplyService {
     private void insert(Subject s, String state, Reason reason, String detail, Double confidence, String inbound, String reply, String fields,
                         Instant at) {
         jdbc.sql("""
-                        INSERT INTO reply_draft (customer_id, invitation_id, zalo_uid, state, reason, detail, scope_confidence, inbound_text, reply_text,
+                        INSERT INTO reply_draft (account_id, customer_id, invitation_id, zalo_uid, state, reason, detail, scope_confidence, inbound_text, reply_text,
                                                  context_fields, inbound_at)
-                        VALUES (:c, :i, :u, :s, :r, :d, :cf, :in, :re, :cx, :at)""")
+                        VALUES (:acct, :c, :i, :u, :s, :r, :d, :cf, :in, :re, :cx, :at)""")
+                .param("acct", ZaloAccountContext.current())
                 .param("cx", fields, java.sql.Types.VARCHAR)
                 .param("c", s.customerId()).param("i", s.invitationId(), java.sql.Types.BIGINT).param("u", s.uid()).param("s", state)
                 .param("r", reason == null ? null : reason.name(), java.sql.Types.VARCHAR).param("d", detail, java.sql.Types.VARCHAR)
@@ -452,8 +453,9 @@ public class ReplyService {
     private Optional<Open> open(String uid) {
         return jdbc.sql("""
                         SELECT id, state, inbound_text FROM reply_draft
-                        WHERE zalo_uid = :u AND state IN ('DRAFT', 'READY', 'SENDING', 'HANDOFF')""")
-                .param("u", uid).query((rs, n) -> new Open(rs.getLong("id"), rs.getString("state"), rs.getString("inbound_text"))).optional();
+                        WHERE account_id = :acct AND zalo_uid = :u AND state IN ('DRAFT', 'READY', 'SENDING', 'HANDOFF')""")
+                .param("acct", ZaloAccountContext.current()).param("u", uid)
+                .query((rs, n) -> new Open(rs.getLong("id"), rs.getString("state"), rs.getString("inbound_text"))).optional();
     }
 
     private static String join(String old, String now) {
@@ -470,9 +472,9 @@ public class ReplyService {
     /** Việc sẵn sàng gửi lâu nhất còn trong khung {@value #REPLY_WINDOW_HOURS} giờ. */
     public Optional<Ready> nextReady() {
         return jdbc.sql("""
-                        SELECT d.id, d.zalo_uid, d.reply_text FROM reply_draft d LEFT JOIN invitation i ON i.id = d.invitation_id
+                        SELECT d.id, d.zalo_uid, d.reply_text FROM reply_draft d
                         WHERE d.state = 'READY' AND d.reply_text IS NOT NULL AND d.inbound_at > now() - make_interval(hours => :h)
-                          AND coalesce(i.account_id, 1) = :acct
+                          AND d.account_id = :acct
                         """ + contacts.onlyTestCustomerSql("d.customer_id") + " ORDER BY d.id LIMIT 1")
                 .param("h", REPLY_WINDOW_HOURS).param("acct", ZaloAccountContext.current())
                 .query((rs, n) -> new Ready(rs.getLong("id"), rs.getString("zalo_uid"), rs.getString("reply_text"))).optional();
@@ -480,34 +482,38 @@ public class ReplyService {
 
     /** Khóa việc trước khi gọi bộ nối để không bao giờ gửi trùng. */
     public boolean claim(long id) {
-        return jdbc.sql("UPDATE reply_draft SET state = 'SENDING', updated_at = now() WHERE id = :id AND state = 'READY'")
-                .param("id", id).update() == 1;
+        return jdbc.sql("UPDATE reply_draft SET state = 'SENDING', updated_at = now() WHERE id = :id AND state = 'READY' AND account_id = :acct")
+                .param("id", id).param("acct", ZaloAccountContext.current()).update() == 1;
     }
 
     /** Chưa chạm Zalo: trả về hàng chờ để thử lại nhịp sau. */
     public void restore(long id) {
-        jdbc.sql("UPDATE reply_draft SET state = 'READY', updated_at = now() WHERE id = :id AND state = 'SENDING'").param("id", id).update();
+        jdbc.sql("UPDATE reply_draft SET state = 'READY', updated_at = now() WHERE id = :id AND state = 'SENDING' AND account_id = :acct")
+                .param("id", id).param("acct", ZaloAccountContext.current()).update();
     }
 
     public void sent(long id) {
-        jdbc.sql("UPDATE reply_draft SET state = 'SENT', sent_at = now(), updated_at = now() WHERE id = :id AND state = 'SENDING'")
-                .param("id", id).update();
+        jdbc.sql("""
+                        UPDATE reply_draft SET state = 'SENT', sent_at = now(), updated_at = now()
+                        WHERE id = :id AND state = 'SENDING' AND account_id = :acct""")
+                .param("id", id).param("acct", ZaloAccountContext.current()).update();
     }
 
     /** Không gửi được (hoặc không rõ đã gửi chưa): KHÔNG tự gửi lại, chuyển người thật kèm mã lỗi. */
     public void failed(long id, String code) {
         jdbc.sql("""
                         UPDATE reply_draft SET state = 'HANDOFF', reason = :r, detail = :d, updated_at = now()
-                        WHERE id = :id AND state = 'SENDING'""")
-                .param("r", Reason.GUI_LOI.name()).param("d", code, java.sql.Types.VARCHAR).param("id", id).update();
+                        WHERE id = :id AND state = 'SENDING' AND account_id = :acct""")
+                .param("r", Reason.GUI_LOI.name()).param("d", code, java.sql.Types.VARCHAR).param("id", id)
+                .param("acct", ZaloAccountContext.current()).update();
     }
 
     /** Hàng chờ quá hạn (cầu nối chỉ cho trả lời trong 24 giờ): chuyển người thật. */
     public int expireStale() {
         return jdbc.sql("""
                         UPDATE reply_draft SET state = 'HANDOFF', reason = :r, reply_text = NULL, updated_at = now()
-                        WHERE state = 'READY' AND inbound_at <= now() - make_interval(hours => :h)""")
-                .param("r", Reason.QUA_HAN.name()).param("h", REPLY_WINDOW_HOURS).update();
+                        WHERE account_id = :acct AND state = 'READY' AND inbound_at <= now() - make_interval(hours => :h)""")
+                .param("r", Reason.QUA_HAN.name()).param("h", REPLY_WINDOW_HOURS).param("acct", ZaloAccountContext.current()).update();
     }
 
     // ---------- cho trang quản trị ----------

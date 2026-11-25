@@ -7,6 +7,8 @@ import org.springframework.stereotype.Service;
 import vn.shop.crm.common.ImportException;
 import vn.shop.crm.common.PhoneHash;
 import vn.shop.crm.common.PhoneNormalizer;
+import vn.shop.crm.zalo.ZaloAccountContext;
+import vn.shop.crm.zalo.ZaloAccountProperties;
 
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -44,21 +46,28 @@ public class TestMode {
 
     private final JdbcClient jdbc;
     private final ZaloSafetyProperties props;
+    private final ZaloAccountProperties accounts;
     private final AtomicLong blocked = new AtomicLong();
 
-    public TestMode(JdbcClient jdbc, ZaloSafetyProperties props) {
+    public TestMode(JdbcClient jdbc, ZaloSafetyProperties props, ZaloAccountProperties accounts) {
         this.jdbc = jdbc;
         this.props = props;
+        this.accounts = accounts;
     }
 
     /** Chạy thật: không hạn chế. Chỉ bật bằng biến môi trường trên máy chủ. */
     public boolean live() {
+        return deploymentLive() && accounts.live(ZaloAccountContext.current());
+    }
+
+    /** Cờ của cả ứng dụng, dùng cho thao tác chuẩn bị dữ liệu thử có ảnh hưởng mọi tài khoản. */
+    public boolean deploymentLive() {
         return props.live();
     }
 
     /** Chế độ thử: chỉ được liên hệ số trong danh sách thử. */
     public boolean testOnly() {
-        return !props.live();
+        return !live();
     }
 
     // ---------- bộ lọc ----------
@@ -117,9 +126,10 @@ public class TestMode {
         }
         return jdbc.sql("""
                         SELECT EXISTS (SELECT 1 FROM invitation i JOIN customer c ON c.id = i.customer_id
-                                       WHERE (i.zalo_uid = :u OR i.zalo_target_uid = :u) AND c.phone IN %s)"""
+                                       WHERE (i.zalo_uid = :u OR i.zalo_target_uid = :u)
+                                         AND i.account_id = :acct AND c.phone IN %s)"""
                         .formatted(ALLOWED))
-                .param("u", uid).query(Boolean.class).single();
+                .param("u", uid).param("acct", ZaloAccountContext.current()).query(Boolean.class).single();
     }
 
     /** Mã nhóm Zalo này là nhóm Adh đã ghi (do chính hệ thống tạo hoặc người gán); ở chế độ chạy thật thì luôn đúng. */
@@ -130,7 +140,8 @@ public class TestMode {
         if (zaloGroupId == null || zaloGroupId.isBlank()) {
             return false;
         }
-        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM zalo_group WHERE zalo_group_id = :g)").param("g", zaloGroupId)
+        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM zalo_group WHERE zalo_group_id = :g AND account_id = :acct)")
+                .param("g", zaloGroupId).param("acct", ZaloAccountContext.current())
                 .query(Boolean.class).single();
     }
 

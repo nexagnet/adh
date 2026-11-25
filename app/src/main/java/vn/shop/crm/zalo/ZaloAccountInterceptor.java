@@ -3,18 +3,21 @@ package vn.shop.crm.zalo;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.servlet.HandlerMapping;
+import org.springframework.web.servlet.ModelAndView;
+import vn.shop.crm.common.ImportException;
 
 /**
- * Trang Zalo làm việc với MỘT tài khoản phụ tại một lúc (D23). Tài khoản chọn bằng {@code ?account=N}, nhớ trong phiên đăng nhập của người dùng
- * quản trị; mọi nút bấm trên trang (hạn mức, đăng nhập QR, dừng, mở lại...) sau đó áp dụng cho tài khoản đang chọn mà không phải sửa từng biểu mẫu.
- * Mã lạ hoặc tài khoản chưa khai báo cầu nối thì dùng tài khoản 1. Chỉ gắn trong luồng của yêu cầu và luôn gỡ khi xong.
+ * Dùng mã tài khoản trong từng yêu cầu để các tab quản trị có thể làm việc với các cầu nối khác nhau.
+ * Phiên đăng nhập chỉ ghi nhớ lựa chọn khi mở trang tổng quan Zalo.
  */
 @Component
 public class ZaloAccountInterceptor implements HandlerInterceptor {
 
-    static final String SESSION_KEY = "zaloAccount";
+    private static final String SESSION_KEY = "zaloAccount";
 
     private final ZaloAccountRegistry registry;
 
@@ -24,24 +27,56 @@ public class ZaloAccountInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        long account = ZaloAccountContext.DEFAULT_ACCOUNT;
-        String param = request.getParameter("account");
-        HttpSession session = param != null ? request.getSession() : request.getSession(false);
-        if (param != null) {
-            try {
-                long want = Long.parseLong(param.strip());
-                if (registry.selectable(want)) {
-                    session.setAttribute(SESSION_KEY, want);
-                }
-            } catch (NumberFormatException ignored) {
-                // mã lạ: giữ lựa chọn cũ
-            }
+        String path = String.valueOf(request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE));
+        boolean dashboard = "/zalo".equals(path) && HttpMethod.GET.matches(request.getMethod());
+        String[] parameters = request.getParameterValues("account");
+        Long selected = parseAccount(parameters);
+        if (dashboard) {
+            selected = dashboardAccount(request, selected);
+        } else if ((parameters != null && selected == null)
+                || (selected == null && registry.multipleConfigured() && requiresAccount(request, path))) {
+            throw new ImportException("Hãy mở lại trang Zalo, chọn đúng tài khoản rồi thực hiện lại thao tác.");
         }
-        if (session != null && session.getAttribute(SESSION_KEY) instanceof Long saved && registry.selectable(saved)) {
-            account = saved;
-        }
-        ZaloAccountContext.bind(account);
+        ZaloAccountContext.bind(selected == null ? ZaloAccountContext.DEFAULT_ACCOUNT : selected);
         return true;
+    }
+
+    private Long parseAccount(String[] parameters) {
+        if (parameters == null || parameters.length != 1) {
+            return null;
+        }
+        try {
+            long id = Long.parseLong(parameters[0].strip());
+            return registry.selectable(id) ? id : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private Long dashboardAccount(HttpServletRequest request, Long selected) {
+        if (selected != null) {
+            request.getSession().setAttribute(SESSION_KEY, selected);
+            return selected;
+        }
+        HttpSession session = request.getSession(false);
+        return session != null && session.getAttribute(SESSION_KEY) instanceof Long saved && registry.selectable(saved)
+                ? saved : null;
+    }
+
+    private static boolean requiresAccount(HttpServletRequest request, String path) {
+        // Đọc trạng thái QR có thể xác nhận hoàn tất đăng nhập. Các đường còn lại bên dưới dùng cấu hình chung hoặc đã có mã trong URL.
+        return "/zalo/login".equals(path) || (HttpMethod.POST.matches(request.getMethod())
+                && !path.startsWith("/zalo/reply/") && !path.equals("/zalo/accounts/{id}/enabled")
+                && !path.equals("/zalo/comeback-mode") && !path.equals("/zalo/messages/total-limit")
+                && !path.equals("/zalo/test-numbers") && !path.equals("/zalo/test-numbers/remove"));
+    }
+
+    @Override
+    public void postHandle(HttpServletRequest request, HttpServletResponse response, Object handler, ModelAndView result) {
+        if (result != null && result.getViewName() != null
+                && (!result.getViewName().startsWith("redirect:") || registry.multipleConfigured())) {
+            result.getModelMap().putIfAbsent("account", ZaloAccountContext.current());
+        }
     }
 
     @Override

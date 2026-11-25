@@ -21,9 +21,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * D23, PR 4: khách MỚI thuộc về tài khoản còn nhiều chỗ trống nhất (bằng nhau thì mã nhỏ trước), gắn CỐ ĐỊNH lúc Tin 1; mọi việc sau đó
- * (lời mời kết bạn...) chỉ do đúng tài khoản đó làm. Hai tài khoản chạy bằng cùng một bộ nối giả; điều khóa ở đây là việc phân chia.
+ * (lời mời kết bạn...) chỉ do đúng tài khoản đó làm. Dùng hai bộ nối giả độc lập qua bộ định tuyến thật.
  */
-@Import(ZaloTestConfig.class)
+@Import(ZaloTwoBridgeSchedulerTest.Bridges.class)
 @TestPropertySource(properties = {
         "app.zalo.auto.enabled=true",
         "app.zalo.auto.bridge-key=test",
@@ -32,7 +32,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         "app.zalo.multi.enabled=true",
         "app.zalo.accounts[0].id=2",
         "app.zalo.accounts[0].bridge-url=http://127.0.0.1:1",
-        "app.zalo.accounts[0].bridge-key=k2"})
+        "app.zalo.accounts[0].bridge-key=k2",
+        "app.zalo.accounts[0].live=true"})
 class ZaloMultiAccountSendTest extends AbstractPostgresTest {
 
     private static final String HEADER =
@@ -45,7 +46,7 @@ class ZaloMultiAccountSendTest extends AbstractPostgresTest {
     @Autowired ZaloMessageService messages;
     @Autowired ZaloAutoSettings cfg;
     @Autowired AppSettings appSettings;
-    @Autowired FakeZaloGateway fake;
+    @Autowired ZaloTwoBridgeSchedulerTest.BridgePair bridges;
     @Autowired ZaloTestClock clock;
     @Autowired ZaloAccountRegistry registry;
 
@@ -64,9 +65,9 @@ class ZaloMultiAccountSendTest extends AbstractPostgresTest {
         contacts.approveAllCandidates();
         campaign = invites.createCampaign("Đợt 1", "Chào {ten}, {cua_hang} tư vấn.", 30, 20);
         clock.set(LocalDateTime.of(2026, 11, 22, 10, 0));
-        fake.reset();
+        bridges.reset();
         appSettings.set("campaigns.paused", "false", "test");
-        registry.ensureRows(); // BeforeEach của nền xóa dòng tài khoản thêm; bản chạy thật tạo lúc khởi động
+        registry.setEnabled(2, true);
         for (long acct : new long[]{1, 2}) {
             ZaloAccountContext.run(acct, () -> {
                 appSettings.set("zalo.msg.enabled", "false", "test");
@@ -104,7 +105,7 @@ class ZaloMultiAccountSendTest extends AbstractPostgresTest {
     void khachMoiChiaTheoChoTrongVaGanCoDinhLucTin1() {
         // bằng nhau (10 chỗ mỗi bên): tài khoản 2 chưa tới lượt, tài khoản 1 nhận khách đầu tiên
         assertThat(stepAs(2)).isEqualTo(Step.NOTHING);
-        assertThat(fake.messages).isEmpty();
+        assertThat(bridges.second().messages).isEmpty();
         assertThat(stepAs(1)).isEqualTo(Step.INVITE_SENT);
         long first = jdbc.sql("SELECT i.account_id FROM invitation i WHERE i.status = 'SENT'").query(Long.class).single();
         assertThat(first).isEqualTo(1L);
@@ -130,10 +131,12 @@ class ZaloMultiAccountSendTest extends AbstractPostgresTest {
         // lời mời kết bạn của khách này chỉ tài khoản 1 được gửi; tài khoản 2 không đụng tới (nó nhận khách mới thay vì kết bạn)
         Step other = stepAs(2);
         assertThat(other).isNotEqualTo(Step.FRIEND_SENT);
-        assertThat(fake.friendRequests).isEmpty();
+        assertThat(bridges.first().friendRequests).isEmpty();
+        assertThat(bridges.second().friendRequests).isEmpty();
         gap();
         assertThat(stepAs(1)).isEqualTo(Step.FRIEND_SENT);
-        assertThat(fake.friendRequests).hasSize(1);
+        assertThat(bridges.first().friendRequests).hasSize(1);
+        assertThat(bridges.second().friendRequests).isEmpty();
         assertThat(jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE kind = 'FRIEND' AND account_id = 1").query(Long.class).single()).isEqualTo(1L);
     }
 
@@ -146,6 +149,7 @@ class ZaloMultiAccountSendTest extends AbstractPostgresTest {
         gap();
         assertThat(stepAs(1)).isEqualTo(Step.BLOCKED);
         assertThat(stepAs(2)).isEqualTo(Step.BLOCKED);
-        assertThat(fake.messages).hasSize(2);
+        assertThat(bridges.first().messages).hasSize(1);
+        assertThat(bridges.second().messages).hasSize(1);
     }
 }

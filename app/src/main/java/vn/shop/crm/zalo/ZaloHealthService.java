@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,8 +79,8 @@ public class ZaloHealthService implements ZaloTickHook {
     private final ZaloLabels labels;
     private final Clock clock;
 
-    private Instant unreachableSince;
-    private Instant lastEval = Instant.EPOCH;
+    private final Map<Long, Instant> unreachableSince = new HashMap<>();
+    private final Map<Long, Instant> lastEval = new HashMap<>();
 
     public ZaloHealthService(JdbcClient jdbc, ZaloAutoSettings cfg, ZaloAutoService service,
                              ObjectProvider<ZaloHealthNotifier> notifier, ZaloLabels labels, Clock clock) {
@@ -94,11 +95,12 @@ public class ZaloHealthService implements ZaloTickHook {
     @Override
     public void tick() {
         Instant now = clock.instant();
+        long account = ZaloAccountContext.current();
         synchronized (this) {
-            if (Duration.between(lastEval, now).compareTo(EVAL_EVERY) < 0) {
+            if (Duration.between(lastEval.getOrDefault(account, Instant.EPOCH), now).compareTo(EVAL_EVERY) < 0) {
                 return;
             }
-            lastEval = now;
+            lastEval.put(account, now);
         }
         evaluate();
     }
@@ -108,9 +110,10 @@ public class ZaloHealthService implements ZaloTickHook {
     /** Các dấu hiệu hiện có. Rỗng khi bộ nối tắt (công tắc môi trường hoặc nấc OFF). Không gọi cầu nối, không ghi gì. */
     public synchronized List<Signal> signals() {
         Instant now = clock.instant();
+        long account = ZaloAccountContext.current();
         Map<String, Signal> out = new LinkedHashMap<>();
         if (!cfg.props().enabled() || cfg.chosenMode() == ZaloMode.OFF) {
-            unreachableSince = null;
+            unreachableSince.remove(account);
             return List.of();
         }
         boolean stoppedByPerson = false;
@@ -130,14 +133,12 @@ public class ZaloHealthService implements ZaloTickHook {
             out.putIfAbsent(K_ACCOUNT, new Signal(K_ACCOUNT, "CRITICAL", "ACCOUNT_MISMATCH"));
         }
         if (st != null && st.state() == ZaloGateway.State.UNREACHABLE) {
-            if (unreachableSince == null) {
-                unreachableSince = now;
-            }
-            if (Duration.between(unreachableSince, now).compareTo(BRIDGE_DOWN_AFTER) >= 0) {
+            Instant since = unreachableSince.computeIfAbsent(account, id -> now);
+            if (Duration.between(since, now).compareTo(BRIDGE_DOWN_AFTER) >= 0) {
                 out.put(K_BRIDGE_DOWN, new Signal(K_BRIDGE_DOWN, "WARN", null));
             }
         } else if (st != null) {
-            unreachableSince = null;
+            unreachableSince.remove(account);
         }
         failRate(now).ifPresent(s -> out.put(s.kind(), s));
         // chiến dịch bị hệ thống tự bỏ duyệt vì khách từ chối nhiều và chưa ai duyệt lại: cần người xem
@@ -155,10 +156,7 @@ public class ZaloHealthService implements ZaloTickHook {
         if (reason == null || reason.isBlank()) {
             return null;
         }
-        String r = reason.startsWith("BRIDGE_") ? reason.substring("BRIDGE_".length()) : reason;
-        if (r.startsWith("TRA_SO_ME_")) { // lỗi lạ khi tra số của mẹ: cùng ý nghĩa với kết quả gốc (RESTRICTED, SYSTEM_ERROR...)
-            r = r.substring("TRA_SO_ME_".length());
-        }
+        String r = ZaloAutoSettings.normalizedTrip(reason);
         int colon = r.indexOf(':');
         String head = colon > 0 ? r.substring(0, colon) : r;
         if (BENIGN.contains(head)) {
@@ -274,7 +272,7 @@ public class ZaloHealthService implements ZaloTickHook {
 
     /** Cảnh báo đang mở, nặng nhất trước. Chỉ đọc bảng nên mở trang không tốn thêm lệnh gọi Zalo. */
     public List<Alert> open() {
-        return query("WHERE resolved_at IS NULL", 20);
+        return query(" AND resolved_at IS NULL", 20);
     }
 
     /** Lịch sử gần đây (đã đóng và đang mở). */
@@ -289,7 +287,7 @@ public class ZaloHealthService implements ZaloTickHook {
 
     private List<Alert> query(String where, int limit) {
         var zone = clock.getZone();
-        return jdbc.sql("SELECT * FROM zalo_health_alert " + where
+        return jdbc.sql("SELECT * FROM zalo_health_alert WHERE " + ZaloAccountContext.sql() + where
                         + " ORDER BY (resolved_at IS NULL) DESC, (severity = 'CRITICAL') DESC, opened_at DESC LIMIT :n")
                 .param("n", limit)
                 .query((rs, i) -> new Alert(rs.getLong("id"), rs.getString("kind"), rs.getString("severity"),

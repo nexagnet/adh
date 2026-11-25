@@ -68,6 +68,7 @@ public class FakeZaloGateway implements ZaloLink {
         deputyResults.clear();
         createResults.clear();
         defaultCreate = null;
+        statusAfterCreate = null;
         finds.clear();
         findResults.clear();
         defaultFind = null;
@@ -103,6 +104,7 @@ public class FakeZaloGateway implements ZaloLink {
     private final Deque<Created> createResults = new ArrayDeque<>();
     /** Mặc định: tạo OK, mã nhóm 5555, có link, mọi người vào được. */
     public Created defaultCreate;
+    public Status statusAfterCreate;
     /** Bật (test mô phỏng nhiều nhóm): mỗi nhóm tạo mặc định nhận một mã khác nhau 5556, 5557... */
     public boolean uniqueGroupIds;
 
@@ -114,6 +116,9 @@ public class FakeZaloGateway implements ZaloLink {
     public Created createGroup(String name, List<String> memberUids, String deputyUid, String welcome) {
         creates.add(new Create(name, List.copyOf(memberUids), deputyUid));
         welcomes.add(welcome);
+        if (statusAfterCreate != null) {
+            status = statusAfterCreate;
+        }
         if (!createResults.isEmpty()) {
             return createResults.poll();
         }

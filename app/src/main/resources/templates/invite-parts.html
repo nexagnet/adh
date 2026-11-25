@@ -43,7 +43,8 @@
         <input type="hidden" name="back" th:if="${back != null}" th:value="${back}">
         <select name="groupId" aria-label="Nhóm đã thêm khách vào" th:if="${joinGroups != null and !joinGroups.isEmpty()}">
             <option value="">Nhóm gợi ý</option>
-            <option th:each="g : ${joinGroups}" th:value="${g.id}" th:text="${g.name} + ' (' + ${g.scopeLabel()} + ')'">Nhóm miền Bắc</option>
+            <option th:each="g : ${joinGroups}" th:if="${g.accountId == r.accountId}" th:value="${g.id}"
+                    th:text="${g.name} + ' (' + ${g.scopeLabel()} + ')'">Nhóm miền Bắc</option>
         </select>
         <button type="submit" class="btn" title="Dùng khi bạn vừa thêm khách vào nhóm ngay trong lúc làm">Đã kết bạn và đã vào nhóm</button>
     </form>
@@ -52,7 +53,8 @@
         <input type="hidden" name="back" th:if="${back != null}" th:value="${back}">
         <select name="groupId" aria-label="Nhóm đã thêm khách vào" th:if="${joinGroups != null and !joinGroups.isEmpty()}">
             <option value="">Nhóm gợi ý</option>
-            <option th:each="g : ${joinGroups}" th:value="${g.id}" th:text="${g.name} + ' (' + ${g.scopeLabel()} + ')'">Nhóm miền Bắc</option>
+            <option th:each="g : ${joinGroups}" th:if="${g.accountId == r.accountId}" th:value="${g.id}"
+                    th:text="${g.name} + ' (' + ${g.scopeLabel()} + ')'">Nhóm miền Bắc</option>
         </select>
         <button type="submit" class="btn">Đã vào nhóm</button>
     </form>

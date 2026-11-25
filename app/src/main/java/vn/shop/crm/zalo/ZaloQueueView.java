@@ -135,11 +135,12 @@ public class ZaloQueueView {
                         FROM invitation i
                         JOIN customer c ON c.id = i.customer_id
                         JOIN invitation_campaign k ON k.id = i.campaign_id
-                        WHERE i.status = 'SENT' AND i.sent_channel = :ch AND i.zalo_target_uid IS NOT NULL
+                        WHERE i.account_id = :acct AND i.status = 'SENT' AND i.sent_channel = :ch AND i.zalo_target_uid IS NOT NULL
                           AND i.friend_request_at IS NULL AND i.friended_at IS NULL AND i.joined_at IS NULL AND i.inbound_at IS NULL
                           AND i.expires_at > :now AND k.auto_send_approved_at IS NOT NULL
                         """ + testMode.onlyTestSql("c.phone") + " ORDER BY i.sent_at, i.id LIMIT :n")
-                .param("ch", ZaloInviteSender.CHANNEL).param("now", OffsetDateTime.now(clock)).param("n", SCAN)
+                .param("acct", ZaloAccountContext.current()).param("ch", ZaloInviteSender.CHANNEL)
+                .param("now", OffsetDateTime.now(clock)).param("n", SCAN)
                 .query((rs, n) -> new Row(rs.getLong("id"), rs.getLong("campaign_id"), rs.getLong("customer_id"), rs.getString("name"),
                         rs.getString("phone"), true, "Gửi lời mời kết bạn"))
                 .list();
@@ -151,11 +152,11 @@ public class ZaloQueueView {
                         SELECT i.id, i.campaign_id, i.customer_id, c.name, c.phone
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
                         JOIN invitation_campaign k ON k.id = i.campaign_id
-                        WHERE i.tin1_blocked_at IS NOT NULL AND i.tin1_resent_at IS NULL AND i.friended_at IS NOT NULL
+                        WHERE i.account_id = :acct AND i.tin1_blocked_at IS NOT NULL AND i.tin1_resent_at IS NULL AND i.friended_at IS NOT NULL
                           AND i.status IN ('SENT', 'CLICKED', 'FRIENDED') AND i.zalo_target_uid IS NOT NULL
                           AND i.inbound_at IS NULL AND i.joined_at IS NULL AND i.expires_at > :now AND k.auto_send_approved_at IS NOT NULL
                         """ + testMode.onlyTestSql("c.phone") + " ORDER BY i.friended_at, i.id LIMIT :n")
-                .param("now", OffsetDateTime.now(clock)).param("n", SCAN)
+                .param("acct", ZaloAccountContext.current()).param("now", OffsetDateTime.now(clock)).param("n", SCAN)
                 .query((rs, n) -> new Row(rs.getLong("id"), rs.getLong("campaign_id"), rs.getLong("customer_id"), rs.getString("name"),
                         rs.getString("phone"), false, "Gửi lại Tin 1 (khách vừa đồng ý kết bạn)"))
                 .list();

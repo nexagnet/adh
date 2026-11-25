@@ -14,6 +14,7 @@ import vn.shop.crm.inbox.WarrantyAssistant.Triage;
 import vn.shop.crm.inbox.WarrantyAssistant.Urgency;
 import vn.shop.crm.shipping.CanonicalStatus;
 import vn.shop.crm.shipping.Carrier;
+import vn.shop.crm.zalo.ZaloAccountContext;
 
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -126,8 +127,10 @@ public class WarrantyService {
         String summary = t.outcome() == WarrantyAssistant.Outcome.OK && !t.summary().isBlank() ? PiiMasker.mask(t.summary()) : null;
         try {
             jdbc.sql("""
-                            INSERT INTO warranty_case (customer_id, invitation_id, zalo_uid, state, category, urgency, needs_photo, summary, draft_text, inbound_text, inbound_at)
-                            VALUES (:c, :i, :u, 'OPEN', :cat, :urg, :ph, :sum, :dr, :in, :at)""")
+                            INSERT INTO warranty_case (account_id, customer_id, invitation_id, zalo_uid, state, category, urgency,
+                                                       needs_photo, summary, draft_text, inbound_text, inbound_at)
+                            VALUES (:acct, :c, :i, :u, 'OPEN', :cat, :urg, :ph, :sum, :dr, :in, :at)""")
+                    .param("acct", ZaloAccountContext.current())
                     .param("c", s.customerId()).param("i", s.invitationId(), java.sql.Types.BIGINT).param("u", s.uid())
                     .param("cat", t.category().name()).param("urg", t.urgency().name()).param("ph", t.needsPhoto())
                     .param("sum", summary, java.sql.Types.VARCHAR).param("dr", draft, java.sql.Types.VARCHAR).param("in", tail(text))
@@ -173,8 +176,9 @@ public class WarrantyService {
     }
 
     private Optional<Open> open(String uid) {
-        return jdbc.sql("SELECT id, inbound_text FROM warranty_case WHERE zalo_uid = :u AND state = 'OPEN'")
-                .param("u", uid).query((rs, n) -> new Open(rs.getLong("id"), rs.getString("inbound_text"))).optional();
+        return jdbc.sql("SELECT id, inbound_text FROM warranty_case WHERE account_id = :acct AND zalo_uid = :u AND state = 'OPEN'")
+                .param("acct", ZaloAccountContext.current()).param("u", uid)
+                .query((rs, n) -> new Open(rs.getLong("id"), rs.getString("inbound_text"))).optional();
     }
 
     private static String join(String old, String now) {

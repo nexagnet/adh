@@ -1,6 +1,7 @@
 package vn.shop.crm.zalo;
 
 import org.springframework.stereotype.Component;
+import vn.shop.crm.safety.TestMode;
 import vn.shop.crm.zalo.ZaloMessenger.Kind;
 
 /**
@@ -15,35 +16,60 @@ public class ZaloAccountBalancer {
 
     private final ZaloAccountRegistry accounts;
     private final ZaloMessageService messages;
+    private final ZaloAutoService service;
+    private final TestMode testMode;
 
-    public ZaloAccountBalancer(ZaloAccountRegistry accounts, ZaloMessageService messages) {
+    public ZaloAccountBalancer(ZaloAccountRegistry accounts, ZaloMessageService messages, ZaloAutoService service, TestMode testMode) {
         this.accounts = accounts;
         this.messages = messages;
+        this.service = service;
+        this.testMode = testMode;
     }
 
-    /** Tài khoản đang làm việc có được nhận một khách mới ở nhịp này không. Chỉ có một tài khoản thì luôn có. */
-    public boolean mayTakeNewCustomer() {
+    record Allocation(boolean testNumbers, boolean ordinaryNumbers) {
+    }
+
+    private record Capacity(int free, boolean live) {
+    }
+
+    /** Ưu tiên cầu nối chạy thử cho số thử. Số thường chỉ xếp cho cầu nối chạy thật. */
+    Allocation newCustomerAllocation() {
         var active = accounts.active();
         long me = ZaloAccountContext.current();
         if (active.size() <= 1) {
-            return true;
+            boolean currentActive = active.contains(me);
+            return new Allocation(currentActive, currentActive && testMode.live());
         }
-        long best = -1;
-        int bestFree = Integer.MIN_VALUE;
+        long bestPilot = -1;
+        long bestOrdinary = -1;
+        int mostFreePilot = Integer.MIN_VALUE;
+        int mostFreeOrdinary = Integer.MIN_VALUE;
         for (long id : active) {
-            int free = ZaloAccountContext.call(id, this::freeIfAble);
-            if (free > bestFree) { // lặp theo mã tăng dần nên bằng nhau thì giữ tài khoản mã nhỏ
-                bestFree = free;
-                best = id;
+            Capacity capacity = ZaloAccountContext.call(id, () -> new Capacity(freeIfAble(), testMode.live()));
+            if (!capacity.live() && capacity.free() > mostFreePilot) { // bằng nhau thì giữ tài khoản mã nhỏ
+                mostFreePilot = capacity.free();
+                bestPilot = id;
+            }
+            if (capacity.live() && capacity.free() > mostFreeOrdinary) {
+                mostFreeOrdinary = capacity.free();
+                bestOrdinary = id;
             }
         }
-        return best == me;
+        long bestTest = bestPilot == -1 ? bestOrdinary : bestPilot;
+        return new Allocation(bestTest == me, bestOrdinary == me);
     }
 
     /** Chỗ trống hôm nay của tài khoản đang làm việc nếu được gửi Tin 1 ngay lúc này, ngược lại rất âm (không được chọn). */
     private int freeIfAble() {
         if (messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.INVITE, null, null).isPresent()) {
-            return Integer.MIN_VALUE / 2;
+            return Integer.MIN_VALUE;
+        }
+        ZaloGateway.Status status = service.lastBridgeStatus();
+        if (status == null) {
+            status = service.bridgeStatus();
+        }
+        if (!status.listening() || !Boolean.TRUE.equals(status.accountOk())) {
+            return Integer.MIN_VALUE;
         }
         return messages.limits().daily() - messages.usedToday(null);
     }

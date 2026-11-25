@@ -13,6 +13,9 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * Nấc, hạn mức, cầu dao và nhật ký của bộ nối (D16, ADR-0002 mục 3.3–3.4). Lưu ở bảng cài đặt; mọi thay đổi ghi người làm.
@@ -28,6 +31,9 @@ public class ZaloAutoSettings {
     static final String CURSOR = "zalo.auto.cursor";
     static final String TRIPPED_AT = "zalo.auto.tripped_at";
     static final String TRIPPED_REASON = "zalo.auto.tripped_reason";
+    private static final String SHARED_HALT_PREFIX = "zalo.halt.account.";
+    private static final Set<String> LOCAL_BRIDGE_CODES = Set.of("BUSY", "NOT_CONNECTED", "NOT_ACTIVE", "WINDOW",
+            "LIMIT", "MSG_LIMIT", "FRIEND_LIMIT", "UNDO_LIMIT", "ACCEPT_LIMIT", "REACT_LIMIT");
 
     public static final String A_LISTEN = "NGHE";
     public static final String A_MATCH = "GHEP";
@@ -154,6 +160,10 @@ public class ZaloAutoSettings {
     // ---------- cầu dao ----------
 
     public boolean tripped() {
+        return locallyTripped() || sharedHalt().isPresent();
+    }
+
+    private boolean locallyTripped() {
         return settings.get(TRIPPED_AT).filter(v -> !v.isBlank()).isPresent();
     }
 
@@ -164,23 +174,24 @@ public class ZaloAutoSettings {
     }
 
     public String trippedReason() {
-        return settings.get(TRIPPED_REASON).orElse("");
+        return sharedHalt().map(SharedHalt::displayReason).orElseGet(() -> settings.get(TRIPPED_REASON).orElse(""));
     }
 
     public Instant trippedAt() {
-        return settings.get(TRIPPED_AT).filter(v -> !v.isBlank()).map(Instant::parse).orElse(null);
+        return sharedHalt().map(SharedHalt::at)
+                .orElseGet(() -> settings.get(TRIPPED_AT).filter(v -> !v.isBlank()).map(Instant::parse).orElse(null));
     }
 
     /** Dừng ngay và giữ nguyên cho đến khi người bấm mở lại. Không tự thử lại. */
-    public void trip(String reason, String by) {
-        tripOne(reason, by);
+    public synchronized void trip(String reason, String by) {
         if (haltsAllAccounts(reason)) {
-            haltOthers(reason);
+            recordSharedHalt(reason, by);
         }
+        tripOne(reason, by);
     }
 
     private void tripOne(String reason, String by) {
-        if (tripped()) {
+        if (locallyTripped()) {
             return;
         }
         settings.set(TRIPPED_REASON, reason, by);
@@ -193,21 +204,89 @@ public class ZaloAutoSettings {
      * nên một cảnh báo là cảnh báo chung). Người tự bấm Dừng/Đăng xuất, mất phiên, đăng nhập nhầm, hay lỗi riêng người/nhóm thì chỉ dừng tài khoản đó.
      */
     static boolean haltsAllAccounts(String reason) {
-        return reason != null && (reason.startsWith("RESTRICTED") || reason.startsWith("SYSTEM_ERROR") || reason.contains("INTERRUPTED"));
+        if (reason == null) {
+            return false;
+        }
+        String normalized = normalizedTrip(reason);
+        String[] parts = normalized.split(":", 2);
+        return switch (parts[0]) {
+            case "RESTRICTED", "SYSTEM_ERROR" -> parts.length == 1 || !LOCAL_BRIDGE_CODES.contains(parts[1]);
+            case "INTERRUPTED", "TIN_INTERRUPTED", "TAO_NHOM_INTERRUPTED", "LEDGER_CORRUPT", "CRASH_LOOP" -> true;
+            default -> false;
+        };
     }
 
-    private void haltOthers(String reason) {
-        long me = ZaloAccountContext.current();
-        for (long other : jdbc.sql("SELECT id FROM zalo_account WHERE enabled AND id <> :me ORDER BY id").param("me", me)
-                .query(Long.class).list()) {
-            ZaloAccountContext.run(other, () -> tripOne("TK_KHAC_DUNG:" + reason + ":" + me, "system"));
+    static String normalizedTrip(String reason) {
+        if (reason.startsWith("BRIDGE_")) {
+            return reason.substring("BRIDGE_".length());
+        }
+        if (reason.startsWith("TRA_SO_ME_")) {
+            return reason.substring("TRA_SO_ME_".length());
+        }
+        return reason;
+    }
+
+    private record SharedHalt(long account, String token, String reason, Instant at) {
+        String displayReason() {
+            return account == ZaloAccountContext.current() ? reason : "TK_KHAC_DUNG:" + reason + ":" + account;
         }
     }
 
+    private Optional<SharedHalt> sharedHalt() {
+        return jdbc.sql("""
+                        SELECT key, value, updated_at FROM app_setting
+                        WHERE key LIKE :prefix
+                        ORDER BY (key = :own) DESC, updated_at, key LIMIT 1""")
+                .param("prefix", SHARED_HALT_PREFIX + "%").param("own", sharedHaltKey())
+                .query((rs, n) -> {
+                    String[] value = rs.getString("value").split("\\|", 2);
+                    return new SharedHalt(Long.parseLong(rs.getString("key").substring(SHARED_HALT_PREFIX.length())),
+                            value[0], value[1], rs.getObject("updated_at", OffsetDateTime.class).toInstant());
+                }).optional();
+    }
+
+    private void recordSharedHalt(String reason, String by) {
+        jdbc.sql("""
+                        INSERT INTO app_setting (key, value, updated_at, updated_by) VALUES (:k, :v, :at, :by)
+                        ON CONFLICT (key) DO NOTHING""")
+                .param("k", sharedHaltKey()).param("v", UUID.randomUUID() + "|" + reason)
+                .param("at", OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)).param("by", by).update();
+    }
+
+    private String sharedHaltKey() {
+        return SHARED_HALT_PREFIX + ZaloAccountContext.current();
+    }
+
+    public Long sharedHaltSource() {
+        return sharedHalt().map(SharedHalt::account).orElse(null);
+    }
+
+    String haltToReview() {
+        SharedHalt halt = sharedHalt().orElse(null);
+        if (halt == null) {
+            return null;
+        }
+        if (halt.account() != ZaloAccountContext.current()) {
+            throw new ImportException("Zalo đang dừng chung. Hãy xem nhật ký và mở lại ở tài khoản " + halt.account() + " trước.");
+        }
+        return halt.token() + "|" + halt.reason();
+    }
+
     public void reopen(String by) {
+        reopen(by, haltToReview());
+    }
+
+    synchronized void reopen(String by, String reviewedHalt) {
+        if (!java.util.Objects.equals(reviewedHalt, haltToReview())) {
+            throw new ImportException("Cảnh báo Zalo đã thay đổi. Hãy xem lại trước khi mở.");
+        }
         settings.set(TRIPPED_AT, "", by);
         settings.set(TRIPPED_REASON, "", by);
         log(A_REOPEN, null, null, "OK", null, by);
+        if (reviewedHalt != null) {
+            jdbc.sql("DELETE FROM app_setting WHERE key = :key AND value = :value")
+                    .param("key", sharedHaltKey()).param("value", reviewedHalt).update();
+        }
     }
 
     // ---------- con trỏ sự kiện ----------

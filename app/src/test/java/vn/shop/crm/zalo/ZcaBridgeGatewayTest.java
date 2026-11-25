@@ -85,6 +85,39 @@ class ZcaBridgeGatewayTest {
     }
 
     @Test
+    void accountTagIsRequiredBeforeReadingOrActingOnAnAdditionalBridge() {
+        var pin = new AtomicReference<String>();
+        var guarded = new ZcaBridgeGateway("http://127.0.0.1:" + server.getAddress().getPort(), "khoa-chung", pin::get, true);
+        reply.set("{\"state\":\"LISTENING\",\"accountOk\":true,\"accountTag\":\"000000000002\"}");
+        assertThat(guarded.status().accountOk()).isTrue();
+        assertThat(guarded.logout()).isFalse();
+        assertThat(requests).containsExactly("GET /status");
+
+        pin.set("000000000001");
+        assertThat(guarded.status().accountOk()).isFalse();
+        assertThat(guarded.logout()).isFalse();
+        assertThat(requests).containsOnly("GET /status");
+
+        pin.set("000000000002");
+        guarded.logout();
+        assertThat(requests).endsWith("GET /status", "POST /session/logout");
+    }
+
+    @Test
+    void enrollmentRejectsThePrimaryBridgeBeforeStartingQr() {
+        String primary = "000000000001";
+        var guarded = new ZcaBridgeGateway("http://127.0.0.1:" + server.getAddress().getPort(), "khoa-chung",
+                () -> null, true, () -> primary);
+        reply.set("{\"state\":\"LISTENING\",\"accountTag\":\"000000000001\"}");
+        guarded.startLogin();
+        assertThat(requests).containsExactly("GET /status");
+
+        reply.set("{\"state\":\"LOGIN_REQUIRED\",\"accountTag\":\"000000000002\"}");
+        guarded.startLogin();
+        assertThat(requests).endsWith("GET /status", "POST /session/login");
+    }
+
+    @Test
     void trangThaiLaHoacKhongNoiDuocThiLaKhongGoiDuoc() {
         reply.set("{\"state\":\"SOMETHING_NEW\"}");
         assertThat(gateway.status().state()).isEqualTo(ZaloGateway.State.UNREACHABLE);

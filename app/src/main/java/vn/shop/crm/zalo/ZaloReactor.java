@@ -11,14 +11,15 @@ public interface ZaloReactor {
      * @param ok     đã thả tim
      * @param code   mã lỗi ngắn khi không thả được
      * @param notSent chắc chắn chưa chạm Zalo
+     * @param tripReason lý do cần kiểm tra cầu dao, hoặc null nếu chỉ là lỗi riêng của tin
      */
-    record Reacted(boolean ok, String code, boolean notSent) {
+    record Reacted(boolean ok, String code, boolean notSent, String tripReason) {
         public static Reacted done() {
-            return new Reacted(true, null, false);
+            return new Reacted(true, null, false, null);
         }
 
         public static Reacted failed(String code, boolean notSent) {
-            return new Reacted(false, code, notSent);
+            return new Reacted(false, code, notSent, null);
         }
     }
 

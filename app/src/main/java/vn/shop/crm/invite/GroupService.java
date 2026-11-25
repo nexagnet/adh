@@ -31,7 +31,7 @@ public class GroupService {
 
     public record Group(long id, String name, String inviteLink, int target, int actual, OffsetDateTime countedAt,
                         GroupStatus status, String note, long pendingClicks, double score,
-                        vn.shop.crm.geo.GeoArea scope, String zaloGroupId, long reserved) {
+                        vn.shop.crm.geo.GeoArea scope, String zaloGroupId, long reserved, long accountId) {
         /** Có mã nhóm trong Zalo để bộ nối (D16) thêm người; không có thì bộ nối không bao giờ thêm vào nhóm này. */
         public boolean hasZaloId() {
             return zaloGroupId != null && !zaloGroupId.isBlank();
@@ -116,8 +116,13 @@ public class GroupService {
         return jdbc.sql(SELECT + " WHERE g.id = :id").param("id", id).query((rs, i) -> map(rs)).optional();
     }
 
+    public Optional<Group> findOfAccount(long id, long accountId) {
+        return jdbc.sql(SELECT + " WHERE g.id = :id AND g.account_id = :acct")
+                .param("id", id).param("acct", accountId).query((rs, i) -> map(rs)).optional();
+    }
+
     private static final String SELECT = """
-            SELECT g.id, g.name, g.invite_link, g.target_customers, g.actual_customers, g.counted_at, g.status, g.note, g.geo_scope, g.zalo_group_id,
+            SELECT g.id, g.name, g.invite_link, g.target_customers, g.actual_customers, g.counted_at, g.status, g.note, g.geo_scope, g.zalo_group_id, g.account_id,
                    (SELECT count(*) FROM invitation i
                      WHERE i.group_id = g.id AND i.first_clicked_at IS NOT NULL
                        AND (g.counted_at IS NULL OR i.first_clicked_at > g.counted_at))
@@ -136,7 +141,7 @@ public class GroupService {
                 rs.getInt("target_customers"), actual, rs.getObject("counted_at", OffsetDateTime.class),
                 GroupStatus.valueOf(rs.getString("status")), rs.getString("note"), pending,
                 actual + pending * acceptRate + reserved, vn.shop.crm.geo.GeoArea.parse(rs.getString("geo_scope")).orElse(null),
-                rs.getString("zalo_group_id"), reserved);
+                rs.getString("zalo_group_id"), reserved, rs.getLong("account_id"));
     }
 
     @Transactional
@@ -186,12 +191,18 @@ public class GroupService {
     /** Mã nhóm trong Zalo (chuỗi số) cho bộ nối D16; để trống = gỡ mã, bộ nối không thêm vào nhóm này nữa. */
     @Transactional
     public void setZaloGroupId(long id, String raw) {
+        Group group = find(id).orElseThrow(() -> new ImportException("Không tìm thấy nhóm."));
+        setZaloGroupId(id, raw, group.accountId());
+    }
+
+    @Transactional
+    public void setZaloGroupId(long id, String raw, long accountId) {
         String v = raw == null ? "" : raw.strip();
         if (!v.isEmpty() && !v.matches("\\d{1,32}")) {
             throw new ImportException("Mã nhóm Zalo chỉ gồm chữ số (không phải link nhóm).");
         }
-        int n = jdbc.sql("UPDATE zalo_group SET zalo_group_id = :z WHERE id = :id")
-                .param("z", v.isEmpty() ? null : v, java.sql.Types.VARCHAR).param("id", id).update();
+        int n = jdbc.sql("UPDATE zalo_group SET zalo_group_id = :z WHERE id = :id AND account_id = :acct")
+                .param("z", v.isEmpty() ? null : v, java.sql.Types.VARCHAR).param("id", id).param("acct", accountId).update();
         if (n == 0) {
             throw new ImportException("Không tìm thấy nhóm.");
         }
@@ -235,6 +246,10 @@ public class GroupService {
      */
     public Optional<Group> pickGroup(Province province) {
         return pickGroup(list(), province);
+    }
+
+    public Optional<Group> pickGroupOfAccount(Province province, long accountId) {
+        return pickGroup(listOfAccount(accountId), province);
     }
 
     /**
@@ -330,15 +345,17 @@ public class GroupService {
 
     /** Khách đã kết bạn (chưa vào nhóm, chưa được cấp hay giữ nhóm nào) mà hiện không có nhóm hợp khu vực, gộp theo tỉnh. */
     Map<String, Waiting> friendedWaiting() {
-        List<Group> all = list();
+        var groupsByAccount = list().stream().collect(java.util.stream.Collectors.groupingBy(Group::accountId));
+        record WaitingCustomer(String province, long accountId) {
+        }
         var out = new java.util.LinkedHashMap<String, Waiting>();
         jdbc.sql("""
-                        SELECT c.province FROM invitation i JOIN customer c ON c.id = i.customer_id
+                        SELECT c.province, i.account_id FROM invitation i JOIN customer c ON c.id = i.customer_id
                         WHERE i.status = 'FRIENDED' AND i.group_id IS NULL
                           AND (i.reserved_group_id IS NULL OR i.reserved_until <= now())""")
-                .query((rs, n) -> rs.getString("province")).list().forEach(code -> {
-                    var province = vn.shop.crm.geo.VnGeo.byCode(code).orElse(null);
-                    if (pickGroup(all, province).isEmpty()) {
+                .query((rs, n) -> new WaitingCustomer(rs.getString("province"), rs.getLong("account_id"))).list().forEach(customer -> {
+                    var province = vn.shop.crm.geo.VnGeo.byCode(customer.province()).orElse(null);
+                    if (pickGroup(groupsByAccount.getOrDefault(customer.accountId(), List.of()), province).isEmpty()) {
                         String name = province == null ? "Chưa rõ khu vực" : province.name();
                         String region = province == null ? "" : province.region().label();
                         out.merge(name, new Waiting(name, region, 1),
