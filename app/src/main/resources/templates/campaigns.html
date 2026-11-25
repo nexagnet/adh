@@ -146,10 +146,13 @@
         </div>
 
         <div class="panel strong stack">
-            <h2>Bước 3. Làm gì với lô này?</h2>
+            <h2>Bước 3. Xem trước rồi tạo</h2>
             <div class="actions">
-                <button type="submit" class="btn">Tạo chiến dịch (chưa gửi gì)</button>
+                <button type="button" class="btn secondary" id="preview-button" th:attr="data-url=@{/campaigns/preview}">Xem trước số khách khớp</button>
+                <button type="submit" class="btn" id="create-button">Tạo chiến dịch (chưa gửi gì)</button>
             </div>
+            <noscript><p class="hint">Cần bật JavaScript để xem trước số khách.</p></noscript>
+            <div id="preview-box" aria-live="polite"></div>
             <p class="muted">Sau khi tạo chiến dịch, bạn vào trang chi tiết để đặt lịch và số lần gửi, rồi duyệt cho hệ thống tự gửi (khi công tắc ở <a th:href="@{/zalo}">Zalo tài khoản phụ</a> đã bật). Mặc định mọi thứ tự động đều tắt nên chưa gửi gì cho ai.</p>
         </div>
     </form>
@@ -206,5 +209,6 @@
         <p class="muted small" style="margin-top:10px">Lượt bấm link không phải số người đã vào nhóm.</p>
     </section>
 </main>
+<script th:src="@{/campaign-preview.js}" defer></script>
 </body>
 </html>

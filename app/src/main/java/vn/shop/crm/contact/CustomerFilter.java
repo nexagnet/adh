@@ -153,6 +153,58 @@ public record CustomerFilter(
         return exchange != Tri.ANY;
     }
 
+    // ---------- từng điều kiện (cho phần xem trước) ----------
+
+    /** Một điều kiện riêng lẻ của bộ lọc: chữ mô tả và bộ lọc chỉ chứa đúng điều kiện đó. */
+    public record Facet(String label, CustomerFilter only) {
+    }
+
+    /** Các điều kiện đang bật, mỗi điều kiện một mục, theo thứ tự cố định (không tính thứ tự lấy khách, vì nó không loại ai). */
+    public List<Facet> facets() {
+        List<Facet> out = new ArrayList<>();
+        add(out, new CustomerFilter(excludeAreas, null, null, null, null, false, null, null, null, null, null, null, null, null, false, null));
+        add(out, new CustomerFilter(null, carriers, null, null, null, false, null, null, null, null, null, null, null, null, false, null));
+        add(out, new CustomerFilter(null, null, exchange, null, null, false, null, null, null, null, null, null, null, null, false, null));
+        add(out, new CustomerFilter(null, null, null, cancelled, null, false, null, null, null, null, null, null, null, null, false, null));
+        add(out, new CustomerFilter(null, null, null, null, returned, false, null, null, null, null, null, null, null, null, false, null));
+        add(out, new CustomerFilter(null, null, null, null, null, noOpenOrders, null, null, null, null, null, null, null, null, false, null));
+        add(out, new CustomerFilter(null, null, null, null, null, false, maxShipments, null, null, null, null, null, null, null, false, null));
+        add(out, new CustomerFilter(null, null, null, null, null, false, null, minDays, maxDays, null, null, null, null, null, false, null));
+        add(out, new CustomerFilter(null, null, null, null, null, false, null, null, null, bought, boughtMode, null, null, null, false, null));
+        add(out, new CustomerFilter(null, null, null, null, null, false, null, null, null, null, null, notBought, null, null, false, null));
+        add(out, new CustomerFilter(null, null, null, null, null, false, null, null, null, null, null, null, codMin, codMax, false, null));
+        add(out, new CustomerFilter(null, null, null, null, null, false, null, null, null, null, null, null, null, null, skipOpenCases, null));
+        return out;
+    }
+
+    private static void add(List<Facet> out, CustomerFilter only) {
+        List<String> lines = only.describe();
+        if (!lines.isEmpty()) {
+            out.add(new Facet(String.join("; ", lines), only));
+        }
+    }
+
+    /** Gộp hai bộ lọc (điều kiện của {@code b} được thêm vào {@code a}); dùng để cộng dồn từng điều kiện. Thứ tự lấy lấy của {@code a}. */
+    public static CustomerFilter and(CustomerFilter a, CustomerFilter b) {
+        return new CustomerFilter(
+                !b.excludeAreas.isEmpty() ? b.excludeAreas : a.excludeAreas,
+                !b.carriers.isEmpty() ? b.carriers : a.carriers,
+                b.exchange != Tri.ANY ? b.exchange : a.exchange,
+                b.cancelled != Tri.ANY ? b.cancelled : a.cancelled,
+                b.returned != Tri.ANY ? b.returned : a.returned,
+                a.noOpenOrders || b.noOpenOrders,
+                b.maxShipments != null ? b.maxShipments : a.maxShipments,
+                b.minDays != null ? b.minDays : a.minDays,
+                b.maxDays != null ? b.maxDays : a.maxDays,
+                !b.bought.isEmpty() ? b.bought : a.bought,
+                !b.bought.isEmpty() ? b.boughtMode : a.boughtMode,
+                !b.notBought.isEmpty() ? b.notBought : a.notBought,
+                b.codMin != null ? b.codMin : a.codMin,
+                b.codMax != null ? b.codMax : a.codMax,
+                a.skipOpenCases || b.skipOpenCases,
+                a.pickOrder);
+    }
+
     // ---------- JSON ----------
 
     public String toJson() {

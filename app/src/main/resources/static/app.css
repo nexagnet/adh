@@ -785,3 +785,6 @@ pre.wrap { white-space: pre-wrap; overflow-wrap: anywhere; margin: 6px 0 0; }
 /* Bộ lọc khách của chiến dịch: nhóm lựa chọn không viền, chữ tiêu đề đậm. */
 fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
 fieldset.field > legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
+
+/* Xem trước chiến dịch: kết quả cũ (đã đổi ô sau khi xem) mờ đi để nhắc xem lại. */
+#preview-box.stale { opacity: 0.5; }
