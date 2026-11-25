@@ -10,6 +10,8 @@
 4. Mẹ đồng ý kết bạn với mọi tài khoản phụ và làm phó nhóm ở mọi nhóm.
 5. Có SIM và điện thoại cho tài khoản thứ hai; **ưu tiên mua thêm máy chủ chạy song song** thay vì nâng máy hiện tại (mục 3.7).
 
+**Tiến độ:** PR nền (V57: bảng `zalo_account` có một dòng, cột `account_id` mặc định 1 ở `invitation`, `zalo_msg_log`, `zalo_friend_event`, `zalo_group`, `zalo_group_proposal`, `zalo_health_alert`, `zalo_auto_log`; khóa duy nhất của mã Zalo, số thứ tự sự kiện và cảnh báo sức khỏe nay tính theo tài khoản) đã làm; hành vi chưa đổi vì chỉ có một tài khoản. Chưa làm: gán khách theo tài khoản, bộ định tuyến, hạn mức và cầu dao theo tài khoản.
+
 Phần mục 1, 6, 7 dưới đây là bản nghiên cứu gốc; mục 6 bước 0 và mục 7 đã được các quyết định trên trả lời.
 
 ## 1. Kết luận ngắn
