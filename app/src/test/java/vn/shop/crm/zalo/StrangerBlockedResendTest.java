@@ -121,6 +121,26 @@ class StrangerBlockedResendTest extends AbstractPostgresTest {
     }
 
     @Test
+    void khachChanTinLaDuocKetBanNgayKhongChoThemMotLanNghi() {
+        long invitation = blockedInvite();
+        // 25/11/2026: Tin 1 bị chặn chưa tới khách nên lời mời kết bạn đi NGAY, không phải chờ thêm 2 phút
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.FRIEND_SENT);
+        assertThat(fake.friendRequests).singleElement().satisfies(r -> assertThat(r.uid()).isEqualTo(UID));
+        assertThat(invitation).isPositive();
+        // khoảng nghỉ giữa các KHÁCH vẫn giữ: ngay sau lời mời kết bạn chưa có tin nào khác đi
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.BLOCKED);
+    }
+
+    @Test
+    void khachNhanTin1BinhThuongVanChoDuKhoangNghiTruocKhiKetBan() {
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.INVITE_SENT);
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.BLOCKED);
+        assertThat(fake.friendRequests).isEmpty();
+        gap();
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.FRIEND_SENT);
+    }
+
+    @Test
     void khachChuaKetBanThiChuaGuiLaiTin1() {
         blockedInvite();
         gap();

@@ -87,7 +87,9 @@ public class ZaloFriendRequestSender {
         if (!messages.enabled() || settings.paused()) {
             return Step.NOT_ACTIVE;
         }
-        if (messages.blocker(ZaloMessageService.SCOPE_REAL, ZaloMessenger.Kind.FRIEND, null, null).isPresent()) {
+        // Chưa đủ khoảng nghỉ vẫn xem tiếp danh sách: khách vừa bị chặn Tin 1 (Z122) được kết bạn ngay, không chờ thêm một lần nghỉ.
+        var general = messages.blocker(ZaloMessageService.SCOPE_REAL, ZaloMessenger.Kind.FRIEND, null, null);
+        if (general.isPresent() && general.get() != ZaloMessageService.Block.GAP) {
             return Step.BLOCKED;
         }
         Map<Long, Boolean> open = new HashMap<>();
@@ -99,9 +101,12 @@ public class ZaloFriendRequestSender {
                 close(t);
                 continue;
             }
+            if (messages.blocker(ZaloMessageService.SCOPE_REAL, ZaloMessenger.Kind.FRIEND, t.invitationId(), null, null).isPresent()) {
+                continue;
+            }
             return send(t);
         }
-        return Step.NOTHING;
+        return general.isPresent() ? Step.BLOCKED : Step.NOTHING;
     }
 
     /** Một truy vấn gom mọi điều kiện dừng; giành chỗ ở {@link #send} kiểm lại trong chính câu lệnh. */
