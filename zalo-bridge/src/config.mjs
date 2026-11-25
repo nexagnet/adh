@@ -67,7 +67,7 @@ export function loadConfig(env = process.env) {
     // một lời mời. Trần cứng mỗi ngày của CHÍNH cầu nối (Adh đặt thấp hơn, mặc định 10); dùng chung khoảng nghỉ cố định, khung giờ, phanh
     // khẩn cấp đếm mọi tin và cầu dao với phần gửi tin. Không ngẫu nhiên hóa.
     // Khoảng nghỉ CỐ ĐỊNH giữa Tin 1 và lời mời kết bạn của CHÍNH người đó (25/11/2026); Tin 1 bị chặn người lạ thì lời mời đi ngay. Giữa các KHÁCH vẫn là msgGapMs.
-    friendAfterInviteGapMs: int(env, 'BRIDGE_FRIEND_AFTER_INVITE_GAP_SEC', 30, 0, 3600) * 1000,
+    friendAfterInviteGapMs: int(env, 'BRIDGE_FRIEND_AFTER_INVITE_GAP_SEC', 7, 0, 3600) * 1000,
     friendDaily: int(env, 'BRIDGE_FRIEND_DAILY', 50, 1, 1000),
     // Mã lỗi Zalo của việc "người nhận không nhận tin nhắn từ người lạ" (mặc định 122, đo thật 24/11/2026): với Tin 1 thì đây là lỗi RIÊNG người đó
     // (không dừng cầu dao), cầu nối ghi nhớ "Tin 1 bị chặn" để vẫn được gửi lời mời kết bạn cho người này; Tin 1 sẽ gửi lại sau khi họ thành bạn.

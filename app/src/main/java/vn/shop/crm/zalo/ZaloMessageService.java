@@ -50,7 +50,7 @@ public class ZaloMessageService {
      * Khoảng nghỉ CỐ ĐỊNH (25/11/2026, chủ dự án chốt) giữa Tin 1 gửi OK và lời mời kết bạn của CHÍNH khách đó; ngắn hơn khoảng nghỉ giữa các khách.
      * Nếu Tin 1 bị chặn người lạ (Z122) thì lời mời đi ngay. Cầu nối có sàn riêng (BRIDGE_FRIEND_AFTER_INVITE_GAP_SEC, mặc định bằng số này).
      */
-    public static final int FRIEND_AFTER_TIN1_GAP_SECONDS = 30;
+    public static final int FRIEND_AFTER_TIN1_GAP_SECONDS = 7;
     static final String FRIEND_DAILY = "zalo.friend.daily";
     public static final String SCOPE_REAL = "REAL";
     /** Số lần liền lỗi riêng người (mã lạ) thì dừng, và số lần liền "không tìm thấy" thì dừng để người kiểm tra. */
@@ -329,7 +329,7 @@ public class ZaloMessageService {
     /**
      * Như trên, thêm {@code refId} (mã lời mời của chính tin sắp gửi). Chỉ dùng để một lời mời kết bạn đi NGAY sau khi Zalo vừa từ chối
      * Tin 1 của chính khách đó vì khách không nhận tin người lạ (Z122): Tin 1 đó chưa tới khách nên không tính thêm một khoảng nghỉ nữa
-     * (25/11/2026), nếu không khách phải chờ hai lần nghỉ liền; Tin 1 gửi OK thì chờ 30 giây cố định. Khoảng nghỉ giữa các KHÁCH khác nhau, hạn mức ngày, cầu dao, khung giờ giữ nguyên.
+     * (25/11/2026), nếu không khách phải chờ hai lần nghỉ liền; Tin 1 gửi OK thì chờ 7 giây cố định. Khoảng nghỉ giữa các KHÁCH khác nhau, hạn mức ngày, cầu dao, khung giờ giữ nguyên.
      */
     public Optional<Block> blocker(String scope, Kind kind, Long refId, Integer scopeDaily, Integer scopeGap) {
         if (!enabled()) {

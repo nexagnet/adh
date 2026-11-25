@@ -116,11 +116,11 @@ class FriendRequestSendTest extends AbstractPostgresTest {
     @Test
     void chuaDuKhoangNghiCoDinhThiChuaGuiLoiMoi() {
         inviteOne();
-        clock.advance(Duration.ofSeconds(10));
+        clock.advance(Duration.ofSeconds(3));
         assertThat(sender.step()).isNotEqualTo(ZaloInviteSender.Step.FRIEND_SENT);
         assertThat(fake.friendRequests).isEmpty();
-        // 25/11/2026: sau Tin 1 gửi OK, lời mời kết bạn của CHÍNH khách đó chỉ chờ 30 giây cố định, không phải cả khoảng nghỉ 120 giây giữa các khách
-        clock.advance(Duration.ofSeconds(21));
+        // 25/11/2026: sau Tin 1 gửi OK, lời mời kết bạn của CHÍNH khách đó chỉ chờ 7 giây cố định, không phải cả khoảng nghỉ 120 giây giữa các khách
+        clock.advance(Duration.ofSeconds(5));
         assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.FRIEND_SENT);
         assertThat(fake.friendRequests).hasSize(1);
     }
