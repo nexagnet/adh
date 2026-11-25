@@ -698,9 +698,9 @@ export class Bridge {
       return { outcome: 'RESTRICTED', code: 'MSG_LIMIT' };
     }
     const last = this.msgLedger.last();
-    // Tin gần nhất chính là Tin 1 gửi cho người này: khoảng nghỉ cố định ngắn hơn (0 nếu Tin 1 bị chặn người lạ, chưa tới khách); khác thì giữ khoảng nghỉ chung.
+    // Tin gần nhất chính là Tin 1 gửi cho người này: khoảng nghỉ cố định ngắn hơn (kể cả Tin 1 bị chặn người lạ); khác thì giữ khoảng nghỉ chung.
     const own = last !== null && this.lastInvite && this.lastInvite.at === last && this.lastInvite.uid === String(uid);
-    const gapMs = own ? (this.msgLedger.has('INVITE_BLOCKED', String(uid)) ? 0 : Math.min(this.config.samePersonGapMs, this.config.msgGapMs)) : this.config.msgGapMs;
+    const gapMs = own ? Math.min(this.config.samePersonGapMs, this.config.msgGapMs) : this.config.msgGapMs;
     if (last !== null && t - last < gapMs) {
       return { outcome: 'RATE_LIMITED', retryAfterSec: Math.ceil((gapMs - (t - last)) / 1000) };
     }

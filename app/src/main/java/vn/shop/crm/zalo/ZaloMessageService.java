@@ -48,7 +48,7 @@ public class ZaloMessageService {
     public static final int REPLY_GAP_SECONDS = 30;
     /**
      * Khoảng nghỉ CỐ ĐỊNH (25/11/2026, chủ dự án chốt) giữa hai việc liên tiếp của CÙNG MỘT khách (Tin 1 rồi kết bạn, kết bạn rồi gửi lại Tin 1);
-     * ngắn hơn khoảng nghỉ giữa các khách. Tin 1 bị chặn người lạ (Z122) thì lời mời đi ngay. Cầu nối có khoảng riêng
+     * ngắn hơn khoảng nghỉ giữa các khách. Cầu nối có khoảng riêng
      * (BRIDGE_SAME_PERSON_GAP_SEC, mặc định bằng số này).
      */
     public static final int SAME_CUSTOMER_GAP_SECONDS = 7;
@@ -243,8 +243,7 @@ public class ZaloMessageService {
 
     /**
      * Khoảng nghỉ riêng cho hai việc liên tiếp của CÙNG MỘT khách (chủ dự án chốt 25/11/2026: đổi 2 phút thành 7 giây): dòng sổ gần nhất là Tin 1 hoặc
-     * lời mời kết bạn của chính lời mời {@code refId}. Lời mời kết bạn ngay sau Tin 1 bị Zalo từ chối vì khách không nhận tin người lạ (Z122, chưa tới
-     * khách) thì 0 giây. Rỗng nếu dòng gần nhất thuộc khách khác (khi đó dùng khoảng nghỉ chung giữa các khách).
+     * lời mời kết bạn của chính lời mời {@code refId} (kể cả Tin 1 bị Zalo từ chối vì khách không nhận tin người lạ, Z122). Rỗng nếu dòng gần nhất thuộc khách khác (khi đó dùng khoảng nghỉ chung giữa các khách).
      */
     private OptionalInt sameCustomerGap(Kind kind, Long refId) {
         if (refId == null || (kind != Kind.FRIEND && kind != Kind.INVITE)) {
@@ -259,8 +258,7 @@ public class ZaloMessageService {
                     }
                     String lastKind = rs.getString("kind");
                     if (kind == Kind.FRIEND && "INVITE".equals(lastKind)) {
-                        return "PERSON_ERROR".equals(rs.getString("outcome")) && "STRANGER_BLOCKED".equals(rs.getString("code"))
-                                ? OptionalInt.of(0) : OptionalInt.of(SAME_CUSTOMER_GAP_SECONDS);
+                        return OptionalInt.of(SAME_CUSTOMER_GAP_SECONDS); // kể cả khi Tin 1 bị chặn người lạ (Z122): vẫn chờ 7 giây (chủ dự án chốt 25/11/2026)
                     }
                     if (kind == Kind.INVITE && "FRIEND".equals(lastKind)) {
                         return OptionalInt.of(SAME_CUSTOMER_GAP_SECONDS); // gửi lại Tin 1 ngay khi khách vừa đồng ý kết bạn
