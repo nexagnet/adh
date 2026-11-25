@@ -23,6 +23,13 @@ import java.util.Set;
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public record CustomerFilter(
+        /**
+         * Số lần mua thành công từ ... đến ... (null cả hai = đúng 1 lần, hành vi từ trước tới nay). Chỉ đặt lớn hơn 1 khi người (hoặc AI, rồi người duyệt)
+         * chủ động chọn cho đúng chiến dịch này (quyết định 25/11/2026): khách mua nhiều lần chỉ được liên hệ khi chiến dịch của họ cho phép
+         * ({@code invitation_campaign.max_purchases}); xem {@link ContactService#stillEligible}.
+         */
+        Integer purchasesMin,
+        Integer purchasesMax,
         /** Loại các khu vực này (mã như {@code R:NAM}, {@code S:...}, {@code P:...}, {@code U}). Khách chưa rõ tỉnh không bị coi là thuộc khu vực nào. */
         List<String> excludeAreas,
         /** Chỉ khách có đơn qua các hãng này (tên {@link Carrier}). */
@@ -72,6 +79,7 @@ public record CustomerFilter(
     }
 
     public static final int MAX_DAYS = 1100;
+    public static final int MAX_PURCHASES = 20;
     public static final int MAX_SHIPMENTS = 50;
     public static final long MAX_COD = 10_000_000_000L;
     public static final Set<String> PICK_ORDERS = Set.of(ContactService.Pick.OLDEST_APPROVED, ContactService.Pick.NEWEST_PURCHASE,
@@ -80,11 +88,20 @@ public record CustomerFilter(
     private static final JsonMapper JSON = JsonMapper.builder().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).build();
 
     /** Không lọc gì, thứ tự mặc định (giống hệt hôm nay). */
-    public static final CustomerFilter NONE = new CustomerFilter(null, null, null, null, null, false, null, null, null, null, null, null, null,
+    public static final CustomerFilter NONE = new CustomerFilter(null, null, null, null, null, null, null, false, null, null, null, null, null, null, null,
             null, false, null);
 
     /** Chuẩn hóa và kiểm tra; giá trị sai ném {@link ImportException} (chữ tiếng Việt, hiện cho người dùng). */
     public CustomerFilter {
+        if (purchasesMin != null || purchasesMax != null) {
+            int lo = purchasesMin == null ? 1 : purchasesMin;
+            int hi = purchasesMax == null ? MAX_PURCHASES : purchasesMax;
+            if (lo < 1 || hi > MAX_PURCHASES || hi < lo) {
+                throw new ImportException("Số lần mua phải từ 1 đến " + MAX_PURCHASES + " và \"từ\" không lớn hơn \"đến\".");
+            }
+            purchasesMin = lo == 1 && hi == 1 ? null : lo;
+            purchasesMax = lo == 1 && hi == 1 ? null : hi;
+        }
         excludeAreas = clean(excludeAreas);
         carriers = clean(carriers);
         exchange = exchange == null ? Tri.ANY : exchange;
@@ -143,6 +160,25 @@ public record CustomerFilter(
         return out;
     }
 
+    /** Không lọc gì khác nhưng chấp nhận mọi số lần mua (nền để đếm "đủ điều kiện, mọi số lần mua" ở phần xem trước). */
+    public static CustomerFilter anyPurchases() {
+        return new CustomerFilter(1, MAX_PURCHASES, null, null, null, null, null, false, null, null, null, null, null, null, null, null, false, null);
+    }
+
+    /** Số lần mua nhỏ nhất / lớn nhất thực sự áp dụng (mặc định đúng 1 lần). */
+    public int minPurchases() {
+        return purchasesMin == null ? 1 : purchasesMin;
+    }
+
+    public int maxPurchases() {
+        return purchasesMax == null ? 1 : purchasesMax;
+    }
+
+    /** True nếu chiến dịch mời cả khách mua nhiều hơn 1 lần (cần các chốt chặn riêng, xem {@link ContactService}). */
+    public boolean multi() {
+        return maxPurchases() > 1;
+    }
+
     /** True nếu có bất kỳ điều kiện nào khác mặc định (kể cả thứ tự lấy). */
     public boolean any() {
         return !equals(NONE);
@@ -162,18 +198,19 @@ public record CustomerFilter(
     /** Các điều kiện đang bật, mỗi điều kiện một mục, theo thứ tự cố định (không tính thứ tự lấy khách, vì nó không loại ai). */
     public List<Facet> facets() {
         List<Facet> out = new ArrayList<>();
-        add(out, new CustomerFilter(excludeAreas, null, null, null, null, false, null, null, null, null, null, null, null, null, false, null));
-        add(out, new CustomerFilter(null, carriers, null, null, null, false, null, null, null, null, null, null, null, null, false, null));
-        add(out, new CustomerFilter(null, null, exchange, null, null, false, null, null, null, null, null, null, null, null, false, null));
-        add(out, new CustomerFilter(null, null, null, cancelled, null, false, null, null, null, null, null, null, null, null, false, null));
-        add(out, new CustomerFilter(null, null, null, null, returned, false, null, null, null, null, null, null, null, null, false, null));
-        add(out, new CustomerFilter(null, null, null, null, null, noOpenOrders, null, null, null, null, null, null, null, null, false, null));
-        add(out, new CustomerFilter(null, null, null, null, null, false, maxShipments, null, null, null, null, null, null, null, false, null));
-        add(out, new CustomerFilter(null, null, null, null, null, false, null, minDays, maxDays, null, null, null, null, null, false, null));
-        add(out, new CustomerFilter(null, null, null, null, null, false, null, null, null, bought, boughtMode, null, null, null, false, null));
-        add(out, new CustomerFilter(null, null, null, null, null, false, null, null, null, null, null, notBought, null, null, false, null));
-        add(out, new CustomerFilter(null, null, null, null, null, false, null, null, null, null, null, null, codMin, codMax, false, null));
-        add(out, new CustomerFilter(null, null, null, null, null, false, null, null, null, null, null, null, null, null, skipOpenCases, null));
+        add(out, new CustomerFilter(purchasesMin, purchasesMax, null, null, null, null, null, false, null, null, null, null, null, null, null, null, false, null));
+        add(out, new CustomerFilter(null, null, excludeAreas, null, null, null, null, false, null, null, null, null, null, null, null, null, false, null));
+        add(out, new CustomerFilter(null, null, null, carriers, null, null, null, false, null, null, null, null, null, null, null, null, false, null));
+        add(out, new CustomerFilter(null, null, null, null, exchange, null, null, false, null, null, null, null, null, null, null, null, false, null));
+        add(out, new CustomerFilter(null, null, null, null, null, cancelled, null, false, null, null, null, null, null, null, null, null, false, null));
+        add(out, new CustomerFilter(null, null, null, null, null, null, returned, false, null, null, null, null, null, null, null, null, false, null));
+        add(out, new CustomerFilter(null, null, null, null, null, null, null, noOpenOrders, null, null, null, null, null, null, null, null, false, null));
+        add(out, new CustomerFilter(null, null, null, null, null, null, null, false, maxShipments, null, null, null, null, null, null, null, false, null));
+        add(out, new CustomerFilter(null, null, null, null, null, null, null, false, null, minDays, maxDays, null, null, null, null, null, false, null));
+        add(out, new CustomerFilter(null, null, null, null, null, null, null, false, null, null, null, bought, boughtMode, null, null, null, false, null));
+        add(out, new CustomerFilter(null, null, null, null, null, null, null, false, null, null, null, null, null, notBought, null, null, false, null));
+        add(out, new CustomerFilter(null, null, null, null, null, null, null, false, null, null, null, null, null, null, codMin, codMax, false, null));
+        add(out, new CustomerFilter(null, null, null, null, null, null, null, false, null, null, null, null, null, null, null, null, skipOpenCases, null));
         return out;
     }
 
@@ -187,6 +224,8 @@ public record CustomerFilter(
     /** Gộp hai bộ lọc (điều kiện của {@code b} được thêm vào {@code a}); dùng để cộng dồn từng điều kiện. Thứ tự lấy lấy của {@code a}. */
     public static CustomerFilter and(CustomerFilter a, CustomerFilter b) {
         return new CustomerFilter(
+                b.purchasesMin != null || b.purchasesMax != null ? b.purchasesMin : a.purchasesMin,
+                b.purchasesMin != null || b.purchasesMax != null ? b.purchasesMax : a.purchasesMax,
                 !b.excludeAreas.isEmpty() ? b.excludeAreas : a.excludeAreas,
                 !b.carriers.isEmpty() ? b.carriers : a.carriers,
                 b.exchange != Tri.ANY ? b.exchange : a.exchange,
@@ -228,6 +267,10 @@ public record CustomerFilter(
     /** Mô tả bằng tiếng Việt, mỗi điều kiện một dòng; rỗng nếu không lọc gì (chỉ có thứ tự mặc định). */
     public List<String> describe() {
         List<String> out = new ArrayList<>();
+        if (purchasesMin != null || purchasesMax != null) {
+            out.add(maxPurchases() >= MAX_PURCHASES ? "Mua từ " + minPurchases() + " lần trở lên"
+                    : "Mua từ " + minPurchases() + " đến " + maxPurchases() + " lần");
+        }
         if (!excludeAreas.isEmpty()) {
             out.add("Trừ khu vực: " + String.join(", ", excludeAreas.stream().map(CustomerFilter::areaLabel).toList()));
         }

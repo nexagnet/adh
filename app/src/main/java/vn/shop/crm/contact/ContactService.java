@@ -181,6 +181,26 @@ public class ContactService {
         return inviteFromAll() + testMode.onlyTestSql("c.phone");
     }
 
+    /**
+     * Nguồn khách cho chiến dịch MỜI CẢ KHÁCH MUA NHIỀU LẦN (bộ lọc {@link CustomerFilter#multi()}; quyết định 25/11/2026). Gồm khách đã được duyệt
+     * (ELIGIBLE) và khách mua từ 2 lần CHƯA có dòng cơ sở liên hệ nào (được duyệt khi chiến dịch tạo, xem {@link #approveForCampaign}). Khách một lần
+     * chưa duyệt vẫn phải duyệt trước như mọi khi; khách từ chối, bị chặn, cần kiểm tra, trong sổ từ chối vẫn bị loại.
+     */
+    private String multiFrom() {
+        return """
+                FROM customer c
+                LEFT JOIN contact_basis b ON b.customer_id = c.id AND b.purpose = '%s' AND b.status = 'ELIGIBLE'
+                WHERE c.segment IN ('ONE_TIME', 'REPEAT') AND c.needs_review = FALSE
+                  AND NOT EXISTS (SELECT 1 FROM suppression s WHERE s.phone_hash = %s AND s.lifted_at IS NULL)
+                  AND (b.id IS NOT NULL OR (c.segment = 'REPEAT'
+                       AND NOT EXISTS (SELECT 1 FROM contact_basis x WHERE x.customer_id = c.id AND x.purpose = '%s')))
+                """.formatted(PURPOSE, SUPPRESSED_HASH, PURPOSE) + testMode.onlyTestSql("c.phone");
+    }
+
+    private String fromFor(CustomerFilter f) {
+        return f.multi() ? multiFrom() : inviteFrom();
+    }
+
     private String inviteCountSql() {
         return "SELECT count(*) " + inviteFrom();
     }
@@ -315,7 +335,7 @@ public class ContactService {
 
         /** Cùng ý nghĩa dưới dạng bộ lọc chung ({@link CustomerFilter}). */
         public CustomerFilter toFilter() {
-            return new CustomerFilter(null, null, null, null, null, false, null, minDays, maxDays,
+            return new CustomerFilter(null, null, null, null, null, null, null, false, null, minDays, maxDays,
                     product == null ? null : List.of(product), null, null, null, null, false, order);
         }
     }
@@ -339,7 +359,7 @@ public class ContactService {
 
     /** Lấy khách đủ điều kiện mời, chưa từng được mời, ở khu vực (nếu có) và khớp bộ lọc; bộ lọc chỉ làm hẹp. */
     public List<Invitee> eligibleNotInvited(int limit, String area, CustomerFilter filter) {
-        StringBuilder sql = new StringBuilder("SELECT c.id, c.phone, c.name " + inviteFrom()
+        StringBuilder sql = new StringBuilder("SELECT c.id, c.phone, c.name " + fromFor(filter)
                 + " AND NOT EXISTS (SELECT 1 FROM invitation i WHERE i.customer_id = c.id)");
         var areaCodes = appendArea(sql, area);
         var params = appendFilter(sql, filter);
@@ -408,7 +428,7 @@ public class ContactService {
     }
 
     public long countEligibleNotInvited(String area, CustomerFilter filter) {
-        StringBuilder sql = new StringBuilder("SELECT count(*) " + inviteFrom()
+        StringBuilder sql = new StringBuilder("SELECT count(*) " + fromFor(filter)
                 + " AND NOT EXISTS (SELECT 1 FROM invitation i WHERE i.customer_id = c.id)");
         var areaCodes = appendArea(sql, area);
         var params = appendFilter(sql, filter);
@@ -421,7 +441,50 @@ public class ContactService {
 
     /** Khách này CÒN đủ điều kiện mời ngay lúc này không (kiểm lại ở thời điểm khách bấm link và trước khi gửi). */
     public boolean stillEligible(long customerId) {
-        return count("SELECT count(*) " + inviteFromAll() + " AND c.id = " + customerId) > 0;
+        return count("SELECT count(*) " + eligibleForSendFrom() + " AND c.id = " + customerId) > 0;
+    }
+
+    /**
+     * Điều kiện "còn được liên hệ" ở mọi chỗ sắp gọi Zalo: như {@link #inviteFromAll()} (mua đúng 1 lần), HOẶC khách mua nhiều lần mà có lời mời
+     * trong một chiến dịch cho phép đủ số lần mua của họ ({@code max_purchases} lớn hơn hoặc bằng số lần mua). Chiến dịch mặc định cho phép 1 lần
+     * nên khách mua từ 2 lần vẫn không bao giờ lọt qua nếu không có chiến dịch cho phép đúng như vậy; mua thêm vượt mức cho phép thì dừng.
+     */
+    private String eligibleForSendFrom() {
+        return """
+                FROM customer c
+                JOIN contact_basis b ON b.customer_id = c.id AND b.purpose = '%s' AND b.status = 'ELIGIBLE'
+                WHERE (c.segment = 'ONE_TIME'
+                       OR (c.segment = 'REPEAT' AND EXISTS (SELECT 1 FROM invitation i JOIN invitation_campaign k ON k.id = i.campaign_id
+                                                             WHERE i.customer_id = c.id AND k.max_purchases >= c.successful_purchases)))
+                  AND c.needs_review = FALSE
+                  AND NOT EXISTS (SELECT 1 FROM suppression s WHERE s.phone_hash = %s AND s.lifted_at IS NULL)
+                """.formatted(PURPOSE, SUPPRESSED_HASH);
+    }
+
+    /**
+     * Duyệt cơ sở liên hệ cho khách MUA NHIỀU LẦN vừa được chọn vào một chiến dịch cho phép đủ số lần mua của họ. Chỉ khách mua từ 2 lần, chưa có
+     * dòng cơ sở liên hệ nào (chưa từ chối, chưa bị chặn), không cần kiểm tra, không trong sổ từ chối. Ghi rõ chiến dịch và người duyệt.
+     */
+    @Transactional
+    public int approveForCampaign(List<Long> ids, long campaignId, int maxPurchases, String by) {
+        if (ids.isEmpty()) {
+            return 0;
+        }
+        return jdbc.sql("""
+                        WITH ins AS (
+                            INSERT INTO contact_basis (customer_id, purpose, basis, status, evidence_ref, statement, recorded_by)
+                            SELECT c.id, :purpose, 'TRANSACTION_POSTSALE', 'ELIGIBLE', :evidence, :statement, :by
+                            FROM customer c
+                            WHERE c.id IN (:ids) AND c.segment = 'REPEAT' AND c.needs_review = FALSE AND c.successful_purchases <= :max
+                              AND NOT EXISTS (SELECT 1 FROM suppression s WHERE s.phone_hash = %s AND s.lifted_at IS NULL)
+                            ON CONFLICT (customer_id, purpose) DO NOTHING
+                            RETURNING customer_id)
+                        INSERT INTO contact_event (customer_id, phone_tail, event, detail, recorded_by)
+                        SELECT ins.customer_id, '***' || right(c.phone, 3), 'BASIS_APPROVED',
+                               'Duyệt cơ sở liên hệ theo chiến dịch #' || :cid || ' (khách mua nhiều lần, tối đa ' || :max || ' lần)', :by
+                        FROM ins JOIN customer c ON c.id = ins.customer_id""".formatted(SUPPRESSED_HASH))
+                .param("purpose", PURPOSE).param("evidence", "CHIEN-DICH-" + campaignId).param("statement", STATEMENT).param("by", by)
+                .param("ids", ids).param("max", maxPurchases).param("cid", campaignId).update();
     }
 
     /** Đoạn SQL lọc dòng theo chế độ thử cho một cột mã khách (rỗng khi chạy thật). Cho các hàng chờ gửi ở gói khác. */

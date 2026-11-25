@@ -119,7 +119,7 @@ J&T Express ──┘                                          │
 |---|---|---|
 | 0 lần giao thành công | Chưa đủ điều kiện | Không nằm trong hai danh sách khách đã mua; cần kiểm tra nếu có lỗi dữ liệu. |
 | 1 lần giao thành công | `ONE_TIME` | Danh sách dự kiến mời vào nhóm Zalo. |
-| ≥ 2 lần giao thành công | `REPEAT` | Danh sách tư vấn riêng cho bố mẹ, không tự động gửi lời mời nhóm. |
+| ≥ 2 lần giao thành công | `REPEAT` | Danh sách tư vấn riêng cho bố mẹ, không tự động gửi lời mời nhóm. Cập nhật 25/11/2026: chiến dịch có thể mời cả khách này nếu chủ cửa hàng chọn riêng cho chiến dịch (mặc định vẫn không). |
 
 - Phân loại có thể thay đổi khi nhập thêm các đợt dữ liệu sau này.
 - Một khách `ONE_TIME` mua thêm thành công thì chuyển sang `REPEAT`; **không tự động đuổi họ khỏi nhóm Zalo cũ**.

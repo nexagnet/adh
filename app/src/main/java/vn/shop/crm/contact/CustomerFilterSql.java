@@ -31,6 +31,11 @@ final class CustomerFilterSql {
         StringBuilder w = new StringBuilder();
         Map<String, Object> p = new LinkedHashMap<>();
 
+        if (f.multi()) {
+            w.append(" AND c.successful_purchases BETWEEN :purchasesMin AND :purchasesMax");
+            p.put("purchasesMin", f.minPurchases());
+            p.put("purchasesMax", f.maxPurchases());
+        }
         if (!f.excludeAreas().isEmpty()) {
             boolean unknown = false;
             List<String> provinces = new ArrayList<>();
