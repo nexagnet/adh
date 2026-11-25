@@ -30,12 +30,15 @@ public class CampaignController {
     private final vn.shop.crm.zalo.ManualAttention attention;
     private final CampaignArchive archive;
 
-    public CampaignController(InviteService invites, ContactService contacts, AppSettings settings,
+    private final CampaignFilterForm filterForm;
+
+    public CampaignController(CampaignFilterForm filterForm, InviteService invites, ContactService contacts, AppSettings settings,
                               vn.shop.crm.zalo.ZaloInviteSender autoSender, vn.shop.crm.zalo.ZaloMessageService messages,
                               vn.shop.crm.zalo.ZaloCampaignIntake intake, vn.shop.crm.zalo.CampaignPolicy policy,
                               CampaignSteps steps, vn.shop.crm.zalo.CampaignAutoStop autoStop,
                               vn.shop.crm.zalo.CampaignGroupTarget groupTarget, vn.shop.crm.inbox.ComebackService comebacks,
                               vn.shop.crm.zalo.ZaloQueueView queueView, CampaignArchive archive, vn.shop.crm.zalo.ManualAttention attention) {
+        this.filterForm = filterForm;
         this.attention = attention;
         this.archive = archive;
         this.comebacks = comebacks;
@@ -72,6 +75,7 @@ public class CampaignController {
                         contacts.countEligibleNotInvited(vn.shop.crm.geo.GeoArea.region(r).code()))).toList());
         model.addAttribute("unknownAvailable", contacts.countEligibleNotInvited(vn.shop.crm.geo.GeoArea.UNKNOWN));
         model.addAttribute("defaultTemplate", invites.defaultTemplate());
+        filterForm.addOptions(model);
         return "campaigns";
     }
 
@@ -82,11 +86,21 @@ public class CampaignController {
     @PostMapping("/campaigns")
     public String create(@RequestParam String name, @RequestParam(required = false) String template,
                          @RequestParam(defaultValue = "14") int expiresDays, @RequestParam int count,
-                         @RequestParam(required = false) String area, RedirectAttributes redirect) {
-        long id = invites.createCampaign(name, template, expiresDays, count, area);
+                         @RequestParam(required = false) String area,
+                         @RequestParam org.springframework.util.MultiValueMap<String, String> all, RedirectAttributes redirect) {
+        long id = invites.createCampaign(name, template, expiresDays, count, area, filterForm.parse(all));
         redirect.addFlashAttribute("flash", "Đã tạo chiến dịch. Chưa có tin nào được gửi: hãy xem lại lịch và số lần gửi, "
                 + "rồi duyệt cho hệ thống tự gửi ở tab \"Tổng quan và lời mời\".");
         return "redirect:/campaigns/" + id;
+    }
+
+    /** Cách nhận biết đơn đổi (chữ nằm trong mã đơn, tên hàng hoặc trạng thái gốc); để trống cả ba là tắt. */
+    @PostMapping("/campaigns/exchange-markers")
+    public String saveExchangeMarkers(@RequestParam(required = false) String orderRef, @RequestParam(required = false) String goods,
+                                      @RequestParam(required = false) String status, RedirectAttributes redirect) {
+        filterForm.saveMarkers(orderRef, goods, status, ContactService.actor());
+        redirect.addFlashAttribute("flash", "Đã lưu cách nhận biết đơn đổi.");
+        return "redirect:/campaigns?tab=moi";
     }
 
     /** Chủ shop soạn mẫu tin mặc định trên trang quản trị (để trống = dùng lại mẫu có sẵn). */
@@ -122,6 +136,9 @@ public class CampaignController {
         model.addAttribute("tab", pickTab(tab, model));
         var campaign = invites.campaign(id).orElseThrow(() -> new ImportException("Không tìm thấy chiến dịch."));
         model.addAttribute("campaign", campaign);
+        var filter = invites.campaignFilter(id);
+        model.addAttribute("filterLines", filter.describe());
+        model.addAttribute("filterPick", filter.pickLabel());
         model.addAttribute("rows", invites.invitations(id, campaign.template()));
         model.addAttribute("paused", settings.paused());
         model.addAttribute("joinGroups", invites.joinableGroups());

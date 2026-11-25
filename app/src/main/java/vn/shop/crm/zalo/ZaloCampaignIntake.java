@@ -107,7 +107,7 @@ public class ZaloCampaignIntake {
 
     // ---------- mỗi nhịp ----------
 
-    private record Active(long id, Instant since, String scope, int expiresDays, String name) {
+    private record Active(long id, Instant since, String scope, int expiresDays, String name, vn.shop.crm.contact.CustomerFilter filter) {
     }
 
     /** Nhận khách mới của chiến dịch đang tự nhận (nếu có). Trả số khách vừa nhận. Lỗi thì không ném ra: nhịp gửi vẫn chạy. */
@@ -125,10 +125,11 @@ public class ZaloCampaignIntake {
             return 0;
         }
         Optional<Active> a = jdbc.sql("""
-                        SELECT id, auto_intake_since, geo_scope, expires_days, name FROM invitation_campaign
+                        SELECT id, auto_intake_since, geo_scope, expires_days, name, customer_filter::text AS customer_filter FROM invitation_campaign
                         WHERE auto_intake_since IS NOT NULL AND auto_send_approved_at IS NOT NULL""")
                 .query((rs, i) -> new Active(rs.getLong("id"), rs.getObject("auto_intake_since", OffsetDateTime.class).toInstant(),
-                        rs.getString("geo_scope"), rs.getInt("expires_days"), rs.getString("name"))).optional();
+                        rs.getString("geo_scope"), rs.getInt("expires_days"), rs.getString("name"),
+                        vn.shop.crm.contact.CustomerFilter.fromJson(rs.getString("customer_filter")))).optional();
         if (a.isEmpty()) {
             return 0;
         }
@@ -141,7 +142,7 @@ public class ZaloCampaignIntake {
         if (room <= 0) {
             return 0;
         }
-        List<ContactService.Invitee> picked = contacts.newCandidates(c.since(), c.scope(), (int) Math.min(room, PER_TICK));
+        List<ContactService.Invitee> picked = contacts.newCandidates(c.since(), c.scope(), (int) Math.min(room, PER_TICK), c.filter());
         if (picked.isEmpty()) {
             return 0;
         }

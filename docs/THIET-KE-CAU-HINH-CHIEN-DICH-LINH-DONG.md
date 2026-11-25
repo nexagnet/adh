@@ -1,6 +1,6 @@
 # Thiết kế: cấu hình chiến dịch linh động (bộ lọc khách dùng chung cho người và AI)
 
-Ngày 25/11/2026. Người yêu cầu: Phùng Việt. Trạng thái: **thiết kế đã được chủ dự án duyệt hướng** (cho chọn số lần mua riêng từng chiến dịch, mặc định vẫn đúng 1 lần; AI được đề xuất cả chiến dịch cho khách mua nhiều lần; bộ lọc phải theo dữ liệu thật, không theo "đơn hoàn"). Chưa có dòng mã nào; mỗi PR dưới đây là một bước riêng.
+Ngày 25/11/2026 (cập nhật theo PR 1: ô khu vực, bộ lọc không sửa sau khi tạo). Người yêu cầu: Phùng Việt. Trạng thái: **thiết kế đã được chủ dự án duyệt hướng** (cho chọn số lần mua riêng từng chiến dịch, mặc định vẫn đúng 1 lần; AI được đề xuất cả chiến dịch cho khách mua nhiều lần; bộ lọc phải theo dữ liệu thật, không theo "đơn hoàn"). Chưa có dòng mã nào; mỗi PR dưới đây là một bước riêng.
 
 Viết cho người không rành kỹ thuật: đọc mục 0 là đủ hiểu; các mục sau là chi tiết để duyệt và để người làm tiếp.
 
@@ -43,7 +43,7 @@ Mọi bộ lọc đều **tùy chọn**. Không điền = không lọc. Mặc đ
 | Tên trên giao diện | Ý nghĩa | Ví dụ giá trị |
 |---|---|---|
 | Số lần mua từ … đến … | số lần giao thành công (gộp đơn tách kiện theo mã đơn) | mặc định 1 đến 1; "từ 2 đến 3" |
-| Khu vực | vùng/tỉnh khách ở (chọn nhiều; có thể chọn "trừ khu vực này") | Đồng bằng sông Hồng; trừ Hà Nội |
+| Khu vực | vùng/tỉnh khách ở: ô "Khu vực khách" có sẵn (chọn một) cộng ô "Loại trừ khu vực" (chọn nhiều) | Đồng bằng sông Hồng; trừ Hà Nội |
 | Hãng vận chuyển | khách có đơn qua hãng nào | J&T; Viettel Post |
 | Khách ghi nhận từ ngày | khách mới nhập về kể từ ngày (dùng cho tự nhận khách mới) | từ 01/11 |
 
@@ -145,7 +145,7 @@ Trang `/campaigns`, nút "Tạo chiến dịch mới" mở form. Trên điện t
 - **Xem trước** là một nút bấm (gửi form, trang hiện kết quả), **không cần JavaScript**, chạy được trên điện thoại. Chỉ đếm, không tạo gì, không chạm Zalo.
 - Số khớp dưới 1 thì nút "Tạo chiến dịch" mờ và nói rõ điều kiện nào làm cạn khách (dòng đầu tiên về 0 trong bảng loại bớt).
 - Mọi chữ tiếng Việt, gọi "trợ lý AI" không "bot". Điều kiện chưa dùng được (đơn đổi chưa cài, giá trị COD chưa có đối soát) hiện mờ kèm một dòng giải thích.
-- Trang chi tiết chiến dịch có thêm khối **"Chiến dịch này mời ai"** hiển thị bộ lọc đã lưu bằng chữ dễ đọc (ví dụ "Mua từ 1 đến 3 lần; không có đơn đổi; không có đơn hủy; chưa mua Pin"). Bộ lọc chỉ **sửa được khi chiến dịch chưa gửi cho ai**, giống mẫu Tin 1.
+- Trang chi tiết chiến dịch có thêm khối **"Chiến dịch này mời ai"** hiển thị bộ lọc đã lưu bằng chữ dễ đọc (ví dụ "Mua từ 1 đến 3 lần; không có đơn đổi; không có đơn hủy; chưa mua Pin"). Bộ lọc đặt lúc tạo chiến dịch và **không sửa sau đó** (các lời mời đã chọn theo bộ lọc cũ); muốn đổi thì hủy các lời mời chưa gửi rồi tạo chiến dịch mới.
 
 ## 5. Mẫu chiến dịch dựng sẵn
 
