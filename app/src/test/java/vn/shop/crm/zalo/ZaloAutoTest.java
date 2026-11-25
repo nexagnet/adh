@@ -769,7 +769,7 @@ class ZaloAutoTest extends AbstractPostgresTest {
         assertThat(jdbc.sql("""
                 SELECT string_agg(column_name, ',' ORDER BY column_name) FROM information_schema.columns
                 WHERE table_name = 'zalo_auto_log'""").query(String.class).single())
-                .isEqualTo("action,actor,at,code,group_id,id,invitation_id,result");
+                .isEqualTo("account_id,action,actor,at,code,group_id,id,invitation_id,result");
     }
 
     // ---------- sửa theo rà soát độc lập ----------

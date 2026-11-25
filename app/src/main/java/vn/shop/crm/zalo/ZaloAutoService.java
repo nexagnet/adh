@@ -275,7 +275,7 @@ public class ZaloAutoService {
     private void record(ZaloGateway.FriendEvent e, String outcome, String uid, Long invitationId) {
         jdbc.sql("""
                         INSERT INTO zalo_friend_event (bridge_seq, uid, event_at, received_at, outcome, invitation_id)
-                        VALUES (:s, :u, :at, :now, :o, :i) ON CONFLICT (bridge_seq) DO NOTHING""")
+                        VALUES (:s, :u, :at, :now, :o, :i) ON CONFLICT (account_id, bridge_seq) DO NOTHING""")
                 .param("s", e.seq()).param("u", uid, java.sql.Types.VARCHAR)
                 .param("at", OffsetDateTime.ofInstant(e.at(), ZoneOffset.UTC))
                 .param("now", OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC))
