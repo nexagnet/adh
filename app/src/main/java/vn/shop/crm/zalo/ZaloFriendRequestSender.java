@@ -42,7 +42,7 @@ public class ZaloFriendRequestSender {
     static final String BLOCKED_TEXT = "Em là {cua_hang}, bên em có nhóm khách hàng mua áo điều hòa được giảm giá. Anh/chị đồng ý kết bạn để em gửi thông tin ạ.";
     static final String BLOCKED_FALLBACK_TEXT = "Bên em có nhóm khách hàng mua áo điều hòa được giảm giá. Anh/chị đồng ý kết bạn để em gửi thông tin ạ.";
 
-    public enum Step { NOT_ACTIVE, BLOCKED, NOTHING, SENT, FAILED_ONE, RETRY, TRIPPED }
+    public enum Step { NOT_ACTIVE, BLOCKED, NOTHING, SENT, FAILED_ONE, RETRY, TRIPPED, LIST_FULL }
 
     private record Task(long invitationId, long campaignId, long customerId, String phone, String uid, boolean blocked) {
     }
@@ -153,6 +153,14 @@ public class ZaloFriendRequestSender {
                 return Step.SENT;
             }
             case PERSON_ERROR -> {
+                if (ZaloMessageService.FRIEND_LIST_FULL.equals(d.code())) {
+                    // Zalo báo danh sách lời mời đã đầy (Z223): lời mời CHƯA đi, đây không phải lỗi của khách này. Trả chỗ để gửi sau,
+                    // chỉ tạm dừng riêng phần lời mời kết bạn (không dừng cầu dao, Tin 1 và thêm nhóm vẫn chạy).
+                    release(t);
+                    messages.pauseFriendRequests("system");
+                    log.warn("Zalo báo danh sách lời mời kết bạn đã đầy (Z223): tạm dừng gửi lời mời kết bạn");
+                    return Step.LIST_FULL;
+                }
                 String code = d.code() == null ? "LOI_NGUOI" : d.code();
                 setOutcome(t, "FAILED");
                 sends.recordExternal(t.invitationId(), t.campaignId(), t.customerId(), t.phone(), ZaloInviteSender.CHANNEL, "SKIPPED",

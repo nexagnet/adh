@@ -1443,6 +1443,71 @@ test('lời mời kết bạn: lỗi lạ của Zalo thì dừng cầu dao, khô
   c.cleanup();
 });
 
+test('lời mời kết bạn: Z223 (danh sách lời mời đầy) không dừng cầu dao, báo FRIEND_LIST_FULL và không đánh dấu đã mời', async () => {
+  const c = await ready();
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' })).outcome, 'OK');
+  c.clock.t += GAP + 1000;
+  const e = new Error('Danh sách yêu cầu của bạn đã đầy');
+  e.code = 223;
+  c.adapter.friendError = e;
+  assert.deepEqual(await c.bridge.sendFriendRequest({ uid: '501', text: 'a' }), { outcome: 'PERSON_ERROR', code: 'FRIEND_LIST_FULL' });
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  // chưa mời được ai: sau khi Zalo còn chỗ thì vẫn mời được người này
+  c.adapter.friendError = null;
+  c.clock.t += GAP + 1000;
+  assert.deepEqual(await c.bridge.sendFriendRequest({ uid: '501', text: 'a' }), { outcome: 'OK' });
+  c.cleanup();
+});
+
+test('lời mời kết bạn: mã 223 chỉ được coi là danh sách đầy khi nằm trong BRIDGE_FRIEND_LIST_FULL_CODES', async () => {
+  const c = await ready({ BRIDGE_FRIEND_LIST_FULL_CODES: '' });
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' })).outcome, 'OK');
+  c.clock.t += GAP + 1000;
+  const e = new Error('x');
+  e.code = 223;
+  c.adapter.friendError = e;
+  const r = await c.bridge.sendFriendRequest({ uid: '501', text: 'a' });
+  assert.notEqual(r.outcome, 'PERSON_ERROR');
+  assert.equal(c.bridge.status().state, 'TRIPPED');
+  c.cleanup();
+});
+
+test('tin nhờ kết bạn lại (ASK_FRIEND): chỉ theo mã Zalo, chỉ người đã nhận Tin 1, mỗi người một lần, đi ngay sau lần thử mời của chính người đó', async () => {
+  const c = await ready();
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'ASK_FRIEND', phone: '84900000001', text: 'a' }), { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' });
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'ASK_FRIEND', uid: '501', text: 'a' }), { outcome: 'PERSON_ERROR', code: 'NO_INVITE' });
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'Chào anh' })).outcome, 'OK');
+  c.clock.t += 8000; // chỉ 8 giây (khoảng nghỉ cùng một người), không phải cả khoảng nghỉ giữa các khách
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'ASK_FRIEND', uid: '501', text: 'Em chưa kết bạn được với bác ạ' }), { outcome: 'OK', uid: '501' });
+  c.clock.t += GAP + 1000;
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'ASK_FRIEND', uid: '501', text: 'lại' }), { outcome: 'PERSON_ERROR', code: 'DUPLICATE' });
+  c.cleanup();
+});
+
+test('tin nhờ kết bạn lại: không gửi cho người đã được gửi lời mời kết bạn', async () => {
+  const c = await ready();
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' })).outcome, 'OK');
+  c.clock.t += GAP + 1000;
+  assert.deepEqual(await c.bridge.sendFriendRequest({ uid: '501', text: 'a' }), { outcome: 'OK' });
+  c.clock.t += GAP + 1000;
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'ASK_FRIEND', uid: '501', text: 'b' }), { outcome: 'PERSON_ERROR', code: 'FRIEND_REQUESTED' });
+  c.cleanup();
+});
+
+test('tin nhờ kết bạn lại: đi ngay sau lần thử mời bị Z223 của chính người đó, không dừng cầu dao', async () => {
+  const c = await ready();
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' })).outcome, 'OK');
+  c.clock.t += 8000;
+  const e = new Error('Danh sách yêu cầu của bạn đã đầy');
+  e.code = 223;
+  c.adapter.friendError = e;
+  assert.deepEqual(await c.bridge.sendFriendRequest({ uid: '501', text: 'a' }), { outcome: 'PERSON_ERROR', code: 'FRIEND_LIST_FULL' });
+  c.clock.t += 8000;
+  assert.equal((await c.bridge.sendMessage({ kind: 'ASK_FRIEND', uid: '501', text: 'b' })).outcome, 'OK');
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  c.cleanup();
+});
+
 test('lời mời kết bạn: không ghi uid, số điện thoại hay nội dung vào log', async () => {
   const c = await ready();
   assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' })).outcome, 'OK');

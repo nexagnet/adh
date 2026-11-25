@@ -21,7 +21,9 @@ public interface ZaloMessenger {
         /** Tin nhắc lần ba (D21), cùng luật như {@link #FOLLOWUP2}; cầu nối chỉ nhận khi lần hai đã gửi. */
         FOLLOWUP3,
         /** Lời mời kết bạn (24/11/2026): tài khoản phụ chủ động kết bạn với người ĐÃ nhận Tin 1. Chỉ theo mã Zalo; trần riêng mỗi ngày, không tính vào hạn mức khách nhắn chủ động. */
-        FRIEND;
+        FRIEND,
+        /** Tin nhờ khách chủ động kết bạn lại (25/11/2026): chỉ gửi cho người ĐÃ nhận Tin 1 mà lời mời kết bạn không gửi được vì Zalo báo danh sách lời mời đầy (Z223). Chỉ theo mã Zalo, mỗi người một lần. */
+        ASK_FRIEND;
 
         /** Tin do shop chủ động nhắn khách (không phải trả lời, không phải Tin 2): tính vào hạn mức ngày. */
         public boolean proactive() {

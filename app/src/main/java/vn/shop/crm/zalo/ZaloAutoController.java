@@ -96,6 +96,8 @@ public class ZaloAutoController {
             model.addAttribute("friendDaily", messages.friendDaily());
             model.addAttribute("friendUsed", messages.friendUsedToday());
             model.addAttribute("friendMax", cfg.props().friendMaxDaily());
+            model.addAttribute("friendPausedUntil", messages.friendPausedUntil()
+                    .map(t -> LocalDateTime.ofInstant(t, cfg.clock().getZone())).orElse(null));
             model.addAttribute("waiting", service.waiting());
             model.addAttribute("manual", service.manualQueue());
             model.addAttribute("candidates", service.candidates());
@@ -293,6 +295,15 @@ public class ZaloAutoController {
         requireEnabled();
         messages.setFriendDaily(daily, by(user));
         redirect.addFlashAttribute("flash", daily == 0 ? "Đã TẮT lời mời kết bạn tự động." : "Đã lưu hạn mức lời mời kết bạn.");
+        return "redirect:/zalo?tab=gioi-han";
+    }
+
+    /** Bỏ tạm dừng lời mời kết bạn (sau Z223) mà không đổi bộ đếm. */
+    @PostMapping("/messages/friend-resume")
+    public String friendResume(Principal user, RedirectAttributes redirect) {
+        requireEnabled();
+        messages.resumeFriendRequests(by(user));
+        redirect.addFlashAttribute("flash", "Đã mở lại việc gửi lời mời kết bạn.");
         return "redirect:/zalo?tab=gioi-han";
     }
 

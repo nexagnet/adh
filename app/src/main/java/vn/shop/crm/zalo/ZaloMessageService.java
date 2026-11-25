@@ -53,6 +53,10 @@ public class ZaloMessageService {
      */
     public static final int SAME_CUSTOMER_GAP_SECONDS = 7;
     static final String FRIEND_DAILY = "zalo.friend.daily";
+    /** Hết giờ này (ISO, UTC) thì mới gửi lại lời mời kết bạn: đặt khi Zalo báo danh sách lời mời đầy (Z223); người bấm "Gửi lại lời mời" thì xóa. */
+    static final String FRIEND_PAUSED_UNTIL = "zalo.friend.paused_until";
+    /** Mã của cầu nối: Zalo báo danh sách lời mời kết bạn của tài khoản phụ đã đầy (Z223). Chưa gửi gì, KHÔNG phải lỗi hệ thống nên không dừng cầu dao. */
+    public static final String FRIEND_LIST_FULL = "FRIEND_LIST_FULL";
     public static final String SCOPE_REAL = "REAL";
     /** Số lần liền lỗi riêng người (mã lạ) thì dừng, và số lần liền "không tìm thấy" thì dừng để người kiểm tra. */
     static final int MAX_CONSECUTIVE_PERSON_ERRORS = 3;
@@ -68,7 +72,8 @@ public class ZaloMessageService {
         DAILY_LIMIT("Đã đủ số khách được nhắn trong ngày"),
         GAP("Chưa đủ khoảng nghỉ sau tin trước"),
         BUSY("Đang có một tin khác được gửi"),
-        NOT_READY("Cầu nối chưa nghe được hoặc chưa chắc đúng tài khoản phụ");
+        NOT_READY("Cầu nối chưa nghe được hoặc chưa chắc đúng tài khoản phụ"),
+        FRIEND_PAUSED("Zalo báo danh sách lời mời kết bạn đã đầy, đang tạm dừng gửi lời mời kết bạn");
 
         private final String label;
 
@@ -179,6 +184,45 @@ public class ZaloMessageService {
                 .param("s", OffsetDateTime.ofInstant(startOfDay(), ZoneOffset.UTC)).query(Integer.class).single();
     }
 
+    // ---------- danh sách lời mời đầy (Z223, 25/11/2026) ----------
+
+    /** Lúc được gửi lời mời kết bạn lại sau khi Zalo báo danh sách đầy; rỗng nếu không đang tạm dừng. */
+    public Optional<Instant> friendPausedUntil() {
+        return settings.get(FRIEND_PAUSED_UNTIL).map(String::strip).filter(v -> !v.isEmpty()).flatMap(v -> {
+            try {
+                return Optional.of(Instant.parse(v));
+            } catch (java.time.format.DateTimeParseException e) {
+                return Optional.<Instant>empty();
+            }
+        }).filter(t -> t.isAfter(clock.instant()));
+    }
+
+    /**
+     * Zalo báo danh sách lời mời đầy (Z223): chỉ tạm dừng RIÊNG lời mời kết bạn đến giờ mở cửa của ngày hôm sau (hoặc đến khi người bấm gửi lại).
+     * Không dừng cầu dao, Tin 1 và thêm nhóm vẫn chạy theo luật của chúng.
+     */
+    public void pauseFriendRequests(String by) {
+        Instant until = clock.instant().atZone(clock.getZone()).toLocalDate().plusDays(1)
+                .atTime(cfg.props().msgWindowStart()).atZone(clock.getZone()).toInstant();
+        settings.set(FRIEND_PAUSED_UNTIL, until.toString(), by);
+        cfg.log(ZaloAutoSettings.A_CONFIG, null, null, "KET_BAN_DAY_TAM_DUNG", "Z223", by);
+    }
+
+    /** Người bấm "Gửi lại lời mời kết bạn": bỏ tạm dừng sau khi đã dọn danh sách lời mời trên Zalo. */
+    public void resumeFriendRequests(String by) {
+        if (settings.get(FRIEND_PAUSED_UNTIL).filter(v -> !v.isBlank()).isEmpty()) {
+            return;
+        }
+        settings.set(FRIEND_PAUSED_UNTIL, "", by);
+        cfg.log(ZaloAutoSettings.A_CONFIG, null, null, "KET_BAN_MO_LAI", null, by);
+    }
+
+    /** Số tin nhờ khách kết bạn lại đã gọi hôm nay (tính cả lần lỗi). */
+    public int askFriendUsedToday() {
+        return jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE at >= :s AND kind = 'ASK_FRIEND'")
+                .param("s", OffsetDateTime.ofInstant(startOfDay(), ZoneOffset.UTC)).query(Integer.class).single();
+    }
+
     public Limits setLimits(int daily, int gapSeconds, String by) {
         ZaloAutoProperties p = cfg.props();
         if (daily < 1 || daily > p.msgMaxDaily()) {
@@ -246,7 +290,7 @@ public class ZaloMessageService {
      * lời mời kết bạn của chính lời mời {@code refId} (kể cả Tin 1 bị Zalo từ chối vì khách không nhận tin người lạ, Z122). Rỗng nếu dòng gần nhất thuộc khách khác (khi đó dùng khoảng nghỉ chung giữa các khách).
      */
     private OptionalInt sameCustomerGap(Kind kind, Long refId) {
-        if (refId == null || (kind != Kind.FRIEND && kind != Kind.INVITE)) {
+        if (refId == null || (kind != Kind.FRIEND && kind != Kind.INVITE && kind != Kind.ASK_FRIEND)) {
             return OptionalInt.empty();
         }
         return jdbc.sql("""
@@ -257,7 +301,7 @@ public class ZaloMessageService {
                         return OptionalInt.empty();
                     }
                     String lastKind = rs.getString("kind");
-                    if (kind == Kind.FRIEND && "INVITE".equals(lastKind)) {
+                    if ((kind == Kind.FRIEND || kind == Kind.ASK_FRIEND) && "INVITE".equals(lastKind)) {
                         return OptionalInt.of(SAME_CUSTOMER_GAP_SECONDS); // kể cả khi Tin 1 bị chặn người lạ (Z122): vẫn chờ 7 giây (chủ dự án chốt 25/11/2026)
                     }
                     if (kind == Kind.INVITE && "FRIEND".equals(lastKind)) {
@@ -327,12 +371,18 @@ public class ZaloMessageService {
                 String why;
                 if (b.get() == Block.OUTSIDE_WINDOW) {
                     why = "Ngoài khung giờ gửi (" + ws + " đến " + cfg.props().msgWindowEnd() + "), tiếp tục lúc " + ws;
-                } else if (kind == Kind.FRIEND) {
+                } else if (kind == Kind.FRIEND || kind == Kind.ASK_FRIEND) {
                     why = "Đã đủ " + friendDaily() + " lời mời kết bạn hôm nay, tiếp tục vào ngày mai";
                 } else {
                     why = "Đã đủ " + limits().daily() + " khách được nhắn hôm nay, tiếp tục vào ngày mai";
                 }
                 return new NextSend(day.atTime(ws).atZone(clock.getZone()).toInstant(), why);
+            }
+            case FRIEND_PAUSED -> {
+                Instant until = friendPausedUntil().orElse(null);
+                return new NextSend(until, "Zalo báo danh sách lời mời kết bạn đã đầy (Z223), tạm dừng gửi lời mời kết bạn; tự mở lại lúc "
+                        + (until == null ? "sáng mai" : LocalDateTime.ofInstant(until, clock.getZone()).toString().replace('T', ' ').substring(0, 16))
+                        + " hoặc khi bạn bấm \"Gửi lại lời mời\" ở trang Zalo");
             }
             default -> {
                 return new NextSend(null, b.get().label());
@@ -385,6 +435,12 @@ public class ZaloMessageService {
         if (!inWindow()) {
             return Optional.of(Block.OUTSIDE_WINDOW);
         }
+        if (kind == Kind.FRIEND) {
+            // Danh sách lời mời của Zalo có hạn (Z223): đang tạm dừng thì không gửi lời mời. Chỉ chặn lời mời kết bạn, không đụng loại tin khác.
+            if (friendPausedUntil().isPresent()) {
+                return Optional.of(Block.FRIEND_PAUSED);
+            }
+        }
         Limits l = limits();
         Instant now = clock.instant();
         // Hạn mức ngày là số tin shop chủ động nhắn (Tin 1 và tin nhắc, D21: tin nhắc tính vào hạn mức). Tin 2 (link nhóm) và tin mẫu trả lời người đã nhắn mình không bị giới hạn riêng,
@@ -394,6 +450,10 @@ public class ZaloMessageService {
             return Optional.of(Block.DAILY_LIMIT);
         }
         if (kind == Kind.FRIEND && friendUsedToday() >= friendDaily()) {
+            return Optional.of(Block.DAILY_LIMIT);
+        }
+        // Tin nhờ kết bạn lại thay cho lời mời kết bạn nên dùng chung trần mỗi ngày của lời mời (0 = tắt cả hai); không tính vào số khách được nhắn Tin 1.
+        if (kind == Kind.ASK_FRIEND && askFriendUsedToday() >= friendDaily()) {
             return Optional.of(Block.DAILY_LIMIT);
         }
         Instant last = lastAt(null);
