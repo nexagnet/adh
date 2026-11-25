@@ -151,7 +151,7 @@ public class AdvisorSnapshotService {
                 total.awaiting, unknown.customers, hidden, total.funnel());
         Map<Long, CampaignPerformance> perf = new LinkedHashMap<>();
         performance.anonymized().campaigns().forEach(c -> perf.put(c.id(), c));
-        return new AdvisorSnapshot(today.toString(), calendar, limits, overall, areas, slots(), campaigns(perf), pastProposals(perf, now));
+        return new AdvisorSnapshot(today.toString(), calendar, limits, overall, areas, slots(), campaigns(perf, today), pastProposals(perf, now));
     }
 
     private AdvisorSnapshot.Area area(SubRegion sub, Acc acc, List<Map.Entry<Province, Acc>> provinces,
@@ -326,29 +326,62 @@ public class AdvisorSnapshotService {
     /** Chiến dịch có ít hơn chừng này khách đã nhắn thì kết quả (kết bạn, vào nhóm, từ chối, mua) bị ẩn: quá ít để kết luận và để không suy ngược ra từng khách. */
     static final int MIN_RESULT_SENT = 5;
 
-    /** Chiến dịch còn khách chờ hoặc mới tạo trong {@link #CAMPAIGN_RECENT_DAYS} ngày: ngày, khung giờ, số đếm và kết quả theo bước, không tên chiến dịch, không khách. */
-    private List<AdvisorSnapshot.CampaignInfo> campaigns(Map<Long, CampaignPerformance> perf) {
+    /** Chiến dịch chưa duyệt tự gửi mà tạo đã quá chừng này ngày thì coi là bỏ dở (không còn là "đang chờ gửi"). */
+    static final int CAMPAIGN_STALE_DAYS = 30;
+
+    /**
+     * Trạng thái chiến dịch báo cho AI. Chỉ DANG_GUI và CHUA_DUYET là "còn chạy" (chặn đề xuất trùng khu vực và thời gian); các trạng thái còn lại
+     * chỉ để AI học từ kết quả: XONG (hết khách chờ), LUU_TRU (chủ shop đã lưu trữ), HET_HAN (đã quá ngày kết thúc nên hệ thống không gửi nữa),
+     * BO_DO (chưa từng duyệt tự gửi và tạo đã quá {@value #CAMPAIGN_STALE_DAYS} ngày).
+     */
+    static String campaignState(boolean archived, long ready, boolean approved, LocalDate endOn, LocalDate createdOn, LocalDate today) {
+        if (archived) {
+            return "LUU_TRU";
+        }
+        if (ready == 0) {
+            return "XONG";
+        }
+        if (endOn != null && endOn.isBefore(today)) {
+            return "HET_HAN";
+        }
+        if (!approved && createdOn != null && createdOn.isBefore(today.minusDays(CAMPAIGN_STALE_DAYS))) {
+            return "BO_DO";
+        }
+        return approved ? "DANG_GUI" : "CHUA_DUYET";
+    }
+
+    /**
+     * Chiến dịch còn khách chờ hoặc mới tạo trong {@link #CAMPAIGN_RECENT_DAYS} ngày, cộng chiến dịch đã lưu trữ có đủ kết quả để học:
+     * ngày, khung giờ, số đếm và kết quả theo bước, không tên chiến dịch, không khách. Chiến dịch còn chạy xếp trước.
+     */
+    private List<AdvisorSnapshot.CampaignInfo> campaigns(Map<Long, CampaignPerformance> perf, LocalDate today) {
         Map<Long, Long> optedOut = contacts.optedOutAfterInviteByCampaign();
         return jdbc.sql("""
-                        SELECT k.id, k.geo_scope, k.auto_send_approved_at IS NOT NULL AS approved, k.start_on, k.end_on, k.window_from, k.window_to,
+                        SELECT k.id, k.geo_scope, k.auto_send_approved_at IS NOT NULL AS approved, k.archived_at IS NOT NULL AS archived,
+                               k.created_at, k.start_on, k.end_on, k.window_from, k.window_to,
                                k.daily_cap, count(i.id) AS total, count(i.id) FILTER (WHERE i.status = 'READY') AS ready,
                                count(i.id) FILTER (WHERE i.sent_at IS NOT NULL) AS sent,
                                count(i.id) FILTER (WHERE i.friended_at IS NOT NULL) AS friended,
                                count(i.id) FILTER (WHERE i.joined_at IS NOT NULL) AS joined
                         FROM invitation_campaign k LEFT JOIN invitation i ON i.campaign_id = k.id
                         GROUP BY k.id
-                        HAVING count(i.id) FILTER (WHERE i.status = 'READY') > 0 OR k.created_at >= now() - make_interval(days => :days)
-                        ORDER BY k.id DESC LIMIT :n""")
-                .param("days", CAMPAIGN_RECENT_DAYS).param("n", MAX_CAMPAIGNS)
+                        HAVING (k.archived_at IS NULL
+                                    AND (count(i.id) FILTER (WHERE i.status = 'READY') > 0 OR k.created_at >= now() - make_interval(days => :days)))
+                            OR (k.archived_at IS NOT NULL AND count(i.id) FILTER (WHERE i.sent_at IS NOT NULL) >= :minSent)
+                        ORDER BY (k.archived_at IS NOT NULL), k.id DESC LIMIT :n""")
+                .param("days", CAMPAIGN_RECENT_DAYS).param("minSent", MIN_RESULT_SENT).param("n", MAX_CAMPAIGNS)
                 .query((rs, i) -> {
                     long ready = rs.getLong("ready");
                     long sent = rs.getLong("sent");
-                    String state = ready == 0 ? "XONG" : rs.getBoolean("approved") ? "DANG_GUI" : "CHUA_DUYET";
+                    LocalDate endOn = rs.getObject("end_on", LocalDate.class);
+                    OffsetDateTime created = rs.getObject("created_at", OffsetDateTime.class);
+                    String state = campaignState(rs.getBoolean("archived"), ready, rs.getBoolean("approved"), endOn,
+                            created == null ? null : created.atZoneSameInstant(ZONE).toLocalDate(), today);
                     String scope = rs.getString("geo_scope");
                     boolean enough = sent >= MIN_RESULT_SENT;
                     CampaignPerformance p = perf.get(rs.getLong("id"));
                     return new AdvisorSnapshot.CampaignInfo(scope == null || scope.isBlank() ? "ALL" : scope, state,
-                            str(rs.getObject("start_on", LocalDate.class)), str(rs.getObject("end_on", LocalDate.class)),
+                            str(rs.getObject("start_on", LocalDate.class)), str(endOn),
                             str(rs.getObject("window_from", java.time.LocalTime.class)), str(rs.getObject("window_to", java.time.LocalTime.class)),
                             (Integer) rs.getObject("daily_cap"), rs.getLong("total"), ready, sent,
                             enough ? rs.getLong("friended") : null, enough ? rs.getLong("joined") : null,

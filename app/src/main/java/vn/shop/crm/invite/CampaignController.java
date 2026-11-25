@@ -27,13 +27,15 @@ public class CampaignController {
     private final vn.shop.crm.zalo.CampaignAutoStop autoStop;
     private final vn.shop.crm.zalo.CampaignGroupTarget groupTarget;
     private final vn.shop.crm.inbox.ComebackService comebacks;
+    private final CampaignArchive archive;
 
     public CampaignController(InviteService invites, ContactService contacts, AppSettings settings,
                               vn.shop.crm.zalo.ZaloInviteSender autoSender, vn.shop.crm.zalo.ZaloMessageService messages,
                               vn.shop.crm.zalo.ZaloCampaignIntake intake, vn.shop.crm.zalo.CampaignPolicy policy,
                               CampaignSteps steps, vn.shop.crm.zalo.CampaignAutoStop autoStop,
                               vn.shop.crm.zalo.CampaignGroupTarget groupTarget, vn.shop.crm.inbox.ComebackService comebacks,
-                              vn.shop.crm.zalo.ZaloQueueView queueView) {
+                              vn.shop.crm.zalo.ZaloQueueView queueView, CampaignArchive archive) {
+        this.archive = archive;
         this.comebacks = comebacks;
         this.groupTarget = groupTarget;
         this.autoStop = autoStop;
@@ -49,10 +51,13 @@ public class CampaignController {
     }
 
     @GetMapping("/campaigns")
-    public String list(@RequestParam(defaultValue = "ds") String tab, Model model) {
+    public String list(@RequestParam(defaultValue = "ds") String tab, @RequestParam(defaultValue = "false") boolean luutru, Model model) {
         // "moi" = tab tạo chiến dịch; mọi giá trị khác về danh sách (tab mặc định).
         model.addAttribute("tab", "moi".equals(tab) ? "moi" : "ds");
-        model.addAttribute("campaigns", invites.campaigns());
+        var all = invites.campaigns();
+        model.addAttribute("campaigns", luutru ? all : all.stream().filter(c -> !c.archived()).toList());
+        model.addAttribute("showArchived", luutru);
+        model.addAttribute("archivedCount", all.stream().filter(InviteService.Campaign::archived).count());
         model.addAttribute("stats", invites.stats());
         model.addAttribute("contact", contacts.stats());
         model.addAttribute("paused", settings.paused());
@@ -369,6 +374,24 @@ public class CampaignController {
     public String disableIntake(@PathVariable long id, RedirectAttributes redirect) {
         intake.disable(id, ContactService.actor());
         redirect.addFlashAttribute("flash", "Đã tắt tự nhận khách mới. Khách đã vào chiến dịch vẫn giữ nguyên.");
+        return "redirect:/campaigns/" + id;
+    }
+
+    /** Lưu trữ chiến dịch cũ: bỏ duyệt tự gửi, tắt tự nhận khách mới, AI không còn coi là đang chạy. Có thể hủy luôn các lời mời chưa gửi. */
+    @PostMapping("/campaigns/{id}/archive")
+    public String archiveCampaign(@PathVariable long id, @RequestParam(defaultValue = "false") boolean cancelUnsent,
+                                  RedirectAttributes redirect) {
+        int n = archive.archive(id, cancelUnsent, ContactService.actor());
+        redirect.addFlashAttribute("flash", "Đã lưu trữ chiến dịch: hệ thống không tự gửi cho chiến dịch này nữa và AI không còn coi nó là đang chạy. "
+                + "Tin đã gửi và kết quả giữ nguyên."
+                + (n > 0 ? " Đã hủy " + n + " lời mời chưa gửi, các khách này quay về danh sách chưa được mời." : ""));
+        return "redirect:/campaigns/" + id;
+    }
+
+    @PostMapping("/campaigns/{id}/restore")
+    public String restoreCampaign(@PathVariable long id, RedirectAttributes redirect) {
+        archive.restore(id, ContactService.actor());
+        redirect.addFlashAttribute("flash", "Đã khôi phục chiến dịch. Chiến dịch chưa được duyệt tự gửi: bạn duyệt lại ở tab \"Tổng quan và lời mời\" nếu muốn gửi tiếp.");
         return "redirect:/campaigns/" + id;
     }
 

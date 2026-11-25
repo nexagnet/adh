@@ -81,7 +81,17 @@ public class InviteService {
 
     public record Campaign(long id, String name, String template, int expiresDays, String createdBy,
                            LocalDateTime createdAt, long total, long ready, long sent, long clicked, long cancelled,
-                           long friended, long joined, String geoScope) {
+                           long friended, long joined, String geoScope, LocalDateTime archivedAt, java.time.LocalDate endOn) {
+        /** Đã lưu trữ (25/11/2026): không tự gửi, không tính là đang chạy khi AI đề xuất. */
+        public boolean archived() {
+            return archivedAt != null;
+        }
+
+        /** Chưa lưu trữ nhưng đã quá ngày kết thúc của chiến dịch: hệ thống không gửi nữa, nên gợi ý lưu trữ. */
+        public boolean pastEnd() {
+            return archivedAt == null && endOn != null && endOn.isBefore(java.time.LocalDate.now(VN));
+        }
+
         /** Khu vực của chiến dịch: rỗng = mọi nơi; "U" = khách chưa rõ khu vực. */
         public String scopeLabel() {
             if (geoScope == null || geoScope.isBlank()) {
@@ -323,7 +333,7 @@ public class InviteService {
     }
 
     private static final String CAMPAIGN_SELECT = """
-            SELECT c.id, c.name, c.message_template, c.expires_days, c.created_by, c.created_at, c.geo_scope,
+            SELECT c.id, c.name, c.message_template, c.expires_days, c.created_by, c.created_at, c.geo_scope, c.archived_at, c.end_on,
                    count(i.id) AS total,
                    count(i.id) FILTER (WHERE i.status = 'READY') AS ready,
                    count(i.id) FILTER (WHERE i.sent_at IS NOT NULL) AS sent,
@@ -337,7 +347,8 @@ public class InviteService {
         return new Campaign(rs.getLong("id"), rs.getString("name"), rs.getString("message_template"),
                 rs.getInt("expires_days"), rs.getString("created_by"), local(rs.getObject("created_at", OffsetDateTime.class)),
                 rs.getLong("total"), rs.getLong("ready"), rs.getLong("sent"), rs.getLong("clicked"),
-                rs.getLong("cancelled"), rs.getLong("friended"), rs.getLong("joined"), rs.getString("geo_scope"));
+                rs.getLong("cancelled"), rs.getLong("friended"), rs.getLong("joined"), rs.getString("geo_scope"),
+                local(rs.getObject("archived_at", OffsetDateTime.class)), rs.getObject("end_on", java.time.LocalDate.class));
     }
 
     public List<InvitationRow> invitations(long campaignId, String template) {

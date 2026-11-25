@@ -109,8 +109,10 @@
                 <tr><th>Chiến dịch</th><th>Tự gửi</th><th>Khu vực</th><th>Tạo lúc</th><th>Lời mời</th><th>Chưa gửi</th><th>Đã nhắn</th><th>Đã kết bạn</th><th>Đã vào nhóm</th><th>Đã bấm link</th></tr>
                 <tr th:each="c : ${campaigns}">
                     <td><a th:href="@{/campaigns/{id}(id=${c.id})}" th:text="${c.name}">Đợt 1</a></td>
-                    <td><span class="badge ok" th:if="${@zaloInviteSender.approved(c.id)}">Đã duyệt</span>
-                        <span class="badge" th:unless="${@zaloInviteSender.approved(c.id)}">Chưa duyệt</span></td>
+                    <td><span class="badge" th:if="${c.archived()}">Đã lưu trữ</span>
+                        <span class="badge ok" th:if="${!c.archived() and @zaloInviteSender.approved(c.id)}">Đã duyệt</span>
+                        <span class="badge" th:if="${!c.archived() and !@zaloInviteSender.approved(c.id)}">Chưa duyệt</span>
+                        <span class="badge warn" th:if="${c.pastEnd()}" title="Đã quá ngày kết thúc nên hệ thống không gửi nữa. Mở chiến dịch để lưu trữ.">Hết hạn, nên lưu trữ</span></td>
                     <td th:text="${c.scopeLabel}">Miền Nam</td>
                     <td th:text="${#temporals.format(c.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
                     <td th:text="${c.total}">0</td>
@@ -123,6 +125,9 @@
             </table>
         </div>
         <p class="muted" th:if="${campaigns.isEmpty()}">Chưa có chiến dịch nào.</p>
+        <p class="muted small" th:if="${archivedCount > 0 and !showArchived}">Đang ẩn <span th:text="${archivedCount}">2</span> chiến dịch đã lưu trữ.
+            <a th:href="@{/campaigns(luutru=true)}">Xem cả chiến dịch đã lưu trữ</a></p>
+        <p class="muted small" th:if="${showArchived}"><a th:href="@{/campaigns}">Ẩn chiến dịch đã lưu trữ</a></p>
         <p class="muted small" style="margin-top:10px">Lượt bấm link không phải số người đã vào nhóm.</p>
     </section>
 </main>

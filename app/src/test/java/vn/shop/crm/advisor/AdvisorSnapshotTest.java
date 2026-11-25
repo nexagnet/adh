@@ -253,6 +253,59 @@ class AdvisorSnapshotTest extends AbstractPostgresTest {
         assertThat(done.sent()).isEqualTo(3);
     }
 
+    private void approveProvince(String province) {
+        jdbc.sql("SELECT id FROM customer WHERE province = :p").param("p", province).query(Long.class).list().forEach(contacts::approve);
+    }
+
+    @Test
+    void chienDichLuuTruHetHanHayBoDoKhongConLaDangChay() {
+        approveProvince("binh-duong");
+        approveProvince("ha-giang");
+        long a = invites.createCampaign("Cũ đã lưu trữ", null, 14, 3, "P:tphcm");
+        long b = invites.createCampaign("Cũ hết hạn", null, 14, 3, "P:binh-duong");
+        long c = invites.createCampaign("Cũ bỏ dở", null, 14, 2, "P:ha-giang");
+        jdbc.sql("UPDATE invitation_campaign SET archived_at = now() WHERE id = :id").param("id", a).update();
+        jdbc.sql("UPDATE invitation_campaign SET auto_send_approved_at = now(), start_on = CURRENT_DATE - 20, end_on = CURRENT_DATE - 3 WHERE id = :id")
+                .param("id", b).update();
+        jdbc.sql("UPDATE invitation_campaign SET created_at = now() - interval '45 days' WHERE id = :id").param("id", c).update();
+
+        var byScope = new java.util.HashMap<String, AdvisorSnapshot.CampaignInfo>();
+        service.build().campaigns().forEach(i -> byScope.put(i.scope(), i));
+        // lưu trữ mà chưa đủ khách đã nhắn thì không đưa cho AI (không có gì để học)
+        assertThat(byScope).doesNotContainKey("P:tphcm");
+        assertThat(byScope.get("P:binh-duong").state()).isEqualTo("HET_HAN");
+        assertThat(byScope.get("P:binh-duong").open()).isFalse();
+        assertThat(byScope.get("P:ha-giang").state()).isEqualTo("BO_DO");
+        assertThat(byScope.get("P:ha-giang").open()).isFalse();
+    }
+
+    @Test
+    void chienDichLuuTruCoDuKetQuaVanDuocBaoChoAiNhungKhongChanDeXuat() {
+        long id = invites.createCampaign("Đã lưu trữ có kết quả", null, 14, 6, "P:tphcm");
+        jdbc.sql("UPDATE invitation SET status = 'SENT', sent_at = now() WHERE campaign_id = :id").param("id", id).update();
+        jdbc.sql("UPDATE invitation_campaign SET archived_at = now(), start_on = CURRENT_DATE, end_on = CURRENT_DATE + 5 WHERE id = :id")
+                .param("id", id).update();
+        var c = service.build().campaigns().getFirst();
+        assertThat(c.state()).isEqualTo("LUU_TRU");
+        assertThat(c.open()).isFalse();
+        assertThat(c.sent()).isEqualTo(6);
+        assertThat(c.friended()).isNotNull();
+    }
+
+    @Test
+    void chienDichConChayXepTruocChienDichLuuTru() {
+        approveProvince("binh-duong");
+        long old = invites.createCampaign("Cũ", null, 14, 6, "P:tphcm");
+        jdbc.sql("UPDATE invitation SET status = 'SENT', sent_at = now() WHERE campaign_id = :id").param("id", old).update();
+        jdbc.sql("UPDATE invitation_campaign SET archived_at = now() WHERE id = :id").param("id", old).update();
+        long open = invites.createCampaign("Mới", null, 14, 2, "P:binh-duong");
+        var list = service.build().campaigns();
+        assertThat(list).hasSize(2);
+        assertThat(list.getFirst().scope()).isEqualTo("P:binh-duong");
+        assertThat(list.getFirst().open()).isTrue();
+        assertThat(open).isGreaterThan(old);
+    }
+
     private long batchId;
 
     /** Một đơn giao thành công của số điện thoại này, với tên hàng cho trước. */
