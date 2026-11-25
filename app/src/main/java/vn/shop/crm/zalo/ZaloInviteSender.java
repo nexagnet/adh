@@ -470,9 +470,13 @@ public class ZaloInviteSender {
                         UPDATE invitation_campaign SET auto_send_approved_at = now(), auto_send_approved_by = :by,
                                auto_stop_since = CASE WHEN auto_stopped_at IS NOT NULL THEN now() ELSE auto_stop_since END,
                                auto_stopped_at = NULL, auto_stopped_reason = NULL
-                        WHERE id = :id AND auto_send_approved_at IS NULL""").param("by", by).param("id", campaignId).update();
+                        WHERE id = :id AND auto_send_approved_at IS NULL AND archived_at IS NULL""").param("by", by).param("id", campaignId).update();
         if (n == 0 && !campaignExists(campaignId)) {
             throw new ImportException("Không tìm thấy chiến dịch.");
+        }
+        if (n == 0 && jdbc.sql("SELECT archived_at IS NOT NULL FROM invitation_campaign WHERE id = :id").param("id", campaignId)
+                .query(Boolean.class).single()) {
+            throw new ImportException("Chiến dịch này đã lưu trữ nên không duyệt tự gửi được. Hãy khôi phục chiến dịch trước.");
         }
         messages.audit("DUYET_CHIEN_DICH", campaignId, by);
     }

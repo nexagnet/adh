@@ -190,6 +190,12 @@ class ProposalValidatorTest {
         var done = new AdvisorSnapshot.CampaignInfo("R:NAM", "XONG", "2026-11-22", "2026-11-30", null, null, 10, 40, 0, 40);
         var snap2 = new AdvisorSnapshot(base.generatedOn(), base.calendar(), base.limits(), base.overall(), base.areas(), base.sendSlots(), List.of(done));
         assertThat(ProposalValidator.validate(wrap(one()), snap2, TODAY).accepted()).hasSize(1);
+        // chiến dịch đã lưu trữ, hết hạn hoặc bỏ dở còn khách chờ cũng không chặn
+        for (String state : new String[]{"LUU_TRU", "HET_HAN", "BO_DO"}) {
+            var dead = new AdvisorSnapshot.CampaignInfo("R:NAM", state, "2026-11-22", "2026-11-30", "09:00", "11:00", 10, 40, 25, 15);
+            var snap3 = new AdvisorSnapshot(base.generatedOn(), base.calendar(), base.limits(), base.overall(), base.areas(), base.sendSlots(), List.of(dead));
+            assertThat(ProposalValidator.validate(wrap(one()), snap3, TODAY).accepted()).as(state).hasSize(1);
+        }
     }
 
     @Test

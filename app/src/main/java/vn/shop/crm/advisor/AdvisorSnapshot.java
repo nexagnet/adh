@@ -109,7 +109,8 @@ public record AdvisorSnapshot(
     /**
      * Một chiến dịch đang chạy hoặc mới chạy (không tên, không khách): để AI không đề xuất trùng khu vực và thời gian.
      * {@code scope}: mã khu vực của chiến dịch ("ALL" nếu mọi nơi). {@code state}: DANG_GUI (đã duyệt tự gửi, còn khách chờ),
-     * CHUA_DUYET (còn khách chờ nhưng chưa duyệt tự gửi) hoặc XONG (hết khách chờ).
+     * CHUA_DUYET (còn khách chờ nhưng chưa duyệt tự gửi), XONG (hết khách chờ), LUU_TRU (chủ shop đã lưu trữ), HET_HAN (quá ngày kết thúc,
+     * không còn gửi) hoặc BO_DO (chưa từng duyệt và tạo đã lâu). Chỉ DANG_GUI và CHUA_DUYET là còn chạy.
      */
     public record CampaignInfo(String scope, String state, String startOn, String endOn, String windowFrom, String windowTo,
                                Integer dailyCap, long total, long ready, long sent, Long friended, Long joined, Long optedOut, Long buyers) {
