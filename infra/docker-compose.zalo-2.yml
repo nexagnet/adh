@@ -1,0 +1,45 @@
+# Tài khoản Zalo phụ THỨ HAI chạy CÙNG MÁY CHỦ với ứng dụng (D23, docs/HUONG-DAN-NHIEU-TAI-KHOAN-ZALO.md).
+# MẶC ĐỊNH KHÔNG DÙNG: chỉ có tác dụng khi .env đặt
+#   COMPOSE_FILE=docker-compose.shared.yml:docker-compose.zalo-2.yml
+# (hoặc docker-compose.prod.yml:... nếu dùng bản prod).
+#  - Cầu nối thứ hai CÙNG máy chủ: COMPOSE_PROFILES=zalo-auto,zalo-bridge-2 (khởi động dịch vụ zalo-bridge-2 dưới đây).
+#  - Cầu nối thứ hai Ở MÁY CHỦ KHÁC (docker-compose.bridge-only.yml): COMPOSE_PROFILES=zalo-auto và đặt ZALO_BRIDGE_2_URL=http://<địa-chỉ-đường-hầm>:3100.
+# Cầu nối thứ hai có thư mục phiên, khóa chung và khóa mã hóa phiên RIÊNG; mỗi tài khoản là SIM chính chủ, người thật quét QR.
+# Cố ý KHÔNG đặt proxy, IP, dấu vân tay hay userAgent riêng cho cầu nối này (luật D23: không làm gì để Zalo không liên kết các tài khoản).
+services:
+  app:
+    environment:
+      # Bật chạy nhiều tài khoản (mặc định false: chỉ tài khoản 1). Chỉ bật sau khi đọc hướng dẫn.
+      APP_ZALO_MULTI_ENABLED: ${APP_ZALO_MULTI_ENABLED:-false}
+      APP_ZALO_ACCOUNTS_0_ID: "2"
+      APP_ZALO_ACCOUNTS_0_BRIDGE_URL: ${ZALO_BRIDGE_2_URL:-http://zalo-bridge-2:3100}
+      APP_ZALO_ACCOUNTS_0_BRIDGE_KEY: ${APP_ZALO_BRIDGE_KEY_2:?Hãy đặt APP_ZALO_BRIDGE_KEY_2 trong file .env}
+
+  zalo-bridge-2:
+    profiles: ["zalo-bridge-2"]
+    image: ghcr.io/nexagnet/adh-zalo-bridge:${ADH_TAG:-chua-dat}
+    restart: unless-stopped
+    environment:
+      BRIDGE_KEY: ${APP_ZALO_BRIDGE_KEY_2:?Hãy đặt APP_ZALO_BRIDGE_KEY_2 trong file .env}
+      SESSION_KEY: ${ZALO_SESSION_KEY_2:-}
+      # Mã Zalo của TÀI KHOẢN PHỤ THỨ HAI. Đăng nhập bằng tài khoản khác sẽ bị từ chối và đăng xuất.
+      ZALO_ACCOUNT_ID: ${ZALO_ACCOUNT_ID_2:-}
+      APP_ZALO_AUTO_MAX_DAILY: ${APP_ZALO_AUTO_MAX_DAILY:-300}
+      BRIDGE_PERSON_ERROR_CODES: ${ZALO_PERSON_ERROR_CODES:-}
+      BRIDGE_MSG_DAILY: ${BRIDGE_MSG_DAILY:-150}
+      BRIDGE_FRIEND_DAILY: ${BRIDGE_FRIEND_DAILY:-50}
+      BRIDGE_MSG_GAP_SEC: ${BRIDGE_MSG_GAP_SEC:-90}
+      BRIDGE_REPLY_GAP_SEC: ${BRIDGE_REPLY_GAP_SEC:-30}
+      BRIDGE_INBOX_ENABLED: ${BRIDGE_INBOX_ENABLED:-false}
+      NODE_OPTIONS: --max-old-space-size=80
+    volumes:
+      - zalo-bridge-2-data:/data
+    networks: [zalo]
+    mem_limit: 160m
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+volumes:
+  zalo-bridge-2-data:

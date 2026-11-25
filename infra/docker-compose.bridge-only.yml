@@ -1,0 +1,32 @@
+# MÁY CHỦ THỨ HAI chỉ chạy cầu nối Zalo của tài khoản phụ (D23, docs/HUONG-DAN-NHIEU-TAI-KHOAN-ZALO.md mục 4). Ứng dụng và cơ sở dữ liệu
+# vẫn chỉ ở máy chủ chính; máy này không có dữ liệu khách ngoài những gì cầu nối tạm giữ trong bộ nhớ.
+# Chạy: docker compose -f docker-compose.bridge-only.yml --env-file .env.bridge up -d
+# CỔNG CẦU NỐI KHÔNG ĐƯỢC MỞ RA INTERNET: chỉ gắn vào địa chỉ riêng của đường hầm giữa hai máy (WireGuard hoặc Tailscale), đặt ở BRIDGE_BIND.
+# Cố ý KHÔNG đặt proxy, IP, dấu vân tay hay userAgent riêng (luật D23: không làm gì để Zalo không liên kết các tài khoản). Tách máy chủ chỉ vì đủ RAM.
+services:
+  zalo-bridge:
+    image: ghcr.io/nexagnet/adh-zalo-bridge:${ADH_TAG:?Hãy đặt ADH_TAG (thẻ ảnh trùng với máy chủ chính)}
+    restart: unless-stopped
+    environment:
+      BRIDGE_KEY: ${APP_ZALO_BRIDGE_KEY:?Hãy đặt APP_ZALO_BRIDGE_KEY trong file .env.bridge}
+      SESSION_KEY: ${ZALO_SESSION_KEY:?Hãy đặt ZALO_SESSION_KEY trong file .env.bridge}
+      ZALO_ACCOUNT_ID: ${ZALO_ACCOUNT_ID:-}
+      BRIDGE_PERSON_ERROR_CODES: ${ZALO_PERSON_ERROR_CODES:-}
+      BRIDGE_MSG_DAILY: ${BRIDGE_MSG_DAILY:-150}
+      BRIDGE_FRIEND_DAILY: ${BRIDGE_FRIEND_DAILY:-50}
+      BRIDGE_MSG_GAP_SEC: ${BRIDGE_MSG_GAP_SEC:-90}
+      BRIDGE_REPLY_GAP_SEC: ${BRIDGE_REPLY_GAP_SEC:-30}
+      BRIDGE_INBOX_ENABLED: ${BRIDGE_INBOX_ENABLED:-false}
+      NODE_OPTIONS: --max-old-space-size=80
+    ports:
+      - "${BRIDGE_BIND:?Hãy đặt BRIDGE_BIND là địa chỉ đường hầm riêng của máy này, ví dụ 10.8.0.2}:3100:3100"
+    volumes:
+      - zalo-bridge-data:/data
+    mem_limit: 160m
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+volumes:
+  zalo-bridge-data:
