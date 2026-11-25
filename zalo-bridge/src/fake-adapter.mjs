@@ -97,6 +97,17 @@ export class FakeAdapter {
     return '';
   }
 
+  async acceptFriendRequest(uid) {
+    if (this.acceptError) throw this.acceptError;
+    (this.accepted ??= []).push(uid);
+    return '';
+  }
+
+  /** Giả lập: người khác gửi lời mời kết bạn tới tài khoản phụ. */
+  emitFriendRequest(uid) {
+    this.handlers?.onFriendRequest?.(String(uid));
+  }
+
   async undoFriendRequest(uid) {
     if (this.undoError) throw this.undoError;
     (this.undone ??= []).push(uid);

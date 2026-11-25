@@ -1,6 +1,7 @@
 // Bộ điều hợp THẬT dùng thư viện không chính thức zca-js (ghim đúng 2.3.0 trong package.json và package-lock.json).
 // Thư viện giả lập Zalo Web nên trái điều khoản Zalo và tài khoản phụ có thể bị khóa; xem docs/ADR-0002.
-// Cố ý KHÔNG dùng: acceptFriendRequest, bất kỳ hàm gửi hay dò hàng loạt nào khác.
+// Cố ý KHÔNG dùng: bất kỳ hàm gửi hay dò hàng loạt nào khác ngoài những hàm liệt kê dưới đây.
+// Từ 25/11/2026 (chủ shop duyệt) có thêm đúng MỘT hàm nhận lời mời kết bạn: acceptFriendRequest, chỉ cho người đã nhận Tin 1 từ chính bộ nối và vừa tự gửi lời mời tới (xem Bridge.acceptFriendRequest).
 // Từ 24/11/2026 (chủ shop duyệt) có thêm đúng MỘT hàm thả tim vào tin khách vừa nhắn: addReaction (xem Bridge.react).
 // Từ 24/11/2026 (chủ shop duyệt) có thêm đúng MỘT hàm CHỈ ĐỌC: getAllFriends, chỉ để đối chiếu người đã nhận Tin 1 (xem Bridge.checkFriends); danh sách không rời bộ nối.
 // Từ 23/11/2026 (chủ shop chốt: tài khoản phụ chủ động kết bạn) có thêm đúng MỘT hàm: sendFriendRequest, chỉ cho người đã nhận Tin 1.
@@ -31,7 +32,13 @@ export class ZcaAdapter {
     listener.on('connected', () => h.onConnected());
     listener.on('friend_event', (ev) => {
       // Chỉ loại ADD (đã thành bạn) do người khác thực hiện. REQUEST (người khác tự gửi lời mời) không chuyển đi.
-      if (ev.type !== FriendEventType.ADD || ev.isSelf) return;
+      if (ev.isSelf) return;
+      if (ev.type === FriendEventType.REQUEST) {
+        // Người khác gửi lời mời cho tài khoản phụ: chỉ chuyển MÃ người gửi (không chuyển lời nhắn kèm theo); bộ nối tự bỏ người không thuộc hệ thống.
+        if (h.onFriendRequest) h.onFriendRequest(String(ev.data?.fromUid ?? ev.threadId));
+        return;
+      }
+      if (ev.type !== FriendEventType.ADD) return;
       const uid = typeof ev.data === 'string' ? ev.data : ev.threadId;
       h.onFriendAdd(String(uid));
     });
@@ -121,6 +128,11 @@ export class ZcaAdapter {
   /** Gửi MỘT lời mời kết bạn (kèm câu ngắn) cho MỘT người đã nhận Tin 1. Chỗ DUY NHẤT gọi sendFriendRequest. Thành công trả chuỗi rỗng. */
   async sendFriendRequest(uid, text) {
     return this.api.sendFriendRequest(text, uid);
+  }
+
+  /** Nhận MỘT lời mời kết bạn đã tới (25/11/2026, chủ shop duyệt). Chỗ DUY NHẤT gọi acceptFriendRequest. Thành công trả chuỗi rỗng. */
+  async acceptFriendRequest(uid) {
+    return this.api.acceptFriendRequest(uid);
   }
 
   /** Thu hồi MỘT lời mời kết bạn đã gửi cho MỘT người (25/11/2026, chủ shop duyệt). Chỗ DUY NHẤT gọi undoFriendRequest. Thành công trả chuỗi rỗng. */

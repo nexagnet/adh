@@ -42,7 +42,7 @@ public class ZaloInviteSender {
     /** Số lời mời xem xét mỗi nhịp để bỏ qua (và đóng) những khách không còn gửi được mà không làm tắc hàng. */
     private static final int SCAN = 25;
 
-    public enum Step { NOT_ACTIVE, BLOCKED, NOTHING, INVITE_SENT, FOLLOWUP_SENT, FRIEND_SENT, FAILED_ONE, RETRY, TRIPPED, ASK_SENT, UNDO_DONE }
+    public enum Step { NOT_ACTIVE, BLOCKED, NOTHING, INVITE_SENT, FOLLOWUP_SENT, FRIEND_SENT, FAILED_ONE, RETRY, TRIPPED, ASK_SENT, UNDO_DONE, ACCEPT_DONE }
 
     private record Invite(long id, long campaignId, long customerId, String phone, String name, String province, String token,
                           OffsetDateTime expiresAt, String template) {
@@ -63,14 +63,16 @@ public class ZaloInviteSender {
     private final ZaloFriendRequestSender friendRequests;
     private final ZaloFriendAskSender friendAsks;
     private final ZaloFriendUndoSender friendUndos;
+    private final ZaloFriendAcceptSender friendAccepts;
     private final CampaignAutoStop autoStop;
     private final RainHold rain;
 
     public ZaloInviteSender(JdbcClient jdbc, AppSettings settings, ZaloMessageService messages, ContactService contacts,
                             InviteService invites, SendService sends, Clock clock,
                             ZaloCampaignIntake intake, TestMode testMode, CampaignPolicy policy, CampaignSteps steps,
-                            ZaloFollowupSender followups, ZaloFriendRequestSender friendRequests, ZaloFriendAskSender friendAsks, ZaloFriendUndoSender friendUndos, CampaignAutoStop autoStop, RainHold rain) {
+                            ZaloFollowupSender followups, ZaloFriendRequestSender friendRequests, ZaloFriendAskSender friendAsks, ZaloFriendUndoSender friendUndos, ZaloFriendAcceptSender friendAccepts, CampaignAutoStop autoStop, RainHold rain) {
         this.friendUndos = friendUndos;
+        this.friendAccepts = friendAccepts;
         this.friendAsks = friendAsks;
         this.autoStop = autoStop;
         this.rain = rain;
@@ -122,6 +124,31 @@ public class ZaloInviteSender {
             }
             default -> {
                 // không có tin nhắc nào đến hạn hoặc được phép: sang Tin 1
+            }
+        }
+        // Khách đã nhận Tin 1 tự gửi lời mời kết bạn tới tài khoản phụ (25/11/2026): nhận ngay (khoảng nghỉ cố định ngắn như tin trả lời), đi trước mọi việc gửi đi khác.
+        ZaloFriendAcceptSender.Step accept;
+        try {
+            accept = friendAccepts.step();
+        } catch (RuntimeException e) {
+            log.warn("Phần nhận lời mời kết bạn gặp lỗi: {}", e.getClass().getSimpleName());
+            accept = ZaloFriendAcceptSender.Step.NOTHING;
+        }
+        switch (accept) {
+            case DONE -> {
+                return Step.ACCEPT_DONE;
+            }
+            case FAILED_ONE -> {
+                return Step.FAILED_ONE;
+            }
+            case RETRY -> {
+                return Step.RETRY;
+            }
+            case TRIPPED -> {
+                return Step.TRIPPED;
+            }
+            default -> {
+                // chưa có lời mời nào của khách đến lượt hoặc được phép: sang việc khác
             }
         }
         // Lời mời kết bạn cho người đã nhận Tin 1 (24/11/2026): đi trước Tin 1 của khách mới để khách vừa nhận Tin 1 thấy lời mời sớm; trần riêng mỗi ngày.

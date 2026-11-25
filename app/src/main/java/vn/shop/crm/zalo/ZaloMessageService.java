@@ -246,6 +246,12 @@ public class ZaloMessageService {
                 .param("s", OffsetDateTime.ofInstant(startOfDay(), ZoneOffset.UTC)).query(Integer.class).single();
     }
 
+    /** Số lần nhận lời mời kết bạn đã gọi hôm nay (tính cả lần lỗi). */
+    public int acceptUsedToday() {
+        return jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE at >= :s AND kind = 'ACCEPT_FRIEND'")
+                .param("s", OffsetDateTime.ofInstant(startOfDay(), ZoneOffset.UTC)).query(Integer.class).single();
+    }
+
     /** Số tin nhờ khách kết bạn lại đã gọi hôm nay (tính cả lần lỗi). */
     public int askFriendUsedToday() {
         return jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE at >= :s AND kind = 'ASK_FRIEND'")
@@ -484,6 +490,9 @@ public class ZaloMessageService {
         if (kind == Kind.UNDO_FRIEND && undoUsedToday() >= cfg.props().friendUndoDaily()) {
             return Optional.of(Block.DAILY_LIMIT);
         }
+        if (kind == Kind.ACCEPT_FRIEND && acceptUsedToday() >= cfg.props().friendAcceptDaily()) {
+            return Optional.of(Block.DAILY_LIMIT);
+        }
         // Tin nhờ kết bạn lại thay cho lời mời kết bạn nên dùng chung trần mỗi ngày của lời mời (0 = tắt cả hai); không tính vào số khách được nhắn Tin 1.
         if (kind == Kind.ASK_FRIEND && askFriendUsedToday() >= friendDaily()) {
             return Optional.of(Block.DAILY_LIMIT);
@@ -524,6 +533,16 @@ public class ZaloMessageService {
     /** Thu hồi lời mời kết bạn đã gửi cho người này (theo mã Zalo): cùng chốt chặn như tin, thêm trần thu hồi mỗi ngày riêng. */
     public Delivery undoFriendRequest(String scope, Long refId, String uid) {
         return deliver(scope, Kind.UNDO_FRIEND, refId, null, null, () -> link.undoFriendRequest(uid));
+    }
+
+    /** Mã Zalo của khách vừa tự gửi lời mời kết bạn tới tài khoản phụ (chỉ đọc từ bộ nhớ của bộ nối, không gọi Zalo). */
+    public java.util.List<String> incomingRequests() {
+        return link.incomingRequests();
+    }
+
+    /** Nhận lời mời kết bạn của khách (theo mã Zalo): cùng chốt chặn như tin, thêm trần nhận mỗi ngày riêng, khoảng nghỉ cố định ngắn như tin trả lời. */
+    public Delivery acceptFriendRequest(String scope, Long refId, String uid) {
+        return deliver(scope, Kind.ACCEPT_FRIEND, refId, null, null, () -> link.acceptFriendRequest(uid));
     }
 
     private Delivery deliver(String scope, Kind kind, Long refId, Integer scopeDaily, Integer scopeGap,

@@ -217,6 +217,33 @@ public class ZcaBridgeGateway implements ZaloLink {
         return message("/friend-requests/undo", java.util.Map.of("uid", uid));
     }
 
+    /** Nhận lời mời kết bạn của khách (25/11/2026): chỉ theo mã Zalo, cầu nối kiểm lại là người đã nhận Tin 1 và vừa tự gửi lời mời tới. */
+    @Override
+    public Sent acceptFriendRequest(String uid) {
+        if (uid == null || !ZALO_ID.matcher(uid).matches()) {
+            return Sent.of(Result.PERSON_ERROR, "BAD_ID", true);
+        }
+        return message("/friend-requests/accept", java.util.Map.of("uid", uid));
+    }
+
+    @Override
+    public List<String> incomingRequests() {
+        try {
+            JsonNode n = call("GET", "/friend-requests/incoming", null, 10);
+            List<String> out = new ArrayList<>();
+            for (JsonNode e : n.path("uids")) {
+                String uid = e.asString("");
+                if (ZALO_ID.matcher(uid).matches()) {
+                    out.add(uid);
+                }
+            }
+            return out;
+        } catch (Exception e) {
+            log.warn("Không đọc được lời mời kết bạn đến từ cầu nối: {}", e.getClass().getSimpleName());
+            return List.of();
+        }
+    }
+
     private Sent message(java.util.Map<String, String> body) {
         return message("/messages", body);
     }
