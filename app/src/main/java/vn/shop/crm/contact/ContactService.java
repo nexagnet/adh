@@ -187,9 +187,15 @@ public class ContactService {
      * Số khách đủ điều kiện mời mà chưa từng được mời, theo mã tỉnh (chuỗi rỗng = chưa rõ tỉnh). Chỉ là số tổng hợp, dùng đúng
      * điều kiện của {@link #eligibleNotInvited}; phục vụ bản tổng hợp ẩn danh cho phần đề xuất chiến dịch.
      */
+    /**
+     * Các hàm dành cho bản tổng hợp ẩn danh của AI đề xuất chiến dịch (eligibleNotInvited..., candidatesByProvince, optedOutAfterInvite...) luôn BỎ khách thuộc
+     * danh sách số thử: chỉ tính khách và chiến dịch thật.
+     */
+    private static final String NOT_TEST = " AND c.phone NOT IN (SELECT t.phone FROM zalo_test_number t)";
+
     public java.util.Map<String, Long> eligibleNotInvitedByProvince() {
         return countsByProvince("SELECT coalesce(c.province, '') AS p, count(*) AS n " + inviteFrom()
-                + " AND NOT EXISTS (SELECT 1 FROM invitation i WHERE i.customer_id = c.id) GROUP BY 1");
+                + " AND NOT EXISTS (SELECT 1 FROM invitation i WHERE i.customer_id = c.id)" + NOT_TEST + " GROUP BY 1");
     }
 
     /** Một dòng hàng đã giao thành công của khách đủ điều kiện mời mà chưa từng được mời (chỉ để đếm theo nhóm hàng; không ra khỏi hệ thống). */
@@ -200,14 +206,14 @@ public class ContactService {
         return jdbc.sql("SELECT coalesce(c.province, '') AS p, c.id AS id, s.goods AS goods FROM customer c "
                         + "JOIN shipment s ON s.receiver_phone = c.phone AND s.canonical_status = 'DELIVERED' "
                         + "WHERE c.id IN (SELECT c.id " + inviteFrom()
-                        + " AND NOT EXISTS (SELECT 1 FROM invitation i WHERE i.customer_id = c.id))")
+                        + " AND NOT EXISTS (SELECT 1 FROM invitation i WHERE i.customer_id = c.id)" + NOT_TEST + ")")
                 .query((rs, n) -> new Purchase(rs.getString("p"), rs.getLong("id"), rs.getString("goods"))).list();
     }
 
     /** Số khách "chờ duyệt" (ứng viên chưa có dòng cơ sở liên hệ nào) theo mã tỉnh; chuỗi rỗng = chưa rõ tỉnh. */
     public java.util.Map<String, Long> candidatesByProvince() {
         return countsByProvince("SELECT coalesce(c.province, '') AS p, count(*) AS n FROM customer c WHERE "
-                + CANDIDATE_WHERE + " GROUP BY 1");
+                + CANDIDATE_WHERE + NOT_TEST + " GROUP BY 1");
     }
 
     /** Số khách đã được nhắn mà nay đang nằm trong sổ từ chối (còn hiệu lực), theo mã tỉnh; chuỗi rỗng = chưa rõ tỉnh. */
@@ -215,7 +221,7 @@ public class ContactService {
         return countsByProvince("SELECT coalesce(c.province, '') AS p, count(DISTINCT c.id) AS n FROM customer c "
                 + "JOIN invitation i ON i.customer_id = c.id AND i.sent_at IS NOT NULL "
                 + "WHERE EXISTS (SELECT 1 FROM suppression s WHERE s.phone_hash = " + SUPPRESSED_HASH
-                + " AND s.reason = 'OPT_OUT' AND s.lifted_at IS NULL) GROUP BY 1");
+                + " AND s.reason = 'OPT_OUT' AND s.lifted_at IS NULL)" + NOT_TEST + " GROUP BY 1");
     }
 
     /** Số khách đã được nhắn trong từng chiến dịch mà nay đang nằm trong sổ từ chối (còn hiệu lực), theo mã chiến dịch. */
@@ -224,7 +230,7 @@ public class ContactService {
         jdbc.sql("SELECT i.campaign_id AS k, count(DISTINCT c.id) AS n FROM customer c "
                         + "JOIN invitation i ON i.customer_id = c.id AND i.sent_at IS NOT NULL "
                         + "WHERE EXISTS (SELECT 1 FROM suppression s WHERE s.phone_hash = " + SUPPRESSED_HASH
-                        + " AND s.reason = 'OPT_OUT' AND s.lifted_at IS NULL) GROUP BY 1")
+                        + " AND s.reason = 'OPT_OUT' AND s.lifted_at IS NULL)" + NOT_TEST + " GROUP BY 1")
                 .query((rs, i) -> java.util.Map.entry(rs.getLong("k"), rs.getLong("n"))).list()
                 .forEach(e -> out.put(e.getKey(), e.getValue()));
         return out;

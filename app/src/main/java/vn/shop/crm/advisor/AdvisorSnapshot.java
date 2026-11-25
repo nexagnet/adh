@@ -129,11 +129,12 @@ public record AdvisorSnapshot(
      * không còn gửi) hoặc BO_DO (chưa từng duyệt và tạo đã lâu). Chỉ DANG_GUI và CHUA_DUYET là còn chạy.
      */
     public record CampaignInfo(String scope, String state, String startOn, String endOn, String windowFrom, String windowTo,
-                               Integer dailyCap, long total, long ready, long sent, Long friended, Long joined, Long optedOut, Long buyers) {
+                               Integer dailyCap, long total, long ready, long sent, Long friended, Long joined, Long optedOut, Long buyers,
+                               @JsonInclude(JsonInclude.Include.NON_NULL) Failures failures) {
         /** Bản không có kết quả theo bước (dùng trong test). */
         public CampaignInfo(String scope, String state, String startOn, String endOn, String windowFrom, String windowTo,
                             Integer dailyCap, long total, long ready, long sent) {
-            this(scope, state, startOn, endOn, windowFrom, windowTo, dailyCap, total, ready, sent, null, null, null, null);
+            this(scope, state, startOn, endOn, windowFrom, windowTo, dailyCap, total, ready, sent, null, null, null, null, null);
         }
 
         public boolean open() {
@@ -153,7 +154,25 @@ public record AdvisorSnapshot(
      * được mời mà chưa vào nhóm.
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record Insights(Shop shop, List<Slot> sendWeekdays, Repurchase repurchase) {
+    public record Insights(Shop shop, List<Slot> sendWeekdays, Repurchase repurchase, Failures failures, List<AreaFailures> failuresByArea,
+                           Integer friendRequestDaily) {
+    }
+
+    /**
+     * Khách gửi LỖI (chỉ số đếm, không khách): {@code tried} là số khách đã thử nhắn Tin 1 (đã gửi hoặc bị đóng vì không gửi được); các số còn lại là số khách theo loại lỗi
+     * (một khách có thể nằm ở nhiều loại). {@code noZalo}: không tìm thấy trên Zalo (số chưa có Zalo hoặc không cho tìm bằng số). {@code strangerBlocked}: Zalo chặn Tin 1 vì
+     * khách không nhận tin người lạ (chuyển sang kết bạn trước), {@code strangerResent}: trong đó đã được gửi lại Tin 1 sau khi đồng ý kết bạn. {@code personRejected}: Zalo từ chối gửi
+     * cho người đó. {@code otherUnsendable}: không gửi được vì lý do khác. {@code friendRequestFailed}/{@code friendRequestUnknown}: lời mời kết bạn không gửi được / không rõ đã gửi chưa.
+     * {@code addToGroupFailed}: thêm vào nhóm lỗi. Hai bản đồ mã lỗi Zalo (ví dụ Z223) chỉ có ở số liệu toàn hệ thống.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Failures(long tried, long noZalo, long strangerBlocked, long strangerResent, long personRejected, long otherUnsendable,
+                           long friendRequestFailed, long friendRequestUnknown, long addToGroupFailed,
+                           java.util.Map<String, Long> friendRequestCodes, java.util.Map<String, Long> addToGroupCodes) {
+    }
+
+    /** Số liệu lỗi của một khu vực (chỉ khu vực có đủ khách đã thử). */
+    public record AreaFailures(String code, Failures failures) {
     }
 
     /** Hồ sơ cửa hàng (chữ chủ shop tự gõ, đã kiểm; ô chưa khai là null). {@code goal}: VAO_NHOM, MUA_LAI hoặc CA_HAI. */

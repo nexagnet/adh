@@ -149,6 +149,9 @@ public class PerformanceService {
     private Overview build(boolean mask) {
         PerformanceSettings s = settings();
         String prefix = s.hasPrefix() ? s.groupOrderPrefix() : "";
+        // Bản ẩn danh (cho AI và báo cáo xuất) chỉ tính chiến dịch THẬT: bỏ khách thuộc danh sách số thử.
+        String noTest = mask ? " AND c.phone NOT IN (SELECT t.phone FROM zalo_test_number t)" : "";
+        String noTestInvitation = mask ? " AND i.customer_id NOT IN (SELECT x.id FROM customer x WHERE x.phone IN (SELECT t.phone FROM zalo_test_number t))" : "";
         Map<Long, long[]> buys = new HashMap<>();
         Map<Long, BigDecimal[]> money = new HashMap<>();
         jdbc.sql(PURCHASES + """
@@ -160,8 +163,8 @@ public class PerformanceService {
                 WHERE i.joined_at IS NOT NULL AND p.ok
                   AND p.created_on > (i.joined_at AT TIME ZONE 'Asia/Ho_Chi_Minh')
                   AND (i.left_at IS NULL OR p.created_on < (i.left_at AT TIME ZONE 'Asia/Ho_Chi_Minh'))
-                  AND (:prefix = '' OR p.tagged)
-                GROUP BY i.campaign_id""")
+                  AND (:prefix = '' OR p.tagged) /*NT*/
+                GROUP BY i.campaign_id""".replace("/*NT*/", noTest))
                 .param("prefix", prefix)
                 .query(rs -> {
                     long id = rs.getLong("campaign_id");
@@ -179,8 +182,8 @@ public class PerformanceService {
                 LEFT JOIN purchase p ON p.phone = c.phone AND p.ok
                      AND p.created_on > (i.sent_at AT TIME ZONE 'Asia/Ho_Chi_Minh')
                      AND p.created_on <= (i.sent_at AT TIME ZONE 'Asia/Ho_Chi_Minh') + make_interval(days => :days)
-                WHERE i.sent_at IS NOT NULL AND i.sent_at <= now() - make_interval(days => :days)
-                GROUP BY i.campaign_id, (i.joined_at IS NOT NULL)""")
+                WHERE i.sent_at IS NOT NULL AND i.sent_at <= now() - make_interval(days => :days) /*NT*/
+                GROUP BY i.campaign_id, (i.joined_at IS NOT NULL)""".replace("/*NT*/", noTest))
                 .param("prefix", prefix).param("days", COHORT_DAYS)
                 .query(rs -> {
                     var pair = cohorts.computeIfAbsent(rs.getLong("campaign_id"),
@@ -194,8 +197,8 @@ public class PerformanceService {
                        count(i.id) FILTER (WHERE i.sent_at IS NOT NULL) AS invited,
                        count(i.id) FILTER (WHERE i.friended_at IS NOT NULL) AS friended,
                        count(i.id) FILTER (WHERE i.joined_at IS NOT NULL) AS joined
-                FROM invitation_campaign c LEFT JOIN invitation i ON i.campaign_id = c.id
-                GROUP BY c.id ORDER BY c.id DESC""")
+                FROM invitation_campaign c LEFT JOIN invitation i ON i.campaign_id = c.id /*NT*/
+                GROUP BY c.id ORDER BY c.id DESC""".replace("/*NT*/", noTestInvitation))
                 .query(rs -> {
                     long id = rs.getLong("id");
                     long[] b = buys.getOrDefault(id, new long[3]);

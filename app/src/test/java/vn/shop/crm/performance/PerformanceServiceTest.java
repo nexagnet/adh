@@ -221,6 +221,27 @@ class PerformanceServiceTest extends AbstractPostgresTest {
     }
 
     @Test
+    void khachThuKhongTinhVaoBanAnDanhChoAi() {
+        long c = campaign("Đợt thật", null);
+        for (int i = 0; i < 5; i++) {
+            invite(c, customer(), 45, 44, 43, null);
+        }
+        for (int i = 0; i < 5; i++) {
+            invite(c, customer(), 45, null, null, null);
+        }
+        var before = advisorSnapshots.build().insights();
+        assertThat(before.repurchase()).isNotNull();
+        // 3 khách vào nhóm trở thành số thử: bản ẩn danh phải bỏ họ, màn của chủ shop vẫn thấy đủ
+        jdbc.sql("""
+                INSERT INTO zalo_test_number (phone, created_by)
+                SELECT c.phone, 'test' FROM customer c JOIN invitation i ON i.customer_id = c.id
+                WHERE i.joined_at IS NOT NULL ORDER BY c.id LIMIT 3""").update();
+
+        assertThat(advisorSnapshots.build().insights().repurchase()).as("còn 2 khách vào nhóm, dưới 5").isNull();
+        assertThat(only(performance.overview()).joinedCohort().customers()).isEqualTo(5);
+    }
+
+    @Test
     void chienDichQuaNhoBiAnTrongBanAnDanh() {
         long small = campaign("Nhỏ", null);
         String s = customer();

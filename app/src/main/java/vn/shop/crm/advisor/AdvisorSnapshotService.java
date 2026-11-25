@@ -56,10 +56,18 @@ public class AdvisorSnapshotService {
     private final Clock clock;
     private final AdvisorNotes notes;
     private final ShopProfile shop;
+    private final FailureStats failures;
+
+    /**
+     * Toàn bộ số liệu cho AI chỉ tính khách và chiến dịch THẬT: bỏ khách thuộc danh sách số thử (chế độ thử, chạy thử, pilot). Điều kiện cho truy vấn có bảng customer
+     * mang tên bí danh {@code c} (hoặc {@code customer}).
+     */
+    static final String NOT_TEST = "c.phone NOT IN (SELECT t.phone FROM zalo_test_number t)";
 
     public AdvisorSnapshotService(JdbcClient jdbc, ContactService contacts, WeatherService weather,
                                   ZaloMessageService messages, ZaloAutoSettings autoSettings, InviteService invites,
-                                  PerformanceService performance, Clock clock, AdvisorNotes notes, ShopProfile shop) {
+                                  PerformanceService performance, Clock clock, AdvisorNotes notes, ShopProfile shop, FailureStats failures) {
+        this.failures = failures;
         this.notes = notes;
         this.shop = shop;
         this.performance = performance;
@@ -156,9 +164,9 @@ public class AdvisorSnapshotService {
         Map<Long, CampaignPerformance> perf = new LinkedHashMap<>();
         var overview = performance.anonymized();
         overview.campaigns().forEach(c -> perf.put(c.id(), c));
-        return new AdvisorSnapshot(today.toString(), calendar, limits, overall, areas, slots(), campaigns(perf, today), pastProposals(perf, now),
+        return new AdvisorSnapshot(today.toString(), calendar, limits, overall, areas, slots(), campaigns(perf, today, failures.byCampaign()), pastProposals(perf, now),
                 notes.active().stream().map(n -> new AdvisorSnapshot.OwnerNote(n.body(), n.daysLeft())).toList(),
-                insights(overview.total()));
+                insights(overview.total(), areas));
     }
 
     private AdvisorSnapshot.Area area(SubRegion sub, Acc acc, List<Map.Entry<Province, Acc>> provinces,
@@ -265,7 +273,7 @@ public class AdvisorSnapshotService {
                                count(*) FILTER (WHERE segment = 'ONE_TIME' AND last_order_on < :c90 AND last_order_on >= :c180) AS r180,
                                count(*) FILTER (WHERE segment = 'ONE_TIME' AND last_order_on < :c180) AS r_old,
                                count(*) FILTER (WHERE segment = 'ONE_TIME' AND last_order_on IS NULL) AS r_unknown
-                        FROM customer GROUP BY 1""")
+                        FROM customer c WHERE /*NT*/ GROUP BY 1""".replace("/*NT*/", NOT_TEST))
                 .param("since30", OffsetDateTime.of(now.minusDays(30), ZoneOffset.ofHours(7)))
                 .param("c30", now.minusDays(30)).param("c90", now.minusDays(90)).param("c180", now.minusDays(180))
                 .query((rs, i) -> {
@@ -291,7 +299,7 @@ public class AdvisorSnapshotService {
                                count(*) FILTER (WHERE i.sent_at IS NOT NULL) AS sent,
                                count(*) FILTER (WHERE i.friended_at IS NOT NULL) AS friended,
                                count(*) FILTER (WHERE i.joined_at IS NOT NULL) AS joined
-                        FROM invitation i JOIN customer c ON c.id = i.customer_id GROUP BY 1""")
+                        FROM invitation i JOIN customer c ON c.id = i.customer_id WHERE /*NT*/ GROUP BY 1""".replace("/*NT*/", NOT_TEST))
                 .query((rs, i) -> {
                     Acc a = new Acc();
                     a.sent = rs.getLong("sent");
@@ -361,7 +369,7 @@ public class AdvisorSnapshotService {
      * Chiến dịch còn khách chờ hoặc mới tạo trong {@link #CAMPAIGN_RECENT_DAYS} ngày, cộng chiến dịch đã lưu trữ có đủ kết quả để học:
      * ngày, khung giờ, số đếm và kết quả theo bước, không tên chiến dịch, không khách. Chiến dịch còn chạy xếp trước.
      */
-    private List<AdvisorSnapshot.CampaignInfo> campaigns(Map<Long, CampaignPerformance> perf, LocalDate today) {
+    private List<AdvisorSnapshot.CampaignInfo> campaigns(Map<Long, CampaignPerformance> perf, LocalDate today, Map<Long, AdvisorSnapshot.Failures> failureByCampaign) {
         Map<Long, Long> optedOut = contacts.optedOutAfterInviteByCampaign();
         return jdbc.sql("""
                         SELECT k.id, k.geo_scope, k.auto_send_approved_at IS NOT NULL AS approved, k.archived_at IS NOT NULL AS archived,
@@ -370,12 +378,13 @@ public class AdvisorSnapshotService {
                                count(i.id) FILTER (WHERE i.sent_at IS NOT NULL) AS sent,
                                count(i.id) FILTER (WHERE i.friended_at IS NOT NULL) AS friended,
                                count(i.id) FILTER (WHERE i.joined_at IS NOT NULL) AS joined
-                        FROM invitation_campaign k LEFT JOIN invitation i ON i.campaign_id = k.id
+                        FROM invitation_campaign k
+                        LEFT JOIN (SELECT i0.* FROM invitation i0 JOIN customer c ON c.id = i0.customer_id WHERE /*NT*/) i ON i.campaign_id = k.id
                         GROUP BY k.id
-                        HAVING (k.archived_at IS NULL
+                        HAVING count(i.id) > 0 AND ((k.archived_at IS NULL
                                     AND (count(i.id) FILTER (WHERE i.status = 'READY') > 0 OR k.created_at >= now() - make_interval(days => :days)))
-                            OR (k.archived_at IS NOT NULL AND count(i.id) FILTER (WHERE i.sent_at IS NOT NULL) >= :minSent)
-                        ORDER BY (k.archived_at IS NOT NULL), k.id DESC LIMIT :n""")
+                            OR (k.archived_at IS NOT NULL AND count(i.id) FILTER (WHERE i.sent_at IS NOT NULL) >= :minSent))
+                        ORDER BY (k.archived_at IS NOT NULL), k.id DESC LIMIT :n""".replace("/*NT*/", NOT_TEST))
                 .param("days", CAMPAIGN_RECENT_DAYS).param("minSent", MIN_RESULT_SENT).param("n", MAX_CAMPAIGNS)
                 .query((rs, i) -> {
                     long ready = rs.getLong("ready");
@@ -393,7 +402,8 @@ public class AdvisorSnapshotService {
                             (Integer) rs.getObject("daily_cap"), rs.getLong("total"), ready, sent,
                             enough ? rs.getLong("friended") : null, enough ? rs.getLong("joined") : null,
                             enough ? optedOut.getOrDefault(rs.getLong("id"), 0L) : null,
-                            enough && p != null && !p.masked() ? p.buyers() : null);
+                            enough && p != null && !p.masked() ? p.buyers() : null,
+                            enough ? failureByCampaign.get(rs.getLong("id")) : null);
                 }).list();
     }
 
@@ -409,8 +419,9 @@ public class AdvisorSnapshotService {
                                count(i.id) FILTER (WHERE i.friended_at IS NOT NULL) AS friended,
                                count(i.id) FILTER (WHERE i.joined_at IS NOT NULL) AS joined
                         FROM campaign_proposal p JOIN invitation i ON i.campaign_id = p.campaign_id
-                        WHERE p.state = 'APPROVED' AND p.campaign_id IS NOT NULL
-                        GROUP BY p.id ORDER BY p.decided_at DESC LIMIT :n""")
+                        JOIN customer c ON c.id = i.customer_id
+                        WHERE p.state = 'APPROVED' AND p.campaign_id IS NOT NULL AND /*NT*/
+                        GROUP BY p.id ORDER BY p.decided_at DESC LIMIT :n""".replace("/*NT*/", NOT_TEST))
                 .param("n", MAX_PAST)
                 .query((rs, i) -> {
                     long sent = rs.getLong("sent");
@@ -431,9 +442,8 @@ public class AdvisorSnapshotService {
         return o == null ? null : o.toString();
     }
 
-    /** Số tin đã nhắn và số khách kết bạn theo bốn khung giờ gửi (giờ Việt Nam); ngoài 08–20 dồn vào "khác". */
     /** Hồ sơ cửa hàng, kết quả theo ngày trong tuần và so sánh mua lại; null nếu chưa có gì để báo. */
-    private AdvisorSnapshot.Insights insights(CampaignPerformance total) {
+    private AdvisorSnapshot.Insights insights(CampaignPerformance total, List<AdvisorSnapshot.Area> areas) {
         AdvisorSnapshot.Shop profile = shop.forAi();
         List<AdvisorSnapshot.Slot> weekdays = weekdays();
         AdvisorSnapshot.Repurchase repurchase = null;
@@ -442,10 +452,21 @@ public class AdvisorSnapshotService {
             repurchase = new AdvisorSnapshot.Repurchase(PerformanceService.COHORT_DAYS, total.joinedCohort().customers(),
                     total.joinedCohort().bought(), total.notJoinedCohort().customers(), total.notJoinedCohort().bought());
         }
-        if (profile == null && weekdays == null && repurchase == null) {
+        AdvisorSnapshot.Failures overallFailures = failures.overall();
+        List<AdvisorSnapshot.AreaFailures> byArea = new ArrayList<>();
+        Map<String, FailureStats.Acc> perArea = failures.byArea();
+        for (AdvisorSnapshot.Area a : areas) {
+            FailureStats.Acc acc = perArea.get(a.code());
+            // khu vực dưới MIN_CELL khách đã thử thì ẩn (quá ít để kết luận và để không suy ngược ra từng khách)
+            if (acc != null && acc.n[0] >= MIN_CELL) {
+                byArea.add(new AdvisorSnapshot.AreaFailures(a.code(), acc.toFailures(null, null)));
+            }
+        }
+        if (profile == null && weekdays == null && repurchase == null && overallFailures == null) {
             return null;
         }
-        return new AdvisorSnapshot.Insights(profile, weekdays, repurchase);
+        return new AdvisorSnapshot.Insights(profile, weekdays, repurchase, overallFailures, byArea.isEmpty() ? null : byArea,
+                overallFailures == null ? null : messages.friendDaily());
     }
 
     /** Số tin đã nhắn và số khách kết bạn theo ngày trong tuần (giờ Việt Nam); null nếu chưa nhắn tin nào. */
@@ -454,10 +475,10 @@ public class AdvisorSnapshotService {
         long[] sent = new long[7];
         long[] friended = new long[7];
         jdbc.sql("""
-                        SELECT extract(isodow FROM sent_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::int AS d,
+                        SELECT extract(isodow FROM i.sent_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::int AS d,
                                count(*) AS sent,
-                               count(*) FILTER (WHERE friended_at IS NOT NULL) AS friended
-                        FROM invitation WHERE sent_at IS NOT NULL GROUP BY 1""")
+                               count(*) FILTER (WHERE i.friended_at IS NOT NULL) AS friended
+                        FROM invitation i JOIN customer c ON c.id = i.customer_id WHERE i.sent_at IS NOT NULL AND /*NT*/ GROUP BY 1""".replace("/*NT*/", NOT_TEST))
                 .query((rs, i) -> new long[]{rs.getLong("d"), rs.getLong("sent"), rs.getLong("friended")}).list()
                 .forEach(r -> {
                     int idx = (int) r[0] - 1;
@@ -476,15 +497,16 @@ public class AdvisorSnapshotService {
         return out;
     }
 
+    /** Số tin đã nhắn và số khách kết bạn theo bốn khung giờ gửi (giờ Việt Nam); ngoài 08–20 dồn vào "khác". */
     private List<AdvisorSnapshot.Slot> slots() {
         String[] labels = {"08-11", "11-14", "14-17", "17-20", "khac"};
         long[] sent = new long[5];
         long[] friended = new long[5];
         jdbc.sql("""
-                        SELECT extract(hour FROM sent_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::int AS h,
+                        SELECT extract(hour FROM i.sent_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::int AS h,
                                count(*) AS sent,
-                               count(*) FILTER (WHERE friended_at IS NOT NULL) AS friended
-                        FROM invitation WHERE sent_at IS NOT NULL GROUP BY 1""")
+                               count(*) FILTER (WHERE i.friended_at IS NOT NULL) AS friended
+                        FROM invitation i JOIN customer c ON c.id = i.customer_id WHERE i.sent_at IS NOT NULL AND /*NT*/ GROUP BY 1""".replace("/*NT*/", NOT_TEST))
                 .query((rs, i) -> new long[]{rs.getLong("h"), rs.getLong("sent"), rs.getLong("friended")}).list()
                 .forEach(r -> {
                     int idx = r[0] >= 8 && r[0] < 11 ? 0 : r[0] >= 11 && r[0] < 14 ? 1 : r[0] >= 14 && r[0] < 17 ? 2
