@@ -234,6 +234,17 @@ public class ZaloMessageService {
         return spec.query(Integer.class).single();
     }
 
+    /** Tin gần nhất trong sổ chính là Tin 1 của lời mời {@code refId} bị Zalo từ chối vì khách không nhận tin người lạ (Z122). */
+    private boolean lastIsStrangerBlockedFor(Long refId) {
+        if (refId == null) {
+            return false;
+        }
+        return jdbc.sql("""
+                        SELECT kind = 'INVITE' AND outcome = 'PERSON_ERROR' AND code = 'STRANGER_BLOCKED' AND ref_id = :r
+                        FROM zalo_msg_log ORDER BY at DESC, id DESC LIMIT 1""")
+                .param("r", refId).query(Boolean.class).optional().orElse(false);
+    }
+
     private Instant lastAt(String scope) {
         String where = scope == null ? "" : " WHERE scope = :sc";
         var spec = jdbc.sql("SELECT max(at) FROM zalo_msg_log" + where);
@@ -299,6 +310,15 @@ public class ZaloMessageService {
      * đợt thử (chỉ làm chặt hơn, không bao giờ nới hạn mức chung); null = không có.
      */
     public Optional<Block> blocker(String scope, Kind kind, Integer scopeDaily, Integer scopeGap) {
+        return blocker(scope, kind, null, scopeDaily, scopeGap);
+    }
+
+    /**
+     * Như trên, thêm {@code refId} (mã lời mời của chính tin sắp gửi). Chỉ dùng để một lời mời kết bạn đi NGAY sau khi Zalo vừa từ chối
+     * Tin 1 của chính khách đó vì khách không nhận tin người lạ (Z122): Tin 1 đó chưa tới khách nên không tính thêm một khoảng nghỉ nữa
+     * (25/11/2026), nếu không khách phải chờ hai lần nghỉ liền. Khoảng nghỉ giữa các KHÁCH khác nhau, hạn mức ngày, cầu dao, khung giờ giữ nguyên.
+     */
+    public Optional<Block> blocker(String scope, Kind kind, Long refId, Integer scopeDaily, Integer scopeGap) {
         if (!enabled()) {
             return Optional.of(Block.SWITCH_OFF);
         }
@@ -321,7 +341,7 @@ public class ZaloMessageService {
         }
         Instant last = lastAt(null);
         int gap = kind.answersInbound() ? Math.min(REPLY_GAP_SECONDS, l.gapSeconds()) : l.gapSeconds();
-        if (last != null && now.isBefore(last.plusSeconds(gap))) {
+        if (last != null && now.isBefore(last.plusSeconds(gap)) && !(kind == Kind.FRIEND && lastIsStrangerBlockedFor(refId))) {
             return Optional.of(Block.GAP);
         }
         if (invite && scopeDaily != null && countSince(startOfDay(), scope, true) >= scopeDaily) {
@@ -362,7 +382,7 @@ public class ZaloMessageService {
                 tripAndStop("TIN_INTERRUPTED");
                 return new Delivery(Status.TRIPPED, null, Sent.of(Result.SYSTEM_ERROR, "INTERRUPTED", true));
             }
-            Optional<Block> block = blocker(scope, kind, scopeDaily, scopeGap);
+            Optional<Block> block = blocker(scope, kind, refId, scopeDaily, scopeGap);
             if (block.isPresent()) {
                 return Delivery.blocked(block.get());
             }
