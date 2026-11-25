@@ -31,7 +31,7 @@ ZALO_SESSION_KEY_2=<khóa mã hóa phiên, 64 ký tự hex>
 ZALO_ACCOUNT_ID_2=<mã Zalo của tài khoản thứ hai, điền sau khi đăng nhập được>
 ```
 
-Rồi chạy lại các container (`docker compose up -d`). Cron tự deploy chỉ kéo ảnh, **không** kéo tệp compose hay `.env`, nên bước này làm tay (hỏi người SSH).
+Rồi chạy lại các container: `./deploy.sh deploy` (hoặc `docker compose up -d` với đủ cờ `-f`). Từ bản có `deploy.sh` đọc `.env`, cả `deploy.sh` lẫn cron tự deploy dùng đúng `COMPOSE_FILE` và `COMPOSE_PROFILES` ở trên, nên các lần cập nhật sau không làm mất cấu hình nhiều tài khoản. Cron vẫn **không** kéo tệp compose, script hay `.env` lên máy chủ: chép `deploy.sh`, `backup.sh`, `restore-test.sh`, `docker-compose.shared.yml`, `docker-compose.zalo-2.yml` bản mới TRƯỚC khi sửa `.env` (làm tay, hỏi người SSH).
 
 ## 4. Cách B: tài khoản thứ hai ở MÁY CHỦ KHÁC
 

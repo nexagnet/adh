@@ -8,7 +8,12 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [ -f "$HERE/.env" ] && set -a && . "$HERE/.env" && set +a
 
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/adh}"
-PSQL_CMD="${PSQL_CMD:-${DOCKER_SUDO:-}docker compose -f $HERE/${COMPOSE_FILE:-docker-compose.prod.yml} --env-file $HERE/.env exec -T postgres psql -U crm}"
+# COMPOSE_FILE có thể là DANH SÁCH cách nhau bằng dấu hai chấm (D23: docker-compose.shared.yml:docker-compose.zalo-2.yml); cờ -f chỉ nhận một tệp,
+# nên tách ra thành nhiều cờ -f. Một tệp thì y như trước.
+compose_f=""
+IFS=: read -ra _cf <<<"${COMPOSE_FILE:-docker-compose.prod.yml}"
+for _f in "${_cf[@]}"; do compose_f="$compose_f -f $HERE/$_f"; done
+PSQL_CMD="${PSQL_CMD:-${DOCKER_SUDO:-}docker compose$compose_f --env-file $HERE/.env exec -T postgres psql -U crm}"
 SCRATCH="crm_restore_test"
 
 latest="$(find "$BACKUP_DIR" -maxdepth 1 -name 'adh-*.sql.gz*' -printf '%T@ %p\n' | sort -n | tail -1 | cut -d' ' -f2-)"

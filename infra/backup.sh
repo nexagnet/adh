@@ -9,7 +9,12 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/adh}"
 KEEP_DAYS="${KEEP_DAYS:-14}"
-PG_DUMP_CMD="${PG_DUMP_CMD:-${DOCKER_SUDO:-}docker compose -f $HERE/${COMPOSE_FILE:-docker-compose.prod.yml} --env-file $HERE/.env exec -T postgres pg_dump -U crm -d crm}"
+# COMPOSE_FILE có thể là DANH SÁCH cách nhau bằng dấu hai chấm (D23: docker-compose.shared.yml:docker-compose.zalo-2.yml); cờ -f chỉ nhận một tệp,
+# nên tách ra thành nhiều cờ -f. Một tệp thì y như trước.
+compose_f=""
+IFS=: read -ra _cf <<<"${COMPOSE_FILE:-docker-compose.prod.yml}"
+for _f in "${_cf[@]}"; do compose_f="$compose_f -f $HERE/$_f"; done
+PG_DUMP_CMD="${PG_DUMP_CMD:-${DOCKER_SUDO:-}docker compose$compose_f --env-file $HERE/.env exec -T postgres pg_dump -U crm -d crm}"
 
 umask 077
 mkdir -p "$BACKUP_DIR"
