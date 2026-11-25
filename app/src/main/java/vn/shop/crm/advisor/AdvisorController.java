@@ -19,10 +19,12 @@ class AdvisorController {
 
     private final AdvisorService advisor;
     private final ProposalService proposals;
+    private final AdvisorNotes notes;
 
-    AdvisorController(AdvisorService advisor, ProposalService proposals) {
+    AdvisorController(AdvisorService advisor, ProposalService proposals, AdvisorNotes notes) {
         this.advisor = advisor;
         this.proposals = proposals;
+        this.notes = notes;
     }
 
     @GetMapping("/advisor")
@@ -34,6 +36,11 @@ class AdvisorController {
         model.addAttribute("decided", proposals.decided());
         model.addAttribute("runs", proposals.runs());
         model.addAttribute("track", proposals.track());
+        model.addAttribute("notes", notes.active());
+        model.addAttribute("noteMax", AdvisorNotes.MAX_LENGTH);
+        model.addAttribute("noteMaxActive", AdvisorNotes.MAX_ACTIVE);
+        model.addAttribute("noteDefaultExpiry", java.time.LocalDate.now(AdvisorSnapshotService.ZONE).plusDays(14));
+        model.addAttribute("noteMaxExpiry", java.time.LocalDate.now(AdvisorSnapshotService.ZONE).plusDays(AdvisorNotes.MAX_DAYS));
         return "advisor";
     }
 
@@ -61,6 +68,32 @@ class AdvisorController {
         } catch (ImportException e) {
             redirect.addFlashAttribute("flashBad", e.getMessage());
         }
+        return "redirect:/advisor";
+    }
+
+    /** Chủ shop thêm một ghi chú cho AI (có ngày hết hạn). Chỉ lưu chữ; không gọi AI, không gửi gì. */
+    @PostMapping("/advisor/notes")
+    String addNote(@RequestParam String body, @RequestParam String expiresOn, RedirectAttributes redirect) {
+        try {
+            java.time.LocalDate exp;
+            try {
+                exp = java.time.LocalDate.parse(expiresOn.strip());
+            } catch (java.time.DateTimeException e) {
+                throw new ImportException("Ngày hết hạn không hợp lệ.");
+            }
+            notes.add(body, exp, ContactService.actor());
+            redirect.addFlashAttribute("flash", "Đã lưu ghi chú. Lần nhờ AI đề xuất tới, AI sẽ đọc ghi chú này cho đến hết ngày "
+                    + exp.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")) + ".");
+        } catch (ImportException e) {
+            redirect.addFlashAttribute("flashBad", e.getMessage());
+        }
+        return "redirect:/advisor";
+    }
+
+    @PostMapping("/advisor/notes/{id}/remove")
+    String removeNote(@PathVariable long id, RedirectAttributes redirect) {
+        notes.remove(id, ContactService.actor());
+        redirect.addFlashAttribute("flash", "Đã gỡ ghi chú: AI sẽ không đọc ghi chú này nữa.");
         return "redirect:/advisor";
     }
 

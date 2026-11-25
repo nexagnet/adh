@@ -54,10 +54,12 @@ public class AdvisorSnapshotService {
     private final InviteService invites;
     private final PerformanceService performance;
     private final Clock clock;
+    private final AdvisorNotes notes;
 
     public AdvisorSnapshotService(JdbcClient jdbc, ContactService contacts, WeatherService weather,
                                   ZaloMessageService messages, ZaloAutoSettings autoSettings, InviteService invites,
-                                  PerformanceService performance, Clock clock) {
+                                  PerformanceService performance, Clock clock, AdvisorNotes notes) {
+        this.notes = notes;
         this.performance = performance;
         this.jdbc = jdbc;
         this.contacts = contacts;
@@ -151,7 +153,8 @@ public class AdvisorSnapshotService {
                 total.awaiting, unknown.customers, hidden, total.funnel());
         Map<Long, CampaignPerformance> perf = new LinkedHashMap<>();
         performance.anonymized().campaigns().forEach(c -> perf.put(c.id(), c));
-        return new AdvisorSnapshot(today.toString(), calendar, limits, overall, areas, slots(), campaigns(perf, today), pastProposals(perf, now));
+        return new AdvisorSnapshot(today.toString(), calendar, limits, overall, areas, slots(), campaigns(perf, today), pastProposals(perf, now),
+                notes.active().stream().map(n -> new AdvisorSnapshot.OwnerNote(n.body(), n.daysLeft())).toList());
     }
 
     private AdvisorSnapshot.Area area(SubRegion sub, Acc acc, List<Map.Entry<Province, Acc>> provinces,
