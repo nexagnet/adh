@@ -8,9 +8,9 @@
 2. Mục tiêu: **cả chia tải, bền hơn lẫn tăng tổng số khách nhắn mỗi ngày.** Mỗi tài khoản giữ hạn mức của nó (không nới), tổng là tổng các tài khoản; trần tổng là một cài đặt ở `/zalo`, người chỉnh.
 3. Thu hồi lời mời chờ quá 7 ngày, gửi link nhóm hoặc nhờ kết bạn lại, và nhận lời mời của khách: **giao luồng khác** (PR #156 đã thu hồi; phần còn lại làm ở luồng "Sửa Z223"). Tài liệu này không làm các việc đó.
 4. Mẹ đồng ý kết bạn với mọi tài khoản phụ và làm phó nhóm ở mọi nhóm.
-5. Có SIM và điện thoại cho tài khoản thứ hai; **ưu tiên mua thêm máy chủ chạy song song** thay vì nâng máy hiện tại (mục 3.7).
+5. Có SIM và điện thoại cho tài khoản thứ hai; ban đầu muốn mua thêm máy chủ chạy song song, sau đó báo máy production đã nâng lên **6 GB RAM**, nên máy thứ hai là tùy chọn (mục 3.7).
 
-**Tiến độ:** PR nền (V57: bảng `zalo_account` có một dòng, cột `account_id` mặc định 1 ở `invitation`, `zalo_msg_log`, `zalo_friend_event`, `zalo_group`, `zalo_group_proposal`, `zalo_health_alert`, `zalo_auto_log`; khóa duy nhất của mã Zalo, số thứ tự sự kiện và cảnh báo sức khỏe nay tính theo tài khoản) đã làm; hành vi chưa đổi vì chỉ có một tài khoản. Chưa làm: gán khách theo tài khoản, bộ định tuyến, hạn mức và cầu dao theo tài khoản.
+**Tiến độ:** PR nền (V57: bảng `zalo_account` có một dòng, cột `account_id` mặc định 1 ở `invitation`, `zalo_msg_log`, `zalo_friend_event`, `zalo_group`, `zalo_group_proposal`, `zalo_health_alert`, `zalo_auto_log`; khóa duy nhất của mã Zalo, số thứ tự sự kiện và cảnh báo sức khỏe nay tính theo tài khoản) đã làm; hành vi chưa đổi vì chỉ có một tài khoản. PR định tuyến (`ZaloAccountContext`, `ZaloAccountRoutes`, `ZaloAccountProperties`: mỗi tài khoản một cầu nối bọc lưới an toàn, tài khoản 1 dùng cấu hình cũ, tài khoản thêm khai báo ở `APP_ZALO_ACCOUNTS_n_*`; chưa có bộ hẹn giờ nào đặt tài khoản nên vẫn chỉ tài khoản 1 chạy) đã làm. Chưa làm: bộ hẹn giờ chạy theo từng tài khoản, gán khách theo tài khoản, hạn mức và cầu dao theo tài khoản.
 
 Phần mục 1, 6, 7 dưới đây là bản nghiên cứu gốc; mục 6 bước 0 và mục 7 đã được các quyết định trên trả lời.
 
@@ -73,7 +73,7 @@ Phần tốt: sổ từ chối lưu **mã băm số điện thoại**, không ph
 - Trợ lý vẫn tự nhận là **trợ lý AI của shop**, một câu ngắn như hiện nay. Tên và ảnh của từng tài khoản phụ nên nói thật là tài khoản của shop (ví dụ "Shop áo điều hòa Minh Hiệp - hỗ trợ 2"), không giả là người.
 - Chưa chốt từ trước (mục 4 của `CLAUDE.md`): mẹ trả lời khách từ đâu. Với nhiều tài khoản, hàng "cần người thật" phải ghi rõ tài khoản.
 
-### 3.7 Máy chủ thứ hai (chủ dự án muốn mua thêm máy chạy song song)
+### 3.7 Máy chủ thứ hai (tùy chọn; chủ dự án sẵn sàng mua thêm, nhưng máy hiện đã 6 GB nên chưa bắt buộc)
 
 - Cầu nối của mỗi tài khoản chạy trong container riêng, nên đặt được ở máy nào cũng được; Adh chỉ cần địa chỉ và khóa chung của từng cầu nối trong `zalo_account` và `.env`. Hôm nay địa chỉ là `http://zalo-bridge:3100` trong mạng Docker nội bộ; máy thứ hai cần địa chỉ nối từ máy chủ Adh.
 - Nối qua **mạng riêng có mã hóa giữa hai máy** (ví dụ một đường hầm riêng) hoặc HTTPS có khóa chung và danh sách IP được phép; **không mở cổng cầu nối ra internet công khai** (cầu nối giữ phiên đăng nhập Zalo, ai chạm được là chiếm tài khoản). Việc dựng đường nối là việc hạ tầng, làm khi tới Bước 6.
@@ -102,7 +102,7 @@ Phần tốt: sổ từ chối lưu **mã băm số điện thoại**, không ph
 |---|---|
 | SIM mỗi tài khoản | SIM chính chủ cộng cước duy trì nhỏ hằng tháng. |
 | Điện thoại | Mỗi tài khoản cần một điện thoại để quét QR và nhận mã xác minh; chưa kiểm chứng điện thoại có cần luôn bật hay không khi cầu nối chạy. |
-| Máy chủ | Máy hiện 2 GB RAM, trống khoảng 300 MB. Mỗi cầu nối giới hạn 160 MB: **thêm 1 tài khoản đã sát giới hạn, thêm nhiều hơn phải nâng máy.** Giai đoạn 1 đã chốt "phải miễn phí" (`CLAUDE.md`), nên nâng máy cần chủ dự án quyết lại. |
+| Máy chủ | **Chủ dự án báo (25/11/2026) máy production đã nâng lên 6 GB RAM** (chưa đo lại bằng số liệu trên máy; trước đó là 2 GB, trống khoảng 300 MB). Mỗi cầu nối giới hạn 160 MB, nên vài tài khoản đầu chạy được trên máy hiện tại; **máy thứ hai không còn bắt buộc**, chỉ cần khi số tài khoản nhiều (hoặc muốn độc lập sự cố). Việc cần làm: đo RAM trống và dùng bộ nhớ thực của container cầu nối trước khi thêm tài khoản. |
 | Công sức làm mã | Khoảng 6 đến 8 PR nhỏ (mục 6). Phần khó nhất là gắn `account_id` xuyên suốt và test. |
 | Công sức vận hành | Mẹ kết bạn từng tài khoản; mỗi tài khoản một lần quét QR khi hết phiên; theo dõi N cầu dao. |
 

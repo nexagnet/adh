@@ -6,21 +6,39 @@ import org.springframework.context.annotation.Configuration;
 import vn.shop.crm.safety.TestMode;
 import vn.shop.crm.safety.ZaloSafetyProperties;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
- * Chọn bộ nối: mặc định {@link ManualZaloGateway} (không làm gì); chỉ khi bật cờ môi trường mới có {@link ZcaBridgeGateway}.
+ * Chọn bộ nối (D23: mỗi tài khoản một bộ nối, định tuyến ở {@link ZaloAccountRoutes}): mặc định {@link ManualZaloGateway} (không làm gì); chỉ khi bật cờ môi trường mới có {@link ZcaBridgeGateway}.
  * Cả hai đều được bọc bởi {@link SafeZaloLink} (chế độ thử): không có đường nào tới Zalo mà không đi qua lớp bọc này.
  */
 @Configuration
-@EnableConfigurationProperties({ZaloAutoProperties.class, ZaloGroupProperties.class, ZaloInboxProperties.class, ZaloSafetyProperties.class})
+@EnableConfigurationProperties({ZaloAutoProperties.class, ZaloAccountProperties.class, ZaloGroupProperties.class, ZaloInboxProperties.class, ZaloSafetyProperties.class})
 public class ZaloAutoConfig {
 
+    /**
+     * Một {@link ZaloLink} (đã bọc {@link SafeZaloLink}) cho từng tài khoản (D23). Tài khoản 1 dùng cấu hình cũ nên khi không khai báo thêm gì thì
+     * hệ thống chạy y như trước; tài khoản thêm chỉ có khi bật bộ nối và khai báo cầu nối riêng.
+     */
     @Bean
-    ZaloLink zaloLink(ZaloAutoProperties props, TestMode mode) {
+    ZaloAccountRoutes zaloAccountRoutes(ZaloAutoProperties props, ZaloAccountProperties accounts, TestMode mode) {
         if (props.enabled() && (props.bridgeKey() == null || props.bridgeKey().isBlank())) {
             // thất bại kín: bật bộ nối mà không có khóa chung thì không khởi động
             throw new IllegalStateException("Đã bật APP_ZALO_AUTO_ENABLED nhưng chưa đặt APP_ZALO_BRIDGE_KEY.");
         }
-        ZaloLink raw = props.enabled() ? new ZcaBridgeGateway(props.bridgeUrl(), props.bridgeKey()) : new ManualZaloGateway();
-        return new SafeZaloLink(raw, mode);
+        Map<Long, ZaloLink> links = new LinkedHashMap<>();
+        ZaloLink first = props.enabled() ? new ZcaBridgeGateway(props.bridgeUrl(), props.bridgeKey()) : new ManualZaloGateway();
+        links.put(ZaloAccountContext.DEFAULT_ACCOUNT, new SafeZaloLink(first, mode));
+        for (ZaloAccountProperties.Account a : accounts.accounts()) {
+            ZaloLink raw = props.enabled() ? new ZcaBridgeGateway(a.bridgeUrl(), a.bridgeKey()) : new ManualZaloGateway();
+            links.put(a.id(), new SafeZaloLink(raw, mode));
+        }
+        return new ZaloAccountRoutes(links);
+    }
+
+    @Bean
+    ZaloLink zaloLink(ZaloAccountRoutes routes) {
+        return routes.router();
     }
 }

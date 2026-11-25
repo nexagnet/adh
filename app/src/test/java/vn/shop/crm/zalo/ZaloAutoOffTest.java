@@ -14,13 +14,15 @@ class ZaloAutoOffTest extends AbstractPostgresTest {
 
     @Autowired ApplicationContext context;
     @Autowired ZaloGateway gateway;
+    @Autowired ZaloAccountRoutes routes;
     @Autowired ZaloAutoService zalo;
     @Autowired ZaloAutoSettings cfg;
 
     @Test
     void macDinhLaBoNoiTayKhongCoBoHenGio() {
-        // đường nối luôn được bọc bởi lưới an toàn của chế độ thử; bên trong là bộ nối tay (trạng thái DISABLED, không làm gì)
-        assertThat(gateway).isInstanceOf(SafeZaloLink.class);
+        // đường nối (D23: định tuyến theo tài khoản) luôn bọc từng cầu nối bằng lưới an toàn của chế độ thử; bên trong là bộ nối tay (trạng thái DISABLED, không làm gì)
+        assertThat(routes.accountIds()).containsExactly(1L);
+        assertThat(routes.target(1L)).isInstanceOf(SafeZaloLink.class);
         assertThat(context.getBeansOfType(ZaloAutoScheduler.class)).isEmpty();
         assertThat(context.getBeansOfType(ZcaBridgeGateway.class)).isEmpty();
         assertThat(gateway.status().state()).isEqualTo(ZaloGateway.State.DISABLED);
