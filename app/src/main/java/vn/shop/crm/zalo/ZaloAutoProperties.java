@@ -44,6 +44,8 @@ public record ZaloAutoProperties(
            (cầu nối có trần riêng BRIDGE_UNDO_DAILY, phải >= số này). */
         @DefaultValue("7") int friendWithdrawDays,
         @DefaultValue("20") int friendUndoDaily,
+        /* Nhận lời mời kết bạn của khách (25/11/2026): tối đa mỗi ngày bao nhiêu lần nhận (cầu nối có trần riêng BRIDGE_ACCEPT_DAILY, phải >= số này). */
+        @DefaultValue("40") int friendAcceptDaily,
         /* Đối chiếu danh sách bạn của tài khoản phụ (chỉ đọc, 24/11/2026): bao nhiêu phút một lần (và ngay khi cầu nối nối lại), tối thiểu 10. */
         @DefaultValue("20") int friendSyncMinutes) {
 
@@ -68,6 +70,9 @@ public record ZaloAutoProperties(
         }
         if (friendWithdrawDays < 0 || friendWithdrawDays > 90) {
             friendWithdrawDays = 7;
+        }
+        if (friendAcceptDaily < 1) {
+            friendAcceptDaily = 1;
         }
         if (friendUndoDaily < 1) {
             friendUndoDaily = 1;

@@ -117,7 +117,7 @@ public class ZaloFriendRequestSender {
                         JOIN customer c ON c.id = i.customer_id
                         JOIN invitation_campaign k ON k.id = i.campaign_id
                         WHERE i.status = 'SENT' AND i.sent_channel = :ch AND i.zalo_target_uid IS NOT NULL
-                          AND i.friend_request_at IS NULL AND i.friended_at IS NULL AND i.joined_at IS NULL AND i.inbound_at IS NULL
+                          AND i.friend_request_at IS NULL AND i.friend_accept_at IS NULL AND i.friended_at IS NULL AND i.joined_at IS NULL AND i.inbound_at IS NULL
                           AND i.expires_at > :now AND k.auto_send_approved_at IS NOT NULL
                         """ + testMode.onlyTestSql("c.phone") + " ORDER BY i.sent_at, i.id LIMIT :n")
                 .param("ch", ZaloInviteSender.CHANNEL).param("now", OffsetDateTime.now(clock)).param("n", SCAN)

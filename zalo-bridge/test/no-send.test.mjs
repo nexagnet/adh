@@ -16,7 +16,7 @@ function code(file) {
 }
 
 test('không đoạn mã nào gọi hàm gửi đính kèm, tìm theo tên, dò người (getAllFriends có test khóa riêng ở dưới: chỉ một chỗ, chỉ đọc) của zca-js', () => {
-  const banned = /(sendVoice|sendLink|sendSticker|sendCard|sendVideo|sendImage|sendReport|findUserByUsername|getFriendRequest|sendTypingEvent|forwardMessage|acceptFriendRequest|getFriendRecommendations|sendBankCard|sendToDoc|sendDeliveredEvent|sendSeenEvent)\b/;
+  const banned = /(sendVoice|sendLink|sendSticker|sendCard|sendVideo|sendImage|sendReport|findUserByUsername|getFriendRequest|sendTypingEvent|forwardMessage|getFriendRecommendations|sendBankCard|sendToDoc|sendDeliveredEvent|sendSeenEvent)\b/;
   for (const f of files) {
     assert.ok(!banned.test(code(f)), `${f} có hàm bị cấm`);
   }
@@ -38,9 +38,9 @@ test('findUser và sendMessage (D18) chỉ nằm trong bộ điều hợp thật
   assert.match(code('zca-adapter.mjs'), /sendMessage\(\{ msg: text \}, id, group \? ThreadType\.Group : ThreadType\.User\)/);
 });
 
-test('bộ điều hợp zca-js chỉ dùng đúng mười sáu thành phần (thêm addReaction để thả tim) của api (thêm getAllFriends chỉ đọc để đối chiếu, hai hàm chỉ đọc nhóm, findUser và sendMessage của D18, ba hàm tạo nhóm của D19, sendFriendRequest)', () => {
+test('bộ điều hợp zca-js chỉ dùng đúng mười bảy thành phần (thêm acceptFriendRequest cho người đã nhận Tin 1, addReaction để thả tim) của api (thêm getAllFriends chỉ đọc để đối chiếu, hai hàm chỉ đọc nhóm, findUser và sendMessage của D18, ba hàm tạo nhóm của D19, sendFriendRequest)', () => {
   const used = new Set([...code('zca-adapter.mjs').matchAll(/this\.api\??\.([A-Za-z]+)/g)].map((m) => m[1]));
-  assert.deepEqual([...used].sort(), ['addGroupDeputy', 'addReaction', 'addUserToGroup', 'createGroup', 'enableGroupLink', 'findUser', 'getAllFriends', 'getAllGroups', 'getGroupInfo', 'getOwnId', 'getUserInfo', 'listener', 'logout', 'sendFriendRequest', 'sendMessage', 'undoFriendRequest'].sort());
+  assert.deepEqual([...used].sort(), ['acceptFriendRequest', 'addGroupDeputy', 'addReaction', 'addUserToGroup', 'createGroup', 'enableGroupLink', 'findUser', 'getAllFriends', 'getAllGroups', 'getGroupInfo', 'getOwnId', 'getUserInfo', 'listener', 'logout', 'sendFriendRequest', 'sendMessage', 'undoFriendRequest'].sort());
 });
 
 test('sendFriendRequest chỉ có đúng một chỗ gọi (bộ điều hợp thật), chỉ gọi từ Bridge.sendFriendRequest và chỉ khi người đó đã nhận Tin 1', () => {
@@ -54,7 +54,19 @@ test('sendFriendRequest chỉ có đúng một chỗ gọi (bộ điều hợp t
   assert.match(b, /if \(!this\.msgLedger\.has\('INVITE', uid\) && !this\.msgLedger\.has\('INVITE_BLOCKED', uid\)\) return \{ outcome: 'PERSON_ERROR', code: 'NO_INVITE' \}/);
   assert.equal((b.match(/markSent\('INVITE_BLOCKED'/g) ?? []).length, 1);
   assert.match(b, /this\.friendLedger\.has\('FRIEND', uid\)/);
-  assert.ok(!/acceptFriendRequest|getFriendRequest/.test(files.map(code).join('\n')));
+  assert.ok(!/getFriendRequest|getReceivedFriendRequests|getSentFriendRequest/.test(files.map(code).join('\n')));
+});
+
+test('acceptFriendRequest (nhận lời mời) chỉ có đúng một chỗ gọi (bộ điều hợp thật), chỉ từ Bridge.acceptFriendRequest và chỉ cho người đã nhận Tin 1 vừa tự gửi lời mời tới', () => {
+  for (const f of files) {
+    const n = (code(f).match(/\bapi\??\.acceptFriendRequest\b/g) ?? []).length;
+    assert.equal(n, f === 'zca-adapter.mjs' ? 1 : 0, `${f}: acceptFriendRequest`);
+  }
+  const b = code('bridge.mjs');
+  assert.equal((b.match(/adapter\.acceptFriendRequest\(/g) ?? []).length, 1);
+  assert.match(b, /if \(!this\.incoming\.has\(uid\) \|\| !this\.msgLedger\.has\('INVITE', uid\) && !this\.msgLedger\.has\('INVITE_BLOCKED', uid\)\) return \{ outcome: 'PERSON_ERROR', code: 'NO_REQUEST' \}/);
+  assert.match(b, /this\.acceptLedger\.has\('ACCEPT', uid\)/);
+  assert.ok(!/Math\.random|crypto\.randomInt/.test(b));
 });
 
 test('undoFriendRequest (thu hồi lời mời) chỉ có đúng một chỗ gọi (bộ điều hợp thật), chỉ từ Bridge.undoFriendRequest và chỉ cho lời mời chính cầu nối đã gửi', () => {

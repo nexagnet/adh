@@ -1557,6 +1557,75 @@ test('thu hồi lời mời: lỗi có mã riêng của Zalo là lỗi riêng ng
   c.cleanup();
 });
 
+test('nhận lời mời kết bạn: chỉ người đã nhận Tin 1 và vừa tự gửi lời mời tới, mỗi người một lần, người lạ bị bỏ', async () => {
+  const c = await ready();
+  c.adapter.emitFriendRequest('999'); // người lạ: không được nhớ
+  assert.deepEqual(c.bridge.incomingRequests(), []);
+  assert.deepEqual(await c.bridge.acceptFriendRequest({ uid: 'x' }), { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' });
+  assert.deepEqual(await c.bridge.acceptFriendRequest({ uid: '999' }), { outcome: 'PERSON_ERROR', code: 'NO_REQUEST' });
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' })).outcome, 'OK');
+  assert.deepEqual(await c.bridge.acceptFriendRequest({ uid: '501' }), { outcome: 'PERSON_ERROR', code: 'NO_REQUEST' }); // đã nhận Tin 1 nhưng chưa gửi lời mời tới
+  c.adapter.emitFriendRequest('501');
+  assert.deepEqual(c.bridge.incomingRequests(), ['501']);
+  assert.deepEqual(await c.bridge.acceptFriendRequest({ uid: '501' }), { outcome: 'OK' });
+  assert.deepEqual(c.adapter.accepted, ['501']);
+  assert.deepEqual(c.bridge.incomingRequests(), []);
+  c.adapter.emitFriendRequest('501'); // đã nhận rồi: không nhớ lại
+  assert.deepEqual(c.bridge.incomingRequests(), []);
+  assert.deepEqual(await c.bridge.acceptFriendRequest({ uid: '501' }), { outcome: 'PERSON_ERROR', code: 'NO_REQUEST' });
+  c.cleanup();
+});
+
+test('nhận lời mời kết bạn: nghỉ cố định và trần mỗi ngày, vượt thì chỉ bị từ chối, không dừng cầu dao; lỗi mã riêng là lỗi riêng người, lỗi lạ dừng', async () => {
+  const c = await ready({ BRIDGE_ACCEPT_DAILY: '1', BRIDGE_MSG_DAILY: '50' });
+  for (const phone of ['84900000001', '84900000002', '84900000003']) {
+    assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone, text: 'a' })).outcome, 'OK');
+    c.clock.t += GAP + 1000;
+  }
+  for (const u of ['501', '502', '503']) c.adapter.emitFriendRequest(u);
+  assert.equal((await c.bridge.acceptFriendRequest({ uid: '501' })).outcome, 'OK');
+  assert.equal((await c.bridge.acceptFriendRequest({ uid: '502' })).outcome, 'RATE_LIMITED');
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  assert.equal(c.adapter.accepted.length, 1);
+  c.cleanup();
+  const d = await ready({ BRIDGE_ACCEPT_GAP_SEC: '30' });
+  assert.equal((await d.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' })).outcome, 'OK');
+  d.adapter.emitFriendRequest('501');
+  const e = new Error('lời mời không còn');
+  e.code = 217;
+  d.adapter.acceptError = e;
+  assert.deepEqual(await d.bridge.acceptFriendRequest({ uid: '501' }), { outcome: 'PERSON_ERROR', code: 'Z217' });
+  assert.equal(d.bridge.status().state, 'LISTENING');
+  d.adapter.emitFriendRequest('501');
+  d.clock.t += 31000;
+  d.adapter.acceptError = new Error('mạng hỏng');
+  const r = await d.bridge.acceptFriendRequest({ uid: '501' });
+  assert.notEqual(r.outcome, 'OK');
+  assert.equal(d.bridge.status().state, 'TRIPPED');
+  d.cleanup();
+});
+
+test('nhận lời mời kết bạn: không ghi uid vào log', async () => {
+  const c = await ready();
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' })).outcome, 'OK');
+  c.adapter.emitFriendRequest('501');
+  await c.bridge.acceptFriendRequest({ uid: '501' });
+  assert.ok(!c.logs?.join('\n').includes('501'));
+  c.cleanup();
+});
+
+test('tin nhờ kết bạn lại: được gửi cho người đã bị THU HỒI lời mời (khách không đồng ý trong nhiều ngày)', async () => {
+  const c = await ready();
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' })).outcome, 'OK');
+  c.clock.t += GAP + 1000;
+  assert.equal((await c.bridge.sendFriendRequest({ uid: '501', text: 'a' })).outcome, 'OK');
+  c.clock.t += GAP + 1000;
+  assert.equal((await c.bridge.sendMessage({ kind: 'ASK_FRIEND', uid: '501', text: 'b' })).code, 'FRIEND_REQUESTED');
+  assert.equal((await c.bridge.undoFriendRequest({ uid: '501' })).outcome, 'OK');
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'ASK_FRIEND', uid: '501', text: 'b' }), { outcome: 'OK', uid: '501' });
+  c.cleanup();
+});
+
 test('lời mời kết bạn: không ghi uid, số điện thoại hay nội dung vào log', async () => {
   const c = await ready();
   assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' })).outcome, 'OK');

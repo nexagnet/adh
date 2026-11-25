@@ -575,7 +575,9 @@ class FriendRequestSendTest extends AbstractPostgresTest {
         long a = friendRequestedDaysAgo(9);
         gap();
         assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.UNDO_DONE);
-        // khách thứ hai: Tin 1, lời mời, rồi đến hạn thì thu hồi, mỗi nhịp đúng một việc
+        // khách đã thu hồi được nhờ tự kết bạn (một tin), rồi mới tới khách thứ hai: Tin 1, lời mời, đến hạn thì thu hồi, mỗi nhịp đúng một việc
+        gap();
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.ASK_SENT);
         jdbc.sql("UPDATE invitation SET status = 'READY' WHERE status = 'CANCELLED'").update();
         gap();
         assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.INVITE_SENT);
@@ -589,5 +591,101 @@ class FriendRequestSendTest extends AbstractPostgresTest {
         assertThat(fake.undone).hasSize(2);
         assertThat(messages.undoUsedToday()).isEqualTo(2);
         assertThat(undoOutcome(a)).isEqualTo("DONE");
+    }
+
+    // ---------- nhận lời mời kết bạn của khách + tin nhờ kết bạn sau khi thu hồi ----------
+
+    private String targetUid(long invitation) {
+        return jdbc.sql("SELECT zalo_target_uid FROM invitation WHERE id = :i").param("i", invitation).query(String.class).single();
+    }
+
+    private String acceptOutcome(long invitation) {
+        return jdbc.sql("SELECT friend_accept_outcome FROM invitation WHERE id = :i").param("i", invitation).query(String.class).optional().orElse(null);
+    }
+
+    @Test
+    void khachDaNhanTin1TuGuiLoiMoiThiDuocNhanMotLanVaKhongBiMoiLai() {
+        long invitation = inviteOne();
+        fake.incoming.add("999"); // người lạ: không thuộc lời mời nào, bỏ qua
+        fake.incoming.add(targetUid(invitation));
+        gap();
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.ACCEPT_DONE);
+        assertThat(fake.accepted).containsExactly(targetUid(invitation));
+        assertThat(acceptOutcome(invitation)).isEqualTo("DONE");
+        assertThat(count("SELECT count(*) FROM zalo_msg_log WHERE kind = 'ACCEPT_FRIEND'")).isEqualTo(1);
+        // đã là bạn bên khách gửi: hệ thống không gửi thêm lời mời của mình, không nhờ kết bạn, không nhận lại
+        fake.incoming.clear();
+        fake.incoming.add(targetUid(invitation));
+        gap();
+        sender.step();
+        assertThat(fake.accepted).hasSize(1);
+        assertThat(fake.friendRequests).isEmpty();
+        assertThat(asks()).isZero();
+        assertThat(cfg.tripped()).isFalse();
+    }
+
+    @Test
+    void khachChuaTungNhanTin1HoacKhongCoLoiMoiDenThiKhongNhan() {
+        fake.incoming.add("999");
+        gap();
+        assertThat(sender.step()).isNotEqualTo(ZaloInviteSender.Step.ACCEPT_DONE);
+        assertThat(fake.accepted).isEmpty();
+        assertThat(count("SELECT count(*) FROM zalo_msg_log WHERE kind = 'ACCEPT_FRIEND'")).isZero();
+    }
+
+    @Test
+    void zaloTuChoiNhanLoiMoiThiDanhDauFailedKhongThuLaiVaKhongDungCauDao() {
+        long invitation = inviteOne();
+        fake.incoming.add(targetUid(invitation));
+        gap();
+        fake.willReturnMessage(Sent.of(Result.PERSON_ERROR, "Z217", false));
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.FAILED_ONE);
+        assertThat(acceptOutcome(invitation)).isEqualTo("FAILED");
+        assertThat(cfg.tripped()).isFalse();
+        gap();
+        sender.step();
+        assertThat(fake.accepted).hasSize(1);
+    }
+
+    @Test
+    void khongRoKetQuaNhanLoiMoiThiKhongNhanLai() {
+        long invitation = inviteOne();
+        fake.incoming.add(targetUid(invitation));
+        gap();
+        fake.willReturnMessage(Sent.of(Result.SYSTEM_ERROR, "TIMEOUT", false));
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.TRIPPED);
+        assertThat(acceptOutcome(invitation)).isEqualTo("UNKNOWN");
+        cfg.reopen("test");
+        clock.advance(Duration.ofDays(1));
+        sender.step();
+        assertThat(fake.accepted).hasSize(1);
+    }
+
+    @Test
+    void thuHoiLoiMoiXongThiNhoKhachTuKetBanMotLanVaKhongLap() {
+        long invitation = friendRequestedDaysAgo(9);
+        gap();
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.UNDO_DONE);
+        assertThat(asks()).isZero();
+        gap();
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.ASK_SENT);
+        var ask = fake.messages.stream().filter(m -> m.kind() == ZaloMessenger.Kind.ASK_FRIEND).findFirst().orElseThrow();
+        assertThat(ask.uid()).isEqualTo(targetUid(invitation));
+        assertThat(ask.text()).doesNotContain("{").doesNotContain("http");
+        assertThat(jdbc.sql("SELECT friend_ask_outcome FROM invitation WHERE id = :i").param("i", invitation).query(String.class).single()).isEqualTo("SENT");
+        gap();
+        sender.step();
+        assertThat(asks()).isEqualTo(1);
+    }
+
+    @Test
+    void khachDaDongYKetBanThiKhongNhoKetBanSauKhiThuHoi() {
+        long invitation = friendRequestedDaysAgo(9);
+        gap();
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.UNDO_DONE);
+        jdbc.sql("UPDATE invitation SET friended_at = now() WHERE id = :i").param("i", invitation).update();
+        gap();
+        sender.step();
+        assertThat(asks()).isZero();
     }
 }

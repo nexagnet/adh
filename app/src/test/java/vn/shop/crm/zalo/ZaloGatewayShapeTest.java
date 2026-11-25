@@ -24,7 +24,7 @@ class ZaloGatewayShapeTest {
 
     @Test
     void gatewayChiCoBaViec() {
-        assertThat(names(ZaloGateway.class)).containsExactly("addToGroup", "friendEvents", "friendsAmong", "status");
+        assertThat(names(ZaloGateway.class)).containsExactly("addToGroup", "friendEvents", "friendsAmong", "incomingRequests", "status");
     }
 
     @Test
@@ -45,7 +45,7 @@ class ZaloGatewayShapeTest {
 
     @Test
     void messengerChiCoGuiTheoSoHoacTheoMa() {
-        assertThat(names(ZaloMessenger.class)).containsExactly("sendByPhone", "sendByUid", "sendFriendRequest", "undoFriendRequest");
+        assertThat(names(ZaloMessenger.class)).containsExactly("acceptFriendRequest", "sendByPhone", "sendByUid", "sendFriendRequest", "undoFriendRequest");
     }
 
     /** 24/11/2026: lời mời kết bạn (Kind.FRIEND) chỉ có MỘT nơi gửi, chỉ theo mã Zalo của người đã nhận Tin 1, qua cổng gửi chung. */
@@ -84,6 +84,26 @@ class ZaloGatewayShapeTest {
         assertThat(sender).contains("Kind.ASK_FRIEND", "sendByUid", "friendPausedUntil", "friend_ask_at IS NULL", "friend_request_at IS NULL", "inbound_at IS NULL",
                         "tin1_blocked_at IS NULL", "policy.blocker", "testMode.onlyTestSql", "contacts.stillEligible", "hasUnresolved", "UNKNOWN")
                 .doesNotContain("sendByPhone", "addToGroup", "createGroup", "findByPhone", "while", "Random");
+    }
+
+    /** 25/11/2026: nhận lời mời kết bạn (Kind.ACCEPT_FRIEND) chỉ có MỘT nơi gửi, chỉ theo mã Zalo của khách trong sổ lời mời, không nhắn gì cho khách. */
+    @Test
+    void nhanLoiMoiKetBanChiTuMotNoiVaChiChoKhachTrongSo() throws IOException {
+        List<String> users = new java.util.ArrayList<>();
+        try (Stream<Path> all = Files.walk(Path.of("src/main/java"))) {
+            for (Path f : all.filter(x -> x.toString().endsWith(".java")).toList()) {
+                String text = Files.readString(f);
+                if (text.contains("Kind.ACCEPT_FRIEND") || text.contains("acceptFriendRequest(")) {
+                    users.add(f.getFileName().toString());
+                }
+            }
+        }
+        assertThat(users).containsExactlyInAnyOrder("ZaloFriendAcceptSender.java", "ZaloMessageService.java", "ZcaBridgeGateway.java", "ZaloMessenger.java",
+                "SafeZaloLink.java", "ManualZaloGateway.java");
+        String sender = Files.readString(Path.of("src/main/java/vn/shop/crm/zalo/ZaloFriendAcceptSender.java"));
+        assertThat(sender).contains("Kind.ACCEPT_FRIEND", "incomingRequests", "i.zalo_target_uid IN", "friend_accept_at IS NULL", "policy.blocker",
+                        "testMode.onlyTestSql", "contacts.stillEligible", "UNKNOWN")
+                .doesNotContain("sendByPhone", "sendByUid", "addToGroup", "createGroup", "findByPhone", "while", "Random");
     }
 
     @Test

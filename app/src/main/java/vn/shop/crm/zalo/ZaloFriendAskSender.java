@@ -20,7 +20,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Khi Zalo báo danh sách lời mời kết bạn đã đầy (Z223, 25/11/2026) thì {@link ZaloFriendRequestSender} tạm dừng; trong lúc đó khách đã nhận Tin 1 mà chưa
+ * (25/11/2026, bổ sung theo lời chủ dự án) Cũng gửi đúng MỘT tin này cho khách có lời mời kết bạn ĐÃ bị tự thu hồi vì quá hạn chưa đồng ý ({@link ZaloFriendUndoSender}):
+ * chủ dự án chốt "khi thu hồi đồng thời bảo người ta kết bạn với mình"; chạy cả khi lời mời không bị tạm dừng. Chưa có link nhóm nào được gửi (Tin 2 đã bỏ từ 24/11).
+ *
+ * <p>Khi Zalo báo danh sách lời mời kết bạn đã đầy (Z223, 25/11/2026) thì {@link ZaloFriendRequestSender} tạm dừng; trong lúc đó khách đã nhận Tin 1 mà chưa
  * được mời kết bạn nhận thêm MỘT tin nhờ họ chủ động kết bạn lại với tài khoản phụ (người dùng chốt: "em không kết bạn được với bác, bác kết bạn lại
  * với em nhé"). NƠI DUY NHẤT dùng {@code Kind.ASK_FRIEND}. Mỗi nhịp tối đa MỘT tin, qua {@link ZaloMessageService} (công tắc, khung giờ, khoảng nghỉ
  * cố định, cầu dao dùng chung, trần mỗi ngày dùng chung với lời mời kết bạn; không tính vào số khách được nhắn Tin 1) rồi bộ nối (chỉ theo mã Zalo của người
@@ -74,15 +77,13 @@ public class ZaloFriendAskSender {
         if (!messages.enabled() || settings.paused()) {
             return Step.NOT_ACTIVE;
         }
-        if (messages.friendPausedUntil().isEmpty()) {
-            return Step.NOTHING;
-        }
+        boolean paused = messages.friendPausedUntil().isPresent();
         var general = messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.ASK_FRIEND, null, null);
         if (general.isPresent() && general.get() != ZaloMessageService.Block.GAP) {
             return Step.BLOCKED;
         }
         Map<Long, Boolean> open = new HashMap<>();
-        for (Task t : due()) {
+        for (Task t : due(paused)) {
             if (!open.computeIfAbsent(t.campaignId(), id -> policy.blocker(id).isEmpty())) {
                 continue;
             }
@@ -111,18 +112,19 @@ public class ZaloFriendAskSender {
         return text.isEmpty() || text.length() > MAX_TEXT || InviteService.hasUnresolved(text) ? null : text;
     }
 
-    private List<Task> due() {
+    private List<Task> due(boolean paused) {
         return jdbc.sql("""
                         SELECT i.id, i.campaign_id, i.customer_id, c.phone, c.name, c.province, i.token, i.zalo_target_uid, k.friend_ask_template
                         FROM invitation i
                         JOIN customer c ON c.id = i.customer_id
                         JOIN invitation_campaign k ON k.id = i.campaign_id
                         WHERE i.status = 'SENT' AND i.sent_channel = :ch AND i.zalo_target_uid IS NOT NULL AND i.tin1_blocked_at IS NULL
-                          AND i.friend_request_at IS NULL AND i.friend_ask_at IS NULL
+                          AND ((i.friend_request_at IS NULL AND :paused) OR i.friend_undo_outcome = 'DONE')
+                          AND i.friend_ask_at IS NULL AND i.friend_accept_at IS NULL
                           AND i.friended_at IS NULL AND i.joined_at IS NULL AND i.inbound_at IS NULL
                           AND i.expires_at > :now AND k.auto_send_approved_at IS NOT NULL
                         """ + testMode.onlyTestSql("c.phone") + " ORDER BY i.sent_at, i.id LIMIT :n")
-                .param("ch", ZaloInviteSender.CHANNEL).param("now", OffsetDateTime.now(clock)).param("n", SCAN)
+                .param("ch", ZaloInviteSender.CHANNEL).param("now", OffsetDateTime.now(clock)).param("n", SCAN).param("paused", paused)
                 .query((rs, n) -> new Task(rs.getLong("id"), rs.getLong("campaign_id"), rs.getLong("customer_id"), rs.getString("phone"),
                         rs.getString("zalo_target_uid"), rs.getString("name"), rs.getString("province"), rs.getString("token"),
                         rs.getString("friend_ask_template")))
@@ -132,7 +134,8 @@ public class ZaloFriendAskSender {
     private Step send(Task t, String text) {
         int claimed = jdbc.sql("""
                         UPDATE invitation SET friend_ask_at = :at, friend_ask_outcome = 'UNKNOWN'
-                        WHERE id = :id AND friend_ask_at IS NULL AND friend_request_at IS NULL AND status = 'SENT' AND friended_at IS NULL
+                        WHERE id = :id AND friend_ask_at IS NULL AND (friend_request_at IS NULL OR friend_undo_outcome = 'DONE') AND friend_accept_at IS NULL
+                          AND status = 'SENT' AND friended_at IS NULL
                           AND joined_at IS NULL AND inbound_at IS NULL""")
                 .param("id", t.invitationId()).param("at", OffsetDateTime.now(clock)).update();
         if (claimed == 0) {
@@ -150,7 +153,7 @@ public class ZaloFriendAskSender {
             case SENT -> {
                 setOutcome(t, "SENT");
                 sends.recordExternal(t.invitationId(), t.campaignId(), t.customerId(), t.phone(), ZaloInviteSender.CHANNEL, "SENT",
-                        "Tin nhờ khách kết bạn lại (lời mời kết bạn đang tạm dừng vì Zalo báo danh sách đầy)", text);
+                        "Tin nhờ khách kết bạn lại (lời mời kết bạn không gửi được vì Zalo báo danh sách đầy, hoặc đã thu hồi vì quá hạn chưa đồng ý)", text);
                 contacts.event(t.customerId(), t.phone(), "INVITATION_FRIEND_ASK", "Tin nhờ kết bạn lại");
                 return Step.SENT;
             }

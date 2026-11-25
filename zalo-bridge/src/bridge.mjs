@@ -72,7 +72,7 @@ export function isSoftTrip(reason) {
 }
 
 export class Bridge {
-  constructor({ config, adapter, store, ledger, msgLedger = null, friendLedger = null, undoLedger = null, groupLedger = null, events, inbox = null, now = () => Date.now(), log = () => {} }) {
+  constructor({ config, adapter, store, ledger, msgLedger = null, friendLedger = null, undoLedger = null, acceptLedger = null, groupLedger = null, events, inbox = null, now = () => Date.now(), log = () => {} }) {
     this.config = config;
     this.adapter = adapter;
     this.store = store;
@@ -80,6 +80,8 @@ export class Bridge {
     this.msgLedger = msgLedger ?? new MessageLedger(null, Buffer.alloc(32));
     this.friendLedger = friendLedger ?? new MessageLedger(null, Buffer.alloc(32));
     this.undoLedger = undoLedger ?? new MessageLedger(null, Buffer.alloc(32)); // lời mời đã thu hồi (băm), giờ các lần thu hồi
+    this.acceptLedger = acceptLedger ?? new MessageLedger(null, Buffer.alloc(32)); // lời mời đã nhận (băm), giờ các lần nhận
+    this.incoming = new Map(); // mã Zalo -> giờ: người ĐÃ nhận Tin 1 vừa tự gửi lời mời kết bạn tới (chỉ trong bộ nhớ, không log)
     this.groupLedger = groupLedger ?? new AddLedger(null);
     this.events = events;
     this.inbox = inbox ?? new InboxBuffer({ now: () => this.now() });
@@ -213,6 +215,7 @@ export class Bridge {
     const handlers = {
       onConnected: () => this.onConnected(gen),
       onFriendAdd: (uid) => this.onFriendAdd(gen, uid),
+      onFriendRequest: (uid) => this.onFriendRequest(gen, uid),
       onDisconnected: (code) => this.onDisconnected(gen, code, lg),
     };
     // Chỉ đăng ký nghe tin nhắn khi bật cờ riêng (tắt mặc định).
@@ -227,6 +230,25 @@ export class Bridge {
     this.attempts = 0;
     this.sessionSince = new Date(this.now()).toISOString();
     this.log('đang nghe');
+  }
+
+  /**
+   * Người khác gửi lời mời kết bạn tới tài khoản phụ. Chỉ nhớ MÃ của người đã nhận Tin 1 từ chính cầu nối này (khách của hệ thống); người lạ bỏ ngay, không lưu,
+   * không log. Không tự nhận ở đây: việc nhận do Adh yêu cầu qua {@link Bridge#acceptFriendRequest} với đủ chốt chặn.
+   */
+  onFriendRequest(gen, uid) {
+    if (gen !== this.generation || !ZALO_ID.test(String(uid))) return;
+    const id = String(uid);
+    if (!this.msgLedger.has('INVITE', id) && !this.msgLedger.has('INVITE_BLOCKED', id)) return;
+    if (this.acceptLedger.has('ACCEPT', id)) return;
+    if (this.incoming.size >= 500 && !this.incoming.has(id)) return;
+    this.incoming.set(id, this.now());
+    this.lastEventAt = new Date(this.now()).toISOString();
+  }
+
+  /** Mã Zalo của khách đang chờ được nhận lời mời (chỉ người đã nhận Tin 1 từ cầu nối này, chưa được nhận). */
+  incomingRequests() {
+    return [...this.incoming.keys()];
   }
 
   async onFriendAdd(gen, uid) {
@@ -559,7 +581,8 @@ export class Bridge {
     if (isAsk) {
       // chỉ nhờ người đã nhận Tin 1 từ chính cầu nối này; đã được gửi lời mời kết bạn thì không nhờ nữa (lời nói sẽ sai); người đang nhắn tới thì để người thật xem
       if (!this.msgLedger.has('INVITE', uidIn)) return { outcome: 'PERSON_ERROR', code: 'NO_INVITE' };
-      if (this.friendLedger.has('FRIEND', uidIn)) return { outcome: 'PERSON_ERROR', code: 'FRIEND_REQUESTED' };
+      // lời mời đã được GỬI rồi thì không nhờ nữa (lời nói sẽ sai), trừ khi lời mời đó đã được THU HỒI (khách không đồng ý trong nhiều ngày): lúc đó nhờ khách tự kết bạn.
+      if (this.friendLedger.has('FRIEND', uidIn) && !this.undoLedger.has('UNDO', uidIn)) return { outcome: 'PERSON_ERROR', code: 'FRIEND_REQUESTED' };
       const said = this.replyable.get(uidIn);
       if (said !== undefined && t - said <= REPLY_WINDOW_MS) return { outcome: 'PERSON_ERROR', code: 'CUSTOMER_REPLIED' };
     }
@@ -747,6 +770,60 @@ export class Bridge {
         this.stateFile.write({});
       }
       this.log(`kết bạn: ${c.outcome}`);
+      const out = { outcome: c.outcome };
+      if (c.code) out.code = c.code;
+      return out;
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /**
+   * Nhận MỘT lời mời kết bạn mà MỘT khách đã nhận Tin 1 từ chính cầu nối này vừa tự gửi tới (25/11/2026, chủ dự án duyệt: "làm cả cơ chế chấp nhận lời mời kết
+   * bạn của khách"). Chỉ người trong {@code incoming} (đã nhận Tin 1, lời mời tới trong phiên này), mỗi người một lần, khung giờ, trần mỗi ngày {@code acceptDaily},
+   * khoảng nghỉ CỐ ĐỊNH {@code acceptGapMs}, một việc một lúc, cầu dao. Không nhận người lạ, không nhận hàng loạt, không đọc gì thêm. Thành công thì Zalo bắn
+   * sự kiện kết bạn như thường (đường thêm vào nhóm không đổi). Lỗi có mã riêng của Zalo là lỗi riêng người, không dừng; lỗi lạ khác vẫn dừng. Không ngẫu nhiên hóa.
+   * @param {{uid: string}} m
+   */
+  async acceptFriendRequest(m) {
+    const uid = m?.uid === undefined || m?.uid === null ? null : String(m.uid);
+    if (uid === null || !ZALO_ID.test(uid)) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' };
+    if (this.state === 'LOGIN_REQUIRED') return { outcome: 'SESSION_LOST', code: 'LOGIN_REQUIRED' };
+    if (this.state === 'TRIPPED' || this.state === 'STOPPED') return { outcome: 'RESTRICTED', code: 'NOT_ACTIVE' };
+    if (this.state !== 'LISTENING') return { outcome: 'SYSTEM_ERROR', code: 'NOT_CONNECTED' };
+    if (this.busy) return { outcome: 'SYSTEM_ERROR', code: 'BUSY' };
+    const t = this.now();
+    if (!inWindow(t, this.config.windowStartMin, this.config.windowEndMin)) {
+      this.trip('WINDOW');
+      return { outcome: 'RESTRICTED', code: 'WINDOW' };
+    }
+    if (!this.incoming.has(uid) || !this.msgLedger.has('INVITE', uid) && !this.msgLedger.has('INVITE_BLOCKED', uid)) return { outcome: 'PERSON_ERROR', code: 'NO_REQUEST' };
+    if (this.acceptLedger.has('ACCEPT', uid)) return { outcome: 'PERSON_ERROR', code: 'DUPLICATE' };
+    const last = this.acceptLedger.last();
+    if (this.acceptLedger.countSince(vnDayStart(t)) >= this.config.acceptDaily) return { outcome: 'RATE_LIMITED', retryAfterSec: 3600 };
+    if (last !== null && t - last < this.config.acceptGapMs) {
+      return { outcome: 'RATE_LIMITED', retryAfterSec: Math.ceil((this.config.acceptGapMs - (t - last)) / 1000) };
+    }
+    this.busy = true;
+    try {
+      this.acceptLedger.record(t); // ghi trước khi gọi, tính cả lần lỗi
+      this.stateFile.write({ inflight: true });
+      let c;
+      try {
+        await withTimeout(this.adapter.acceptFriendRequest(uid), this.config.addTimeoutMs);
+        this.acceptLedger.markSent('ACCEPT', uid);
+        c = { outcome: 'OK' };
+      } catch (e) {
+        c = classifyError(e, new Set());
+        if (c.outcome === 'SYSTEM_ERROR' && /^Z\d+$/.test(c.code ?? '')) c = { outcome: 'PERSON_ERROR', code: c.code };
+      }
+      if (c.outcome === 'OK' || c.outcome === 'PERSON_ERROR') this.incoming.delete(uid); // dù nhận được hay Zalo báo lỗi riêng, không thử lại lời mời này
+      if (c.outcome !== 'OK' && c.outcome !== 'PERSON_ERROR') {
+        this.trip(c.code ? `${c.outcome}:${c.code}` : c.outcome);
+      } else {
+        this.stateFile.write({});
+      }
+      this.log(`nhận lời mời kết bạn: ${c.outcome}`);
       const out = { outcome: c.outcome };
       if (c.code) out.code = c.code;
       return out;

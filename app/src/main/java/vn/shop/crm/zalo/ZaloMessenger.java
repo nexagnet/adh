@@ -25,7 +25,9 @@ public interface ZaloMessenger {
         /** Tin nhờ khách chủ động kết bạn lại (25/11/2026): chỉ gửi cho người ĐÃ nhận Tin 1 mà lời mời kết bạn không gửi được vì Zalo báo danh sách lời mời đầy (Z223). Chỉ theo mã Zalo, mỗi người một lần. */
         ASK_FRIEND,
         /** Thu hồi một lời mời kết bạn đã gửi mà quá N ngày chưa ai đồng ý (25/11/2026), để danh sách lời mời đang chờ của Zalo còn chỗ. Không nhắn gì cho người đó. */
-        UNDO_FRIEND;
+        UNDO_FRIEND,
+        /** Nhận lời mời kết bạn của khách đã nhận Tin 1 mà vừa tự gửi lời mời tới tài khoản phụ (25/11/2026). Chỉ theo mã Zalo, mỗi người một lần. */
+        ACCEPT_FRIEND;
 
         /** Tin do shop chủ động nhắn khách (không phải trả lời, không phải Tin 2): tính vào hạn mức ngày. */
         public boolean proactive() {
@@ -34,7 +36,7 @@ public interface ZaloMessenger {
 
         /** Tin trả lời người vừa TỰ nhắn tới (tin mẫu hoặc câu do trợ lý AI soạn): có khoảng nghỉ cố định riêng, ngắn hơn. */
         public boolean answersInbound() {
-            return this == WELCOME || this == REPLY;
+            return this == WELCOME || this == REPLY || this == ACCEPT_FRIEND;
         }
 
         public boolean followup() {
@@ -77,4 +79,7 @@ public interface ZaloMessenger {
 
     /** Thu hồi MỘT lời mời kết bạn mà chính bộ nối đã gửi cho người này (chưa ai đồng ý). Không nhắn gì. */
     Sent undoFriendRequest(String uid);
+
+    /** Nhận MỘT lời mời kết bạn mà người này (đã nhận Tin 1 từ chính bộ nối) vừa tự gửi tới tài khoản phụ. Bộ nối kiểm lại. Không nhắn gì. */
+    Sent acceptFriendRequest(String uid);
 }

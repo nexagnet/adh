@@ -74,6 +74,16 @@ public class ManualZaloGateway implements ZaloLink {
     }
 
     @Override
+    public List<String> incomingRequests() {
+        return List.of();
+    }
+
+    @Override
+    public Sent acceptFriendRequest(String uid) {
+        return Sent.of(Result.UNREACHABLE, "DISABLED", true);
+    }
+
+    @Override
     public Sent undoFriendRequest(String uid) {
         return Sent.of(Result.UNREACHABLE, "DISABLED", true);
     }

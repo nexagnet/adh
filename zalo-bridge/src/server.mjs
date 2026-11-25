@@ -53,6 +53,8 @@ export const ROUTES = [
   'POST /messages',
   'POST /friend-requests',
   'POST /friend-requests/undo',
+  'GET /friend-requests/incoming',
+  'POST /friend-requests/accept',
   'POST /people/lookup',
   'POST /session/login',
   'GET /session/login',
@@ -116,6 +118,11 @@ export function createServer({ bridge, config, fake = null }) {
       if (route === 'POST /friend-requests') {
         const body = await readJson(req);
         return send(200, await bridge.sendFriendRequest({ uid: body.uid, text: body.text }));
+      }
+      if (route === 'GET /friend-requests/incoming') return send(200, { uids: bridge.incomingRequests() });
+      if (route === 'POST /friend-requests/accept') {
+        const body = await readJson(req);
+        return send(200, await bridge.acceptFriendRequest({ uid: body.uid }));
       }
       if (route === 'POST /friend-requests/undo') {
         const body = await readJson(req);
