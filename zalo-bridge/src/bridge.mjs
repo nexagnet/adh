@@ -72,13 +72,14 @@ export function isSoftTrip(reason) {
 }
 
 export class Bridge {
-  constructor({ config, adapter, store, ledger, msgLedger = null, friendLedger = null, groupLedger = null, events, inbox = null, now = () => Date.now(), log = () => {} }) {
+  constructor({ config, adapter, store, ledger, msgLedger = null, friendLedger = null, undoLedger = null, groupLedger = null, events, inbox = null, now = () => Date.now(), log = () => {} }) {
     this.config = config;
     this.adapter = adapter;
     this.store = store;
     this.ledger = ledger;
     this.msgLedger = msgLedger ?? new MessageLedger(null, Buffer.alloc(32));
     this.friendLedger = friendLedger ?? new MessageLedger(null, Buffer.alloc(32));
+    this.undoLedger = undoLedger ?? new MessageLedger(null, Buffer.alloc(32)); // lời mời đã thu hồi (băm), giờ các lần thu hồi
     this.groupLedger = groupLedger ?? new AddLedger(null);
     this.events = events;
     this.inbox = inbox ?? new InboxBuffer({ now: () => this.now() });
@@ -746,6 +747,60 @@ export class Bridge {
         this.stateFile.write({});
       }
       this.log(`kết bạn: ${c.outcome}`);
+      const out = { outcome: c.outcome };
+      if (c.code) out.code = c.code;
+      return out;
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /**
+   * Thu hồi MỘT lời mời kết bạn mà chính cầu nối này đã gửi cho MỘT người nhưng họ chưa đồng ý (25/11/2026, chủ dự án duyệt), để danh sách lời mời đang chờ
+   * của Zalo (có hạn, báo Z223 khi đầy) còn chỗ. Không nhắn gì cho người đó, không đọc gì. Chốt chặn công khai và cố định: chỉ người đã được gửi lời mời qua
+   * cầu nối này (sổ FRIEND), mỗi người một lần, khung giờ, trần mỗi ngày {@code undoDaily}, khoảng nghỉ CỐ ĐỊNH {@code undoGapMs}, một việc một lúc, cầu dao.
+   * Lỗi có mã riêng của Zalo (thường là lời mời không còn, người đó đã đồng ý hoặc từ chối) là lỗi riêng người, không dừng; lỗi lạ khác vẫn dừng. Không ngẫu nhiên hóa.
+   * @param {{uid: string}} m
+   */
+  async undoFriendRequest(m) {
+    const uid = m?.uid === undefined || m?.uid === null ? null : String(m.uid);
+    if (uid === null || !ZALO_ID.test(uid)) return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' };
+    if (this.state === 'LOGIN_REQUIRED') return { outcome: 'SESSION_LOST', code: 'LOGIN_REQUIRED' };
+    if (this.state === 'TRIPPED' || this.state === 'STOPPED') return { outcome: 'RESTRICTED', code: 'NOT_ACTIVE' };
+    if (this.state !== 'LISTENING') return { outcome: 'SYSTEM_ERROR', code: 'NOT_CONNECTED' };
+    if (this.busy) return { outcome: 'SYSTEM_ERROR', code: 'BUSY' };
+    const t = this.now();
+    if (!inWindow(t, this.config.windowStartMin, this.config.windowEndMin)) {
+      this.trip('WINDOW');
+      return { outcome: 'RESTRICTED', code: 'WINDOW' };
+    }
+    if (!this.friendLedger.has('FRIEND', uid)) return { outcome: 'PERSON_ERROR', code: 'NOT_REQUESTED' }; // chỉ lời mời do chính cầu nối đã gửi
+    if (this.undoLedger.has('UNDO', uid)) return { outcome: 'PERSON_ERROR', code: 'DUPLICATE' };
+    const last = this.undoLedger.last();
+    if (this.undoLedger.countSince(vnDayStart(t)) >= this.config.undoDaily) return { outcome: 'RATE_LIMITED', retryAfterSec: 3600 };
+    if (last !== null && t - last < this.config.undoGapMs) {
+      return { outcome: 'RATE_LIMITED', retryAfterSec: Math.ceil((this.config.undoGapMs - (t - last)) / 1000) };
+    }
+    this.busy = true;
+    try {
+      this.undoLedger.record(t); // ghi trước khi gọi, tính cả lần lỗi
+      this.stateFile.write({ inflight: true });
+      let c;
+      try {
+        await withTimeout(this.adapter.undoFriendRequest(uid), this.config.addTimeoutMs);
+        this.undoLedger.markSent('UNDO', uid);
+        c = { outcome: 'OK' };
+      } catch (e) {
+        c = classifyError(e, new Set());
+        // mã lỗi riêng của Zalo (không phải bị hạn chế hay mất phiên): lỗi riêng lời mời này, không dừng cầu dao
+        if (c.outcome === 'SYSTEM_ERROR' && /^Z\d+$/.test(c.code ?? '')) c = { outcome: 'PERSON_ERROR', code: c.code };
+      }
+      if (c.outcome !== 'OK' && c.outcome !== 'PERSON_ERROR') {
+        this.trip(c.code ? `${c.outcome}:${c.code}` : c.outcome);
+      } else {
+        this.stateFile.write({});
+      }
+      this.log(`thu hồi lời mời: ${c.outcome}`);
       const out = { outcome: c.outcome };
       if (c.code) out.code = c.code;
       return out;

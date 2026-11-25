@@ -202,6 +202,20 @@ class ZaloAdminPageTest extends AbstractPostgresTest {
         mvc.perform(post("/zalo/messages/friend-resume").with(staff()).with(csrf())).andExpect(status().isForbidden());
     }
 
+    @Test
+    void soNgayThuHoiLoiMoiChinhDuocVaKhongVuotKhoang() throws Exception {
+        mvc.perform(post("/zalo/messages/friend-withdraw").with(owner()).with(csrf()).param("days", "91")).andExpect(status().isBadRequest());
+        mvc.perform(post("/zalo/messages/friend-withdraw").with(owner()).with(csrf()).param("days", "-1")).andExpect(status().isBadRequest());
+        mvc.perform(post("/zalo/messages/friend-withdraw").with(owner()).with(csrf()).param("days", "5")).andExpect(status().is3xxRedirection());
+        assertThat(messages.friendWithdrawDays()).isEqualTo(5);
+        mvc.perform(get("/zalo").param("tab", "gioi-han").with(owner())).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Tự thu hồi lời mời quá hạn")));
+        mvc.perform(post("/zalo/messages/friend-withdraw").with(owner()).with(csrf()).param("days", "0")).andExpect(status().is3xxRedirection());
+        assertThat(messages.friendWithdrawDays()).isZero();
+        mvc.perform(post("/zalo/messages/friend-withdraw").with(staff()).with(csrf()).param("days", "7")).andExpect(status().isForbidden());
+        messages.setFriendWithdrawDays(7, "test");
+    }
+
     private static org.springframework.test.web.servlet.request.RequestPostProcessor staff() {
         return user("nhanvien").roles("STAFF");
     }

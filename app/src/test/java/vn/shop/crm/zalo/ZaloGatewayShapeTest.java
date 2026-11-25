@@ -45,7 +45,7 @@ class ZaloGatewayShapeTest {
 
     @Test
     void messengerChiCoGuiTheoSoHoacTheoMa() {
-        assertThat(names(ZaloMessenger.class)).containsExactly("sendByPhone", "sendByUid", "sendFriendRequest");
+        assertThat(names(ZaloMessenger.class)).containsExactly("sendByPhone", "sendByUid", "sendFriendRequest", "undoFriendRequest");
     }
 
     /** 24/11/2026: lời mời kết bạn (Kind.FRIEND) chỉ có MỘT nơi gửi, chỉ theo mã Zalo của người đã nhận Tin 1, qua cổng gửi chung. */

@@ -175,7 +175,7 @@ public class ZcaBridgeGateway implements ZaloLink {
     /** Mã không gửi được vì chính cầu nối từ chối TRƯỚC khi chạm Zalo (xem bridge.mjs): chắc chắn chưa có tin nào đi. */
     private static final java.util.Set<String> NOT_SENT_CODES = java.util.Set.of("BUSY", "NOT_CONNECTED", "NOT_ACTIVE", "WINDOW",
             "MSG_LIMIT", "FRIEND_LIMIT", "LOGIN_REQUIRED", "BAD_INPUT", "BAD_PHONE", "BAD_ID", "NOT_REPLYABLE",
-            "NO_INVITE", "NO_PREVIOUS", "CUSTOMER_REPLIED", "FRIEND_REQUESTED", ZaloMessageService.FRIEND_LIST_FULL);
+            "NO_INVITE", "NO_PREVIOUS", "CUSTOMER_REPLIED", "FRIEND_REQUESTED", "NOT_REQUESTED", ZaloMessageService.FRIEND_LIST_FULL);
 
     @Override
     public Sent sendByPhone(Kind kind, String phoneDigits, String text) {
@@ -206,6 +206,15 @@ public class ZcaBridgeGateway implements ZaloLink {
             return Sent.of(Result.PERSON_ERROR, "BAD_INPUT", true);
         }
         return message("/friend-requests", java.util.Map.of("uid", uid, "text", text.strip()));
+    }
+
+    /** Thu hồi lời mời kết bạn đã gửi (25/11/2026): chỉ theo mã Zalo, cầu nối kiểm lại là lời mời do chính nó đã gửi. */
+    @Override
+    public Sent undoFriendRequest(String uid) {
+        if (uid == null || !ZALO_ID.matcher(uid).matches()) {
+            return Sent.of(Result.PERSON_ERROR, "BAD_ID", true);
+        }
+        return message("/friend-requests/undo", java.util.Map.of("uid", uid));
     }
 
     private Sent message(java.util.Map<String, String> body) {

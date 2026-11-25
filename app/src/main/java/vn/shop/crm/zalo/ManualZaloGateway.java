@@ -74,6 +74,11 @@ public class ManualZaloGateway implements ZaloLink {
     }
 
     @Override
+    public Sent undoFriendRequest(String uid) {
+        return Sent.of(Result.UNREACHABLE, "DISABLED", true);
+    }
+
+    @Override
     public Created createGroup(String name, java.util.List<String> memberUids, String deputyUid, String welcome) {
         return Created.of(ZaloGroupMaker.GroupOutcome.UNREACHABLE, "DISABLED", true);
     }

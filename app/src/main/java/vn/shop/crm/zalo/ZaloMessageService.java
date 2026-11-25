@@ -57,6 +57,8 @@ public class ZaloMessageService {
     static final String FRIEND_PAUSED_UNTIL = "zalo.friend.paused_until";
     /** Mã của cầu nối: Zalo báo danh sách lời mời kết bạn của tài khoản phụ đã đầy (Z223). Chưa gửi gì, KHÔNG phải lỗi hệ thống nên không dừng cầu dao. */
     public static final String FRIEND_LIST_FULL = "FRIEND_LIST_FULL";
+    /** Số ngày chưa ai đồng ý thì tự thu hồi lời mời kết bạn (0 = tắt). */
+    static final String FRIEND_WITHDRAW_DAYS = "zalo.friend.withdraw_days";
     public static final String SCOPE_REAL = "REAL";
     /** Số lần liền lỗi riêng người (mã lạ) thì dừng, và số lần liền "không tìm thấy" thì dừng để người kiểm tra. */
     static final int MAX_CONSECUTIVE_PERSON_ERRORS = 3;
@@ -215,6 +217,33 @@ public class ZaloMessageService {
         }
         settings.set(FRIEND_PAUSED_UNTIL, "", by);
         cfg.log(ZaloAutoSettings.A_CONFIG, null, null, "KET_BAN_MO_LAI", null, by);
+    }
+
+    /** Quá bao nhiêu ngày chưa ai đồng ý thì tự thu hồi lời mời kết bạn (mặc định 7; 0 = tắt). */
+    public int friendWithdrawDays() {
+        return clamp(intSetting(FRIEND_WITHDRAW_DAYS, cfg.props().friendWithdrawDays()), 0, 90);
+    }
+
+    public int setFriendWithdrawDays(int days, String by) {
+        if (days < 0 || days > 90) {
+            throw new ImportException("Số ngày thu hồi lời mời kết bạn phải từ 0 (tắt) đến 90.");
+        }
+        int old = friendWithdrawDays();
+        settings.set(FRIEND_WITHDRAW_DAYS, Integer.toString(days), by);
+        cfg.log(ZaloAutoSettings.A_CONFIG, null, null, "THU_HOI_LOI_MOI_SAU " + days, "CU " + old, by);
+        return friendWithdrawDays();
+    }
+
+    /** Số lời mời kết bạn đã gửi mà khách chưa đồng ý (đang nằm trong danh sách lời mời đang chờ của Zalo). Chỉ để hiển thị. */
+    public int friendPending() {
+        return jdbc.sql("SELECT count(*) FROM invitation WHERE friend_request_outcome = 'SENT' AND friended_at IS NULL AND joined_at IS NULL")
+                .query(Integer.class).single();
+    }
+
+    /** Số lần thu hồi lời mời đã gọi hôm nay (tính cả lần lỗi). */
+    public int undoUsedToday() {
+        return jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE at >= :s AND kind = 'UNDO_FRIEND'")
+                .param("s", OffsetDateTime.ofInstant(startOfDay(), ZoneOffset.UTC)).query(Integer.class).single();
     }
 
     /** Số tin nhờ khách kết bạn lại đã gọi hôm nay (tính cả lần lỗi). */
@@ -452,6 +481,9 @@ public class ZaloMessageService {
         if (kind == Kind.FRIEND && friendUsedToday() >= friendDaily()) {
             return Optional.of(Block.DAILY_LIMIT);
         }
+        if (kind == Kind.UNDO_FRIEND && undoUsedToday() >= cfg.props().friendUndoDaily()) {
+            return Optional.of(Block.DAILY_LIMIT);
+        }
         // Tin nhờ kết bạn lại thay cho lời mời kết bạn nên dùng chung trần mỗi ngày của lời mời (0 = tắt cả hai); không tính vào số khách được nhắn Tin 1.
         if (kind == Kind.ASK_FRIEND && askFriendUsedToday() >= friendDaily()) {
             return Optional.of(Block.DAILY_LIMIT);
@@ -487,6 +519,11 @@ public class ZaloMessageService {
     /** Lời mời kết bạn cho người đã nhận Tin 1 (theo mã Zalo): cùng chốt chặn như tin, thêm trần lời mời mỗi ngày. */
     public Delivery sendFriendRequest(String scope, Long refId, String uid, String text) {
         return deliver(scope, Kind.FRIEND, refId, null, null, () -> link.sendFriendRequest(uid, text));
+    }
+
+    /** Thu hồi lời mời kết bạn đã gửi cho người này (theo mã Zalo): cùng chốt chặn như tin, thêm trần thu hồi mỗi ngày riêng. */
+    public Delivery undoFriendRequest(String scope, Long refId, String uid) {
+        return deliver(scope, Kind.UNDO_FRIEND, refId, null, null, () -> link.undoFriendRequest(uid));
     }
 
     private Delivery deliver(String scope, Kind kind, Long refId, Integer scopeDaily, Integer scopeGap,
