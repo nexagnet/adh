@@ -215,3 +215,12 @@ Số migration chỉ là dự kiến: trước khi mở mỗi PR phải gộp `m
 ## 10. Việc cố ý chưa làm
 
 Bộ lọc "hoặc" trong một chiến dịch; lọc theo lý do đổi hàng (không có dữ liệu); lọc theo nguồn khách TikTok (hệ thống không có đơn TikTok); thử A/B giữa hai bộ lọc; AI tự đề xuất sửa bộ lọc của chiến dịch đang chạy; thêm chỗ điền `{so_lan_mua}` vào mẫu tin.
+
+## 8. Đã làm ở PR 4 (AI dùng cùng bộ lọc)
+
+- Migration V61: `campaign_proposal.filter_json`. Đề xuất AI có khóa tùy chọn `filter` (khóa: `purchases_min`, `purchases_max`, `exchange`, `cancelled`, `returned`, `no_open_orders`, `max_shipments`, `bought`, `bought_mode`, `not_bought`, `cod_min`, `cod_max`, `skip_open_cases`).
+- `ProposalValidator.filter` kiểm chặt từng khóa; lỗi thì bỏ đề xuất kèm lý do, không sửa hộ. Không dùng cùng lúc `product_group` và `filter.bought`.
+- Bản chụp ẩn danh có thêm `insights.audience` (số khách khớp các kiểu lọc phổ biến, ô dưới 10 khách ẩn; cờ `exchange_ready`, `settlement_available`). Không có thông tin cá nhân.
+- `AdvisorService.checkMatches`: đếm số khách khớp thật; không khớp thì bỏ đề xuất, khớp ít hơn lô thì kẹp lô và ghi rủi ro.
+- Chiến dịch mời khách mua nhiều lần (`purchases_max` > 1) không bị chặn bởi số khách mua 1 lần của khu vực, vẫn không quá trần chiến dịch và hạn mức ngày x số ngày.
+- Duyệt đề xuất tạo chiến dịch chờ duyệt mang đúng bộ lọc và số lần mua; trang `/advisor` hiện nhãn "Mời cả khách mua nhiều lần" và các dòng mô tả bộ lọc.
