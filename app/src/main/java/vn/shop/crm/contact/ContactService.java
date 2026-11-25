@@ -439,6 +439,22 @@ public class ContactService {
         return spec.query(Long.class).single();
     }
 
+    /** Chủ cửa hàng đã cài cách nhận biết đơn đổi chưa (chưa cài thì không lọc được theo đơn đổi). */
+    public boolean exchangeConfigured() {
+        return !exchangeMarkers.get().isEmpty();
+    }
+
+    /**
+     * Như {@link #countEligibleNotInvited(String, CustomerFilter)} (mọi nơi) nhưng BỎ khách thuộc danh sách số thử: chỉ khách thật. Dành cho bản tổng hợp
+     * ẩn danh của AI đề xuất chiến dịch (chỉ số đếm).
+     */
+    public long countEligibleNotInvitedReal(CustomerFilter filter) {
+        StringBuilder sql = new StringBuilder("SELECT count(*) " + fromFor(filter)
+                + " AND NOT EXISTS (SELECT 1 FROM invitation i WHERE i.customer_id = c.id)" + NOT_TEST);
+        var params = appendFilter(sql, filter);
+        return jdbc.sql(sql.toString()).params(params).query(Long.class).single();
+    }
+
     /** Khách này CÒN đủ điều kiện mời ngay lúc này không (kiểm lại ở thời điểm khách bấm link và trước khi gửi). */
     public boolean stillEligible(long customerId) {
         return count("SELECT count(*) " + eligibleForSendFrom() + " AND c.id = " + customerId) > 0;

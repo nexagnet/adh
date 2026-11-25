@@ -47,7 +47,8 @@ public class ProposalService {
                     LocalDate endOn, LocalTime windowFrom, LocalTime windowTo, int dailyCap, String messageAngle,
                     List<String> reasons, List<String> risks, double confidence, boolean confidenceCapped, String state,
                     String decidedBy, LocalDateTime decidedAt, String decisionNote, Long campaignId, LocalDateTime createdAt,
-                    Integer weekdays, String pickOrder, Integer minDays, Integer maxDays, String productGroup) {
+                    Integer weekdays, String pickOrder, Integer minDays, Integer maxDays, String productGroup,
+                    vn.shop.crm.contact.CustomerFilter filter) {
         public ContactService.Pick pick() {
             return new ContactService.Pick(pickOrder, minDays, maxDays,
                     productGroup == null ? null : vn.shop.crm.contact.ProductGroup.valueOf(productGroup));
@@ -83,6 +84,21 @@ public class ProposalService {
 
         public boolean customPick() {
             return pick().any();
+        }
+
+        /** Bộ lọc đầy đủ khi triển khai: các núm cũ (độ mới, nhóm hàng, thứ tự) gộp với bộ lọc mới của AI. */
+        public vn.shop.crm.contact.CustomerFilter fullFilter() {
+            return vn.shop.crm.contact.CustomerFilter.and(pick().toFilter(), filter == null ? vn.shop.crm.contact.CustomerFilter.NONE : filter);
+        }
+
+        /** Đề xuất mời cả khách mua nhiều lần (cần người xem kỹ trước khi duyệt). */
+        public boolean multi() {
+            return filter != null && filter.multi();
+        }
+
+        /** Bộ lọc mới của AI bằng chữ tiếng Việt, mỗi điều kiện một dòng (rỗng nếu không có). */
+        public List<String> filterLines() {
+            return filter == null ? List.of() : filter.describe();
         }
 
         public boolean open() {
@@ -242,14 +258,14 @@ public class ProposalService {
         expireOld();
         Proposal p = lock(id);
         requireOpen(p);
-        long available = contacts.countEligibleNotInvited(p.area(), p.pick());
+        long available = contacts.countEligibleNotInvited(p.area(), p.fullFilter());
         int count = (int) Math.min(p.batchSize(), Math.min(available, invites.maxCampaign()));
         if (count < 1) {
             throw new ImportException("Hiện không còn khách nào ở khu vực này (theo cách chọn khách của đề xuất) đủ điều kiện mời và chưa từng được mời, nên chưa tạo được chiến dịch. "
                     + "Hãy duyệt thêm khách ở mục Danh sách mời, hoặc bỏ qua đề xuất này.");
         }
         String name = p.title().length() <= MAX_NAME ? p.title() : p.title().substring(0, MAX_NAME);
-        long campaignId = invites.createCampaign(name, null, expiresDaysFor(p, today()), count, p.area(), p.pick());
+        long campaignId = invites.createCampaign(name, null, expiresDaysFor(p, today()), count, p.area(), p.fullFilter());
         // Lịch, khung giờ và hạn mức ngày AI đề xuất được đặt vào chiến dịch, nhưng luôn KẸP trong trần hệ thống (chỉ chặt hơn, không bao giờ nới).
         policy.saveClamped(campaignId, new CampaignPolicy.Raw(p.startOn(), p.endOn(), p.windowFrom(), p.windowTo(), p.dailyCap(), null), by);
         // Cấu hình sẵn thêm: hoãn khi mưa lớn (chỉ HOÃN, không bao giờ gửi nhanh hơn hay nhiều hơn); ngày trong tuần và ngưỡng tự dừng theo hệ thống.
@@ -302,7 +318,7 @@ public class ProposalService {
             SELECT p.id, p.run_id, p.title, p.area, p.batch_size, p.start_on, p.end_on, p.window_from, p.window_to, p.daily_cap,
                    p.message_angle, p.reasons::text AS reasons, p.risks::text AS risks, p.confidence, p.confidence_capped, p.state,
                    p.decided_by, p.decided_at, p.decision_note, p.campaign_id, r.created_at,
-                   p.weekdays, p.pick_order, p.min_days, p.max_days, p.product_group
+                   p.weekdays, p.pick_order, p.min_days, p.max_days, p.product_group, p.filter_json::text AS filter_json
             FROM campaign_proposal p JOIN advisor_run r ON r.id = p.run_id""";
 
     private Proposal map(ResultSet rs, int n) throws SQLException {
@@ -316,7 +332,8 @@ public class ProposalService {
                 rs.getBigDecimal("confidence").doubleValue(), rs.getBoolean("confidence_capped"), rs.getString("state"),
                 rs.getString("decided_by"), local(rs.getObject("decided_at", OffsetDateTime.class)), rs.getString("decision_note"),
                 campaignId, local(rs.getObject("created_at", OffsetDateTime.class)),
-                (Integer) rs.getObject("weekdays"), rs.getString("pick_order"), (Integer) rs.getObject("min_days"), (Integer) rs.getObject("max_days"), rs.getString("product_group"));
+                (Integer) rs.getObject("weekdays"), rs.getString("pick_order"), (Integer) rs.getObject("min_days"), (Integer) rs.getObject("max_days"), rs.getString("product_group"),
+                vn.shop.crm.contact.CustomerFilter.fromJson(rs.getString("filter_json")));
     }
 
     private Run mapRun(ResultSet rs, int n) throws SQLException {

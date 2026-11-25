@@ -37,17 +37,18 @@ class AdvisorStore {
             jdbc.sql("""
                             INSERT INTO campaign_proposal (run_id, title, area, batch_size, start_on, end_on, window_from, window_to,
                                 daily_cap, message_angle, reasons, risks, confidence, confidence_capped,
-                                weekdays, pick_order, min_days, max_days, product_group)
+                                weekdays, pick_order, min_days, max_days, product_group, filter_json)
                             VALUES (:run, :title, :area, :batch, :start, :end, :wf, :wt, :cap, :angle,
                                 CAST(:reasons AS jsonb), CAST(:risks AS jsonb), :conf, :capped,
-                                  :weekdays, :pick, :minDays, :maxDays, :product)""")
+                                  :weekdays, :pick, :minDays, :maxDays, :product, CAST(:filter AS jsonb))""")
                     .param("run", runId).param("title", p.title()).param("area", p.area()).param("batch", p.batchSize())
                     .param("start", p.startOn()).param("end", p.endOn()).param("wf", p.windowFrom()).param("wt", p.windowTo())
                     .param("cap", p.dailyCap()).param("angle", p.messageAngle())
                     .param("reasons", JSON.writeValueAsString(p.reasons())).param("risks", JSON.writeValueAsString(p.risks()))
                     .param("conf", p.confidence()).param("capped", p.confidenceCapped())
                     .param("weekdays", p.weekdays(), java.sql.Types.SMALLINT).param("pick", p.pickOrder())
-                    .param("minDays", p.minDays(), java.sql.Types.INTEGER).param("maxDays", p.maxDays(), java.sql.Types.INTEGER).param("product", p.productGroup(), java.sql.Types.VARCHAR).update();
+                    .param("minDays", p.minDays(), java.sql.Types.INTEGER).param("maxDays", p.maxDays(), java.sql.Types.INTEGER).param("product", p.productGroup(), java.sql.Types.VARCHAR)
+                    .param("filter", p.filter().any() ? p.filter().toJson() : null, java.sql.Types.VARCHAR).update();
         }
         return runId;
     }
