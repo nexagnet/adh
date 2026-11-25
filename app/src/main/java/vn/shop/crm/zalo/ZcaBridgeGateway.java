@@ -58,7 +58,7 @@ public class ZcaBridgeGateway implements ZaloLink {
             JsonNode n = call("GET", "/status", null, 10);
             return new Status(state(n.path("state").asString("")), safeCode(text(n, "tripReason")),
                     n.hasNonNull("accountOk") ? n.path("accountOk").asBoolean() : null,
-                    instant(n, "lastEventAt"), instant(n, "sessionSince"), safeCode(text(n, "detail")));
+                    instant(n, "lastEventAt"), instant(n, "sessionSince"), safeCode(text(n, "detail")), safeCode(text(n, "accountTag")));
         } catch (Unreachable e) {
             return Status.of(State.UNREACHABLE);
         } catch (Exception e) {

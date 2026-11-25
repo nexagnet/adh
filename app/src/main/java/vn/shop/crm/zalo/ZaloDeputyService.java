@@ -33,6 +33,9 @@ public class ZaloDeputyService {
     static final String CAND_NAME = "zalo.deputy.cand_name";
     static final String CAND_AVATAR = "zalo.deputy.cand_avatar";
     static final String CAND_AT = "zalo.deputy.cand_at";
+    /** Dấu tài khoản phụ lúc tra mã của mẹ (mã Zalo của một người khác nhau theo từng tài khoản đang hỏi). */
+    static final String ACCT = "zalo.deputy.acct";
+    static final String CAND_ACCT = "zalo.deputy.cand_acct";
     static final String LAST_LOOKUP = "zalo.deputy.last_lookup_at";
 
     /** Khoảng nghỉ cố định giữa hai lần tra (không ngẫu nhiên hóa). */
@@ -50,7 +53,10 @@ public class ZaloDeputyService {
     }
 
     /** {@code source}: SETTING (đã xác nhận ở trang này), ENV (biến môi trường cũ) hoặc NONE. */
-    public record Current(Person person, String source) {
+    public record Current(Person person, String source, boolean stale) {
+        public Current(Person person, String source) {
+            this(person, source, false);
+        }
     }
 
     public enum Status { FOUND, NOT_FOUND, LIMIT, UNAVAILABLE, STOPPED }
@@ -65,9 +71,11 @@ public class ZaloDeputyService {
     private final ZaloSession session;
     private final JdbcClient jdbc;
     private final Clock clock;
+    private final ZaloGateway gateway;
 
     public ZaloDeputyService(AppSettings settings, ZaloGroupProperties props, ZaloAutoSettings auto, ZaloPersonFinder finder,
-                             ZaloSession session, JdbcClient jdbc, Clock clock) {
+                             ZaloSession session, JdbcClient jdbc, Clock clock, ZaloGateway gateway) {
+        this.gateway = gateway;
         this.settings = settings;
         this.props = props;
         this.auto = auto;
@@ -83,16 +91,39 @@ public class ZaloDeputyService {
     public String effectiveUid() {
         String saved = settings.get(UID).orElse("").strip();
         if (saved.matches("\\d{1,32}")) {
-            return saved;
+            // Mã được tra từ tài khoản phụ cũ thì không dùng được với tài khoản mới: không gọi Zalo bằng mã sai.
+            return stale() ? "" : saved;
         }
         String env = props.deputyId();
         return env.matches("\\d{1,32}") ? env : "";
     }
 
+    /**
+     * Mã mẹ đã lưu được tra từ MỘT tài khoản phụ khác với tài khoản đang đăng nhập. Chỉ báo lỗi khi biết chắc cả hai dấu và chúng khác nhau
+     * (mã lưu từ trước khi có dấu, hoặc chưa biết tài khoản hiện tại, thì không kết luận).
+     */
+    public boolean stale() {
+        String saved = settings.get(ACCT).orElse("").strip();
+        if (saved.isEmpty()) {
+            return false;
+        }
+        String now = currentTag();
+        return now != null && !now.equals(saved);
+    }
+
+    private String currentTag() {
+        try {
+            String t = gateway.status().accountTag();
+            return t == null || t.isBlank() ? null : t;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
     public Current current() {
         String saved = settings.get(UID).orElse("").strip();
         if (saved.matches("\\d{1,32}")) {
-            return new Current(new Person(saved, settings.get(NAME).orElse(""), validAvatar(settings.get(AVATAR).orElse(null))), "SETTING");
+            return new Current(new Person(saved, settings.get(NAME).orElse(""), validAvatar(settings.get(AVATAR).orElse(null))), "SETTING", stale());
         }
         if (props.deputyId().matches("\\d{1,32}")) {
             return new Current(new Person(props.deputyId(), "", null), "ENV");
@@ -156,6 +187,8 @@ public class ZaloDeputyService {
                 settings.set(CAND_NAME, f.name() == null ? "" : f.name(), by);
                 settings.set(CAND_AVATAR, validAvatar(f.avatar()) == null ? "" : f.avatar(), by);
                 settings.set(CAND_AT, now.toString(), by);
+                String tag = currentTag();
+                settings.set(CAND_ACCT, tag == null ? "" : tag, by);
                 return new LookupOutcome(Status.FOUND, "Đã tìm thấy. Hãy xem tên và ảnh bên dưới có đúng mẹ không rồi bấm xác nhận.");
             }
             case PERSON_ERROR -> {
@@ -188,8 +221,31 @@ public class ZaloDeputyService {
         settings.set(UID, p.uid(), by);
         settings.set(NAME, p.name() == null ? "" : p.name(), by);
         settings.set(AVATAR, p.avatar() == null ? "" : p.avatar(), by);
+        settings.set(ACCT, settings.get(CAND_ACCT).orElse("").strip(), by);
         clearCandidate(by);
+        // Mã mẹ mới thì các nhóm chưa có phó nhóm được thử lại từ đầu (số lần đã tính cho mã cũ không còn ý nghĩa).
+        jdbc.sql("UPDATE zalo_group_proposal SET deputy_tries = 0 WHERE state = 'DONE' AND deputy_state IN ('FAILED', 'NONE')").update();
         auto.log(ZaloAutoSettings.A_CONFIG, null, null, "PHO_NHOM_XAC_NHAN", "OK", by);
+    }
+
+    static final String LAST_AUTO = "zalo.deputy.last_auto_at";
+    /** Khoảng nghỉ cố định giữa hai lần TỰ thử lại đặt phó nhóm (không ngẫu nhiên hóa). */
+    static final Duration AUTO_GAP = Duration.ofMinutes(60);
+
+    /** Đã qua khoảng nghỉ cố định kể từ lần tự thử lại trước chưa. */
+    public boolean autoRetryDue() {
+        Instant last = settings.get(LAST_AUTO).filter(v -> !v.isBlank()).map(v -> {
+            try {
+                return Instant.parse(v.strip());
+            } catch (RuntimeException e) {
+                return null;
+            }
+        }).orElse(null);
+        return last == null || !clock.instant().isBefore(last.plus(AUTO_GAP));
+    }
+
+    public void markAutoRetry() {
+        settings.set(LAST_AUTO, clock.instant().toString(), "system");
     }
 
     public void cancelCandidate(String by) {
@@ -201,6 +257,7 @@ public class ZaloDeputyService {
         settings.set(UID, "", by);
         settings.set(NAME, "", by);
         settings.set(AVATAR, "", by);
+        settings.set(ACCT, "", by);
         clearCandidate(by);
         auto.log(ZaloAutoSettings.A_CONFIG, null, null, "PHO_NHOM_BO", "OK", by);
     }
@@ -210,6 +267,7 @@ public class ZaloDeputyService {
         settings.set(CAND_NAME, "", by);
         settings.set(CAND_AVATAR, "", by);
         settings.set(CAND_AT, "", by);
+        settings.set(CAND_ACCT, "", by);
     }
 
     private long usedToday(Instant now) {

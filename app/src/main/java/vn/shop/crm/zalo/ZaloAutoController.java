@@ -249,6 +249,9 @@ public class ZaloAutoController {
         ZaloGroupMaker.DeputyResult r = groupMaker.retryDeputy(id, by(user));
         redirect.addFlashAttribute("flash", r.ok()
                 ? "Đã đặt mẹ làm phó nhóm."
+                : r.outcome() == ZaloGroupMaker.GroupOutcome.UNREACHABLE || r.outcome() == ZaloGroupMaker.GroupOutcome.RATE_LIMITED
+                        || "WINDOW".equals(r.code()) || "NOT_ACTIVE".equals(r.code()) || "BUSY".equals(r.code())
+                ? "Chưa gọi được Zalo lúc này (mã: " + (r.code() == null ? "không rõ" : r.code()) + "). Lần thử này không bị tính, hệ thống không dừng. Thử lại sau."
                 : "Chưa đặt được mẹ làm phó nhóm (mã lỗi: " + (r.code() == null ? "không rõ" : r.code()) + "). Mã này đã ghi vào nhật ký. Có thể thử lại hoặc thêm tay trong Zalo.");
         return "redirect:/zalo?tab=nhom#tao-nhom";
     }

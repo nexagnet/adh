@@ -240,7 +240,8 @@
                 <span class="avatar ph" th:unless="${deputyCurrent.person.avatar != null}" aria-hidden="true">Mẹ</span>
                 <div>
                     <strong th:text="${deputyCurrent.source == 'SETTING'} ? ${deputyCurrent.person.name} : 'Mã Zalo khai báo ở cấu hình triển khai'">Tên của mẹ</strong>
-                    <span class="sub-line" th:if="${deputyCurrent.source == 'SETTING'}">Đã xác nhận. Là phó nhóm của các nhóm tạo từ nay.</span>
+                    <span class="sub-line notice bad" th:if="${deputyCurrent.stale}">Mã này được tra từ tài khoản Zalo phụ CŨ nên không dùng được. Hãy nhập lại số điện thoại của mẹ bên dưới và xác nhận lại.</span>
+                    <span class="sub-line" th:if="${deputyCurrent.source == 'SETTING' and !deputyCurrent.stale}">Đã xác nhận. Là phó nhóm của các nhóm tạo từ nay.</span>
                     <span class="sub-line" th:if="${deputyCurrent.source == 'ENV'}">Đang dùng ZALO_DEPUTY_ID. Nhập số điện thoại bên dưới để thấy tên và ảnh và đổi sang cách này.</span>
                 </div>
                 <form th:if="${deputyCurrent.source == 'SETTING'}" th:action="@{/zalo/deputy/clear}" method="post">
@@ -304,7 +305,7 @@
                     <td th:text="${p.reason}">Tạo nhóm vì có 3 khách chờ</td>
                     <td><span th:text="${T(vn.shop.crm.zalo.ZaloGroupCreationService).stateLabel(p.state)}">Chờ mẹ duyệt</span>
                         <span class="sub-line" th:if="${p.state == 'DONE'}"
-                              th:text="'Đã vào nhóm: ' + ${p.addedCount} + ' khách' + (${p.linkOk} ? '' : ' · CHƯA có link mời, nhóm đang tạm dừng nhận khách') + (${p.deputyState == 'FAILED'} ? ' · chưa đặt được mẹ làm phó nhóm' + (${p.deputyCode != null} ? ' (mã lỗi ' + ${p.deputyCode} + ')' : '') + (${p.canRetryDeputy} ? ', bấm Thử lại phó nhóm' : ', hãy thêm tay trong Zalo') : '')">Đã vào nhóm</span>
+                              th:text="'Đã vào nhóm: ' + ${p.addedCount} + ' khách' + (${p.linkOk} ? '' : ' · CHƯA có link mời, nhóm đang tạm dừng nhận khách') + ((${p.deputyState == 'FAILED'} or ${p.deputyState == 'NONE'}) ? ' · chưa đặt được mẹ làm phó nhóm' + (${p.deputyCode != null} ? ' (mã lỗi ' + ${p.deputyCode} + ')' : '') + (${p.canRetryDeputy} ? ', bấm Thử lại phó nhóm' : ', hãy thêm tay trong Zalo') : '')">Đã vào nhóm</span>
                         <span class="sub-line" th:if="${p.state == 'FAILED' or p.state == 'EXPIRED'}" th:text="${@zaloLabels.reason(p.resultCode)}"></span>
                         <span class="sub-line" th:if="${p.needsCheck}">Hãy mở Zalo xem nhóm đã được tạo chưa; hệ thống không tự thử lại.</span></td>
                     <td>

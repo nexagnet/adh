@@ -4,6 +4,7 @@
 // Không bao giờ ghi uid, số điện thoại, tên vào log.
 
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { InboxBuffer } from './events.mjs';
 import { AddLedger, MessageLedger, ZALO_ID, inWindow, vnDayStart } from './guard.mjs';
@@ -917,19 +918,21 @@ export class Bridge {
    * @returns {Promise<{deputy: 'OK'|'FAILED', code: string|null}>}
    */
   async #makeDeputy(groupId, deputy, needAdd, after) {
-    let code = null;
+    let addCode = null;
     if (needAdd) {
       try {
         await withTimeout(this.adapter.addUserToGroup(deputy, groupId), this.config.addTimeoutMs);
       } catch (e) {
-        code = after(e).code ?? null; // có thể đã ở trong nhóm: vẫn thử đặt phó nhóm
+        addCode = after(e).code ?? 'UNKNOWN'; // có thể đã ở trong nhóm: vẫn thử đặt phó nhóm
       }
     }
     try {
       await withTimeout(this.adapter.addGroupDeputy(deputy, groupId), this.config.addTimeoutMs);
       return { deputy: 'OK', code: null };
     } catch (e) {
-      return { deputy: 'FAILED', code: after(e).code ?? code ?? 'UNKNOWN' };
+      // Ghi CẢ HAI mã: bước thêm vào nhóm (ADD) và bước đặt phó nhóm (DEPUTY), để biết mẹ đã vào nhóm được chưa.
+      const depCode = after(e).code ?? 'UNKNOWN';
+      return { deputy: 'FAILED', code: addCode ? `ADD-${addCode}_DEPUTY-${depCode}` : `DEPUTY-${depCode}` };
     }
   }
 
@@ -1113,6 +1116,8 @@ export class Bridge {
       state: this.state,
       tripReason: this.tripReason,
       accountOk: this.accountOk,
+      // Dấu băm ngắn của tài khoản phụ (không đảo ngược được, không phải mã Zalo): để Adh biết mã của mẹ tra ra thuộc tài khoản nào.
+      accountTag: this.config.accountId ? createHash('sha256').update(`adh-acct:${this.config.accountId}`).digest('hex').slice(0, 12) : null,
       lastEventAt: this.lastEventAt,
       sessionSince: this.sessionSince,
       detail: this.detail,
