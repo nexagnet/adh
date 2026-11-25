@@ -66,11 +66,14 @@ public class ZaloInviteSender {
     private final ZaloFriendAcceptSender friendAccepts;
     private final CampaignAutoStop autoStop;
     private final RainHold rain;
+    private final ZaloAccountBalancer balancer;
 
     public ZaloInviteSender(JdbcClient jdbc, AppSettings settings, ZaloMessageService messages, ContactService contacts,
                             InviteService invites, SendService sends, Clock clock,
                             ZaloCampaignIntake intake, TestMode testMode, CampaignPolicy policy, CampaignSteps steps,
-                            ZaloFollowupSender followups, ZaloFriendRequestSender friendRequests, ZaloFriendAskSender friendAsks, ZaloFriendUndoSender friendUndos, ZaloFriendAcceptSender friendAccepts, CampaignAutoStop autoStop, RainHold rain) {
+                            ZaloFollowupSender followups, ZaloFriendRequestSender friendRequests, ZaloFriendAskSender friendAsks, ZaloFriendUndoSender friendUndos, ZaloFriendAcceptSender friendAccepts, CampaignAutoStop autoStop, RainHold rain,
+                            ZaloAccountBalancer balancer) {
+        this.balancer = balancer;
         this.friendUndos = friendUndos;
         this.friendAccepts = friendAccepts;
         this.friendAsks = friendAsks;
@@ -237,6 +240,10 @@ public class ZaloInviteSender {
     // ---------- Tin 1 ----------
 
     private Step sendNextInvite() {
+        // D23: khách mới thuộc về tài khoản còn nhiều chỗ trống nhất; không phải lượt của tài khoản này thì để nhịp của tài khoản kia.
+        if (!balancer.mayTakeNewCustomer()) {
+            return Step.NOTHING;
+        }
         // Lịch và nhịp riêng của chiến dịch (D21 PR 4) chỉ để BỎ QUA chiến dịch chưa tới lượt, không bao giờ để gửi thêm; chiến dịch
         // chưa đặt gì thì không bị kiểm gì. Bỏ qua từ đầu để một chiến dịch đang chờ không làm tắc hàng của chiến dịch khác.
         List<Long> open = jdbc.sql("""
@@ -303,9 +310,10 @@ public class ZaloInviteSender {
         String text = inviteText(c);
         // khóa lời mời trước khi gọi: hai nhịp chồng nhau không thể gửi trùng một khách
         int claimed = jdbc.sql("""
-                        UPDATE invitation SET status = 'SENT', sent_at = :at, sent_channel = :ch
+                        UPDATE invitation SET status = 'SENT', sent_at = :at, sent_channel = :ch, account_id = :acct
                         WHERE id = :id AND status = 'READY'""")
-                .param("at", OffsetDateTime.now(clock)).param("ch", CHANNEL).param("id", c.id()).update();
+                .param("at", OffsetDateTime.now(clock)).param("ch", CHANNEL).param("id", c.id())
+                .param("acct", ZaloAccountContext.current()).update();
         if (claimed == 0) {
             return Step.NOTHING;
         }
@@ -411,7 +419,7 @@ public class ZaloInviteSender {
                         WHERE i.tin1_blocked_at IS NOT NULL AND i.tin1_resent_at IS NULL AND i.friended_at IS NOT NULL
                           AND i.status IN ('SENT', 'CLICKED', 'FRIENDED') AND i.zalo_target_uid IS NOT NULL
                           AND i.inbound_at IS NULL AND i.joined_at IS NULL AND i.expires_at > :now AND k.auto_send_approved_at IS NOT NULL
-                        """ + testMode.onlyTestSql("c.phone") + " ORDER BY i.friended_at, i.id LIMIT :n")
+                        """ + testMode.onlyTestSql("c.phone") + " AND " + ZaloAccountContext.sql("i.account_id") + " ORDER BY i.friended_at, i.id LIMIT :n")
                 .param("now", OffsetDateTime.now(clock)).param("n", SCAN)
                 .query((rs, n) -> new Resend(new Invite(rs.getLong("id"), rs.getLong("campaign_id"), rs.getLong("customer_id"),
                         rs.getString("phone"), rs.getString("name"), rs.getString("province"), rs.getString("token"),

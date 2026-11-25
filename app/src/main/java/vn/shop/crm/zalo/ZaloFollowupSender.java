@@ -135,7 +135,7 @@ public class ZaloFollowupSender {
                           AND NOT EXISTS (SELECT 1 FROM invitation_touch t WHERE t.invitation_id = i.id AND t.step_no = s.step_no)
                           AND ((s.step_no = 2 AND i.sent_at <= :now - s.gap_days * interval '1 day')
                             OR (s.step_no = 3 AND prev.outcome = 'SENT' AND prev.sent_at <= :now - s.gap_days * interval '1 day'))
-                        """ + testMode.onlyTestSql("c.phone") + " ORDER BY i.sent_at, s.step_no, i.id LIMIT :n")
+                        """ + testMode.onlyTestSql("c.phone") + " AND " + ZaloAccountContext.sql("i.account_id") + " ORDER BY i.sent_at, s.step_no, i.id LIMIT :n")
                 .param("ch", ZaloInviteSender.CHANNEL).param("now", OffsetDateTime.now(clock)).param("n", SCAN)
                 .param("rainy", rain.rainyProvinces().toArray(new String[0]))
                 .query((rs, n) -> new Task(rs.getLong("id"), rs.getLong("campaign_id"), rs.getLong("customer_id"), rs.getString("phone"),
