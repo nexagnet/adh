@@ -28,6 +28,31 @@
     <p class="muted small" th:if="${enabled}" th:text="'Hôm nay đã nhờ AI ' + ${runsToday} + ' / ' + ${maxRuns} + ' lần.'">Hôm nay đã nhờ AI 0 / 5 lần.</p>
 
     <section>
+        <h2>Hồ sơ cửa hàng</h2>
+        <p class="muted small">Những điều AI luôn nên biết về cửa hàng, khai một lần (để trống ô nào thì AI không nhận ô đó). Khác với ghi chú ở dưới, hồ sơ không có ngày hết hạn:
+            hãy sửa khi có thay đổi. Đừng ghi số điện thoại, email hay đường dẫn.</p>
+        <details class="more">
+            <summary th:text="${shop.empty()} ? 'Khai hồ sơ cửa hàng (chưa khai)' : 'Xem và sửa hồ sơ cửa hàng'">Hồ sơ cửa hàng</summary>
+            <form th:action="@{/advisor/shop}" method="post" class="stack">
+                <label class="field">Sản phẩm chính
+                    <input type="text" name="products" th:maxlength="${shopMax}" th:value="${shop.products}" placeholder="Ví dụ: áo điều hòa, phụ kiện áo điều hòa, pin"></label>
+                <label class="field">Mùa bán chạy
+                    <input type="text" name="season" th:maxlength="${shopMax}" th:value="${shop.season}" placeholder="Ví dụ: tháng 4 đến tháng 9, miền Bắc và miền Trung"></label>
+                <label class="field">Ưu đãi hiện có
+                    <input type="text" name="offer" th:maxlength="${shopMax}" th:value="${shop.offer}" placeholder="Ví dụ: mua trong nhóm giảm 10% so với TikTok, miễn ship"></label>
+                <label class="field">Mục tiêu chính
+                    <select name="goal">
+                        <option value="">Chưa chọn</option>
+                        <option th:each="g : ${goals}" th:value="${g.key}" th:text="${g.value}" th:selected="${g.key == shop.goal}">Đưa thêm khách vào nhóm Zalo</option>
+                    </select></label>
+                <label class="field">Điều cần tránh
+                    <input type="text" name="avoid" th:maxlength="${shopMax}" th:value="${shop.avoid}" placeholder="Ví dụ: không nhắn vào Chủ nhật, tránh khu vực đang chậm giao hàng"></label>
+                <div class="actions"><button type="submit" class="btn secondary">Lưu hồ sơ cửa hàng</button></div>
+            </form>
+        </details>
+    </section>
+
+    <section>
         <h2>Ghi chú của bạn cho AI</h2>
         <p class="muted small">Viết những điều AI nên biết mà số liệu không có (ví dụ: "ưu tiên miền Bắc trước Tết", "tháng này hết hàng áo cỡ lớn", "đừng nhắn khu X vì đang có đợt khác").
             Mỗi ghi chú có ngày hết hạn, hết hạn là tự bỏ nên không bao giờ bị cũ. AI chỉ cân nhắc ghi chú, không vượt được giới hạn an toàn của hệ thống.

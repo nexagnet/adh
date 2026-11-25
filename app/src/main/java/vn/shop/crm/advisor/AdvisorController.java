@@ -20,8 +20,10 @@ class AdvisorController {
     private final AdvisorService advisor;
     private final ProposalService proposals;
     private final AdvisorNotes notes;
+    private final ShopProfile shop;
 
-    AdvisorController(AdvisorService advisor, ProposalService proposals, AdvisorNotes notes) {
+    AdvisorController(AdvisorService advisor, ProposalService proposals, AdvisorNotes notes, ShopProfile shop) {
+        this.shop = shop;
         this.advisor = advisor;
         this.proposals = proposals;
         this.notes = notes;
@@ -36,6 +38,9 @@ class AdvisorController {
         model.addAttribute("decided", proposals.decided());
         model.addAttribute("runs", proposals.runs());
         model.addAttribute("track", proposals.track());
+        model.addAttribute("shop", shop.load());
+        model.addAttribute("goals", ShopProfile.goalOptions());
+        model.addAttribute("shopMax", ShopProfile.MAX_LENGTH);
         model.addAttribute("notes", notes.active());
         model.addAttribute("noteMax", AdvisorNotes.MAX_LENGTH);
         model.addAttribute("noteMaxActive", AdvisorNotes.MAX_ACTIVE);
@@ -65,6 +70,20 @@ class AdvisorController {
                 default -> redirect.addFlashAttribute("flashBad", "Chưa có đề xuất dùng được"
                         + (r.detail() == null ? "." : ": " + r.detail()));
             }
+        } catch (ImportException e) {
+            redirect.addFlashAttribute("flashBad", e.getMessage());
+        }
+        return "redirect:/advisor";
+    }
+
+    /** Chủ shop khai hồ sơ cửa hàng (ô để trống là xóa ô đó). Chỉ lưu chữ; không gọi AI, không gửi gì. */
+    @PostMapping("/advisor/shop")
+    String saveShop(@RequestParam(defaultValue = "") String products, @RequestParam(defaultValue = "") String season,
+                    @RequestParam(defaultValue = "") String offer, @RequestParam(defaultValue = "") String goal,
+                    @RequestParam(defaultValue = "") String avoid, RedirectAttributes redirect) {
+        try {
+            shop.save(products, season, offer, goal, avoid, ContactService.actor());
+            redirect.addFlashAttribute("flash", "Đã lưu hồ sơ cửa hàng. Lần nhờ AI đề xuất tới, AI sẽ đọc hồ sơ này.");
         } catch (ImportException e) {
             redirect.addFlashAttribute("flashBad", e.getMessage());
         }
