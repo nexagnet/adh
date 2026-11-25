@@ -73,6 +73,9 @@ export function loadConfig(env = process.env) {
     // (không dừng cầu dao), cầu nối ghi nhớ "Tin 1 bị chặn" để vẫn được gửi lời mời kết bạn cho người này; Tin 1 sẽ gửi lại sau khi họ thành bạn.
     // Mã lỗi Zalo của việc không tìm thấy người theo số điện thoại (mặc định 212, ADR-0002): lỗi RIÊNG số đó, không dừng cầu dao; trả về như NOT_FOUND.
     notFoundCodes: new Set(String(env.BRIDGE_NOT_FOUND_CODES ?? '212').split(',').map((x) => x.trim()).filter((x) => /^\d{1,4}$/.test(x))),
+    // Mã lỗi Zalo (mặc định 127, đo thật 25/11/2026: lặp khoảng mỗi 20 Tin 1) khi MỘT PHẦN SAU của Tin 1 nhiều tin không gửi được trong lúc phần đầu đã tới khách.
+    // Đây là lỗi riêng khách/phần đó: KHÔNG dừng cầu dao, vẫn trả OK/PARTIAL (đã tính hạn mức, đã ghi sổ) để lời mời kết bạn của khách vẫn đi tiếp. Mã khác vẫn dừng cầu dao.
+    partErrorCodes: new Set(String(env.BRIDGE_PART_ERROR_CODES ?? '127').split(',').map((x) => x.trim()).filter((x) => /^\d{1,4}$/.test(x))),
     strangerBlockedCodes: new Set(String(env.BRIDGE_STRANGER_BLOCKED_CODES ?? '122').split(',').map((x) => x.trim()).filter((x) => /^\d{1,4}$/.test(x))),
     // Tạo nhóm Zalo (D19): trần cứng của CHÍNH cầu nối là 3 nhóm mỗi ngày (Adh mặc định 1), khoảng nghỉ CỐ ĐỊNH tối thiểu giữa hai lần tạo.
     // Vượt trần ngày thì cầu nối tự dừng; tạo sớm hơn khoảng nghỉ thì chỉ bị từ chối (RATE_LIMITED). Không ngẫu nhiên hóa.
