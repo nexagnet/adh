@@ -75,6 +75,29 @@
             <p class="muted">Tạo chiến dịch lớn không có nghĩa là nhắn cùng lúc: hệ thống chỉ tự gửi từng lô nhỏ mỗi ngày, theo hạn mức và khung giờ.</p>
         </div>
 
+        <div class="panel stack" id="template-panel">
+            <h2>Bắt đầu từ mẫu (không bắt buộc)</h2>
+            <p class="muted">Chọn một mẫu để điền sẵn "Lọc khách kỹ hơn" ở dưới, rồi sửa tiếp nếu muốn. Chọn mẫu chỉ điền các ô, chưa tạo chiến dịch và chưa gửi gì.</p>
+            <ul class="template-list">
+                <li th:each="t : ${builtinTemplates}">
+                    <button type="button" class="btn secondary" data-template th:attr="data-values=${t.valuesJson()}" th:disabled="${t.blocked() != null}" th:text="${t.name()}">Khách mới mua</button>
+                    <span class="hint" th:text="${t.blocked() != null ? t.blocked() : t.description()}">Mô tả</span>
+                </li>
+            </ul>
+            <div th:if="${!savedTemplates.isEmpty()}">
+                <h3>Mẫu của bạn</h3>
+                <ul class="template-list">
+                    <li th:each="t : ${savedTemplates}">
+                        <button type="button" class="btn secondary" data-template th:attr="data-values=${t.valuesJson()}" th:disabled="${t.blocked() != null}" th:text="${t.name()}">Mẫu của tôi</button>
+                        <button type="submit" class="btn danger small" formnovalidate th:formaction="@{/campaigns/templates/{id}/delete(id=${t.id()})}"
+                                th:attr="aria-label='Xóa mẫu ' + ${t.name()}">Xóa</button>
+                        <span class="hint" th:text="${t.blocked() != null ? t.blocked() : (t.description().isEmpty() ? 'Không lọc thêm gì' : t.description())}">Mô tả</span>
+                    </li>
+                </ul>
+            </div>
+            <p id="template-note" class="hint" aria-live="polite"></p>
+        </div>
+
         <details class="panel stack more">
             <summary><strong>Lọc khách kỹ hơn (không bắt buộc)</strong></summary>
             <p class="muted">Mọi điều kiện kết hợp bằng "và": khách phải thỏa tất cả điều kiện đã chọn. Bộ lọc chỉ làm hẹp danh sách khách đã duyệt, không bao giờ mở rộng:
@@ -146,6 +169,12 @@
                     <option value="NEWEST_PURCHASE">Khách mua gần đây nhất trước</option>
                     <option value="OLDEST_PURCHASE">Khách mua đã lâu trước</option>
                 </select></label>
+            <div class="formrow">
+                <label class="field grow2">Lưu các điều kiện trên thành mẫu
+                    <input type="text" name="templateName" th:maxlength="${templateMaxName}" placeholder="Tên mẫu, ví dụ: Khách ổn định miền Bắc"></label>
+                <button type="submit" class="btn secondary" formnovalidate th:formaction="@{/campaigns/templates}">Lưu thành mẫu</button>
+            </div>
+            <p class="hint">Mẫu chỉ lưu các điều kiện lọc và thứ tự lấy khách, không lưu khách, số điện thoại hay nội dung tin.</p>
         </details>
 
         <div class="panel stack">
@@ -220,5 +249,6 @@
     </section>
 </main>
 <script th:src="@{/campaign-preview.js}" defer></script>
+<script th:src="@{/campaign-templates.js}" defer></script>
 </body>
 </html>

@@ -224,3 +224,11 @@ Bộ lọc "hoặc" trong một chiến dịch; lọc theo lý do đổi hàng (
 - `AdvisorService.checkMatches`: đếm số khách khớp thật; không khớp thì bỏ đề xuất, khớp ít hơn lô thì kẹp lô và ghi rủi ro.
 - Chiến dịch mời khách mua nhiều lần (`purchases_max` > 1) không bị chặn bởi số khách mua 1 lần của khu vực, vẫn không quá trần chiến dịch và hạn mức ngày x số ngày.
 - Duyệt đề xuất tạo chiến dịch chờ duyệt mang đúng bộ lọc và số lần mua; trang `/advisor` hiện nhãn "Mời cả khách mua nhiều lần" và các dòng mô tả bộ lọc.
+
+## 9a. Đã làm ở PR 5 (mẫu chiến dịch)
+
+- Migration V62: bảng `campaign_template` (tên, bộ lọc JSONB, người lưu). Tối đa 30 mẫu, tên 1 đến 60 ký tự, không trùng tên (không phân biệt hoa thường) và không trùng tên mẫu có sẵn.
+- `CampaignTemplates`: 8 mẫu dựng sẵn như mục 5. Hai khác biệt so với bản phác thảo: mẫu "giá trị cao" lấy theo thứ tự mặc định (chưa có kiểu "COD cao nhất trước"), và điền sẵn 1.000.000 đồng để người dùng sửa; mẫu "chỉ theo khu vực" là bộ lọc rỗng.
+- Form tạo chiến dịch có mục "Bắt đầu từ mẫu" (nút điền sẵn các ô, bằng `static/campaign-templates.js`), nút "Lưu thành mẫu" ở mục lọc, nút "Xóa" ở mẫu của bạn. Mẫu cần dấu hiệu đơn đổi hay file đối soát thì bị khóa và ghi rõ lý do.
+- Chọn mẫu không tạo gì và không đổi hạn mức, lịch hay giờ gửi.
+
