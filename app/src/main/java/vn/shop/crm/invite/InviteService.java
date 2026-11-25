@@ -272,12 +272,18 @@ public class InviteService {
                     + "Hãy duyệt thêm khách ở mục Danh sách mời, hoặc chọn khu vực khác.");
         }
         long campaignId = jdbc.sql("""
-                        INSERT INTO invitation_campaign (name, message_template, expires_days, created_by, geo_scope, customer_filter)
-                        VALUES (:name, :tpl, :days, :by, :scope, CAST(:filter AS jsonb)) RETURNING id""")
+                        INSERT INTO invitation_campaign (name, message_template, expires_days, created_by, geo_scope, customer_filter, max_purchases)
+                        VALUES (:name, :tpl, :days, :by, :scope, CAST(:filter AS jsonb), :maxP) RETURNING id""")
                 .param("name", name.strip()).param("tpl", tpl).param("days", expiresDays)
                 .param("by", ContactService.actor()).param("scope", scope, java.sql.Types.VARCHAR)
                 .param("filter", filter.any() ? filter.toJson() : null, java.sql.Types.VARCHAR)
+                .param("maxP", filter.maxPurchases())
                 .query(Long.class).single();
+        if (filter.multi()) {
+            // Khách mua nhiều lần chưa có cơ sở liên hệ được duyệt NGAY tại đây, ghi rõ chiến dịch và người tạo.
+            contacts.approveForCampaign(picked.stream().map(ContactService.Invitee::id).toList(), campaignId, filter.maxPurchases(),
+                    ContactService.actor());
+        }
         addInvitations(campaignId, expiresDays, name.strip(), picked);
         return campaignId;
     }

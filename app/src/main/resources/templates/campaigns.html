@@ -80,6 +80,16 @@
             <p class="muted">Mọi điều kiện kết hợp bằng "và": khách phải thỏa tất cả điều kiện đã chọn. Bộ lọc chỉ làm hẹp danh sách khách đã duyệt, không bao giờ mở rộng:
                 khách từ chối, bị chặn, cần kiểm tra hay đã từng được mời vẫn không được nhắn. Để trống là không lọc. Muốn "hoặc" thì tạo hai chiến dịch.</p>
 
+            <h3>Số lần mua</h3>
+            <div class="formrow">
+                <label class="field">Khách đã mua từ (lần) <input type="number" name="purchasesMin" min="1" max="20" placeholder="1"></label>
+                <label class="field">... đến (lần) <input type="number" name="purchasesMax" min="1" max="20" placeholder="1"></label>
+            </div>
+            <p class="hint">Để trống là chỉ mời khách mua <strong>đúng 1 lần</strong> (cách làm từ trước tới nay, phần lớn chiến dịch nên như vậy).
+                Điền số lớn hơn 1 (ví dụ từ 1 đến 3) là mời cả khách đã mua nhiều lần: khách mua nhiều lần chưa từng được duyệt sẽ được duyệt liên hệ riêng cho chiến dịch này,
+                và nếu họ mua thêm vượt số lần đã chọn thì hệ thống ngừng nhắn họ. Mỗi khách vẫn chỉ nhận một Tin 1.
+                Khách từ chối, bị chặn hay cần kiểm tra vẫn bị loại như thường.</p>
+
             <h3>Lịch sử đơn</h3>
             <div class="formrow">
                 <fieldset class="field"><legend>Đơn đổi</legend>

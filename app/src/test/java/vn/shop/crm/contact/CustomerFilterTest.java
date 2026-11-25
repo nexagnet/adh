@@ -99,7 +99,7 @@ class CustomerFilterTest extends AbstractPostgresTest {
         Builder skipOpenCases() { skipOpenCases = true; return this; }
 
         CustomerFilter build() {
-            return new CustomerFilter(excludeAreas, carriers, exchange, cancelled, returned, noOpen, maxShipments, null, null,
+            return new CustomerFilter(null, null, excludeAreas, carriers, exchange, cancelled, returned, noOpen, maxShipments, null, null,
                     bought, null, notBought, null, null, skipOpenCases, null);
         }
     }
@@ -174,8 +174,8 @@ class CustomerFilterTest extends AbstractPostgresTest {
         jdbc.sql("""
                 INSERT INTO settlement_line (period_id, tracking_no, cod_collected, freight_fee, cod_fee, return_fee, partial_fee, adjustment, net_payable)
                 VALUES (1, 'T1', 1500000, 0, 0, 0, 0, 0, 1500000), (1, 'T2', 300000, 0, 0, 0, 0, 0, 300000)""").update();
-        var high = new CustomerFilter(null, null, null, null, null, false, null, null, null, null, null, null, 1000000L, null, false, null);
-        var low = new CustomerFilter(null, null, null, null, null, false, null, null, null, null, null, null, null, 500000L, false, null);
+        var high = new CustomerFilter(null, null, null, null, null, null, null, false, null, null, null, null, null, null, 1000000L, null, false, null);
+        var low = new CustomerFilter(null, null, null, null, null, null, null, false, null, null, null, null, null, null, null, 500000L, false, null);
         assertThat(names(high)).containsExactly("A");
         assertThat(names(low)).containsExactly("B"); // khách chưa có đối soát (C, D, E) không được chọn
     }
@@ -226,19 +226,19 @@ class CustomerFilterTest extends AbstractPostgresTest {
 
     @Test
     void giaTriSaiBiTuChoiBangChuTiengViet() {
-        assertThatThrownBy(() -> new CustomerFilter(null, null, null, null, null, false, null, 100, 50, null, null, null, null, null, false, null))
+        assertThatThrownBy(() -> new CustomerFilter(null, null, null, null, null, null, null, false, null, 100, 50, null, null, null, null, null, false, null))
                 .isInstanceOf(ImportException.class).hasMessageContaining("Độ mới");
-        assertThatThrownBy(() -> new CustomerFilter(List.of("R:ABC"), null, null, null, null, false, null, null, null, null, null, null, null, null, false, null))
+        assertThatThrownBy(() -> new CustomerFilter(null, null, List.of("R:ABC"), null, null, null, null, false, null, null, null, null, null, null, null, null, false, null))
                 .isInstanceOf(ImportException.class).hasMessageContaining("Khu vực");
-        assertThatThrownBy(() -> new CustomerFilter(null, List.of("GHN"), null, null, null, false, null, null, null, null, null, null, null, null, false, null))
+        assertThatThrownBy(() -> new CustomerFilter(null, null, null, List.of("GHN"), null, null, null, false, null, null, null, null, null, null, null, null, false, null))
                 .isInstanceOf(ImportException.class).hasMessageContaining("Hãng");
-        assertThatThrownBy(() -> new CustomerFilter(null, null, null, null, null, false, 0, null, null, null, null, null, null, null, false, null))
+        assertThatThrownBy(() -> new CustomerFilter(null, null, null, null, null, null, null, false, 0, null, null, null, null, null, null, null, false, null))
                 .isInstanceOf(ImportException.class).hasMessageContaining("Tổng số đơn");
         assertThatThrownBy(() -> f(b -> b.bought(ProductGroup.PIN).notBought(ProductGroup.PIN)))
                 .isInstanceOf(ImportException.class).hasMessageContaining("vừa");
-        assertThatThrownBy(() -> new CustomerFilter(null, null, null, null, null, false, null, null, null, List.of(ProductGroup.CHUA_RO), null, null, null, null, false, null))
+        assertThatThrownBy(() -> new CustomerFilter(null, null, null, null, null, null, null, false, null, null, null, List.of(ProductGroup.CHUA_RO), null, null, null, null, false, null))
                 .isInstanceOf(ImportException.class);
-        assertThatThrownBy(() -> new CustomerFilter(null, null, null, null, null, false, null, null, null, null, null, null, null, null, false, "RANDOM"))
+        assertThatThrownBy(() -> new CustomerFilter(null, null, null, null, null, null, null, false, null, null, null, null, null, null, null, null, false, "RANDOM"))
                 .isInstanceOf(ImportException.class).hasMessageContaining("Thứ tự");
     }
 

@@ -27,6 +27,8 @@ public class CampaignFilterForm {
 
     public CustomerFilter parse(MultiValueMap<String, String> p) {
         return new CustomerFilter(
+                integer("Số lần mua (từ)", first(p, "purchasesMin")),
+                integer("Số lần mua (đến)", first(p, "purchasesMax")),
                 p.get("excludeAreas"),
                 p.get("carriers"),
                 tri(first(p, "exchange")),

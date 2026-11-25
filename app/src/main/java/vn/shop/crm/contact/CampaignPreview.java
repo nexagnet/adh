@@ -51,10 +51,12 @@ public class CampaignPreview {
             if (scope != null && !GeoArea.UNKNOWN.equals(scope) && GeoArea.parse(scope).isEmpty()) {
                 throw new ImportException("Khu vực không hợp lệ.");
             }
-            long base = contacts.countEligibleNotInvited(scope, CustomerFilter.NONE);
+            // Chiến dịch mời cả khách mua nhiều lần: nền là "đủ điều kiện, mọi số lần mua"; điều kiện số lần mua là bước đầu tiên của bảng.
+            CustomerFilter start = filter.multi() ? CustomerFilter.anyPurchases() : CustomerFilter.NONE;
+            long base = contacts.countEligibleNotInvited(scope, start);
             List<Step> steps = new ArrayList<>();
             long previous = base;
-            CustomerFilter cumulative = CustomerFilter.NONE;
+            CustomerFilter cumulative = start;
             for (CustomerFilter.Facet f : filter.facets()) {
                 cumulative = CustomerFilter.and(cumulative, f.only());
                 long now = contacts.countEligibleNotInvited(scope, cumulative);
