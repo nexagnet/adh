@@ -14,7 +14,26 @@
         <a th:each="t : ${tabs}" th:href="@{/campaigns/{id}(id=${campaign.id}, tab=${t.key})}" th:text="${t.label}"
            th:classappend="${t.key == tab} ? 'active'" th:attr="aria-current=${t.key == tab} ? 'page'">Tổng quan</a>
     </nav>
-    <div class="panel stack" th:if="${tab == 'tong-quan'}">
+    <div class="panel stack" th:if="${tab == 'tong-quan' and campaign.archived()}">
+        <h2>Chiến dịch đã lưu trữ</h2>
+        <p><span class="badge">ĐÃ LƯU TRỮ</span> Hệ thống không tự gửi gì cho chiến dịch này và AI đề xuất chiến dịch không còn coi nó là đang chạy.
+            Tin đã gửi và kết quả (kết bạn, vào nhóm) vẫn được giữ và vẫn tính vào thống kê.</p>
+        <form th:action="@{/campaigns/{id}/restore(id=${campaign.id})}" method="post" class="actions">
+            <button type="submit" class="btn secondary">Khôi phục chiến dịch</button>
+        </form>
+    </div>
+    <div class="panel stack" th:if="${tab == 'tong-quan' and !campaign.archived()}">
+        <h2>Lưu trữ chiến dịch cũ</h2>
+        <p th:if="${campaign.pastEnd()}"><span class="badge warn">HẾT HẠN</span> Chiến dịch đã quá ngày kết thúc nên hệ thống không gửi nữa. Nên lưu trữ để AI không nhầm là còn chạy.</p>
+        <p class="hint">Lưu trữ khi chiến dịch đã xong hoặc không còn dùng. Hệ thống sẽ bỏ duyệt tự gửi, tắt tự nhận khách mới và AI đề xuất không còn coi chiến dịch này là đang chạy
+            (kết quả thật vẫn được giữ để AI học). Không xóa lời mời, khách hay số điện thoại nào, và khôi phục được.</p>
+        <form th:action="@{/campaigns/{id}/archive(id=${campaign.id})}" method="post" class="stack">
+            <label class="check" th:if="${campaign.ready > 0}"><input type="checkbox" name="cancelUnsent" value="true">
+                Hủy luôn <span th:text="${campaign.ready}">3</span> lời mời chưa gửi (các khách này quay về danh sách chưa được mời)</label>
+            <div class="actions"><button type="submit" class="btn secondary">Lưu trữ chiến dịch</button></div>
+        </form>
+    </div>
+    <div class="panel stack" th:if="${tab == 'tong-quan' and !campaign.archived()}">
         <h2>Tự gửi qua Zalo tài khoản phụ</h2>
         <p th:if="${autoApproved}"><span class="badge ok">ĐÃ DUYỆT</span> Hệ thống tự gửi Tin 1 cho các khách "Chưa gửi" của chiến dịch này, từng khách <strong>một lần</strong>,
             theo hạn mức và khoảng nghỉ cố định ở trang <a th:href="@{/zalo}">Zalo tài khoản phụ</a>. Công tắc tự gửi tin hiện
