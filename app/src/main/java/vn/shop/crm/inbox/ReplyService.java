@@ -6,6 +6,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import vn.shop.crm.common.AppSettings;
+import vn.shop.crm.zalo.ZaloAccountContext;
 import vn.shop.crm.common.ImportException;
 import vn.shop.crm.contact.ContactService;
 import vn.shop.crm.inbox.RefusalClassifier.Label;
@@ -221,9 +222,9 @@ public class ReplyService {
         }
         return jdbc.sql("""
                         SELECT i.id, i.customer_id, i.status, c.phone FROM invitation i JOIN customer c ON c.id = i.customer_id
-                        WHERE i.zalo_uid = :u OR i.zalo_target_uid = :u
+                        WHERE (i.zalo_uid = :u OR i.zalo_target_uid = :u) AND i.account_id = :acct
                         ORDER BY i.id DESC LIMIT 1""")
-                .param("u", uid).query((rs, n) -> new Hit(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("status"), rs.getString("phone")))
+                .param("u", uid).param("acct", ZaloAccountContext.current()).query((rs, n) -> new Hit(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("status"), rs.getString("phone")))
                 .optional()
                 .filter(h -> "JOINED".equals(h.status()) && !contacts.hasActiveOptOut(h.phone()))
                 .map(h -> new Subject(h.customerId(), h.invitationId(), uid));
@@ -469,10 +470,11 @@ public class ReplyService {
     /** Việc sẵn sàng gửi lâu nhất còn trong khung {@value #REPLY_WINDOW_HOURS} giờ. */
     public Optional<Ready> nextReady() {
         return jdbc.sql("""
-                        SELECT id, zalo_uid, reply_text FROM reply_draft
-                        WHERE state = 'READY' AND reply_text IS NOT NULL AND inbound_at > now() - make_interval(hours => :h)
-                        """ + contacts.onlyTestCustomerSql("customer_id") + " ORDER BY id LIMIT 1")
-                .param("h", REPLY_WINDOW_HOURS)
+                        SELECT d.id, d.zalo_uid, d.reply_text FROM reply_draft d LEFT JOIN invitation i ON i.id = d.invitation_id
+                        WHERE d.state = 'READY' AND d.reply_text IS NOT NULL AND d.inbound_at > now() - make_interval(hours => :h)
+                          AND coalesce(i.account_id, 1) = :acct
+                        """ + contacts.onlyTestCustomerSql("d.customer_id") + " ORDER BY d.id LIMIT 1")
+                .param("h", REPLY_WINDOW_HOURS).param("acct", ZaloAccountContext.current())
                 .query((rs, n) -> new Ready(rs.getLong("id"), rs.getString("zalo_uid"), rs.getString("reply_text"))).optional();
     }
 

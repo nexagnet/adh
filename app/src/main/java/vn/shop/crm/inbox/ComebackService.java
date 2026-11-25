@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.json.JsonMapper;
 import vn.shop.crm.common.AppSettings;
+import vn.shop.crm.zalo.ZaloAccountContext;
 import vn.shop.crm.common.ImportException;
 import vn.shop.crm.contact.ContactService;
 import vn.shop.crm.contact.ContactService.LiftUndo;
@@ -232,9 +233,9 @@ public class ComebackService {
         return jdbc.sql("""
                         SELECT i.id, i.customer_id, c.phone, i.zalo_uid
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
-                        WHERE (i.zalo_uid = :u OR i.zalo_target_uid = :u) AND i.status = 'CANCELLED'
+                        WHERE (i.zalo_uid = :u OR i.zalo_target_uid = :u) AND i.status = 'CANCELLED' AND i.account_id = :acct
                         ORDER BY (i.zalo_uid = :u) DESC, i.id DESC LIMIT 1""")
-                .param("u", uid)
+                .param("u", uid).param("acct", ZaloAccountContext.current())
                 .query((rs, n) -> new Hit(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("phone"), rs.getString("zalo_uid")))
                 .optional()
                 .filter(h -> contacts.hasActiveOptOut(h.phone()))
@@ -424,8 +425,9 @@ public class ComebackService {
                 .param("h", WELCOME_WINDOW_HOURS).update();
         return jdbc.sql("""
                         SELECT k.id, i.zalo_uid FROM comeback k JOIN invitation i ON i.id = k.invitation_id
-                        WHERE k.state = 'LIFTED' AND k.welcome_state = 'PENDING' AND i.zalo_uid IS NOT NULL
+                        WHERE k.state = 'LIFTED' AND k.welcome_state = 'PENDING' AND i.zalo_uid IS NOT NULL AND i.account_id = :acct
                         """ + contacts.onlyTestCustomerSql("k.customer_id") + " ORDER BY k.id LIMIT 1")
+                .param("acct", ZaloAccountContext.current())
                 .query((rs, n) -> new Welcome(rs.getLong(1), rs.getString(2))).optional();
     }
 
