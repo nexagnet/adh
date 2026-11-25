@@ -38,9 +38,9 @@ test('findUser và sendMessage (D18) chỉ nằm trong bộ điều hợp thật
   assert.match(code('zca-adapter.mjs'), /sendMessage\(\{ msg: text \}, id, group \? ThreadType\.Group : ThreadType\.User\)/);
 });
 
-test('bộ điều hợp zca-js chỉ dùng đúng mười lăm thành phần (thêm addReaction để thả tim) của api (thêm getAllFriends chỉ đọc để đối chiếu, hai hàm chỉ đọc nhóm, findUser và sendMessage của D18, ba hàm tạo nhóm của D19, sendFriendRequest)', () => {
+test('bộ điều hợp zca-js chỉ dùng đúng mười sáu thành phần (thêm addReaction để thả tim) của api (thêm getAllFriends chỉ đọc để đối chiếu, hai hàm chỉ đọc nhóm, findUser và sendMessage của D18, ba hàm tạo nhóm của D19, sendFriendRequest)', () => {
   const used = new Set([...code('zca-adapter.mjs').matchAll(/this\.api\??\.([A-Za-z]+)/g)].map((m) => m[1]));
-  assert.deepEqual([...used].sort(), ['addGroupDeputy', 'addReaction', 'addUserToGroup', 'createGroup', 'enableGroupLink', 'findUser', 'getAllFriends', 'getAllGroups', 'getGroupInfo', 'getOwnId', 'getUserInfo', 'listener', 'logout', 'sendFriendRequest', 'sendMessage'].sort());
+  assert.deepEqual([...used].sort(), ['addGroupDeputy', 'addReaction', 'addUserToGroup', 'createGroup', 'enableGroupLink', 'findUser', 'getAllFriends', 'getAllGroups', 'getGroupInfo', 'getOwnId', 'getUserInfo', 'listener', 'logout', 'sendFriendRequest', 'sendMessage', 'undoFriendRequest'].sort());
 });
 
 test('sendFriendRequest chỉ có đúng một chỗ gọi (bộ điều hợp thật), chỉ gọi từ Bridge.sendFriendRequest và chỉ khi người đó đã nhận Tin 1', () => {
@@ -55,6 +55,18 @@ test('sendFriendRequest chỉ có đúng một chỗ gọi (bộ điều hợp t
   assert.equal((b.match(/markSent\('INVITE_BLOCKED'/g) ?? []).length, 1);
   assert.match(b, /this\.friendLedger\.has\('FRIEND', uid\)/);
   assert.ok(!/acceptFriendRequest|getFriendRequest/.test(files.map(code).join('\n')));
+});
+
+test('undoFriendRequest (thu hồi lời mời) chỉ có đúng một chỗ gọi (bộ điều hợp thật), chỉ từ Bridge.undoFriendRequest và chỉ cho lời mời chính cầu nối đã gửi', () => {
+  for (const f of files) {
+    const n = (code(f).match(/\bapi\??\.undoFriendRequest\b/g) ?? []).length;
+    assert.equal(n, f === 'zca-adapter.mjs' ? 1 : 0, `${f}: undoFriendRequest`);
+  }
+  const b = code('bridge.mjs');
+  assert.equal((b.match(/adapter\.undoFriendRequest\(/g) ?? []).length, 1);
+  assert.match(b, /if \(!this\.friendLedger\.has\('FRIEND', uid\)\) return \{ outcome: 'PERSON_ERROR', code: 'NOT_REQUESTED' \}/);
+  assert.match(b, /this\.undoLedger\.has\('UNDO', uid\)/);
+  assert.ok(!/Math\.random|crypto\.randomInt/.test(b));
 });
 
 test('đặt phó nhóm chỉ có một chỗ gọi trong bridge.mjs (#makeDeputy, dùng cho createGroup và setDeputy), không có hàm gỡ phó nhóm', () => {

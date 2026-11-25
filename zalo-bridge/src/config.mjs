@@ -69,6 +69,10 @@ export function loadConfig(env = process.env) {
     // Khoảng nghỉ CỐ ĐỊNH giữa hai việc liên tiếp cho CÙNG MỘT người (Tin 1 rồi kết bạn, kết bạn rồi gửi lại Tin 1; 25/11/2026); Tin 1 bị chặn người lạ thì lời mời đi ngay. Giữa các KHÁCH vẫn là msgGapMs.
     samePersonGapMs: int(env, 'BRIDGE_SAME_PERSON_GAP_SEC', 7, 0, 3600) * 1000,
     friendDaily: int(env, 'BRIDGE_FRIEND_DAILY', 50, 1, 1000),
+    // Thu hồi lời mời kết bạn mà Adh đã gửi nhưng người nhận chưa đồng ý quá nhiều ngày (25/11/2026, chủ dự án duyệt) để danh sách lời mời đang chờ luôn còn chỗ.
+    // Chỉ thu hồi lời mời do CHÍNH cầu nối này đã gửi, mỗi người một lần; trần cứng mỗi ngày và khoảng nghỉ CỐ ĐỊNH giữa hai lần thu hồi (không ngẫu nhiên).
+    undoDaily: int(env, 'BRIDGE_UNDO_DAILY', 30, 1, 200),
+    undoGapMs: int(env, 'BRIDGE_UNDO_GAP_SEC', 60, 30, 3600) * 1000,
     // Mã lỗi Zalo của việc "người nhận không nhận tin nhắn từ người lạ" (mặc định 122, đo thật 24/11/2026): với Tin 1 thì đây là lỗi RIÊNG người đó
     // (không dừng cầu dao), cầu nối ghi nhớ "Tin 1 bị chặn" để vẫn được gửi lời mời kết bạn cho người này; Tin 1 sẽ gửi lại sau khi họ thành bạn.
     // Mã lỗi Zalo của việc không tìm thấy người theo số điện thoại (mặc định 212, ADR-0002): lỗi RIÊNG số đó, không dừng cầu dao; trả về như NOT_FOUND.

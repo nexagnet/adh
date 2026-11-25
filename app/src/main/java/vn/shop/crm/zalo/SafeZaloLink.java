@@ -88,6 +88,15 @@ public final class SafeZaloLink implements ZaloLink {
         return inner.sendFriendRequest(uid, text);
     }
 
+    @Override
+    public Sent undoFriendRequest(String uid) {
+        if (!mode.uidAllowed(uid)) {
+            mode.noteBlocked("THU_HOI_KET_BAN");
+            return Sent.of(Result.UNREACHABLE, CODE, true);
+        }
+        return inner.undoFriendRequest(uid);
+    }
+
     // ---------- ZaloGroupMaker ----------
 
     @Override

@@ -226,6 +226,15 @@
             <label class="field">Số lời mời kết bạn mỗi ngày <input type="number" name="daily" th:value="${friendDaily}" min="0" th:max="${friendMax}"></label>
             <button type="submit" class="btn">Lưu hạn mức lời mời</button>
         </form>
+        <h3>Tự thu hồi lời mời quá hạn</h3>
+        <p>Hiện có <strong th:text="${friendPending}">0</strong> lời mời kết bạn đã gửi mà khách chưa đồng ý. Để danh sách lời mời đang chờ của Zalo luôn còn chỗ,
+            hệ thống tự <strong>thu hồi</strong> lời mời quá số ngày bên dưới chưa ai đồng ý (không nhắn gì cho khách, không xóa khách hay số điện thoại), từng lời mời một,
+            nghỉ cố định, tối đa <span th:text="${undoMax}">20</span> lời mỗi ngày (hôm nay đã thu hồi <span th:text="${undoUsed}">0</span>), chung cầu dao và khung giờ với tin.
+            Đặt 0 để tắt. Hiện: <strong th:text="${friendWithdrawDays == 0 ? 'ĐANG TẮT' : 'sau ' + friendWithdrawDays + ' ngày'}">sau 7 ngày</strong>.</p>
+        <form class="formrow" th:action="@{/zalo/messages/friend-withdraw}" method="post">
+            <label class="field">Thu hồi lời mời sau (ngày) <input type="number" name="days" th:value="${friendWithdrawDays}" min="0" max="90"></label>
+            <button type="submit" class="btn">Lưu số ngày thu hồi</button>
+        </form>
         <form th:action="@{/zalo/messages/friend-resume}" method="post" th:if="${friendPausedUntil != null}">
             <button type="submit" class="btn secondary">Gửi lại lời mời ngay</button>
         </form>
