@@ -103,6 +103,22 @@ public class CampaignController {
         return "redirect:/campaigns?tab=moi";
     }
 
+    /** Lưu bộ lọc đang điền ở form thành mẫu (chỉ bộ lọc và thứ tự lấy khách, không khách, không nội dung tin). */
+    @PostMapping("/campaigns/templates")
+    public String saveFilterTemplate(@RequestParam(required = false) String templateName,
+                                     @RequestParam org.springframework.util.MultiValueMap<String, String> all, RedirectAttributes redirect) {
+        filterForm.saveTemplate(templateName, all, ContactService.actor());
+        redirect.addFlashAttribute("flash", "Đã lưu mẫu. Mẫu nằm ở mục \"Bắt đầu từ mẫu\" của form tạo chiến dịch.");
+        return "redirect:/campaigns?tab=moi";
+    }
+
+    @PostMapping("/campaigns/templates/{id}/delete")
+    public String deleteFilterTemplate(@PathVariable long id, RedirectAttributes redirect) {
+        filterForm.deleteTemplate(id);
+        redirect.addFlashAttribute("flash", "Đã xóa mẫu.");
+        return "redirect:/campaigns?tab=moi";
+    }
+
     /** Chủ shop soạn mẫu tin mặc định trên trang quản trị (để trống = dùng lại mẫu có sẵn). */
     @PostMapping("/campaigns/default-template")
     public String saveTemplate(@RequestParam(required = false) String template, RedirectAttributes redirect) {

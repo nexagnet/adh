@@ -20,9 +20,11 @@ import java.util.List;
 public class CampaignFilterForm {
 
     private final ExchangeMarkers markers;
+    private final CampaignTemplates templates;
 
-    public CampaignFilterForm(ExchangeMarkers markers) {
+    public CampaignFilterForm(ExchangeMarkers markers, CampaignTemplates templates) {
         this.markers = markers;
+        this.templates = templates;
     }
 
     public CustomerFilter parse(MultiValueMap<String, String> p) {
@@ -105,6 +107,18 @@ public class CampaignFilterForm {
         model.addAttribute("groupOptions", List.copyOf(CustomerFilter.filterableGroups()));
         model.addAttribute("exchangeMarkers", markers.get());
         model.addAttribute("exchangeReady", !markers.get().isEmpty());
+        model.addAttribute("builtinTemplates", templates.builtIn());
+        model.addAttribute("savedTemplates", templates.saved());
+        model.addAttribute("templateMaxName", CampaignTemplates.MAX_NAME);
+    }
+
+    /** Lưu bộ lọc đang điền ở form thành mẫu. */
+    public void saveTemplate(String templateName, MultiValueMap<String, String> p, String by) {
+        templates.save(templateName, parse(p), by);
+    }
+
+    public void deleteTemplate(long id) {
+        templates.delete(id);
     }
 
     /** Lưu cách nhận biết đơn đổi (ba ô chữ, mỗi từ khóa cách nhau bằng dấu phẩy). */
