@@ -2,6 +2,7 @@ package vn.shop.crm.inbox;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
+import vn.shop.crm.zalo.ZaloAccountContext;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 import vn.shop.crm.common.ImportException;
@@ -75,8 +76,9 @@ public class RefusalReviewService {
         return jdbc.sql("""
                         SELECT id, customer_id, status FROM invitation
                         WHERE (zalo_uid = :u OR zalo_target_uid = :u) AND status IN ('SENT', 'CLICKED', 'FRIENDED')
+                          AND account_id = :acct
                         ORDER BY id DESC LIMIT 1""")
-                .param("u", uid)
+                .param("u", uid).param("acct", ZaloAccountContext.current())
                 .query((rs, i) -> new Target(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("status"))).optional();
     }
 
