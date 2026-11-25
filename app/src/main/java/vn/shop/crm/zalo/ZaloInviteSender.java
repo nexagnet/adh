@@ -42,7 +42,7 @@ public class ZaloInviteSender {
     /** Số lời mời xem xét mỗi nhịp để bỏ qua (và đóng) những khách không còn gửi được mà không làm tắc hàng. */
     private static final int SCAN = 25;
 
-    public enum Step { NOT_ACTIVE, BLOCKED, NOTHING, INVITE_SENT, FOLLOWUP_SENT, FRIEND_SENT, FAILED_ONE, RETRY, TRIPPED, ASK_SENT }
+    public enum Step { NOT_ACTIVE, BLOCKED, NOTHING, INVITE_SENT, FOLLOWUP_SENT, FRIEND_SENT, FAILED_ONE, RETRY, TRIPPED, ASK_SENT, UNDO_DONE }
 
     private record Invite(long id, long campaignId, long customerId, String phone, String name, String province, String token,
                           OffsetDateTime expiresAt, String template) {
@@ -62,13 +62,15 @@ public class ZaloInviteSender {
     private final ZaloFollowupSender followups;
     private final ZaloFriendRequestSender friendRequests;
     private final ZaloFriendAskSender friendAsks;
+    private final ZaloFriendUndoSender friendUndos;
     private final CampaignAutoStop autoStop;
     private final RainHold rain;
 
     public ZaloInviteSender(JdbcClient jdbc, AppSettings settings, ZaloMessageService messages, ContactService contacts,
                             InviteService invites, SendService sends, Clock clock,
                             ZaloCampaignIntake intake, TestMode testMode, CampaignPolicy policy, CampaignSteps steps,
-                            ZaloFollowupSender followups, ZaloFriendRequestSender friendRequests, ZaloFriendAskSender friendAsks, CampaignAutoStop autoStop, RainHold rain) {
+                            ZaloFollowupSender followups, ZaloFriendRequestSender friendRequests, ZaloFriendAskSender friendAsks, ZaloFriendUndoSender friendUndos, CampaignAutoStop autoStop, RainHold rain) {
+        this.friendUndos = friendUndos;
         this.friendAsks = friendAsks;
         this.autoStop = autoStop;
         this.rain = rain;
@@ -184,7 +186,25 @@ public class ZaloInviteSender {
         if (again != Step.NOTHING) {
             return again;
         }
-        return general.isPresent() ? Step.BLOCKED : sendNextInvite();
+        Step invite = general.isPresent() ? Step.BLOCKED : sendNextInvite();
+        if (invite != Step.NOTHING && invite != Step.BLOCKED) {
+            return invite;
+        }
+        // Việc dọn dẹp, đi sau cùng: thu hồi lời mời kết bạn quá N ngày chưa ai đồng ý để danh sách lời mời đang chờ luôn còn chỗ (25/11/2026).
+        ZaloFriendUndoSender.Step undo;
+        try {
+            undo = friendUndos.step();
+        } catch (RuntimeException e) {
+            log.warn("Phần thu hồi lời mời kết bạn gặp lỗi: {}", e.getClass().getSimpleName());
+            undo = ZaloFriendUndoSender.Step.NOTHING;
+        }
+        return switch (undo) {
+            case DONE -> Step.UNDO_DONE;
+            case FAILED_ONE -> Step.FAILED_ONE;
+            case RETRY -> Step.RETRY;
+            case TRIPPED -> Step.TRIPPED;
+            default -> invite;
+        };
     }
 
     // ---------- Tin 1 ----------

@@ -4,6 +4,7 @@
 // Từ 24/11/2026 (chủ shop duyệt) có thêm đúng MỘT hàm thả tim vào tin khách vừa nhắn: addReaction (xem Bridge.react).
 // Từ 24/11/2026 (chủ shop duyệt) có thêm đúng MỘT hàm CHỈ ĐỌC: getAllFriends, chỉ để đối chiếu người đã nhận Tin 1 (xem Bridge.checkFriends); danh sách không rời bộ nối.
 // Từ 23/11/2026 (chủ shop chốt: tài khoản phụ chủ động kết bạn) có thêm đúng MỘT hàm: sendFriendRequest, chỉ cho người đã nhận Tin 1.
+// Từ 25/11/2026 (chủ shop duyệt) có thêm đúng MỘT hàm thu hồi lời mời kết bạn đã gửi mà chưa ai đồng ý: undoFriendRequest (xem Bridge.undoFriendRequest).
 // Từ D19 (23/11/2026, chủ shop chốt) có thêm đúng ba hàm để tạo nhóm theo khu vực: createGroup, enableGroupLink, addGroupDeputy.
 // Từ D18 (23/11/2026, chủ shop chốt) có thêm đúng hai hàm để nhắn khách đã mua của chính họ, mỗi người một tin: findUser (một số)
 // và sendMessage (văn bản, một người). Có trần ngày, khoảng nghỉ cố định, khung giờ và cầu dao ở bridge.mjs; không che việc dùng thư viện.
@@ -120,6 +121,11 @@ export class ZcaAdapter {
   /** Gửi MỘT lời mời kết bạn (kèm câu ngắn) cho MỘT người đã nhận Tin 1. Chỗ DUY NHẤT gọi sendFriendRequest. Thành công trả chuỗi rỗng. */
   async sendFriendRequest(uid, text) {
     return this.api.sendFriendRequest(text, uid);
+  }
+
+  /** Thu hồi MỘT lời mời kết bạn đã gửi cho MỘT người (25/11/2026, chủ shop duyệt). Chỗ DUY NHẤT gọi undoFriendRequest. Thành công trả chuỗi rỗng. */
+  async undoFriendRequest(uid) {
+    return this.api.undoFriendRequest(uid);
   }
 
   async addUserToGroup(uid, groupId) {

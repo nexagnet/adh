@@ -96,6 +96,10 @@ public class ZaloAutoController {
             model.addAttribute("friendDaily", messages.friendDaily());
             model.addAttribute("friendUsed", messages.friendUsedToday());
             model.addAttribute("friendMax", cfg.props().friendMaxDaily());
+            model.addAttribute("friendWithdrawDays", messages.friendWithdrawDays());
+            model.addAttribute("friendPending", messages.friendPending());
+            model.addAttribute("undoUsed", messages.undoUsedToday());
+            model.addAttribute("undoMax", cfg.props().friendUndoDaily());
             model.addAttribute("friendPausedUntil", messages.friendPausedUntil()
                     .map(t -> LocalDateTime.ofInstant(t, cfg.clock().getZone())).orElse(null));
             model.addAttribute("waiting", service.waiting());
@@ -304,6 +308,15 @@ public class ZaloAutoController {
         requireEnabled();
         messages.resumeFriendRequests(by(user));
         redirect.addFlashAttribute("flash", "Đã mở lại việc gửi lời mời kết bạn.");
+        return "redirect:/zalo?tab=gioi-han";
+    }
+
+    @PostMapping("/messages/friend-withdraw")
+    public String friendWithdraw(@RequestParam int days, Principal user, RedirectAttributes redirect) {
+        requireEnabled();
+        messages.setFriendWithdrawDays(days, by(user));
+        redirect.addFlashAttribute("flash", days == 0 ? "Đã TẮT việc tự thu hồi lời mời kết bạn."
+                : "Đã lưu: lời mời kết bạn quá " + days + " ngày chưa ai đồng ý sẽ được tự thu hồi.");
         return "redirect:/zalo?tab=gioi-han";
     }
 

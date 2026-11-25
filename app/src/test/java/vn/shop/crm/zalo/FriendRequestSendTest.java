@@ -72,6 +72,7 @@ class FriendRequestSendTest extends AbstractPostgresTest {
         appSettings.set("zalo.msg.gap_seconds", "120", "test");
         appSettings.set("zalo.friend.daily", "10", "test");
         appSettings.set("zalo.friend.paused_until", "", "test");
+        appSettings.set("zalo.friend.withdraw_days", "7", "test");
         appSettings.set("zalo.auto.mode", "OFF", "test");
         appSettings.set("campaigns.paused", "false", "test");
         cfg.reopen("test");
@@ -465,5 +466,128 @@ class FriendRequestSendTest extends AbstractPostgresTest {
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/campaigns/" + campaign + "/attention/" + invitation + "/done").with(owner).with(csrf))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().is3xxRedirection());
         assertThat(attention.count(campaign)).isZero();
+    }
+
+    // ---------- tự thu hồi lời mời quá N ngày chưa ai đồng ý ----------
+
+    /** Một khách đã được gửi lời mời cách đây {@code daysAgo} ngày (giờ giả của test); trả mã lời mời. */
+    private long friendRequestedDaysAgo(int daysAgo) {
+        long invitation = inviteOne();
+        gap();
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.FRIEND_SENT);
+        jdbc.sql("UPDATE invitation SET friend_request_at = :at WHERE id = :i")
+                .param("at", java.time.OffsetDateTime.ofInstant(clock.instant().minus(Duration.ofDays(daysAgo)), java.time.ZoneOffset.UTC))
+                .param("i", invitation).update();
+        return invitation;
+    }
+
+    private String undoOutcome(long invitation) {
+        return jdbc.sql("SELECT friend_undo_outcome FROM invitation WHERE id = :i").param("i", invitation).query(String.class).optional().orElse(null);
+    }
+
+    @Test
+    void loiMoiQuaBaNgayChuaAiDongYThiTuThuHoiVaChiMotLan() {
+        long invitation = friendRequestedDaysAgo(8);
+        gap();
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.UNDO_DONE);
+        assertThat(fake.undone).hasSize(1);
+        assertThat(outcome(invitation)).isEqualTo("WITHDRAWN");
+        assertThat(undoOutcome(invitation)).isEqualTo("DONE");
+        // không xóa khách, không nhắn gì thêm, không thu hồi lần hai
+        assertThat(count("SELECT count(*) FROM customer")).isEqualTo(3);
+        gap();
+        sender.step();
+        assertThat(fake.undone).hasSize(1);
+        assertThat(cfg.tripped()).isFalse();
+    }
+
+    @Test
+    void loiMoiChuaQuaHanHoacKhachDaDongYThiKhongThuHoi() {
+        long recent = friendRequestedDaysAgo(3);
+        gap();
+        sender.step();
+        assertThat(fake.undone).isEmpty();
+        jdbc.sql("UPDATE invitation SET friend_request_at = now() - interval '40 days', friended_at = now() WHERE id = :i").param("i", recent).update();
+        gap();
+        sender.step();
+        assertThat(fake.undone).isEmpty();
+        // đặt 0 là tắt
+        jdbc.sql("UPDATE invitation SET friended_at = NULL WHERE id = :i").param("i", recent).update();
+        messages.setFriendWithdrawDays(0, "mẹ");
+        gap();
+        sender.step();
+        assertThat(fake.undone).isEmpty();
+        messages.setFriendWithdrawDays(5, "mẹ");
+        gap();
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.UNDO_DONE);
+    }
+
+    @Test
+    void thuHoiXongThiBoTamDungLoiMoiDoZ223() {
+        friendRequestedDaysAgo(9);
+        messages.pauseFriendRequests("test");
+        assertThat(messages.friendPausedUntil()).isPresent();
+        gap();
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.UNDO_DONE);
+        assertThat(messages.friendPausedUntil()).isEmpty();
+    }
+
+    @Test
+    void zaloTuChoiThuHoiThiDanhDauFailedKhongThuLaiVaBaLanTrongNgayThiDung() {
+        long a = friendRequestedDaysAgo(9);
+        gap();
+        fake.willReturnMessage(Sent.of(Result.PERSON_ERROR, "Z217", false));
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.FAILED_ONE);
+        assertThat(undoOutcome(a)).isEqualTo("FAILED");
+        assertThat(outcome(a)).isEqualTo("SENT"); // lời mời vẫn coi là đã gửi, chỉ việc thu hồi lỗi
+        assertThat(cfg.tripped()).isFalse();
+        gap();
+        sender.step();
+        assertThat(fake.undone).hasSize(1);
+    }
+
+    @Test
+    void khongRoKetQuaThuHoiThiKhongThuLai() {
+        long a = friendRequestedDaysAgo(9);
+        gap();
+        fake.willReturnMessage(Sent.of(Result.SYSTEM_ERROR, "TIMEOUT", false));
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.TRIPPED);
+        assertThat(undoOutcome(a)).isEqualTo("UNKNOWN");
+        cfg.reopen("test");
+        clock.advance(Duration.ofDays(2));
+        sender.step();
+        assertThat(fake.undone).hasSize(1);
+    }
+
+    @Test
+    void chacChanChuaChamZaloThiTraChoDeThuHoiSau() {
+        long a = friendRequestedDaysAgo(9);
+        gap();
+        fake.willReturnMessage(Sent.of(Result.RATE_LIMITED, null, true));
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.RETRY);
+        assertThat(undoOutcome(a)).isNull();
+        gap();
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.UNDO_DONE);
+    }
+
+    @Test
+    void thuHoiTuanTuMoiNhipMotLoiMoi() {
+        long a = friendRequestedDaysAgo(9);
+        gap();
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.UNDO_DONE);
+        // khách thứ hai: Tin 1, lời mời, rồi đến hạn thì thu hồi, mỗi nhịp đúng một việc
+        jdbc.sql("UPDATE invitation SET status = 'READY' WHERE status = 'CANCELLED'").update();
+        gap();
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.INVITE_SENT);
+        jdbc.sql("UPDATE invitation SET status = 'CANCELLED' WHERE status = 'READY'").update();
+        gap();
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.FRIEND_SENT);
+        jdbc.sql("UPDATE invitation SET friend_request_at = :at WHERE friend_request_at IS NOT NULL AND friend_undo_at IS NULL")
+                .param("at", java.time.OffsetDateTime.ofInstant(clock.instant().minus(Duration.ofDays(9)), java.time.ZoneOffset.UTC)).update();
+        gap();
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.UNDO_DONE);
+        assertThat(fake.undone).hasSize(2);
+        assertThat(messages.undoUsedToday()).isEqualTo(2);
+        assertThat(undoOutcome(a)).isEqualTo("DONE");
     }
 }

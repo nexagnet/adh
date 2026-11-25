@@ -97,6 +97,12 @@ export class FakeAdapter {
     return '';
   }
 
+  async undoFriendRequest(uid) {
+    if (this.undoError) throw this.undoError;
+    (this.undone ??= []).push(uid);
+    return '';
+  }
+
   async createGroup(name, members) {
     if (this.createError) throw this.createError;
     (this.created ??= []).push({ name, members });
