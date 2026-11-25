@@ -75,5 +75,12 @@ jobs:
             echo '::error::Remove tracked customer data, build output, or local environment files.'
             exit 1
           fi
+      - name: Check deploy scripts (syntax, shellcheck, offline tests)
+        shell: bash
+        run: |
+          for f in infra/*.sh; do bash -n "$f"; done
+          shellcheck -S warning infra/*.sh
+          bash infra/test-auto-deploy.sh
+          bash infra/test-deploy.sh
       - name: Validate GitHub Actions workflows
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -color

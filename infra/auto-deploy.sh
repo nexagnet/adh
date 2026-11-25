@@ -20,7 +20,7 @@ set -uo pipefail
 export PATH="${PATH:-/usr/bin:/bin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/sbin"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$HERE"
+cd "$HERE" || exit 1
 
 # Đọc biến: ưu tiên môi trường, sau đó .env (đọc từng dòng, KHÔNG nạp file như mã để không chạy lệnh trong đó).
 envval() { # $1 tên, $2 mặc định

@@ -111,6 +111,8 @@ cp .env.example .env && chmod 600 .env     # sửa DB_PASSWORD, APP_ADMIN_PASSWO
 ./deploy.sh deploy                         # kéo ảnh của commit mới nhất trên main và chạy; tự lùi nếu không khỏe
 ./deploy.sh status | logs | backup | rollback
 ```
+- **Tệp compose và profile lấy từ `infra/.env`** (D23, nhiều tài khoản Zalo): `deploy.sh` đọc `COMPOSE_FILE` (các tệp cách nhau dấu hai chấm; tệp đầu BẮT BUỘC là `docker-compose.shared.yml`, mỗi tệp phải có cạnh script) và `COMPOSE_PROFILES` (cách nhau dấu phẩy) ở `.env`; không đặt thì mặc định chỉ `docker-compose.shared.yml`, không profile. Biến cùng tên trong môi trường shell/cron bị bỏ qua có chủ ý. `deploy.sh deploy` kiểm cấu hình (`docker compose config`) TRƯỚC khi sao lưu hay đổi gì, kéo ảnh `zalo-bridge` / `zalo-bridge-2` khi profile của chúng bật, rồi chỉ chạy `up -d` cho dự án compose `adh` (không `down`, không `--remove-orphans`, không đụng container dự án khác). `auto-deploy.sh` gọi `deploy.sh` nên tự theo cùng cấu hình. **Cập nhật tay các script trong `infra/` (deploy.sh, backup.sh, restore-test.sh) lên máy chủ TRƯỚC khi thêm tệp thứ hai vào `COMPOSE_FILE`**: cron chỉ kéo ảnh Docker, không kéo script hay tệp compose.
+- **Kiểm tệp compose trên máy chủ có lệch `main` không (chỉ đọc):** `cd infra && diff <(curl -fsS https://raw.githubusercontent.com/nexagnet/adh/main/infra/docker-compose.shared.yml) docker-compose.shared.yml` (làm tương tự với `docker-compose.zalo-2.yml`). Ứng dụng chỉ nhận những biến mà tệp compose truyền vào; thiếu dòng thì biến trong `.env` không tới container (ví dụ `BRIDGE_REPLY_GAP_SEC`, `APP_AI_ADVISOR_MODEL`).
 - `deploy.sh deploy` từ chối chạy nếu RAM còn trống dưới 250 MB (đặt `MIN_FREE_MB` để đổi), tự sao lưu trước khi cập nhật, và chờ ứng dụng trả lời trước khi coi là xong.
 - Sao lưu và thử khôi phục dùng chung script cũ: `COMPOSE_FILE=docker-compose.shared.yml ./backup.sh` (deploy.sh đã đặt sẵn). Cron: `17 3 * * * cd /đường/dẫn/adh/infra && COMPOSE_FILE=docker-compose.shared.yml DOCKER_SUDO="sudo " ./backup.sh >> /var/log/adh-backup.log 2>&1` (bỏ `DOCKER_SUDO` nếu người chạy thuộc nhóm docker).
 - **Mở ra Internet** chỉ khi đã có tên miền trỏ về máy chủ: đặt `APP_PUBLIC_BASE_URL=https://<tên miền>` trong `.env`, chạy lại `./deploy.sh deploy`, rồi thêm VÀO CADDY CỦA MÁY một khối riêng (không sửa khối của dự án khác):
@@ -139,7 +141,7 @@ crontab -e                          # thêm MỘT dòng (10 phút một lần, �
 ```
   Muốn chỉ cập nhật ban đêm (ít khách dùng, ứng dụng ngừng khoảng 1 phút khi khởi động lại): đổi `*/10 * * * *` thành `*/10 1-4 * * *`. Người chạy cron phải chạy được `docker` (thuộc nhóm docker, hoặc `sudo` không hỏi mật khẩu cho docker) và ghi được vào `infra/` và `BACKUP_DIR`. Repo công khai nên không cần token; nếu repo riêng tư, đặt `ADH_AUTO_GITHUB_TOKEN` (quyền đọc Actions) trong `infra/.env` (chmod 600). Muốn được báo khi có lỗi: đặt `ADH_AUTO_NOTIFY_CMD` trong dòng cron (lệnh nhận nội dung ở tham số cuối), nếu không thì xem `status`/log.
 - **Gỡ:** xóa dòng cron (`crontab -e`) hoặc `./auto-deploy.sh pause`.
-- **Thử script (không cần Docker):** `infra/test-auto-deploy.sh` dùng `git`, `curl`, `docker`, `deploy.sh` giả.
+- **Thử script (không cần Docker):** `infra/test-auto-deploy.sh` (dùng `git`, `curl`, `docker`, `deploy.sh` giả) và `infra/test-deploy.sh` (deploy.sh, backup.sh, restore-test.sh với `docker` giả: đọc `COMPOSE_FILE`/`COMPOSE_PROFILES` từ `.env`, không dừng hay xóa gì). CI chạy cả hai.
 
 ### 3. Cập nhật phiên bản
 ```bash
