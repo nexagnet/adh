@@ -101,6 +101,11 @@ public class GroupService {
         return jdbc.sql(SELECT + " ORDER BY g.id").query((rs, i) -> map(rs)).list();
     }
 
+    /** Nhóm của MỘT tài khoản Zalo phụ (D23): mã nhóm Zalo chỉ có nghĩa trong tài khoản đã tạo ra nhóm, nên mỗi tài khoản chỉ thêm khách vào nhóm của chính nó. */
+    public List<Group> listOfAccount(long accountId) {
+        return jdbc.sql(SELECT + " WHERE g.account_id = :acct ORDER BY g.id").param("acct", accountId).query((rs, i) -> map(rs)).list();
+    }
+
     /** Người gửi vừa thêm một khách vào nhóm bằng tay: tăng số khách thật thêm 1. */
     @Transactional
     public void addMember(long groupId) {
@@ -141,13 +146,19 @@ public class GroupService {
 
     @Transactional
     public long create(String name, String link, Integer target, String scope) {
+        return create(name, link, target, scope, 1L);
+    }
+
+    /** Tạo nhóm thuộc một tài khoản Zalo phụ (D23); các đường cũ (nhóm tay, link) thuộc tài khoản 1. */
+    @Transactional
+    public long create(String name, String link, Integer target, String scope, long accountId) {
         String n = requireName(name);
         String l = validateLink(link);
         int t = validateTarget(target);
         return jdbc.sql("""
-                        INSERT INTO zalo_group (name, invite_link, target_customers, geo_scope)
-                        VALUES (:name, :link, :target, :scope) RETURNING id""")
-                .param("name", n).param("link", l).param("target", t).param("scope", validateScope(scope), java.sql.Types.VARCHAR)
+                        INSERT INTO zalo_group (name, invite_link, target_customers, geo_scope, account_id)
+                        VALUES (:name, :link, :target, :scope, :acct) RETURNING id""")
+                .param("acct", accountId).param("name", n).param("link", l).param("target", t).param("scope", validateScope(scope), java.sql.Types.VARCHAR)
                 .query(Long.class).single();
     }
 

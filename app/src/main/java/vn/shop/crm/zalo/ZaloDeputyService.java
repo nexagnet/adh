@@ -94,8 +94,16 @@ public class ZaloDeputyService {
             // Mã được tra từ tài khoản phụ cũ thì không dùng được với tài khoản mới: không gọi Zalo bằng mã sai.
             return stale() ? "" : saved;
         }
-        String env = props.deputyId();
+        String env = envDeputy();
         return env.matches("\\d{1,32}") ? env : "";
+    }
+
+    /**
+     * Mã phó nhóm khai ở biến môi trường là mã mẹ NHÌN TỪ tài khoản 1 (mã người khác nhau theo tài khoản hỏi, D23), nên tài khoản khác không được
+     * dùng nó; mỗi tài khoản thêm phải tra và xác nhận mẹ bằng số điện thoại riêng của mình.
+     */
+    private String envDeputy() {
+        return ZaloAccountContext.current() == ZaloAccountContext.DEFAULT_ACCOUNT ? props.deputyId() : "";
     }
 
     /**
@@ -125,8 +133,8 @@ public class ZaloDeputyService {
         if (saved.matches("\\d{1,32}")) {
             return new Current(new Person(saved, settings.get(NAME).orElse(""), validAvatar(settings.get(AVATAR).orElse(null))), "SETTING", stale());
         }
-        if (props.deputyId().matches("\\d{1,32}")) {
-            return new Current(new Person(props.deputyId(), "", null), "ENV");
+        if (envDeputy().matches("\\d{1,32}")) {
+            return new Current(new Person(envDeputy(), "", null), "ENV");
         }
         return new Current(null, "NONE");
     }

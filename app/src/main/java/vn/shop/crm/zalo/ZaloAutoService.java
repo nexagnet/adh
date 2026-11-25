@@ -494,7 +494,7 @@ public class ZaloAutoService {
                 return Step.UNREACHABLE; // thất bại kín: chưa chắc đúng tài khoản phụ thì không thêm ai
             }
             // MỘT nhóm cho cả hai đường (tự thêm và tin gửi link): nhóm phải có cả mã nhóm Zalo lẫn link mời, và đang nhận khách.
-            List<GroupService.Group> usable = groups.list().stream()
+            List<GroupService.Group> usable = groups.listOfAccount(ZaloAccountContext.current()).stream()
                     .filter(g -> g.hasZaloId() && g.hasLink() && g.status() == vn.shop.crm.invite.GroupStatus.OPEN).toList();
             Step best = Step.NOTHING;
             List<Task> tasks = queued(mode);
@@ -790,7 +790,7 @@ public class ZaloAutoService {
     }
 
     public List<WaitingRow> waiting() {
-        List<GroupService.Group> usable = groups.list().stream().filter(GroupService.Group::hasZaloId).toList();
+        List<GroupService.Group> usable = groups.listOfAccount(ZaloAccountContext.current()).stream().filter(GroupService.Group::hasZaloId).toList();
         ZaloMode mode = cfg.effectiveMode();
         return jdbc.sql("""
                         SELECT i.id, c.name, c.province, i.zalo_add_state, i.zalo_add_code, i.friended_at
