@@ -153,6 +153,17 @@ class StrangerBlockedResendTest extends AbstractPostgresTest {
     }
 
     @Test
+    void khachVuaKetBanXongThiTin1GuiLaiSau7GiayCoDinh() {
+        long invitation = blockedInvite();
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.FRIEND_SENT); // ngay, không chờ
+        friended(invitation);
+        clock.advance(Duration.ofSeconds(3));
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.BLOCKED); // cùng một khách nhưng chưa đủ 7 giây
+        clock.advance(Duration.ofSeconds(5));
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.INVITE_SENT);
+    }
+
+    @Test
     void khachDongYKetBanThiTin1DuocGuiLaiDungMotLanTheoMaZalo() {
         long invitation = blockedInvite();
         gap();

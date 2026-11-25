@@ -81,6 +81,7 @@ export class Bridge {
     this.groupLedger = groupLedger ?? new AddLedger(null);
     this.events = events;
     this.inbox = inbox ?? new InboxBuffer({ now: () => this.now() });
+    this.lastFriend = null; // { uid, at } của lời mời kết bạn gần nhất
     this.lastInvite = null; // { uid, at } của Tin 1 gần nhất (chỉ trong bộ nối)
     this.replyable = new Map(); // mã Zalo -> giờ tin riêng gần nhất (chỉ trong bộ nhớ); căn cứ duy nhất cho phép trả lời (WELCOME, REPLY)
     this.now = now;
@@ -527,7 +528,10 @@ export class Bridge {
       return { outcome: 'RESTRICTED', code: 'MSG_LIMIT' };
     }
     const last = this.msgLedger.last();
-    const gapMs = isReply ? Math.min(this.config.replyGapMs, this.config.msgGapMs) : this.config.msgGapMs; // tin trả lời có khoảng nghỉ cố định ngắn hơn
+    // Gửi lại Tin 1 cho người VỪA được gửi lời mời kết bạn: cùng một người nên chỉ chờ khoảng cố định ngắn (samePersonGapMs), không phải khoảng nghỉ giữa các khách.
+    const ownFriend = kind === 'INVITE' && uidIn !== null && last !== null && this.lastFriend && this.lastFriend.at === last && this.lastFriend.uid === String(uidIn);
+    const gapMs = ownFriend ? Math.min(this.config.samePersonGapMs, this.config.msgGapMs)
+      : isReply ? Math.min(this.config.replyGapMs, this.config.msgGapMs) : this.config.msgGapMs; // tin trả lời có khoảng nghỉ cố định ngắn hơn
     if (last !== null && t - last < gapMs) {
       return { outcome: 'RATE_LIMITED', retryAfterSec: Math.ceil((gapMs - (t - last)) / 1000) };
     }
@@ -696,7 +700,7 @@ export class Bridge {
     const last = this.msgLedger.last();
     // Tin gần nhất chính là Tin 1 gửi cho người này: khoảng nghỉ cố định ngắn hơn (0 nếu Tin 1 bị chặn người lạ, chưa tới khách); khác thì giữ khoảng nghỉ chung.
     const own = last !== null && this.lastInvite && this.lastInvite.at === last && this.lastInvite.uid === String(uid);
-    const gapMs = own ? (this.msgLedger.has('INVITE_BLOCKED', String(uid)) ? 0 : Math.min(this.config.friendAfterInviteGapMs, this.config.msgGapMs)) : this.config.msgGapMs;
+    const gapMs = own ? (this.msgLedger.has('INVITE_BLOCKED', String(uid)) ? 0 : Math.min(this.config.samePersonGapMs, this.config.msgGapMs)) : this.config.msgGapMs;
     if (last !== null && t - last < gapMs) {
       return { outcome: 'RATE_LIMITED', retryAfterSec: Math.ceil((gapMs - (t - last)) / 1000) };
     }
@@ -706,6 +710,7 @@ export class Bridge {
     this.busy = true;
     try {
       this.msgLedger.record(t); // ghi trước khi gọi, tính vào phanh khẩn cấp và khoảng nghỉ chung
+      this.lastFriend = { uid, at: t };
       this.friendLedger.record(t);
       this.stateFile.write({ inflight: true });
       let c;

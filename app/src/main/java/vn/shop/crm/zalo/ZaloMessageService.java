@@ -47,10 +47,11 @@ public class ZaloMessageService {
      */
     public static final int REPLY_GAP_SECONDS = 30;
     /**
-     * Khoảng nghỉ CỐ ĐỊNH (25/11/2026, chủ dự án chốt) giữa Tin 1 gửi OK và lời mời kết bạn của CHÍNH khách đó; ngắn hơn khoảng nghỉ giữa các khách.
-     * Nếu Tin 1 bị chặn người lạ (Z122) thì lời mời đi ngay. Cầu nối có sàn riêng (BRIDGE_FRIEND_AFTER_INVITE_GAP_SEC, mặc định bằng số này).
+     * Khoảng nghỉ CỐ ĐỊNH (25/11/2026, chủ dự án chốt) giữa hai việc liên tiếp của CÙNG MỘT khách (Tin 1 rồi kết bạn, kết bạn rồi gửi lại Tin 1);
+     * ngắn hơn khoảng nghỉ giữa các khách. Tin 1 bị chặn người lạ (Z122) thì lời mời đi ngay. Cầu nối có khoảng riêng
+     * (BRIDGE_SAME_PERSON_GAP_SEC, mặc định bằng số này).
      */
-    public static final int FRIEND_AFTER_TIN1_GAP_SECONDS = 7;
+    public static final int SAME_CUSTOMER_GAP_SECONDS = 7;
     static final String FRIEND_DAILY = "zalo.friend.daily";
     public static final String SCOPE_REAL = "REAL";
     /** Số lần liền lỗi riêng người (mã lạ) thì dừng, và số lần liền "không tìm thấy" thì dừng để người kiểm tra. */
@@ -241,21 +242,31 @@ public class ZaloMessageService {
     }
 
     /**
-     * Khoảng nghỉ riêng cho lời mời kết bạn đi NGAY sau Tin 1 của chính khách đó (dòng sổ gần nhất là Tin 1 của lời mời {@code refId}):
-     * 0 giây nếu Tin 1 bị Zalo từ chối vì khách không nhận tin người lạ (Z122, chưa tới khách), {@link #FRIEND_AFTER_TIN1_GAP_SECONDS}
-     * nếu Tin 1 gửi OK. Rỗng nếu dòng gần nhất không phải Tin 1 của khách này (khi đó dùng khoảng nghỉ chung giữa các khách).
+     * Khoảng nghỉ riêng cho hai việc liên tiếp của CÙNG MỘT khách (chủ dự án chốt 25/11/2026: đổi 2 phút thành 7 giây): dòng sổ gần nhất là Tin 1 hoặc
+     * lời mời kết bạn của chính lời mời {@code refId}. Lời mời kết bạn ngay sau Tin 1 bị Zalo từ chối vì khách không nhận tin người lạ (Z122, chưa tới
+     * khách) thì 0 giây. Rỗng nếu dòng gần nhất thuộc khách khác (khi đó dùng khoảng nghỉ chung giữa các khách).
      */
-    private OptionalInt friendGapAfterOwnTin1(Long refId) {
-        if (refId == null) {
+    private OptionalInt sameCustomerGap(Kind kind, Long refId) {
+        if (refId == null || (kind != Kind.FRIEND && kind != Kind.INVITE)) {
             return OptionalInt.empty();
         }
         return jdbc.sql("""
-                        SELECT CASE WHEN outcome = 'PERSON_ERROR' AND code = 'STRANGER_BLOCKED' THEN 0
-                                    WHEN outcome = 'OK' THEN CAST(:ok AS INTEGER) END
-                        FROM zalo_msg_log WHERE kind = 'INVITE' AND ref_id = :r
-                          AND id = (SELECT id FROM zalo_msg_log ORDER BY at DESC, id DESC LIMIT 1)""")
-                .param("r", refId).param("ok", FRIEND_AFTER_TIN1_GAP_SECONDS)
-                .query(Integer.class).optional().map(OptionalInt::of).orElse(OptionalInt.empty());
+                        SELECT kind, outcome, code, ref_id FROM zalo_msg_log ORDER BY at DESC, id DESC LIMIT 1""")
+                .query((rs, n) -> {
+                    long ref = rs.getLong("ref_id");
+                    if (rs.wasNull() || ref != refId || "DANG_GOI".equals(rs.getString("outcome"))) {
+                        return OptionalInt.empty();
+                    }
+                    String lastKind = rs.getString("kind");
+                    if (kind == Kind.FRIEND && "INVITE".equals(lastKind)) {
+                        return "PERSON_ERROR".equals(rs.getString("outcome")) && "STRANGER_BLOCKED".equals(rs.getString("code"))
+                                ? OptionalInt.of(0) : OptionalInt.of(SAME_CUSTOMER_GAP_SECONDS);
+                    }
+                    if (kind == Kind.INVITE && "FRIEND".equals(lastKind)) {
+                        return OptionalInt.of(SAME_CUSTOMER_GAP_SECONDS); // gửi lại Tin 1 ngay khi khách vừa đồng ý kết bạn
+                    }
+                    return OptionalInt.empty();
+                }).optional().orElse(OptionalInt.empty());
     }
 
     private Instant lastAt(String scope) {
@@ -354,9 +365,7 @@ public class ZaloMessageService {
         }
         Instant last = lastAt(null);
         int gap = kind.answersInbound() ? Math.min(REPLY_GAP_SECONDS, l.gapSeconds()) : l.gapSeconds();
-        if (kind == Kind.FRIEND) {
-            gap = Math.min(gap, friendGapAfterOwnTin1(refId).orElse(gap));
-        }
+        gap = Math.min(gap, sameCustomerGap(kind, refId).orElse(gap));
         if (last != null && now.isBefore(last.plusSeconds(gap))) {
             return Optional.of(Block.GAP);
         }

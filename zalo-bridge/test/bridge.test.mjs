@@ -703,6 +703,19 @@ test('Tin 1 bị Zalo từ chối vì người nhận không nhận tin người
   c.cleanup();
 });
 
+test('gửi lại Tin 1 ngay sau lời mời kết bạn của CHÍNH người đó chỉ chờ 7 giây; người khác vẫn chờ khoảng nghỉ chung', async () => {
+  const c = await ready();
+  c.adapter.sendError = Object.assign(new Error('Không thể nhận tin nhắn từ bạn.'), { code: 122 });
+  await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' }); // uid 501, bị chặn
+  assert.equal((await c.bridge.sendFriendRequest({ uid: '501', text: 'a' })).outcome, 'OK'); // đi ngay
+  c.adapter.sendError = null;
+  c.clock.t += 3 * 1000;
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', uid: '501', text: 'a' })).outcome, 'RATE_LIMITED');
+  c.clock.t += 5 * 1000;
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', uid: '501', text: 'a' })).outcome, 'OK');
+  c.cleanup();
+});
+
 test('Z212 (không tìm thấy số điện thoại) khi gửi Tin 1 là lỗi riêng số đó (NOT_FOUND), không dừng cầu dao', async () => {
   const c = await ready({ BRIDGE_PERSON_ERROR_CODES: '' });
   c.adapter.sendError = Object.assign(new Error('Không tìm thấy'), { code: 212 });
