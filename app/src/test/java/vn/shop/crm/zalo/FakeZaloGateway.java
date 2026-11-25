@@ -44,6 +44,9 @@ public class FakeZaloGateway implements ZaloLink {
         friendCheckError = null;
         friendRequests.clear();
         undone.clear();
+        accepted.clear();
+        incoming.clear();
+        defaultAccept = null;
         defaultUndo = null;
         defaultFriend = null;
         stops = 0;
@@ -221,6 +224,24 @@ public class FakeZaloGateway implements ZaloLink {
             return messageResults.poll();
         }
         return defaultFriend != null ? defaultFriend : new Sent(Result.OK, null, uid, 0, false);
+    }
+
+    public final List<String> accepted = new ArrayList<>();
+    public final List<String> incoming = new ArrayList<>();
+    public Sent defaultAccept;
+
+    @Override
+    public Sent acceptFriendRequest(String uid) {
+        accepted.add(uid);
+        if (!messageResults.isEmpty()) {
+            return messageResults.poll();
+        }
+        return defaultAccept != null ? defaultAccept : new Sent(Result.OK, null, uid, 0, false);
+    }
+
+    @Override
+    public List<String> incomingRequests() {
+        return List.copyOf(incoming);
     }
 
     public final List<String> undone = new ArrayList<>();

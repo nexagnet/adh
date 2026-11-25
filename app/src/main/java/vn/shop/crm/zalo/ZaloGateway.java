@@ -88,6 +88,12 @@ public interface ZaloGateway {
     List<FriendEvent> friendEvents(long afterSeq);
 
     /**
+     * Mã Zalo của khách (đã nhận Tin 1 từ chính bộ nối) vừa tự gửi lời mời kết bạn tới tài khoản phụ và chưa được nhận (25/11/2026). Chỉ ĐỌC từ bộ nhớ của bộ nối,
+     * không gọi Zalo. Rỗng nếu không có hoặc không gọi được. Chỉ {@link ZaloFriendAcceptSender} dùng.
+     */
+    List<String> incomingRequests();
+
+    /**
      * Kết quả đối chiếu bạn bè (24/11/2026, chủ shop duyệt, CHỈ ĐỌC). {@code friends} chỉ gồm những mã Adh đã hỏi mà đang là bạn của tài khoản phụ.
      * {@code ok = false}: chưa đối chiếu được (mã lý do ngắn, không chứa dữ liệu khách); không phải lỗi của Zalo và không làm cầu dao nhảy.
      */

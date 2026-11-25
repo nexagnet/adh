@@ -89,6 +89,20 @@ public final class SafeZaloLink implements ZaloLink {
     }
 
     @Override
+    public Sent acceptFriendRequest(String uid) {
+        if (!mode.uidAllowed(uid)) {
+            mode.noteBlocked("NHAN_KET_BAN");
+            return Sent.of(Result.UNREACHABLE, CODE, true);
+        }
+        return inner.acceptFriendRequest(uid);
+    }
+
+    @Override
+    public List<String> incomingRequests() {
+        return inner.incomingRequests().stream().filter(mode::uidAllowed).toList();
+    }
+
+    @Override
     public Sent undoFriendRequest(String uid) {
         if (!mode.uidAllowed(uid)) {
             mode.noteBlocked("THU_HOI_KET_BAN");
