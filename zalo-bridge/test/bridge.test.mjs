@@ -553,6 +553,28 @@ test('Tin 1 nhiều dòng: quá 4 dòng thì gộp phần dư vào tin cuối; p
   d.cleanup();
 });
 
+test('Tin 1 nhiều dòng: phần sau lỗi Z127 là lỗi riêng khách, không dừng cầu dao; lỗi lạ vẫn dừng', async () => {
+  const run = async (code) => {
+    const d = await ready({ BRIDGE_PART_GAP_SEC: '0' });
+    let n = 0;
+    const orig = d.adapter.sendText.bind(d.adapter);
+    d.adapter.sendText = async (uid, t) => {
+      if (++n === 2) throw Object.assign(new Error('lỗi'), { code });
+      return orig(uid, t);
+    };
+    const r = await d.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a\nb' });
+    const st = d.bridge.status().state;
+    d.cleanup();
+    return { r, st };
+  };
+  const ok = await run(127);
+  assert.deepEqual(ok.r, { outcome: 'OK', code: 'PARTIAL', uid: '501' });
+  assert.notEqual(ok.st, 'TRIPPED');
+  const bad = await run(999);
+  assert.deepEqual(bad.r, { outcome: 'OK', code: 'PARTIAL', uid: '501' });
+  assert.equal(bad.st, 'TRIPPED');
+});
+
 test('gửi tin theo mã Zalo (tin gửi link): không tìm số, trả uid', async () => {
   const c = await ready();
   const r = await c.bridge.sendMessage({ kind: 'LINK', uid: '777', text: 'Link nhóm' });

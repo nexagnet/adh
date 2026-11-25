@@ -591,7 +591,7 @@ export class Bridge {
                 break;
               }
             } catch (e) {
-              const k = classifyError(e, this.config.personErrorCodes);
+              const k = classifyError(e, new Set([...this.config.personErrorCodes, ...this.config.partErrorCodes]));
               c = { outcome: 'OK', code: 'PARTIAL', trip: k.outcome === 'PERSON_ERROR' ? null : (k.code ? `${k.outcome}:${k.code}` : k.outcome) };
               break;
             }
