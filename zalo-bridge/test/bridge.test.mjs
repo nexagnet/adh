@@ -707,7 +707,8 @@ test('gửi lại Tin 1 ngay sau lời mời kết bạn của CHÍNH người �
   const c = await ready();
   c.adapter.sendError = Object.assign(new Error('Không thể nhận tin nhắn từ bạn.'), { code: 122 });
   await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' }); // uid 501, bị chặn
-  assert.equal((await c.bridge.sendFriendRequest({ uid: '501', text: 'a' })).outcome, 'OK'); // đi ngay
+  c.clock.t += 8 * 1000;
+  assert.equal((await c.bridge.sendFriendRequest({ uid: '501', text: 'a' })).outcome, 'OK');
   c.adapter.sendError = null;
   c.clock.t += 3 * 1000;
   assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', uid: '501', text: 'a' })).outcome, 'RATE_LIMITED');
@@ -1381,11 +1382,13 @@ test('lời mời kết bạn: sau Tin 1 của CHÍNH người đó chỉ chờ 
   c.cleanup();
 });
 
-test('lời mời kết bạn: Tin 1 bị chặn người lạ thì lời mời của chính người đó đi ngay, không chờ', async () => {
+test('lời mời kết bạn: Tin 1 bị chặn người lạ thì lời mời của chính người đó cũng chỉ chờ 7 giây', async () => {
   const c = await ready();
   c.adapter.sendError = Object.assign(new Error('x'), { code: 122 });
   const r = await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' });
   assert.equal(r.code, 'STRANGER_BLOCKED');
+  assert.equal((await c.bridge.sendFriendRequest({ uid: r.uid, text: 'a' })).outcome, 'RATE_LIMITED');
+  c.clock.t += 8 * 1000;
   assert.equal((await c.bridge.sendFriendRequest({ uid: r.uid, text: 'a' })).outcome, 'OK');
   c.cleanup();
 });
