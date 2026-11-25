@@ -146,15 +146,17 @@ public class ZaloInviteSender {
             }
         }
         // Tin 1: hạn mức ngày tính theo số tin chủ động (Tin 1 và tin nhắc).
-        if (messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.INVITE, null, null).isPresent()) {
+        var general = messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.INVITE, null, null);
+        if (general.isPresent() && general.get() != ZaloMessageService.Block.GAP) {
             return Step.BLOCKED;
         }
         // Gửi lại Tin 1 cho khách đã kết bạn sau khi Zalo từ chối Tin 1 vì họ không nhận tin người lạ (Z122): đi trước Tin 1 của khách mới.
+        // Chưa đủ khoảng nghỉ chung vẫn xem tiếp: khách vừa đồng ý kết bạn được gửi lại Tin 1 sau 7 giây (cùng một khách), từng khách kiểm lại theo mã lời mời.
         Step again = resendBlocked();
         if (again != Step.NOTHING) {
             return again;
         }
-        return sendNextInvite();
+        return general.isPresent() ? Step.BLOCKED : sendNextInvite();
     }
 
     // ---------- Tin 1 ----------
@@ -349,6 +351,9 @@ public class ZaloInviteSender {
                     || InviteService.hasUnresolved(invites.render(c.template(), c.name(), invites.linkFor(c.token()), VnGeo.byCode(c.province()).orElse(null)))) {
                 jdbc.sql("UPDATE invitation SET tin1_resent_at = :at WHERE id = :id AND tin1_resent_at IS NULL")
                         .param("at", OffsetDateTime.now(clock)).param("id", c.id()).update();
+                continue;
+            }
+            if (messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.INVITE, c.id(), null, null).isPresent()) {
                 continue;
             }
             return resend(c, r.uid());

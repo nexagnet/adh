@@ -19,6 +19,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -45,6 +46,12 @@ public class ZaloMessageService {
      * (BRIDGE_REPLY_GAP_SEC, mặc định bằng số này) và phải ≤ số này.
      */
     public static final int REPLY_GAP_SECONDS = 30;
+    /**
+     * Khoảng nghỉ CỐ ĐỊNH (25/11/2026, chủ dự án chốt) giữa hai việc liên tiếp của CÙNG MỘT khách (Tin 1 rồi kết bạn, kết bạn rồi gửi lại Tin 1);
+     * ngắn hơn khoảng nghỉ giữa các khách. Tin 1 bị chặn người lạ (Z122) thì lời mời đi ngay. Cầu nối có khoảng riêng
+     * (BRIDGE_SAME_PERSON_GAP_SEC, mặc định bằng số này).
+     */
+    public static final int SAME_CUSTOMER_GAP_SECONDS = 7;
     static final String FRIEND_DAILY = "zalo.friend.daily";
     public static final String SCOPE_REAL = "REAL";
     /** Số lần liền lỗi riêng người (mã lạ) thì dừng, và số lần liền "không tìm thấy" thì dừng để người kiểm tra. */
@@ -234,15 +241,32 @@ public class ZaloMessageService {
         return spec.query(Integer.class).single();
     }
 
-    /** Tin gần nhất trong sổ chính là Tin 1 của lời mời {@code refId} bị Zalo từ chối vì khách không nhận tin người lạ (Z122). */
-    private boolean lastIsStrangerBlockedFor(Long refId) {
-        if (refId == null) {
-            return false;
+    /**
+     * Khoảng nghỉ riêng cho hai việc liên tiếp của CÙNG MỘT khách (chủ dự án chốt 25/11/2026: đổi 2 phút thành 7 giây): dòng sổ gần nhất là Tin 1 hoặc
+     * lời mời kết bạn của chính lời mời {@code refId}. Lời mời kết bạn ngay sau Tin 1 bị Zalo từ chối vì khách không nhận tin người lạ (Z122, chưa tới
+     * khách) thì 0 giây. Rỗng nếu dòng gần nhất thuộc khách khác (khi đó dùng khoảng nghỉ chung giữa các khách).
+     */
+    private OptionalInt sameCustomerGap(Kind kind, Long refId) {
+        if (refId == null || (kind != Kind.FRIEND && kind != Kind.INVITE)) {
+            return OptionalInt.empty();
         }
         return jdbc.sql("""
-                        SELECT kind = 'INVITE' AND outcome = 'PERSON_ERROR' AND code = 'STRANGER_BLOCKED' AND ref_id = :r
-                        FROM zalo_msg_log ORDER BY at DESC, id DESC LIMIT 1""")
-                .param("r", refId).query(Boolean.class).optional().orElse(false);
+                        SELECT kind, outcome, code, ref_id FROM zalo_msg_log ORDER BY at DESC, id DESC LIMIT 1""")
+                .query((rs, n) -> {
+                    long ref = rs.getLong("ref_id");
+                    if (rs.wasNull() || ref != refId || "DANG_GOI".equals(rs.getString("outcome"))) {
+                        return OptionalInt.empty();
+                    }
+                    String lastKind = rs.getString("kind");
+                    if (kind == Kind.FRIEND && "INVITE".equals(lastKind)) {
+                        return "PERSON_ERROR".equals(rs.getString("outcome")) && "STRANGER_BLOCKED".equals(rs.getString("code"))
+                                ? OptionalInt.of(0) : OptionalInt.of(SAME_CUSTOMER_GAP_SECONDS);
+                    }
+                    if (kind == Kind.INVITE && "FRIEND".equals(lastKind)) {
+                        return OptionalInt.of(SAME_CUSTOMER_GAP_SECONDS); // gửi lại Tin 1 ngay khi khách vừa đồng ý kết bạn
+                    }
+                    return OptionalInt.empty();
+                }).optional().orElse(OptionalInt.empty());
     }
 
     private Instant lastAt(String scope) {
@@ -316,7 +340,7 @@ public class ZaloMessageService {
     /**
      * Như trên, thêm {@code refId} (mã lời mời của chính tin sắp gửi). Chỉ dùng để một lời mời kết bạn đi NGAY sau khi Zalo vừa từ chối
      * Tin 1 của chính khách đó vì khách không nhận tin người lạ (Z122): Tin 1 đó chưa tới khách nên không tính thêm một khoảng nghỉ nữa
-     * (25/11/2026), nếu không khách phải chờ hai lần nghỉ liền. Khoảng nghỉ giữa các KHÁCH khác nhau, hạn mức ngày, cầu dao, khung giờ giữ nguyên.
+     * (25/11/2026), nếu không khách phải chờ hai lần nghỉ liền; Tin 1 gửi OK thì chờ 7 giây cố định. Khoảng nghỉ giữa các KHÁCH khác nhau, hạn mức ngày, cầu dao, khung giờ giữ nguyên.
      */
     public Optional<Block> blocker(String scope, Kind kind, Long refId, Integer scopeDaily, Integer scopeGap) {
         if (!enabled()) {
@@ -341,7 +365,8 @@ public class ZaloMessageService {
         }
         Instant last = lastAt(null);
         int gap = kind.answersInbound() ? Math.min(REPLY_GAP_SECONDS, l.gapSeconds()) : l.gapSeconds();
-        if (last != null && now.isBefore(last.plusSeconds(gap)) && !(kind == Kind.FRIEND && lastIsStrangerBlockedFor(refId))) {
+        gap = Math.min(gap, sameCustomerGap(kind, refId).orElse(gap));
+        if (last != null && now.isBefore(last.plusSeconds(gap))) {
             return Optional.of(Block.GAP);
         }
         if (invite && scopeDaily != null && countSince(startOfDay(), scope, true) >= scopeDaily) {

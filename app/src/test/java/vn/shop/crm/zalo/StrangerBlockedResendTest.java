@@ -132,11 +132,11 @@ class StrangerBlockedResendTest extends AbstractPostgresTest {
     }
 
     @Test
-    void khachNhanTin1BinhThuongVanChoDuKhoangNghiTruocKhiKetBan() {
+    void khachNhanTin1BinhThuongKetBanSau7GiayCoDinh() {
         assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.INVITE_SENT);
         assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.BLOCKED);
         assertThat(fake.friendRequests).isEmpty();
-        gap();
+        clock.advance(Duration.ofSeconds(8)); // Tin 1 OK: kết bạn sau 7 giây cố định (25/11/2026)
         assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.FRIEND_SENT);
     }
 
@@ -150,6 +150,17 @@ class StrangerBlockedResendTest extends AbstractPostgresTest {
         sender.step();
         sender.step();
         assertThat(fake.messages).hasSize((int) messagesBefore); // chưa kết bạn thì chưa gửi lại Tin 1
+    }
+
+    @Test
+    void khachVuaKetBanXongThiTin1GuiLaiSau7GiayCoDinh() {
+        long invitation = blockedInvite();
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.FRIEND_SENT); // ngay, không chờ
+        friended(invitation);
+        clock.advance(Duration.ofSeconds(3));
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.BLOCKED); // cùng một khách nhưng chưa đủ 7 giây
+        clock.advance(Duration.ofSeconds(5));
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.INVITE_SENT);
     }
 
     @Test
