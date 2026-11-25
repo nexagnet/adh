@@ -1,6 +1,16 @@
 # Nghiên cứu: chạy nhiều tài khoản Zalo phụ song song, mẹ vẫn là phó nhóm (25/11/2026)
 
-**Trạng thái:** chỉ nghiên cứu và đề xuất, **chưa sửa mã**, không đổi mục đích PR nào đã gộp. Chưa có quyết định của chủ dự án. Mọi chỗ ghi "chưa kiểm chứng" là chưa chạy thử với Zalo thật.
+**Trạng thái:** đã có quyết định của chủ dự án (25/11/2026, mục 0); **chưa sửa mã**, không đổi mục đích PR nào đã gộp. Mọi chỗ ghi "chưa kiểm chứng" là chưa chạy thử với Zalo thật.
+
+## 0. Quyết định của chủ dự án (25/11/2026, D23)
+
+1. Đổi quy tắc: cho phép nhiều tài khoản phụ **cố định** chạy song song (đã ghi ở `CLAUDE.md` mục 3 và ADR-0002 mục 14).
+2. Mục tiêu: **cả chia tải, bền hơn lẫn tăng tổng số khách nhắn mỗi ngày.** Mỗi tài khoản giữ hạn mức của nó (không nới), tổng là tổng các tài khoản; trần tổng là một cài đặt ở `/zalo`, người chỉnh.
+3. Thu hồi lời mời chờ quá 7 ngày, gửi link nhóm hoặc nhờ kết bạn lại, và nhận lời mời của khách: **giao luồng khác** (PR #156 đã thu hồi; phần còn lại làm ở luồng "Sửa Z223"). Tài liệu này không làm các việc đó.
+4. Mẹ đồng ý kết bạn với mọi tài khoản phụ và làm phó nhóm ở mọi nhóm.
+5. Có SIM và điện thoại cho tài khoản thứ hai; **ưu tiên mua thêm máy chủ chạy song song** thay vì nâng máy hiện tại (mục 3.7).
+
+Phần mục 1, 6, 7 dưới đây là bản nghiên cứu gốc; mục 6 bước 0 và mục 7 đã được các quyết định trên trả lời.
 
 ## 1. Kết luận ngắn
 
@@ -60,6 +70,14 @@ Phần tốt: sổ từ chối lưu **mã băm số điện thoại**, không ph
 - Adh đọc `/inbox` của từng cầu nối, mỗi tài khoản một con trỏ `seq`. Bản nháp trả lời, việc "cần người thật", việc từ chối chờ xem đều ghi kèm `account_id` để người thật biết khách đang ở tài khoản nào.
 - Trợ lý vẫn tự nhận là **trợ lý AI của shop**, một câu ngắn như hiện nay. Tên và ảnh của từng tài khoản phụ nên nói thật là tài khoản của shop (ví dụ "Shop áo điều hòa Minh Hiệp - hỗ trợ 2"), không giả là người.
 - Chưa chốt từ trước (mục 4 của `CLAUDE.md`): mẹ trả lời khách từ đâu. Với nhiều tài khoản, hàng "cần người thật" phải ghi rõ tài khoản.
+
+### 3.7 Máy chủ thứ hai (chủ dự án muốn mua thêm máy chạy song song)
+
+- Cầu nối của mỗi tài khoản chạy trong container riêng, nên đặt được ở máy nào cũng được; Adh chỉ cần địa chỉ và khóa chung của từng cầu nối trong `zalo_account` và `.env`. Hôm nay địa chỉ là `http://zalo-bridge:3100` trong mạng Docker nội bộ; máy thứ hai cần địa chỉ nối từ máy chủ Adh.
+- Nối qua **mạng riêng có mã hóa giữa hai máy** (ví dụ một đường hầm riêng) hoặc HTTPS có khóa chung và danh sách IP được phép; **không mở cổng cầu nối ra internet công khai** (cầu nối giữ phiên đăng nhập Zalo, ai chạm được là chiếm tài khoản). Việc dựng đường nối là việc hạ tầng, làm khi tới Bước 6.
+- Mỗi máy chạy cầu nối có sao lưu thư mục `/data` (phiên mã hóa và các sổ) và khóa `SESSION_KEY` riêng; `deploy.sh` và `auto-deploy.sh` hiện chỉ lo một máy, cần mở rộng cho máy thứ hai.
+- Rủi ro: thêm một điểm hỏng (mất đường nối thì Adh coi tài khoản đó là "không nối được", chưa chạm Zalo, không dừng tài khoản khác). Máy chủ Adh và Postgres vẫn ở máy chính.
+- Mục đích của máy thứ hai là **đủ RAM và độc lập sự cố**, không phải để Zalo khó liên kết các tài khoản; không thiết kế gì cho mục đích sau (D23).
 
 ### 3.6 Thay đổi dữ liệu (một migration, số tiếp theo sau V55, nhớ kiểm lại số trước khi mở PR)
 
