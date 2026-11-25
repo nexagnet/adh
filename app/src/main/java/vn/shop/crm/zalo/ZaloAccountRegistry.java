@@ -24,6 +24,12 @@ public class ZaloAccountRegistry {
         this.multiEnabled = multiEnabled;
     }
 
+    /** Lúc khởi động: tài khoản đã khai báo cầu nối luôn có dòng trong bảng (các bảng khác tham chiếu tới nó), kể cả khi chưa bật chạy. */
+    @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    void onReady() {
+        ensureRows();
+    }
+
     /** Tạo dòng {@code zalo_account} cho các tài khoản đã khai báo cầu nối mà chưa có dòng (không đổi dòng đã có). */
     public void ensureRows() {
         for (long id : routes.accountIds()) {

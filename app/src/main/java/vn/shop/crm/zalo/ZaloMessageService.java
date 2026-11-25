@@ -266,7 +266,7 @@ public class ZaloMessageService {
 
     /** Số lời mời kết bạn đã gửi mà khách chưa đồng ý (đang nằm trong danh sách lời mời đang chờ của Zalo). Chỉ để hiển thị. */
     public int friendPending() {
-        return jdbc.sql("SELECT count(*) FROM invitation WHERE friend_request_outcome = 'SENT' AND friended_at IS NULL AND joined_at IS NULL")
+        return jdbc.sql("SELECT count(*) FROM invitation WHERE " + ZaloAccountContext.sql("account_id") + " AND friend_request_outcome = 'SENT' AND friended_at IS NULL AND joined_at IS NULL")
                 .query(Integer.class).single();
     }
 

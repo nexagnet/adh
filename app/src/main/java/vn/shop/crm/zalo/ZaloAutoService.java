@@ -148,7 +148,7 @@ public class ZaloAutoService {
         List<Map<String, Object>> pending = jdbc.sql("""
                         SELECT i.id, i.zalo_target_uid FROM invitation i JOIN customer c ON c.id = i.customer_id
                         WHERE i.status IN ('SENT', 'CLICKED') AND i.zalo_uid IS NULL AND i.zalo_target_uid IS NOT NULL
-                        """ + testMode.onlyTestSql("c.phone") + " ORDER BY i.sent_at NULLS LAST, i.id LIMIT 500").query().listOfRows();
+                        """ + testMode.onlyTestSql("c.phone") + " AND " + ZaloAccountContext.sql("i.account_id") + " ORDER BY i.sent_at NULLS LAST, i.id LIMIT 500").query().listOfRows();
         lastFriendSync = now;
         friendSyncSession = st.sessionSince();
         List<String> uids = pending.stream().map(r -> String.valueOf(r.get("zalo_target_uid"))).filter(u -> u.matches("\\d{1,32}")).distinct().toList();
@@ -293,7 +293,8 @@ public class ZaloAutoService {
     private Optional<Match> findMatch(String e164) {
         return jdbc.sql("""
                         SELECT i.id, i.customer_id, i.status, i.zalo_uid IS NOT NULL AS has_uid
-                        FROM invitation i JOIN customer c ON c.id = i.customer_id WHERE c.phone = :p""")
+                        FROM invitation i JOIN customer c ON c.id = i.customer_id WHERE c.phone = :p AND i.account_id = :acct""")
+                .param("acct", ZaloAccountContext.current())
                 .param("p", e164)
                 .query((rs, n) -> new Match(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("status"),
                         rs.getBoolean("has_uid")))
@@ -304,7 +305,8 @@ public class ZaloAutoService {
     private Optional<Match> findMatchByTargetUid(String uid) {
         return jdbc.sql("""
                         SELECT i.id, i.customer_id, i.status, i.zalo_uid IS NOT NULL AS has_uid
-                        FROM invitation i WHERE i.zalo_target_uid = :u""")
+                        FROM invitation i WHERE i.zalo_target_uid = :u AND i.account_id = :acct""")
+                .param("acct", ZaloAccountContext.current())
                 .param("u", uid)
                 .query((rs, n) -> new Match(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("status"),
                         rs.getBoolean("has_uid")))
@@ -341,7 +343,7 @@ public class ZaloAutoService {
                                zalo_add_state = CASE WHEN i.group_link_sent_at IS NULL THEN CAST(:s AS TEXT) END
                         FROM invitation_campaign k
                         WHERE k.id = i.campaign_id AND i.id = :id AND i.zalo_uid IS NULL
-                          AND NOT EXISTS (SELECT 1 FROM invitation o WHERE o.zalo_uid = :u)""")
+                          AND NOT EXISTS (SELECT 1 FROM invitation o WHERE o.zalo_uid = :u AND o.account_id = i.account_id)""")
                 .param("u", uid).param("s", state).param("id", invitationId).update();
         if (n == 0) {
             return false;
@@ -549,7 +551,7 @@ public class ZaloAutoService {
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
                         WHERE i.zalo_add_state IN %s AND i.zalo_uid IS NOT NULL AND i.status IN ('SENT', 'CLICKED', 'FRIENDED')
                           AND (i.tin1_blocked_at IS NULL OR i.tin1_resent_at IS NOT NULL)
-                        """.formatted(states) + testMode.onlyTestSql("c.phone") + " ORDER BY i.friended_at NULLS LAST, i.id LIMIT 500")
+                        """.formatted(states) + testMode.onlyTestSql("c.phone") + " AND " + ZaloAccountContext.sql("i.account_id") + " ORDER BY i.friended_at NULLS LAST, i.id LIMIT 500")
                 .query((rs, n) -> new Task(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("zalo_uid"),
                         rs.getString("province"), rs.getString("zalo_add_state"), (Long) rs.getObject("held_group"),
                         rs.getTimestamp("friended_at") == null ? null : rs.getTimestamp("friended_at").toInstant())).list();

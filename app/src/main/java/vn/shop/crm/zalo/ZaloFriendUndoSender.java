@@ -66,7 +66,7 @@ public class ZaloFriendUndoSender {
 
     private long failedToday() {
         OffsetDateTime start = clock.instant().atZone(clock.getZone()).toLocalDate().atStartOfDay(clock.getZone()).toOffsetDateTime();
-        return jdbc.sql("SELECT count(*) FROM invitation WHERE friend_undo_outcome = 'FAILED' AND friend_undo_at >= :s")
+        return jdbc.sql("SELECT count(*) FROM invitation WHERE " + ZaloAccountContext.sql("account_id") + " AND friend_undo_outcome = 'FAILED' AND friend_undo_at >= :s")
                 .param("s", start).query(Long.class).single();
     }
 
@@ -76,7 +76,7 @@ public class ZaloFriendUndoSender {
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
                         WHERE i.friend_request_outcome = 'SENT' AND i.friended_at IS NULL AND i.joined_at IS NULL AND i.friend_undo_at IS NULL
                           AND i.zalo_target_uid IS NOT NULL AND i.friend_request_at < :before
-                        """ + testMode.onlyTestSql("c.phone") + " ORDER BY i.friend_request_at, i.id LIMIT 1")
+                        """ + testMode.onlyTestSql("c.phone") + " AND " + ZaloAccountContext.sql("i.account_id") + " ORDER BY i.friend_request_at, i.id LIMIT 1")
                 .param("before", OffsetDateTime.now(clock).minusDays(days))
                 .query((rs, n) -> new Task(rs.getLong("id"), rs.getString("zalo_target_uid"))).list();
     }

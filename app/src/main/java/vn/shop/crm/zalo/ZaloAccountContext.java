@@ -56,6 +56,11 @@ public final class ZaloAccountContext {
         return key;
     }
 
+    /** Như {@link #sql()} cho cột có tên khác (ví dụ {@code i.account_id} của bảng lời mời đặt tên tắt {@code i}). */
+    public static String sql(String column) {
+        return column + " = " + current();
+    }
+
     public static <T> T call(long accountId, Supplier<T> body) {
         if (accountId < 1) {
             throw new IllegalArgumentException("Mã tài khoản Zalo phải từ 1");

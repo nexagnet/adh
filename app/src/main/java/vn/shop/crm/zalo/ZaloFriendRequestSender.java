@@ -119,7 +119,7 @@ public class ZaloFriendRequestSender {
                         WHERE i.status = 'SENT' AND i.sent_channel = :ch AND i.zalo_target_uid IS NOT NULL
                           AND i.friend_request_at IS NULL AND i.friend_accept_at IS NULL AND i.friended_at IS NULL AND i.joined_at IS NULL AND i.inbound_at IS NULL
                           AND i.expires_at > :now AND k.auto_send_approved_at IS NOT NULL
-                        """ + testMode.onlyTestSql("c.phone") + " ORDER BY i.sent_at, i.id LIMIT :n")
+                        """ + testMode.onlyTestSql("c.phone") + " AND " + ZaloAccountContext.sql("i.account_id") + " ORDER BY i.sent_at, i.id LIMIT :n")
                 .param("ch", ZaloInviteSender.CHANNEL).param("now", OffsetDateTime.now(clock)).param("n", SCAN)
                 .query((rs, n) -> new Task(rs.getLong("id"), rs.getLong("campaign_id"), rs.getLong("customer_id"), rs.getString("phone"),
                         rs.getString("zalo_target_uid"), rs.getBoolean("blocked")))

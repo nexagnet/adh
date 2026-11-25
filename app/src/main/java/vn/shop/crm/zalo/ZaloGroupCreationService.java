@@ -282,7 +282,9 @@ public class ZaloGroupCreationService implements ZaloTickHook {
                           AND i.group_link_sent_at IS NULL
                           AND (i.reserved_group_id IS NULL OR i.reserved_until <= now())
                           AND (i.zalo_add_state IS NULL OR i.zalo_add_state IN ('WAITING_APPROVAL', 'QUEUED'))
+                          AND i.account_id = :acct
                         ORDER BY i.friended_at NULLS LAST, i.id""")
+                .param("acct", ZaloAccountContext.current())
                 .query((rs, n) -> new Object[]{rs.getLong("id"), rs.getLong("customer_id"), rs.getString("province"),
                         rs.getObject("friended_at", OffsetDateTime.class)}).list().forEach(r -> {
                     var province = VnGeo.byCode((String) r[2]).orElse(null);
