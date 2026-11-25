@@ -271,7 +271,7 @@ public class ZaloDeputyService {
     }
 
     private long usedToday(Instant now) {
-        return jdbc.sql("SELECT count(*) FROM zalo_auto_log WHERE action = :a AND result = :r AND at >= :since")
+        return jdbc.sql("SELECT count(*) FROM zalo_auto_log WHERE " + ZaloAccountContext.sql() + " AND action = :a AND result = :r AND at >= :since")
                 .param("a", ZaloAutoSettings.A_CONFIG).param("r", A_LOOKUP)
                 .param("since", OffsetDateTime.ofInstant(now.minus(Duration.ofHours(24)), ZoneOffset.UTC)).query(Long.class).single();
     }

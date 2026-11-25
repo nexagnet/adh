@@ -159,7 +159,7 @@ public class ZaloAutoSettings {
 
     /** Lần ghi nhật ký đăng nhập gần nhất đã là "XONG" chưa (để không ghi lặp mỗi lần trang tự làm mới). */
     public boolean lastLoginDone() {
-        return jdbc.sql("SELECT result FROM zalo_auto_log WHERE action = :a ORDER BY id DESC LIMIT 1")
+        return jdbc.sql("SELECT result FROM zalo_auto_log WHERE " + ZaloAccountContext.sql() + " AND action = :a ORDER BY id DESC LIMIT 1")
                 .param("a", A_LOGIN).query(String.class).optional().map("XONG"::equals).orElse(false);
     }
 
@@ -173,12 +173,35 @@ public class ZaloAutoSettings {
 
     /** Dừng ngay và giữ nguyên cho đến khi người bấm mở lại. Không tự thử lại. */
     public void trip(String reason, String by) {
+        tripOne(reason, by);
+        if (haltsAllAccounts(reason)) {
+            haltOthers(reason);
+        }
+    }
+
+    private void tripOne(String reason, String by) {
         if (tripped()) {
             return;
         }
         settings.set(TRIPPED_REASON, reason, by);
         settings.set(TRIPPED_AT, clock.instant().toString(), by);
         log(A_STOP, null, null, "TRIPPED", reason, by);
+    }
+
+    /**
+     * D23: Zalo báo hạn chế, lỗi lạ hoặc không rõ kết quả ở MỘT tài khoản thì mọi tài khoản dừng chờ người xem (các tài khoản cùng một chủ, dùng chung
+     * nên một cảnh báo là cảnh báo chung). Người tự bấm Dừng/Đăng xuất, mất phiên, đăng nhập nhầm, hay lỗi riêng người/nhóm thì chỉ dừng tài khoản đó.
+     */
+    static boolean haltsAllAccounts(String reason) {
+        return reason != null && (reason.startsWith("RESTRICTED") || reason.startsWith("SYSTEM_ERROR") || reason.contains("INTERRUPTED"));
+    }
+
+    private void haltOthers(String reason) {
+        long me = ZaloAccountContext.current();
+        for (long other : jdbc.sql("SELECT id FROM zalo_account WHERE enabled AND id <> :me ORDER BY id").param("me", me)
+                .query(Long.class).list()) {
+            ZaloAccountContext.run(other, () -> tripOne("TK_KHAC_DUNG:" + reason + ":" + me, "system"));
+        }
     }
 
     public void reopen(String by) {
@@ -207,8 +230,9 @@ public class ZaloAutoSettings {
 
     public void log(String action, Long invitationId, Long groupId, String result, String code, String actor) {
         jdbc.sql("""
-                        INSERT INTO zalo_auto_log (at, action, invitation_id, group_id, result, code, actor)
-                        VALUES (:at, :a, :i, :g, :r, :c, :by)""")
+                        INSERT INTO zalo_auto_log (at, action, invitation_id, group_id, result, code, actor, account_id)
+                        VALUES (:at, :a, :i, :g, :r, :c, :by, :acct)""")
+                .param("acct", ZaloAccountContext.current())
                 .param("at", OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC))
                 .param("a", action).param("i", invitationId, java.sql.Types.BIGINT).param("g", groupId, java.sql.Types.BIGINT)
                 .param("r", truncate(result, 80)).param("c", code == null ? null : truncate(code, 80), java.sql.Types.VARCHAR)
@@ -221,7 +245,7 @@ public class ZaloAutoSettings {
 
     public List<LogRow> recentLog(int limit) {
         ZoneId zone = clock.getZone();
-        return jdbc.sql("SELECT * FROM zalo_auto_log ORDER BY id DESC LIMIT :n").param("n", limit)
+        return jdbc.sql("SELECT * FROM zalo_auto_log WHERE " + ZaloAccountContext.sql() + " ORDER BY id DESC LIMIT :n").param("n", limit)
                 .query((rs, i) -> new LogRow(rs.getLong("id"),
                         rs.getObject("at", OffsetDateTime.class).atZoneSameInstant(zone).toLocalDateTime(),
                         rs.getString("action"), (Long) rs.getObject("invitation_id"), (Long) rs.getObject("group_id"),
@@ -230,12 +254,12 @@ public class ZaloAutoSettings {
 
     /** Số lần thêm vào nhóm tính từ mốc (kể cả lần lỗi: đếm cả lần lỗi, ADR mục 3.4). */
     private int addsSince(Instant since) {
-        return jdbc.sql("SELECT count(*) FROM zalo_auto_log WHERE action = :a AND at >= :s")
+        return jdbc.sql("SELECT count(*) FROM zalo_auto_log WHERE " + ZaloAccountContext.sql() + " AND action = :a AND at >= :s")
                 .param("a", A_ADD).param("s", OffsetDateTime.ofInstant(since, ZoneOffset.UTC)).query(Integer.class).single();
     }
 
     private Instant lastAdd() {
-        return jdbc.sql("SELECT max(at) FROM zalo_auto_log WHERE action = :a").param("a", A_ADD)
+        return jdbc.sql("SELECT max(at) FROM zalo_auto_log WHERE " + ZaloAccountContext.sql() + " AND action = :a").param("a", A_ADD)
                 .query(OffsetDateTime.class).optional().map(OffsetDateTime::toInstant).orElse(null);
     }
 

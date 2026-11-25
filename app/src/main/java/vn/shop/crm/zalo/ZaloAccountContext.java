@@ -25,6 +25,37 @@ public final class ZaloAccountContext {
         return v == null ? DEFAULT_ACCOUNT : v;
     }
 
+    /**
+     * Mệnh đề SQL giới hạn một bảng có cột {@code account_id} vào tài khoản đang làm việc, ví dụ {@code "... WHERE account_id = 2"}. Là SỐ nguyên
+     * lấy từ {@link #current()} (không bao giờ là chữ do người dùng nhập) nên nối thẳng vào câu lệnh là an toàn.
+     */
+    public static String sql() {
+        return "account_id = " + current();
+    }
+
+    /** Khóa cài đặt thuộc RIÊNG từng tài khoản (hạn mức, khoảng nghỉ, cầu dao, mốc đọc, phó nhóm); khóa khác dùng chung cả hệ thống. */
+    private static final String[] PER_ACCOUNT_PREFIXES = {
+            "zalo.auto.", "zalo.msg.", "zalo.friend.daily", "zalo.friend.paused_until",
+            "zalo.deputy.", "zalo.inbox.cursor", "zalo.group.last_plan_at", "zalo.me"};
+
+    /**
+     * Tên khóa cài đặt ({@code app_setting}) dành cho tài khoản đang làm việc. Tài khoản 1 giữ nguyên tên khóa cũ (không đổi gì khi chỉ có một
+     * tài khoản); tài khoản khác thêm tiền tố {@code acct<N>.} cho các khóa riêng từng tài khoản. Khóa dùng chung (chế độ thử, tạm dừng tất cả,
+     * cấu hình nhóm, AI...) không bao giờ bị đổi tên.
+     */
+    public static String settingKey(String key) {
+        long acct = current();
+        if (acct == DEFAULT_ACCOUNT) {
+            return key;
+        }
+        for (String prefix : PER_ACCOUNT_PREFIXES) {
+            if (key.startsWith(prefix)) {
+                return "acct" + acct + "." + key;
+            }
+        }
+        return key;
+    }
+
     public static <T> T call(long accountId, Supplier<T> body) {
         if (accountId < 1) {
             throw new IllegalArgumentException("Mã tài khoản Zalo phải từ 1");

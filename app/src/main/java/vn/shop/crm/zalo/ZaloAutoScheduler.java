@@ -17,16 +17,31 @@ public class ZaloAutoScheduler {
     private final ZaloAutoService service;
     private final ZaloInviteSender sender;
     private final ObjectProvider<ZaloTickHook> hooks;
+    private final ZaloAccountRegistry accounts;
 
-    public ZaloAutoScheduler(ZaloAutoService service, ZaloInviteSender sender, ObjectProvider<ZaloTickHook> hooks) {
+    public ZaloAutoScheduler(ZaloAutoService service, ZaloInviteSender sender, ObjectProvider<ZaloTickHook> hooks,
+                             ZaloAccountRegistry accounts) {
         this.service = service;
         this.sender = sender;
         this.hooks = hooks;
+        this.accounts = accounts;
     }
 
     @Scheduled(initialDelayString = "${app.zalo.auto.initial-delay-millis:30000}",
             fixedDelayString = "${app.zalo.auto.tick-millis:30000}")
     void tick() {
+        // D23: mỗi nhịp chạy MỘT lần cho từng tài khoản đang chạy, lần lượt (không song song trong cùng nhịp), mỗi lần trong bối cảnh riêng của
+        // tài khoản đó; lỗi ở một tài khoản không làm tài khoản khác bỏ nhịp. Chưa bật nhiều tài khoản thì chỉ có tài khoản 1, y như trước.
+        for (long id : accounts.active()) {
+            try {
+                ZaloAccountContext.run(id, this::tickOne);
+            } catch (RuntimeException e) {
+                log.warn("Bộ nối Zalo tài khoản {} gặp lỗi ở nhịp này: {}", id, e.getClass().getSimpleName());
+            }
+        }
+    }
+
+    private void tickOne() {
         service.tick(); // nghe kết bạn, thêm tối đa một người vào nhóm
         try {
             sender.step(); // tự gửi tối đa một tin của chiến dịch thật (tắt thì không làm gì)

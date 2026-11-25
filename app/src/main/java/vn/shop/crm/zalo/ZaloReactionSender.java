@@ -68,7 +68,7 @@ public class ZaloReactionSender {
 
     private int usedToday() {
         java.time.Instant start = clock.instant().atZone(clock.getZone()).toLocalDate().atStartOfDay(clock.getZone()).toInstant();
-        return jdbc.sql("SELECT count(*) FROM zalo_auto_log WHERE action = :a AND at >= :s").param("a", ACTION)
+        return jdbc.sql("SELECT count(*) FROM zalo_auto_log WHERE " + ZaloAccountContext.sql() + " AND action = :a AND at >= :s").param("a", ACTION)
                 .param("s", OffsetDateTime.ofInstant(start, ZoneOffset.UTC)).query(Integer.class).single();
     }
 }
