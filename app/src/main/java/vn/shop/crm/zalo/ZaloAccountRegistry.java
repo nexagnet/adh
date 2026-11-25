@@ -53,4 +53,33 @@ public class ZaloAccountRegistry {
     public boolean multiEnabled() {
         return multiEnabled;
     }
+
+    /** Một tài khoản để hiện ở trang quản trị. */
+    public record View(long id, String label, boolean enabled) {
+    }
+
+    /** Mọi tài khoản đã khai báo cầu nối, tài khoản 1 trước (để hiện và chuyển qua lại ở trang Zalo). */
+    public List<View> views() {
+        ensureRows();
+        var rows = jdbc.sql("SELECT id, label, enabled FROM zalo_account ORDER BY id")
+                .query((rs, i) -> new View(rs.getLong("id"), rs.getString("label"), rs.getBoolean("enabled"))).list();
+        return rows.stream().filter(v -> routes.has(v.id())).toList();
+    }
+
+    /** Có chọn tài khoản này để xem và chỉnh ở trang quản trị được không (đã khai báo cầu nối). */
+    public boolean selectable(long id) {
+        return routes.has(id);
+    }
+
+    /**
+     * Bật hoặc tạm ngưng một tài khoản THÊM (tài khoản 1 luôn chạy). Tạm ngưng thì bộ hẹn giờ bỏ qua nó (không gửi, không đọc tin); khách đã
+     * gắn tài khoản đó ở yên, KHÔNG chuyển sang tài khoản khác.
+     */
+    public void setEnabled(long id, boolean on) {
+        if (id == ZaloAccountContext.DEFAULT_ACCOUNT || !routes.has(id)) {
+            throw new vn.shop.crm.common.ImportException("Chỉ bật hoặc tạm ngưng được các tài khoản thêm đã khai báo cầu nối.");
+        }
+        ensureRows();
+        jdbc.sql("UPDATE zalo_account SET enabled = :on WHERE id = :id").param("on", on).param("id", id).update();
+    }
 }

@@ -1,6 +1,6 @@
 # Nghiên cứu: chạy nhiều tài khoản Zalo phụ song song, mẹ vẫn là phó nhóm (25/11/2026)
 
-**Trạng thái:** đã có quyết định của chủ dự án (25/11/2026, mục 0); **chưa sửa mã**, không đổi mục đích PR nào đã gộp. Mọi chỗ ghi "chưa kiểm chứng" là chưa chạy thử với Zalo thật.
+**Trạng thái:** đã có quyết định của chủ dự án (25/11/2026, mục 0); **mã đã xong, tắt mặc định** (cờ `APP_ZALO_MULTI_ENABLED`), chưa chạy với tài khoản Zalo thứ hai thật; không đổi mục đích PR nào đã gộp. Hướng dẫn bật: `docs/HUONG-DAN-NHIEU-TAI-KHOAN-ZALO.md`. Mọi chỗ ghi "chưa kiểm chứng" là chưa chạy thử với Zalo thật.
 
 ## 0. Quyết định của chủ dự án (25/11/2026, D23)
 
@@ -10,7 +10,7 @@
 4. Mẹ đồng ý kết bạn với mọi tài khoản phụ và làm phó nhóm ở mọi nhóm.
 5. Có SIM và điện thoại cho tài khoản thứ hai; ban đầu muốn mua thêm máy chủ chạy song song, sau đó báo máy production đã nâng lên **6 GB RAM**, nên máy thứ hai là tùy chọn (mục 3.7).
 
-**Tiến độ:** PR nền (V57: bảng `zalo_account` có một dòng, cột `account_id` mặc định 1 ở `invitation`, `zalo_msg_log`, `zalo_friend_event`, `zalo_group`, `zalo_group_proposal`, `zalo_health_alert`, `zalo_auto_log`; khóa duy nhất của mã Zalo, số thứ tự sự kiện và cảnh báo sức khỏe nay tính theo tài khoản) đã làm; hành vi chưa đổi vì chỉ có một tài khoản. PR định tuyến (`ZaloAccountContext`, `ZaloAccountRoutes`, `ZaloAccountProperties`: mỗi tài khoản một cầu nối bọc lưới an toàn, tài khoản 1 dùng cấu hình cũ, tài khoản thêm khai báo ở `APP_ZALO_ACCOUNTS_n_*`; chưa có bộ hẹn giờ nào đặt tài khoản nên vẫn chỉ tài khoản 1 chạy) đã làm. Chưa làm: bộ hẹn giờ chạy theo từng tài khoản, gán khách theo tài khoản, hạn mức và cầu dao theo tài khoản.
+**Tiến độ:** PR nền (V57: bảng `zalo_account` có một dòng, cột `account_id` mặc định 1 ở `invitation`, `zalo_msg_log`, `zalo_friend_event`, `zalo_group`, `zalo_group_proposal`, `zalo_health_alert`, `zalo_auto_log`; khóa duy nhất của mã Zalo, số thứ tự sự kiện và cảnh báo sức khỏe nay tính theo tài khoản) đã làm; hành vi chưa đổi vì chỉ có một tài khoản. PR định tuyến (`ZaloAccountContext`, `ZaloAccountRoutes`, `ZaloAccountProperties`: mỗi tài khoản một cầu nối bọc lưới an toàn, tài khoản 1 dùng cấu hình cũ, tài khoản thêm khai báo ở `APP_ZALO_ACCOUNTS_n_*`; chưa có bộ hẹn giờ nào đặt tài khoản nên vẫn chỉ tài khoản 1 chạy) đã làm. Sau đó (25/11/2026, PR 3 đến 8, không migration mới): cài đặt, nhật ký, hạn mức, cầu dao và cảnh báo tách theo tài khoản kèm trần tổng, Zalo báo hạn chế ở một tài khoản thì dừng chung, tài khoản mới bắt đầu 3 khách mỗi ngày, bộ hẹn giờ chạy lần lượt từng tài khoản (#161); khách mới chia theo chỗ trống rồi gắn cố định lúc Tin 1, mọi việc sau đó chỉ do đúng tài khoản (#162); nhóm, đề xuất tạo nhóm và phó nhóm theo tài khoản (#163); tin riêng, trả lời của trợ lý AI và chào khách quay lại theo tài khoản (#164); trang `/zalo` chọn tài khoản, trần tổng, tạm ngưng tài khoản thêm; compose cho cầu nối thứ hai (cùng máy `docker-compose.zalo-2.yml`, máy khác `docker-compose.bridge-only.yml`) và hướng dẫn. **Việc còn lại:** thử tay với tài khoản thứ hai thật (chế độ thử), rồi mới bật `APP_ZALO_MULTI_ENABLED`; màn nhắn tay và báo cáo hiệu quả vẫn nhìn chung mọi tài khoản.
 
 Phần mục 1, 6, 7 dưới đây là bản nghiên cứu gốc; mục 6 bước 0 và mục 7 đã được các quyết định trên trả lời.
 
@@ -64,7 +64,7 @@ Phần tốt: sổ từ chối lưu **mã băm số điện thoại**, không ph
 - Mã Zalo của mẹ **khác nhau ở mỗi tài khoản phụ**, nên thay cặp `zalo.deputy.*` bằng bảng `zalo_account_deputy` (tài khoản, mã mẹ, tên, ảnh, dấu tài khoản). Luồng tra bằng số điện thoại và xác nhận tên/ảnh ở `/zalo` đã có, chỉ cần chạy một lần cho mỗi tài khoản (cầu nối chỉ cho 5 lần tra mỗi giờ, đủ).
 - Phó nhóm vẫn đặt ngay lúc tạo nhóm như hôm nay (mẹ vào nhóm trước rồi mới đặt). Nút "Thử lại phó nhóm" thay đổi theo tài khoản của nhóm.
 - Khi một tài khoản bị khóa: nhóm của nó còn nếu còn thành viên và mẹ vẫn là phó nhóm, nhưng không còn ai thêm khách mới vào đó. **Chuyển quyền trưởng nhóm cho mẹ là việc làm tay trên điện thoại** (bộ nối không đổi chủ nhóm, ADR-0002 mục 4). Nên làm trước ở các nhóm đã có.
-- Chưa kiểm chứng: có cần mẹ là bạn của tài khoản phụ thì mới đặt được phó nhóm không (thiết kế tạo nhóm đã ghi điều kiện này); thử với 1 nhóm thật.
+- Đã kiểm chứng (chủ dự án báo 25/11/2026): đặt được phó nhóm. Điều kiện "mẹ phải là bạn của tài khoản phụ" vẫn giữ trong thiết kế; mỗi tài khoản mới thử với 1 nhóm thật.
 
 ### 3.5 Ai trả lời khi khách nhắn riêng
 

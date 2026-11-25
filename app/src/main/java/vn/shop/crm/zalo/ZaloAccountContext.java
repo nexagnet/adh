@@ -61,6 +61,21 @@ public final class ZaloAccountContext {
         return column + " = " + current();
     }
 
+    /**
+     * Gắn tài khoản cho cả LUỒNG yêu cầu web (trang quản trị chọn tài khoản để xem và chỉnh) cho tới khi {@link #unbind()}. Chỉ bộ chặn yêu cầu
+     * ({@link ZaloAccountInterceptor}) được gọi; việc chạy nền dùng {@link #run}.
+     */
+    static void bind(long accountId) {
+        if (accountId < 1) {
+            throw new IllegalArgumentException("Mã tài khoản Zalo phải từ 1");
+        }
+        CURRENT.set(accountId);
+    }
+
+    static void unbind() {
+        CURRENT.remove();
+    }
+
     public static <T> T call(long accountId, Supplier<T> body) {
         if (accountId < 1) {
             throw new IllegalArgumentException("Mã tài khoản Zalo phải từ 1");

@@ -37,9 +37,13 @@ public class ZaloAutoController {
 
     private final ZaloQueueView queueView;
 
+    private final ZaloAccountRegistry accounts;
+
     public ZaloAutoController(ZaloAutoService service, ZaloMessageService messages, vn.shop.crm.send.SendService send,
                               ZaloGroupCreationService groupMaker, ZaloDeputyService deputy, ZaloInboxService inbox,
-                              vn.shop.crm.inbox.ComebackService comebacks, ZaloHealthService health, ZaloQueueView queueView) {
+                              vn.shop.crm.inbox.ComebackService comebacks, ZaloHealthService health, ZaloQueueView queueView,
+                              ZaloAccountRegistry accounts) {
+        this.accounts = accounts;
         this.queueView = queueView;
         this.health = health;
         this.inbox = inbox;
@@ -73,6 +77,18 @@ public class ZaloAutoController {
     public String page(@RequestParam(defaultValue = "tinh-trang") String tab, Model model, HttpServletResponse response) {
         response.setHeader("Cache-Control", "no-store");
         model.addAttribute("tabs", TABS);
+        // D23: nhiều tài khoản phụ: chọn tài khoản để xem và chỉnh (bộ chặn yêu cầu đã gắn tài khoản đang chọn cho cả trang này)
+        var accountViews = accounts.views();
+        model.addAttribute("accounts", accountViews);
+        model.addAttribute("multi", accountViews.size() > 1);
+        model.addAttribute("account", ZaloAccountContext.current());
+        var current = accountViews.stream().filter(v -> v.id() == ZaloAccountContext.current()).findFirst();
+        model.addAttribute("accountLabel", current.map(ZaloAccountRegistry.View::label).orElse("Tài khoản phụ 1"));
+        model.addAttribute("accountEnabled", current.map(ZaloAccountRegistry.View::enabled).orElse(true));
+        model.addAttribute("multiRunning", accounts.multiEnabled());
+        model.addAttribute("totalDaily", messages.totalDaily());
+        model.addAttribute("totalMax", ZaloMessageService.TOTAL_HARD_CAP);
+        model.addAttribute("totalUsed", messages.usedTodayAllAccounts());
         model.addAttribute("tab", TABS.stream().anyMatch(t -> t.key().equals(tab)) ? tab : "tinh-trang");
         ZaloAutoSettings cfg = service.settings();
         boolean enabled = cfg.props().enabled();
@@ -292,6 +308,23 @@ public class ZaloAutoController {
         messages.setLimits(daily, gap, by(user));
         redirect.addFlashAttribute("flash", "Đã lưu hạn mức tin.");
         return "redirect:/zalo?tab=gioi-han";
+    }
+
+    /** Trần TỔNG số khách được nhắn mỗi ngày của mọi tài khoản cộng lại (D23). */
+    @PostMapping("/messages/total-limit")
+    public String totalLimit(@RequestParam int daily, Principal user, RedirectAttributes redirect) {
+        requireEnabled();
+        messages.setTotalDaily(daily, by(user));
+        redirect.addFlashAttribute("flash", "Đã lưu trần tổng số khách mỗi ngày của mọi tài khoản.");
+        return "redirect:/zalo?tab=gioi-han";
+    }
+
+    /** Tạm ngưng hoặc bật lại một tài khoản thêm. Khách đã gắn tài khoản đó ở yên, không chuyển sang tài khoản khác. */
+    @PostMapping("/accounts/{id}/enabled")
+    public String accountEnabled(@PathVariable long id, @RequestParam boolean on, RedirectAttributes redirect) {
+        accounts.setEnabled(id, on);
+        redirect.addFlashAttribute("flash", on ? "Đã bật lại tài khoản " + id + "." : "Đã tạm ngưng tài khoản " + id + ": không gửi, không đọc tin.");
+        return "redirect:/zalo?tab=tinh-trang";
     }
 
     @PostMapping("/messages/friend-limit")
