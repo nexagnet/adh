@@ -66,6 +66,12 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
         fake.reset();
     }
 
+    @Autowired vn.shop.crm.common.AppSettings appSettings;
+
+    private void settingsSet(String key, String value) {
+        appSettings.set(key, value, "test");
+    }
+
     // ---------- tiện ích ----------
 
     private long inv(int n) {
@@ -481,6 +487,98 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
         fake.deputyResults.add(ZaloGroupMaker.DeputyResult.of(GroupOutcome.RESTRICTED, "Z999"));
         assertThat(svc.retryDeputy(id, "mẹ").ok()).isFalse();
         assertThat(auto.tripped()).isTrue();
+    }
+
+    @Test
+    void thuLaiNgoaiGioCuaCauNoiKhongDungCauDaoVaKhongTinhLan() {
+        createdWithDeputyFailed("DEPUTY-Z114");
+        long id = svc.recent(1).getFirst().id();
+        fake.deputyResults.add(ZaloGroupMaker.DeputyResult.of(GroupOutcome.RESTRICTED, "WINDOW"));
+        assertThat(svc.retryDeputy(id, "mẹ").ok()).isFalse();
+        assertThat(auto.tripped()).isFalse();
+        var p = svc.recent(1).getFirst();
+        assertThat(p.deputyTries()).isZero();
+        assertThat(p.deputyCode()).isEqualTo("DEPUTY-Z114"); // giữ mã Zalo thật, không bị mã WINDOW đè
+        assertThat(p.canRetryDeputy()).isTrue();
+    }
+
+    @Test
+    void thuLaiNgoaiGioCuaAdhBiTuChoiTruocKhiGoiZalo() {
+        createdWithDeputyFailed("Z118");
+        long id = svc.recent(1).getFirst().id();
+        clock.set(LocalDateTime.of(2026, 11, 22, 23, 30));
+        assertThatThrownBy(() -> svc.retryDeputy(id, "mẹ")).isInstanceOf(ImportException.class).hasMessageContaining("ngoài giờ");
+        assertThat(fake.deputyCalls).isEmpty();
+        assertThat(svc.recent(1).getFirst().deputyTries()).isZero();
+    }
+
+    @Test
+    void nhomTaoLucChuaChonMeVanThuLaiDuocSauKhiChon() {
+        approvedProposal();
+        fake.willCreate(new Created(GroupOutcome.OK, null, "6666", "https://zalo.me/g/x", List.of("70000001", "70000002", "70000003"), List.of(),
+                "NONE", null, 0, false));
+        assertThat(svc.step()).isEqualTo(Step.CREATED);
+        var p = svc.recent(1).getFirst();
+        assertThat(p.deputyState()).isEqualTo("NONE");
+        assertThat(p.canRetryDeputy()).isTrue();
+        assertThat(svc.retryDeputy(p.id(), "mẹ").ok()).isTrue();
+        assertThat(svc.recent(1).getFirst().deputyState()).isEqualTo("OK");
+    }
+
+    @Test
+    void maMeTuTaiKhoanCuThiKhongDungVaXacNhanLaiThiDatLaiSoLan() {
+        createdWithDeputyFailed("Z118");
+        long id = svc.recent(1).getFirst().id();
+        jdbc.sql("UPDATE zalo_group_proposal SET deputy_tries = 5 WHERE id = :id").param("id", id).update();
+        settingsSet("zalo.deputy.uid", "4242");
+        settingsSet("zalo.deputy.acct", "aaaaaaaaaaaa");
+        fake.status = new vn.shop.crm.zalo.ZaloGateway.Status(vn.shop.crm.zalo.ZaloGateway.State.LISTENING, null, true, null,
+                java.time.Instant.parse("2026-11-22T00:00:00Z"), null, "bbbbbbbbbbbb");
+        assertThat(deputies.stale()).isTrue();
+        assertThat(deputies.effectiveUid()).isEmpty();
+        assertThat(deputies.current().stale()).isTrue();
+        // khớp tài khoản thì dùng được
+        settingsSet("zalo.deputy.acct", "bbbbbbbbbbbb");
+        assertThat(deputies.stale()).isFalse();
+        assertThat(deputies.effectiveUid()).isEqualTo("4242");
+        // xác nhận mã mới: đặt lại số lần của các nhóm chưa có phó nhóm
+        settingsSet("zalo.deputy.cand_uid", "5555");
+        settingsSet("zalo.deputy.cand_name", "Mẹ");
+        settingsSet("zalo.deputy.cand_at", clock.instant().toString());
+        settingsSet("zalo.deputy.cand_acct", "bbbbbbbbbbbb");
+        deputies.confirm("admin");
+        assertThat(deputies.effectiveUid()).isEqualTo("5555");
+        assertThat(svc.recent(1).getFirst().deputyTries()).isZero();
+    }
+
+    @Test
+    void tuThuLaiPhoNhomKhiRanhCoKhoangNghiCoDinhVaTranBaLan() {
+        createdWithDeputyFailed("Z118");
+        mode(ZaloGroupMode.CONFIRM);
+        fake.deputyResults.add(ZaloGroupMaker.DeputyResult.of(GroupOutcome.OK, "DEPUTY-Z114"));
+        svc.tick();
+        assertThat(fake.deputyCalls).hasSize(1);
+        svc.tick(); // chưa đủ 60 phút
+        assertThat(fake.deputyCalls).hasSize(1);
+        later(61);
+        fake.deputyResults.add(ZaloGroupMaker.DeputyResult.of(GroupOutcome.OK, "DEPUTY-Z114"));
+        svc.tick();
+        later(61);
+        fake.deputyResults.add(ZaloGroupMaker.DeputyResult.of(GroupOutcome.OK, "DEPUTY-Z114"));
+        svc.tick();
+        assertThat(fake.deputyCalls).hasSize(3);
+        later(61);
+        svc.tick(); // đủ ba lần tự thử: dừng, nút tay còn hai lần
+        assertThat(fake.deputyCalls).hasSize(3);
+        assertThat(svc.recent(1).getFirst().canRetryDeputy()).isTrue();
+    }
+
+    @Test
+    void tuThuLaiThanhCongThiDoiSangOk() {
+        createdWithDeputyFailed("Z118");
+        mode(ZaloGroupMode.CONFIRM);
+        svc.tick();
+        assertThat(svc.recent(1).getFirst().deputyState()).isEqualTo("OK");
     }
 
     @Test

@@ -857,8 +857,8 @@ test('tạo nhóm: đặt phó nhóm lỗi thì báo kèm mã lỗi Zalo thật 
   const r = await c.bridge.createGroup(NEW_GROUP);
   assert.equal(r.outcome, 'OK');
   assert.equal(r.deputy, 'FAILED');
-  assert.equal(r.deputyCode, 'Z118');
-  assert.ok(c.logs.join('\n').includes('mã Z118'));
+  assert.equal(r.deputyCode, 'DEPUTY-Z118');
+  assert.ok(c.logs.join('\n').includes('mã DEPUTY-Z118'));
   assert.ok(!c.logs.join('\n').match(/900|9001/));
   assert.equal(c.bridge.status().state, 'LISTENING');
   c.cleanup();
@@ -873,7 +873,7 @@ test('đặt lại phó nhóm: thêm mẹ vào nhóm rồi đặt phó nhóm; sa
   assert.deepEqual(c.adapter.adds, [{ uid: '900', groupId: '9001' }]);
   assert.deepEqual(c.adapter.deputies, [{ uid: '900', groupId: '9001' }]);
   c.adapter.deputyError = Object.assign(new Error('x'), { code: 118 });
-  assert.deepEqual(await c.bridge.setDeputy({ groupId: '9001', uid: '900' }), { outcome: 'OK', deputy: 'FAILED', code: 'Z118' });
+  assert.deepEqual(await c.bridge.setDeputy({ groupId: '9001', uid: '900' }), { outcome: 'OK', deputy: 'FAILED', code: 'DEPUTY-Z118' });
   for (let i = 0; i < 8; i++) await c.bridge.setDeputy({ groupId: '9001', uid: '900' });
   assert.equal((await c.bridge.setDeputy({ groupId: '9001', uid: '900' })).outcome, 'RATE_LIMITED');
   assert.equal(c.bridge.status().state, 'LISTENING');
@@ -1570,5 +1570,21 @@ test('tin riêng: tệp hộp thư mã hóa, không có chữ rõ, xác nhận t
   c.bridge.inboxMessages(seq);
   const b2 = c.rebuild();
   assert.deepEqual(b2.inboxMessages(0), []);
+  c.cleanup();
+});
+
+test('đặt lại phó nhóm: ghi cả mã bước thêm vào nhóm (ADD) và bước đặt phó nhóm (DEPUTY)', async () => {
+  const c = await ready();
+  c.adapter.nextAdd = Object.assign(new Error('chưa là bạn'), { code: 164 });
+  c.adapter.deputyError = Object.assign(new Error('không phải thành viên'), { code: 114 });
+  assert.deepEqual(await c.bridge.setDeputy({ groupId: '9001', uid: '900' }), { outcome: 'OK', deputy: 'FAILED', code: 'ADD-Z164_DEPUTY-Z114' });
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  c.cleanup();
+});
+
+test('trạng thái có dấu băm ngắn của tài khoản phụ, không phải mã Zalo', async () => {
+  const c = await ready();
+  const tag = c.bridge.status().accountTag;
+  assert.match(tag, /^[0-9a-f]{12}$/);
   c.cleanup();
 });

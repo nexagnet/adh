@@ -55,12 +55,17 @@ public class ZaloGroupCreationService implements ZaloTickHook {
 
         /** Nhóm đã tạo nhưng chưa đặt được mẹ làm phó nhóm: hiện nút "Thử lại phó nhóm" (tối đa {@link #MAX_DEPUTY_TRIES} lần). */
         public boolean canRetryDeputy() {
-            return "DONE".equals(state) && "FAILED".equals(deputyState) && deputyTries < MAX_DEPUTY_TRIES;
+            // NONE: nhóm tạo lúc chưa chọn mẹ, nay đã chọn thì cũng cho thử đặt
+            return "DONE".equals(state) && ("FAILED".equals(deputyState) || "NONE".equals(deputyState)) && deputyTries < MAX_DEPUTY_TRIES;
         }
     }
 
     /** Số lần tối đa bấm "Thử lại phó nhóm" cho một nhóm. */
     public static final int MAX_DEPUTY_TRIES = 5;
+    /** Số lần tối đa hệ thống TỰ thử mỗi nhóm; phần còn lại dành cho nút bấm tay. */
+    public static final int MAX_AUTO_DEPUTY_TRIES = 3;
+    /** Cầu nối từ chối trước khi chạm Zalo (ngoài giờ, đang ngắt, bận, chưa nối): không phải lỗi của Zalo, không tính lần, không dừng cầu dao. */
+    private static final Set<String> NOT_REACHED_CODES = Set.of("WINDOW", "NOT_ACTIVE", "BUSY", "NOT_CONNECTED", "LOGIN_REQUIRED", "BRIDGE_DOWN", "TEST_MODE");
 
     private record Member(long invitationId, long customerId, String uid) {
     }
@@ -116,9 +121,37 @@ public class ZaloGroupCreationService implements ZaloTickHook {
     @Override
     public void tick() {
         try {
-            step();
+            Step s = step();
+            if (s == Step.NOTHING || s == Step.WAIT || s == Step.NOT_DUE) {
+                autoRetryDeputy(); // rảnh việc tạo nhóm thì mới xét thử lại phó nhóm
+            }
         } catch (RuntimeException e) {
             log.warn("Tự tạo nhóm Zalo gặp lỗi: {}", e.getClass().getSimpleName());
+        }
+    }
+
+    /**
+     * Tự thử lại đặt phó nhóm cho MỘT nhóm chưa có phó nhóm (FAILED hoặc NONE) khi đã chọn mẹ: khoảng nghỉ cố định 60 phút giữa hai lần,
+     * trong khung giờ, tối đa {@link #MAX_AUTO_DEPUTY_TRIES} lần mỗi nhóm, không khi cầu dao ngắt hay mã mẹ thuộc tài khoản cũ.
+     * Mẹ chưa kết bạn thì lần nào cũng lỗi, nên có trần; sau đó nút bấm tay còn 2 lần.
+     */
+    private void autoRetryDeputy() {
+        if (deputies.effectiveUid().isEmpty() || !inWindow() || !deputies.autoRetryDue() || auto.tripped()) {
+            return;
+        }
+        Optional<Long> next = jdbc.sql("""
+                        SELECT p.id FROM zalo_group_proposal p JOIN zalo_group g ON g.id = p.group_id
+                        WHERE p.state = 'DONE' AND p.deputy_state IN ('FAILED', 'NONE') AND p.deputy_tries < :max
+                          AND g.zalo_group_id IS NOT NULL ORDER BY p.id LIMIT 1""")
+                .param("max", MAX_AUTO_DEPUTY_TRIES).query(Long.class).optional();
+        if (next.isEmpty()) {
+            return;
+        }
+        deputies.markAutoRetry(); // ghi trước khi gọi Zalo
+        try {
+            retryDeputy(next.get(), "tự động");
+        } catch (ImportException e) {
+            // chưa sẵn sàng (cầu nối đang bận hoặc ngắt): bỏ qua, lần sau thử lại
         }
     }
 
@@ -347,7 +380,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
                     m.put("zalo", rs.getString("zalo_group_id"));
                     return m;
                 }).optional().orElse(null);
-        if (row == null || !"DONE".equals(row.get("state")) || !"FAILED".equals(row.get("deputy"))) {
+        if (row == null || !"DONE".equals(row.get("state")) || !("FAILED".equals(row.get("deputy")) || "NONE".equals(row.get("deputy")))) {
             throw new ImportException("Nhóm này không cần thử lại phó nhóm.");
         }
         String zaloGroup = (String) row.get("zalo");
@@ -359,7 +392,12 @@ public class ZaloGroupCreationService implements ZaloTickHook {
         }
         String deputy = deputies.effectiveUid();
         if (deputy.isEmpty() || !deputy.matches("\\d{1,32}")) {
-            throw new ImportException("Chưa chọn mẹ làm phó nhóm. Nhập số điện thoại của mẹ ở mục phó nhóm rồi xác nhận.");
+            throw new ImportException(deputies.stale()
+                    ? "Mã của mẹ được tra từ tài khoản Zalo phụ cũ nên không dùng được. Hãy nhập lại số điện thoại của mẹ ở mục phó nhóm rồi xác nhận."
+                    : "Chưa chọn mẹ làm phó nhóm. Nhập số điện thoại của mẹ ở mục phó nhóm rồi xác nhận.");
+        }
+        if (!inWindow()) {
+            throw new ImportException("Đang ngoài giờ cho phép (" + cfg.props().windowStart() + " đến " + cfg.props().windowEnd() + "). Thử lại trong giờ.");
         }
         if (!lock.tryLock()) {
             throw new ImportException("Hệ thống đang bận tạo nhóm. Thử lại sau ít phút.");
@@ -371,6 +409,12 @@ public class ZaloGroupCreationService implements ZaloTickHook {
             // Ghi số lần TRƯỚC khi gọi Zalo: sập giữa chừng vẫn tính một lần.
             jdbc.sql("UPDATE zalo_group_proposal SET deputy_tries = deputy_tries + 1 WHERE id = :id").param("id", proposalId).update();
             ZaloGroupMaker.DeputyResult r = maker.setDeputy(zaloGroup, deputy);
+            if (!r.ok() && notReachedZalo(r)) {
+                // chưa chạm Zalo: trả lại lần đã tính, giữ nguyên mã lỗi cũ, không dừng cầu dao
+                jdbc.sql("UPDATE zalo_group_proposal SET deputy_tries = greatest(deputy_tries - 1, 0) WHERE id = :id").param("id", proposalId).update();
+                auto.log(ZaloGroupSettings.A_GROUP, null, null, "PHO_NHOM_CHUA_GOI", r.code() == null ? "KHONG_RO" : r.code(), by);
+                return r;
+            }
             if (r.ok()) {
                 jdbc.sql("UPDATE zalo_group_proposal SET deputy_state = 'OK', deputy_code = NULL WHERE id = :id").param("id", proposalId).update();
                 auto.log(ZaloGroupSettings.A_GROUP, null, null, "PHO_NHOM_OK", null, by);
@@ -386,6 +430,12 @@ public class ZaloGroupCreationService implements ZaloTickHook {
         } finally {
             lock.unlock();
         }
+    }
+
+    private static boolean notReachedZalo(ZaloGroupMaker.DeputyResult r) {
+        ZaloGroupMaker.GroupOutcome o = r.outcome();
+        return o == ZaloGroupMaker.GroupOutcome.UNREACHABLE || o == ZaloGroupMaker.GroupOutcome.RATE_LIMITED
+                || (r.code() != null && NOT_REACHED_CODES.contains(r.code()));
     }
 
     // ---------- tạo nhóm ----------

@@ -29,11 +29,16 @@ public interface ZaloGateway {
      * @param tripReason  lý do cầu nối tự dừng, nếu có (mã ngắn, không chứa dữ liệu khách)
      * @param accountOk   tài khoản đang đăng nhập có đúng là tài khoản phụ đã khai báo không (null = chưa biết)
      * @param lastEventAt lần cuối nhận được một sự kiện kết bạn
+     * @param accountTag  dấu băm ngắn của tài khoản phụ đang dùng (không phải mã Zalo; null = chưa biết): để biết mã của mẹ tra ra thuộc tài khoản nào
      */
     record Status(State state, String tripReason, Boolean accountOk, Instant lastEventAt, Instant sessionSince,
-                  String detail) {
+                  String detail, String accountTag) {
+        public Status(State state, String tripReason, Boolean accountOk, Instant lastEventAt, Instant sessionSince, String detail) {
+            this(state, tripReason, accountOk, lastEventAt, sessionSince, detail, null);
+        }
+
         public static Status of(State state) {
-            return new Status(state, null, null, null, null, null);
+            return new Status(state, null, null, null, null, null, null);
         }
 
         public boolean listening() {
