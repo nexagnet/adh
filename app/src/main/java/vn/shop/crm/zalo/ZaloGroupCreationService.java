@@ -141,9 +141,9 @@ public class ZaloGroupCreationService implements ZaloTickHook {
         }
         Optional<Long> next = jdbc.sql("""
                         SELECT p.id FROM zalo_group_proposal p JOIN zalo_group g ON g.id = p.group_id
-                        WHERE p.state = 'DONE' AND p.deputy_state IN ('FAILED', 'NONE') AND p.deputy_tries < :max
+                        WHERE p.account_id = :acct AND p.state = 'DONE' AND p.deputy_state IN ('FAILED', 'NONE') AND p.deputy_tries < :max
                           AND g.zalo_group_id IS NOT NULL ORDER BY p.id LIMIT 1""")
-                .param("max", MAX_AUTO_DEPUTY_TRIES).query(Long.class).optional();
+                .param("max", MAX_AUTO_DEPUTY_TRIES).param("acct", ZaloAccountContext.current()).query(Long.class).optional();
         if (next.isEmpty()) {
             return;
         }
@@ -165,18 +165,18 @@ public class ZaloGroupCreationService implements ZaloTickHook {
             return Step.NOTHING;
         }
         try {
-            if (count("SELECT count(*) FROM zalo_group_proposal WHERE state = 'CREATING'") > 0) {
+            if (count("SELECT count(*) FROM zalo_group_proposal WHERE " + ZaloAccountContext.sql() + " AND state = 'CREATING'") > 0) {
                 // Một lần tạo trước đó không có kết quả (sập giữa chừng): không biết đã tạo hay chưa, dừng, không tự thử lại.
                 tripAndStop("TAO_NHOM_INTERRUPTED");
                 return Step.TRIPPED;
             }
             expireOld();
-            Optional<Long> approved = jdbc.sql("SELECT id FROM zalo_group_proposal WHERE state = 'APPROVED' ORDER BY id LIMIT 1")
+            Optional<Long> approved = jdbc.sql("SELECT id FROM zalo_group_proposal WHERE " + ZaloAccountContext.sql() + " AND state = 'APPROVED' ORDER BY id LIMIT 1")
                     .query(Long.class).optional();
             if (approved.isPresent()) {
                 return execute(approved.get());
             }
-            if (count("SELECT count(*) FROM zalo_group_proposal WHERE state = 'PROPOSED'") > 0) {
+            if (count("SELECT count(*) FROM zalo_group_proposal WHERE " + ZaloAccountContext.sql() + " AND state = 'PROPOSED'") > 0) {
                 return Step.WAIT; // đang chờ mẹ duyệt
             }
             if (mode == ZaloGroupMode.AUTO && !mayCreateNow()) {
@@ -204,7 +204,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
     }
 
     private Instant lastStarted() {
-        return jdbc.sql("SELECT max(started_at) FROM zalo_group_proposal").query(OffsetDateTime.class).optional()
+        return jdbc.sql("SELECT max(started_at) FROM zalo_group_proposal WHERE " + ZaloAccountContext.sql()).query(OffsetDateTime.class).optional()
                 .map(OffsetDateTime::toInstant).orElse(null);
     }
 
@@ -233,8 +233,8 @@ public class ZaloGroupCreationService implements ZaloTickHook {
         List<GroupPlanner.Waiting> waiting = waitingCustomers();
         Set<String> rejected = new HashSet<>(jdbc.sql("""
                         SELECT DISTINCT scope FROM zalo_group_proposal
-                        WHERE state = 'REJECTED' AND decided_at > :since""")
-                .param("since", OffsetDateTime.ofInstant(now.minusSeconds(24 * 3600L), ZoneOffset.UTC)).query(String.class).list());
+                        WHERE account_id = :acct AND state = 'REJECTED' AND decided_at > :since""")
+                .param("acct", ZaloAccountContext.current()).param("since", OffsetDateTime.ofInstant(now.minusSeconds(24 * 3600L), ZoneOffset.UTC)).query(String.class).list());
         Optional<GroupPlanner.Plan> plan = GroupPlanner.plan(waiting, cfg.minCustomers(), cfg.props().maxMembers(), rejected, now,
                 java.time.Duration.ofDays(cfg.relaxDays()));
         if (plan.isEmpty()) {
@@ -248,9 +248,9 @@ public class ZaloGroupCreationService implements ZaloTickHook {
         boolean auto = mode == ZaloGroupMode.AUTO;
         long id = tx.execute(s -> {
             long pid = jdbc.sql("""
-                            INSERT INTO zalo_group_proposal (scope, group_name, reason, waiting_count, state, decided_by, decided_at, created_at)
-                            VALUES (:scope, :name, :reason, :n, :state, :by, CASE WHEN :auto THEN CAST(:now AS TIMESTAMPTZ) END, :now) RETURNING id""")
-                    .param("scope", p.scope().code()).param("name", name).param("reason", reason).param("n", p.waitingInScope())
+                            INSERT INTO zalo_group_proposal (scope, group_name, reason, waiting_count, state, decided_by, decided_at, created_at, account_id)
+                            VALUES (:scope, :name, :reason, :n, :state, :by, CASE WHEN :auto THEN CAST(:now AS TIMESTAMPTZ) END, :now, :acct) RETURNING id""")
+                    .param("acct", ZaloAccountContext.current()).param("scope", p.scope().code()).param("name", name).param("reason", reason).param("n", p.waitingInScope())
                     .param("state", auto ? "APPROVED" : "PROPOSED").param("by", auto ? "system" : null, java.sql.Types.VARCHAR)
                     .param("auto", auto).param("now", now()).query(Long.class).single();
             for (long inv : p.invitationIds()) {
@@ -265,7 +265,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
 
     /** Khách đã kết bạn, có mã Zalo, chưa vào nhóm nào và KHÔNG có nhóm hợp khu vực đang nhận khách. */
     List<GroupPlanner.Waiting> waitingCustomers() {
-        List<GroupService.Group> everyGroup = groups.list();
+        List<GroupService.Group> everyGroup = groups.listOfAccount(ZaloAccountContext.current());
         // Cùng định nghĩa "còn chỗ" với bộ nối thêm người (ZaloAutoService.addNext): nhóm có link, đang mở, CÓ mã nhóm Zalo, chưa đầy.
         // Nhóm chỉ có link (mẹ tạo tay, chưa gán mã Zalo) không được tính, nếu không khách chờ mãi mà không ai đề xuất nhóm mới.
         List<GroupService.Group> all = everyGroup.stream().filter(GroupService.Group::hasZaloId).toList();
@@ -559,7 +559,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
             long groupId;
             String link = safeLink(r.link());
             boolean linkOk = link != null;
-            groupId = groups.create(name, link, cfg.targetCustomers(), scope.code());
+            groupId = groups.create(name, link, cfg.targetCustomers(), scope.code(), ZaloAccountContext.current());
             groups.setZaloGroupId(groupId, r.groupId());
             if (linkOk) {
                 groups.setStatus(groupId, GroupStatus.OPEN);
