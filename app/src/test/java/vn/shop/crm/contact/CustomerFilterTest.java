@@ -42,6 +42,8 @@ class CustomerFilterTest extends AbstractPostgresTest {
     @Autowired
     ExchangeMarkers markers;
     @Autowired
+    CampaignPreview preview;
+    @Autowired
     WebApplicationContext context;
 
     private void importRows(String... rows) {
@@ -273,5 +275,64 @@ class CustomerFilterTest extends AbstractPostgresTest {
                 .andExpect(content().string(containsString("Khách mua gần đây nhất trước")));
         mvc.perform(post("/campaigns").with(owner).with(csrf()).param("name", "Lỗi").param("count", "5").param("minDays", "abc"))
                 .andExpect(status().is4xxClientError());
+    }
+
+    // ---------- xem trước (PR 2) ----------
+
+    @Test
+    void xemTruocDemDungVaChiRaTungDieuKienLoaiBaoNhieu() {
+        markers.save("DOI", "", "", "admin");
+        var filter = f(b -> b.exchange(CustomerFilter.Tri.NO).cancelled(CustomerFilter.Tri.NO).noOpen());
+        var r = preview.preview(null, 30, filter);
+        assertThat(r.ok()).isTrue();
+        assertThat(r.base()).isEqualTo(5);
+        assertThat(r.steps()).extracting(CampaignPreview.Step::remaining).containsExactly(4L, 3L, 1L); // bỏ C (đổi), rồi B (hủy), rồi D và E (đơn chưa xong)
+        assertThat(r.steps()).extracting(CampaignPreview.Step::removed).containsExactly(1L, 1L, 2L);
+        assertThat(r.matched()).isEqualTo(1);
+        assertThat(r.willInvite()).isEqualTo(1);
+        assertThat(r.byArea()).extracting(CampaignPreview.AreaCount::count).containsExactly(1L, 0L, 0L, 0L);
+        // số xem trước đúng bằng số khách chiến dịch thật lấy được
+        assertThat(contacts.eligibleNotInvited(30, null, filter)).hasSize((int) r.matched());
+    }
+
+    @Test
+    void xemTruocBoLocTrongThiBangSoKhachDuDieuKienVaKhongTaoGi() {
+        var r = preview.preview(null, 3, CustomerFilter.NONE);
+        assertThat(r.matched()).isEqualTo(5);
+        assertThat(r.willInvite()).isEqualTo(3);
+        assertThat(r.steps()).isEmpty();
+        assertThat(invites.campaigns()).isEmpty();
+        assertThat(jdbc.sql("SELECT count(*) FROM invitation").query(Long.class).single()).isZero();
+        assertThat(preview.preview("R:NAM", 30, CustomerFilter.NONE).matched()).isEqualTo(2);
+        assertThat(preview.preview("R:NAM", 30, CustomerFilter.NONE).byArea()).isEmpty();
+    }
+
+    @Test
+    void xemTruocBaoLoiBangChuKhiChuaCaiDonDoiHoacKhuVucSai() {
+        var r = preview.preview(null, 30, f(b -> b.exchange(CustomerFilter.Tri.NO)));
+        assertThat(r.ok()).isFalse();
+        assertThat(r.error()).contains("Chưa cài cách nhận biết đơn đổi");
+        assertThat(preview.preview("R:ABC", 30, CustomerFilter.NONE).error()).contains("Khu vực không hợp lệ");
+    }
+
+    @Test
+    void trangXemTruocTraDoanTrangVaKhongTaoChienDich() throws Exception {
+        MockMvc mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+        var owner = user("admin").roles("OWNER");
+        mvc.perform(post("/campaigns/preview").with(owner).with(csrf()).param("count", "30").param("cancelled", "NO"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("khách khớp")))
+                .andExpect(content().string(containsString("Không có đơn hủy")))
+                .andExpect(content().string(containsString("data-matched=\"3\"")));
+        mvc.perform(post("/campaigns/preview").with(owner).with(csrf()).param("exchange", "NO"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Chưa xem trước được")))
+                .andExpect(content().string(containsString("data-matched=\"0\"")));
+        mvc.perform(post("/campaigns/preview").with(owner).with(csrf()).param("minDays", "abc"))
+                .andExpect(status().isOk()).andExpect(content().string(containsString("phải là số nguyên")));
+        mvc.perform(get("/campaigns").param("tab", "moi").with(owner)).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Xem trước số khách khớp")))
+                .andExpect(content().string(containsString("campaign-preview.js")));
+        assertThat(invites.campaigns()).isEmpty();
     }
 }

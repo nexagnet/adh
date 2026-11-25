@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<body>
+<div th:fragment="preview" class="stack" th:attr="data-matched=${preview.ok} ? ${preview.willInvite} : '0'">
+    <p class="notice warn" th:if="${!preview.ok}"><strong>Chưa xem trước được</strong> <span th:text="${preview.error}">Lỗi</span></p>
+    <th:block th:if="${preview.ok}">
+        <p>
+            <strong th:text="${preview.matched}">48</strong> khách khớp
+            <span th:if="${preview.matched > 0}">&rarr; chiến dịch sẽ mời <strong th:text="${preview.willInvite}">30</strong> khách (theo số khách tối đa đã nhập).</span>
+            <span th:if="${preview.matched == 0}">&mdash; chưa có khách nào, hãy nới bớt điều kiện (xem bảng bên dưới điều kiện nào làm hết khách).</span>
+        </p>
+        <p class="muted" th:if="${!preview.byArea.isEmpty()}">Theo khu vực:
+            <span th:each="a, st : ${preview.byArea}"><span th:text="${a.label}">Miền Nam</span> <strong th:text="${a.count}">3</strong><span th:if="${!st.last}"> · </span></span></p>
+        <table class="table" th:if="${!preview.steps.isEmpty()}">
+            <caption class="muted">Từng điều kiện loại bớt bao nhiêu khách (tính lần lượt từ trên xuống)</caption>
+            <thead><tr><th>Điều kiện</th><th>Còn lại</th><th>Bị loại</th></tr></thead>
+            <tbody>
+            <tr><td>Đủ điều kiện mời, chưa từng được mời<span class="muted"> (trong khu vực đã chọn)</span></td><td th:text="${preview.base}">400</td><td>&ndash;</td></tr>
+            <tr th:each="s : ${preview.steps}"><td th:text="${s.label}">Không có đơn hủy</td><td th:text="${s.remaining}">380</td><td th:text="${s.removed}">20</td></tr>
+            </tbody>
+        </table>
+        <p class="hint">Chỉ đếm: chưa tạo chiến dịch, chưa gửi gì cho ai.</p>
+    </th:block>
+</div>
+</body>
+</html>
