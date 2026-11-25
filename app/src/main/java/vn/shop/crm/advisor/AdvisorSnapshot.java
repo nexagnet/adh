@@ -3,6 +3,8 @@ package vn.shop.crm.advisor;
 import tools.jackson.databind.PropertyNamingStrategies;
 import tools.jackson.databind.json.JsonMapper;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.util.List;
 
 /**
@@ -21,23 +23,30 @@ public record AdvisorSnapshot(
         List<Slot> sendSlots,
         List<CampaignInfo> campaigns,
         List<PastProposal> pastProposals,
-        List<OwnerNote> ownerNotes) {
+        List<OwnerNote> ownerNotes,
+        @JsonInclude(JsonInclude.Include.NON_NULL) Insights insights) {
 
     /** Bản không có danh sách chiến dịch (dùng trong test và khi chưa có chiến dịch nào). */
     public AdvisorSnapshot(String generatedOn, Calendar calendar, Limits limits, Overall overall, List<Area> areas, List<Slot> sendSlots) {
-        this(generatedOn, calendar, limits, overall, areas, sendSlots, List.of(), List.of(), List.of());
+        this(generatedOn, calendar, limits, overall, areas, sendSlots, List.of(), List.of(), List.of(), null);
     }
 
     /** Bản không có kết quả các đề xuất trước (dùng trong test). */
     public AdvisorSnapshot(String generatedOn, Calendar calendar, Limits limits, Overall overall, List<Area> areas, List<Slot> sendSlots,
                            List<CampaignInfo> campaigns) {
-        this(generatedOn, calendar, limits, overall, areas, sendSlots, campaigns, List.of(), List.of());
+        this(generatedOn, calendar, limits, overall, areas, sendSlots, campaigns, List.of(), List.of(), null);
     }
 
     /** Bản không có ghi chú của chủ shop (dùng trong test). */
     public AdvisorSnapshot(String generatedOn, Calendar calendar, Limits limits, Overall overall, List<Area> areas, List<Slot> sendSlots,
                            List<CampaignInfo> campaigns, List<PastProposal> pastProposals) {
-        this(generatedOn, calendar, limits, overall, areas, sendSlots, campaigns, pastProposals, List.of());
+        this(generatedOn, calendar, limits, overall, areas, sendSlots, campaigns, pastProposals, List.of(), null);
+    }
+
+    /** Bản không có hồ sơ cửa hàng và số liệu bổ sung (dùng trong test). */
+    public AdvisorSnapshot(String generatedOn, Calendar calendar, Limits limits, Overall overall, List<Area> areas, List<Slot> sendSlots,
+                           List<CampaignInfo> campaigns, List<PastProposal> pastProposals, List<OwnerNote> ownerNotes) {
+        this(generatedOn, calendar, limits, overall, areas, sendSlots, campaigns, pastProposals, ownerNotes, null);
     }
 
     private static final JsonMapper JSON = JsonMapper.builder()
@@ -137,6 +146,26 @@ public record AdvisorSnapshot(
      * {@code buyers}: số khách mua sau khi vào nhóm, null nếu chiến dịch quá nhỏ (ẩn để không suy ngược ra từng khách).
      */
     public record PastProposal(double confidence, int daysAgo, long sent, long friended, long joined, long optedOut, Long buyers) {
+    }
+
+    /**
+     * Bối cảnh bổ sung (null nếu chưa có gì): hồ sơ cửa hàng chủ shop khai, kết quả theo ngày trong tuần, và so sánh mua lại giữa khách đã vào nhóm với khách
+     * được mời mà chưa vào nhóm.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Insights(Shop shop, List<Slot> sendWeekdays, Repurchase repurchase) {
+    }
+
+    /** Hồ sơ cửa hàng (chữ chủ shop tự gõ, đã kiểm; ô chưa khai là null). {@code goal}: VAO_NHOM, MUA_LAI hoặc CA_HAI. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Shop(String products, String season, String offer, String goal, String avoid) {
+    }
+
+    /**
+     * Mua lại trong {@code windowDays} ngày sau khi nhận lời mời: khách đã vào nhóm so với khách được mời mà chưa vào nhóm (chỉ số, chỉ khi cả hai nhóm đủ lớn).
+     * Chỉ là so sánh quan sát: khách vốn quan tâm hơn thì dễ vào nhóm hơn, không chứng minh nhóm làm họ mua nhiều hơn.
+     */
+    public record Repurchase(int windowDays, long joinedCustomers, long joinedBought, long otherCustomers, long otherBought) {
     }
 
     /** Ghi chú còn hiệu lực của chủ shop (chữ tự gõ, đã kiểm). {@code daysLeft}: còn bao nhiêu ngày thì hết hiệu lực (0 là hết hạn hôm nay). */

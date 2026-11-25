@@ -191,6 +191,35 @@ class PerformanceServiceTest extends AbstractPostgresTest {
         assertThat(p.joinedCohort().rate()).isEqualTo(0.75);
     }
 
+    @Autowired
+    vn.shop.crm.advisor.AdvisorSnapshotService advisorSnapshots;
+
+    @Test
+    void soSanhMuaLaiDuocDuaChoAiChiKhiMoiNhomDuLon() {
+        long c = campaign("Đợt 1", null);
+        for (int i = 0; i < 4; i++) {
+            invite(c, customer(), 45, 44, 43, null);
+        }
+        for (int i = 0; i < 4; i++) {
+            invite(c, customer(), 45, null, null, null);
+        }
+        assertThat(advisorSnapshots.build().insights().repurchase()).as("mỗi nhóm dưới 5 khách thì không báo").isNull();
+
+        String j = customer();
+        invite(c, j, 45, 44, 43, null);
+        ship(j, "DH-J", "TJ", "DELIVERED", 30);
+        String n = customer();
+        invite(c, n, 45, null, null, null);
+        ship(n, "DH-N", "TN", "DELIVERED", 30);
+        var r = advisorSnapshots.build().insights().repurchase();
+        assertThat(r.windowDays()).isEqualTo(30);
+        assertThat(r.joinedCustomers()).isEqualTo(5);
+        assertThat(r.joinedBought()).isEqualTo(1);
+        assertThat(r.otherCustomers()).isEqualTo(5);
+        assertThat(r.otherBought()).isEqualTo(1);
+        assertThat(advisorSnapshots.build().toJson()).contains("\"repurchase\"", "\"joined_customers\":5");
+    }
+
     @Test
     void chienDichQuaNhoBiAnTrongBanAnDanh() {
         long small = campaign("Nhỏ", null);

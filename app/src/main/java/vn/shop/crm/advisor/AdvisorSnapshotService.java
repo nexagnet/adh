@@ -55,11 +55,13 @@ public class AdvisorSnapshotService {
     private final PerformanceService performance;
     private final Clock clock;
     private final AdvisorNotes notes;
+    private final ShopProfile shop;
 
     public AdvisorSnapshotService(JdbcClient jdbc, ContactService contacts, WeatherService weather,
                                   ZaloMessageService messages, ZaloAutoSettings autoSettings, InviteService invites,
-                                  PerformanceService performance, Clock clock, AdvisorNotes notes) {
+                                  PerformanceService performance, Clock clock, AdvisorNotes notes, ShopProfile shop) {
         this.notes = notes;
+        this.shop = shop;
         this.performance = performance;
         this.jdbc = jdbc;
         this.contacts = contacts;
@@ -152,9 +154,11 @@ public class AdvisorSnapshotService {
         AdvisorSnapshot.Overall overall = new AdvisorSnapshot.Overall(total.customers, total.oneTime, total.eligible,
                 total.awaiting, unknown.customers, hidden, total.funnel());
         Map<Long, CampaignPerformance> perf = new LinkedHashMap<>();
-        performance.anonymized().campaigns().forEach(c -> perf.put(c.id(), c));
+        var overview = performance.anonymized();
+        overview.campaigns().forEach(c -> perf.put(c.id(), c));
         return new AdvisorSnapshot(today.toString(), calendar, limits, overall, areas, slots(), campaigns(perf, today), pastProposals(perf, now),
-                notes.active().stream().map(n -> new AdvisorSnapshot.OwnerNote(n.body(), n.daysLeft())).toList());
+                notes.active().stream().map(n -> new AdvisorSnapshot.OwnerNote(n.body(), n.daysLeft())).toList(),
+                insights(overview.total()));
     }
 
     private AdvisorSnapshot.Area area(SubRegion sub, Acc acc, List<Map.Entry<Province, Acc>> provinces,
@@ -428,6 +432,50 @@ public class AdvisorSnapshotService {
     }
 
     /** Số tin đã nhắn và số khách kết bạn theo bốn khung giờ gửi (giờ Việt Nam); ngoài 08–20 dồn vào "khác". */
+    /** Hồ sơ cửa hàng, kết quả theo ngày trong tuần và so sánh mua lại; null nếu chưa có gì để báo. */
+    private AdvisorSnapshot.Insights insights(CampaignPerformance total) {
+        AdvisorSnapshot.Shop profile = shop.forAi();
+        List<AdvisorSnapshot.Slot> weekdays = weekdays();
+        AdvisorSnapshot.Repurchase repurchase = null;
+        if (total != null && total.joinedCohort().customers() >= PerformanceService.MIN_CELL
+                && total.notJoinedCohort().customers() >= PerformanceService.MIN_CELL) {
+            repurchase = new AdvisorSnapshot.Repurchase(PerformanceService.COHORT_DAYS, total.joinedCohort().customers(),
+                    total.joinedCohort().bought(), total.notJoinedCohort().customers(), total.notJoinedCohort().bought());
+        }
+        if (profile == null && weekdays == null && repurchase == null) {
+            return null;
+        }
+        return new AdvisorSnapshot.Insights(profile, weekdays, repurchase);
+    }
+
+    /** Số tin đã nhắn và số khách kết bạn theo ngày trong tuần (giờ Việt Nam); null nếu chưa nhắn tin nào. */
+    private List<AdvisorSnapshot.Slot> weekdays() {
+        String[] labels = {"T2", "T3", "T4", "T5", "T6", "T7", "CN"};
+        long[] sent = new long[7];
+        long[] friended = new long[7];
+        jdbc.sql("""
+                        SELECT extract(isodow FROM sent_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::int AS d,
+                               count(*) AS sent,
+                               count(*) FILTER (WHERE friended_at IS NOT NULL) AS friended
+                        FROM invitation WHERE sent_at IS NOT NULL GROUP BY 1""")
+                .query((rs, i) -> new long[]{rs.getLong("d"), rs.getLong("sent"), rs.getLong("friended")}).list()
+                .forEach(r -> {
+                    int idx = (int) r[0] - 1;
+                    if (idx >= 0 && idx < 7) {
+                        sent[idx] += r[1];
+                        friended[idx] += r[2];
+                    }
+                });
+        if (java.util.Arrays.stream(sent).sum() == 0) {
+            return null;
+        }
+        List<AdvisorSnapshot.Slot> out = new ArrayList<>();
+        for (int i = 0; i < 7; i++) {
+            out.add(new AdvisorSnapshot.Slot(labels[i], sent[i], friended[i]));
+        }
+        return out;
+    }
+
     private List<AdvisorSnapshot.Slot> slots() {
         String[] labels = {"08-11", "11-14", "14-17", "17-20", "khac"};
         long[] sent = new long[5];
