@@ -20,17 +20,24 @@ public record AdvisorSnapshot(
         List<Area> areas,
         List<Slot> sendSlots,
         List<CampaignInfo> campaigns,
-        List<PastProposal> pastProposals) {
+        List<PastProposal> pastProposals,
+        List<OwnerNote> ownerNotes) {
 
     /** Bản không có danh sách chiến dịch (dùng trong test và khi chưa có chiến dịch nào). */
     public AdvisorSnapshot(String generatedOn, Calendar calendar, Limits limits, Overall overall, List<Area> areas, List<Slot> sendSlots) {
-        this(generatedOn, calendar, limits, overall, areas, sendSlots, List.of(), List.of());
+        this(generatedOn, calendar, limits, overall, areas, sendSlots, List.of(), List.of(), List.of());
     }
 
     /** Bản không có kết quả các đề xuất trước (dùng trong test). */
     public AdvisorSnapshot(String generatedOn, Calendar calendar, Limits limits, Overall overall, List<Area> areas, List<Slot> sendSlots,
                            List<CampaignInfo> campaigns) {
-        this(generatedOn, calendar, limits, overall, areas, sendSlots, campaigns, List.of());
+        this(generatedOn, calendar, limits, overall, areas, sendSlots, campaigns, List.of(), List.of());
+    }
+
+    /** Bản không có ghi chú của chủ shop (dùng trong test). */
+    public AdvisorSnapshot(String generatedOn, Calendar calendar, Limits limits, Overall overall, List<Area> areas, List<Slot> sendSlots,
+                           List<CampaignInfo> campaigns, List<PastProposal> pastProposals) {
+        this(generatedOn, calendar, limits, overall, areas, sendSlots, campaigns, pastProposals, List.of());
     }
 
     private static final JsonMapper JSON = JsonMapper.builder()
@@ -130,6 +137,10 @@ public record AdvisorSnapshot(
      * {@code buyers}: số khách mua sau khi vào nhóm, null nếu chiến dịch quá nhỏ (ẩn để không suy ngược ra từng khách).
      */
     public record PastProposal(double confidence, int daysAgo, long sent, long friended, long joined, long optedOut, Long buyers) {
+    }
+
+    /** Ghi chú còn hiệu lực của chủ shop (chữ tự gõ, đã kiểm). {@code daysLeft}: còn bao nhiêu ngày thì hết hiệu lực (0 là hết hạn hôm nay). */
+    public record OwnerNote(String text, int daysLeft) {
     }
 
     /** Chuỗi JSON đưa cho AI (khóa dạng snake_case). */

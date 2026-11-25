@@ -28,6 +28,31 @@
     <p class="muted small" th:if="${enabled}" th:text="'Hôm nay đã nhờ AI ' + ${runsToday} + ' / ' + ${maxRuns} + ' lần.'">Hôm nay đã nhờ AI 0 / 5 lần.</p>
 
     <section>
+        <h2>Ghi chú của bạn cho AI</h2>
+        <p class="muted small">Viết những điều AI nên biết mà số liệu không có (ví dụ: "ưu tiên miền Bắc trước Tết", "tháng này hết hàng áo cỡ lớn", "đừng nhắn khu X vì đang có đợt khác").
+            Mỗi ghi chú có ngày hết hạn, hết hạn là tự bỏ nên không bao giờ bị cũ. AI chỉ cân nhắc ghi chú, không vượt được giới hạn an toàn của hệ thống.
+            Đừng ghi số điện thoại, email hay đường dẫn. Ghi chú được gửi cho AI khi bạn bấm "Nhờ AI đề xuất" (xem đúng nội dung đã gửi ở từng lượt).</p>
+        <p class="muted" th:if="${notes.isEmpty()}">Chưa có ghi chú nào còn hiệu lực.</p>
+        <ul th:if="${!notes.isEmpty()}">
+            <li th:each="n : ${notes}">
+                <span th:text="${n.body}">Ưu tiên miền Bắc trước Tết</span>
+                <span class="muted small" th:text="'· còn hiệu lực đến ' + ${#temporals.format(n.expiresOn, 'dd/MM/yyyy')} + (${n.daysLeft} == 0 ? ' (hết hạn hôm nay)' : ' (còn ' + ${n.daysLeft} + ' ngày)')">còn 10 ngày</span>
+                <form th:action="@{/advisor/notes/{id}/remove(id=${n.id})}" method="post" style="display:inline">
+                    <button type="submit" class="btn secondary">Gỡ</button>
+                </form>
+            </li>
+        </ul>
+        <form th:action="@{/advisor/notes}" method="post" class="formrow" th:if="${notes.size() < noteMaxActive}">
+            <label class="field grow2">Ghi chú mới
+                <input type="text" name="body" required minlength="5" th:maxlength="${noteMax}" placeholder="Ví dụ: ưu tiên miền Bắc trước Tết"></label>
+            <label class="field">Hết hạn ngày
+                <input type="date" name="expiresOn" required th:value="${noteDefaultExpiry}" th:max="${noteMaxExpiry}"></label>
+            <button type="submit" class="btn secondary">Lưu ghi chú</button>
+        </form>
+        <p class="muted small" th:if="${notes.size() >= noteMaxActive}" th:text="'Đã có ' + ${noteMaxActive} + ' ghi chú còn hiệu lực. Hãy gỡ bớt để thêm ghi chú mới.'">Đã đủ.</p>
+    </section>
+
+    <section>
         <h2>Đang chờ bạn quyết định</h2>
         <p class="muted" th:if="${open.isEmpty()}">Chưa có đề xuất nào đang chờ.</p>
         <article class="panel stack" th:each="p : ${open}">
