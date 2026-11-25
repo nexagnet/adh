@@ -19,6 +19,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -45,6 +46,11 @@ public class ZaloMessageService {
      * (BRIDGE_REPLY_GAP_SEC, mặc định bằng số này) và phải ≤ số này.
      */
     public static final int REPLY_GAP_SECONDS = 30;
+    /**
+     * Khoảng nghỉ CỐ ĐỊNH (25/11/2026, chủ dự án chốt) giữa Tin 1 gửi OK và lời mời kết bạn của CHÍNH khách đó; ngắn hơn khoảng nghỉ giữa các khách.
+     * Nếu Tin 1 bị chặn người lạ (Z122) thì lời mời đi ngay. Cầu nối có sàn riêng (BRIDGE_FRIEND_AFTER_INVITE_GAP_SEC, mặc định bằng số này).
+     */
+    public static final int FRIEND_AFTER_TIN1_GAP_SECONDS = 30;
     static final String FRIEND_DAILY = "zalo.friend.daily";
     public static final String SCOPE_REAL = "REAL";
     /** Số lần liền lỗi riêng người (mã lạ) thì dừng, và số lần liền "không tìm thấy" thì dừng để người kiểm tra. */
@@ -234,15 +240,22 @@ public class ZaloMessageService {
         return spec.query(Integer.class).single();
     }
 
-    /** Tin gần nhất trong sổ chính là Tin 1 của lời mời {@code refId} bị Zalo từ chối vì khách không nhận tin người lạ (Z122). */
-    private boolean lastIsStrangerBlockedFor(Long refId) {
+    /**
+     * Khoảng nghỉ riêng cho lời mời kết bạn đi NGAY sau Tin 1 của chính khách đó (dòng sổ gần nhất là Tin 1 của lời mời {@code refId}):
+     * 0 giây nếu Tin 1 bị Zalo từ chối vì khách không nhận tin người lạ (Z122, chưa tới khách), {@link #FRIEND_AFTER_TIN1_GAP_SECONDS}
+     * nếu Tin 1 gửi OK. Rỗng nếu dòng gần nhất không phải Tin 1 của khách này (khi đó dùng khoảng nghỉ chung giữa các khách).
+     */
+    private OptionalInt friendGapAfterOwnTin1(Long refId) {
         if (refId == null) {
-            return false;
+            return OptionalInt.empty();
         }
         return jdbc.sql("""
-                        SELECT kind = 'INVITE' AND outcome = 'PERSON_ERROR' AND code = 'STRANGER_BLOCKED' AND ref_id = :r
-                        FROM zalo_msg_log ORDER BY at DESC, id DESC LIMIT 1""")
-                .param("r", refId).query(Boolean.class).optional().orElse(false);
+                        SELECT CASE WHEN outcome = 'PERSON_ERROR' AND code = 'STRANGER_BLOCKED' THEN 0
+                                    WHEN outcome = 'OK' THEN CAST(:ok AS INTEGER) END
+                        FROM zalo_msg_log WHERE kind = 'INVITE' AND ref_id = :r
+                          AND id = (SELECT id FROM zalo_msg_log ORDER BY at DESC, id DESC LIMIT 1)""")
+                .param("r", refId).param("ok", FRIEND_AFTER_TIN1_GAP_SECONDS)
+                .query(Integer.class).optional().map(OptionalInt::of).orElse(OptionalInt.empty());
     }
 
     private Instant lastAt(String scope) {
@@ -316,7 +329,7 @@ public class ZaloMessageService {
     /**
      * Như trên, thêm {@code refId} (mã lời mời của chính tin sắp gửi). Chỉ dùng để một lời mời kết bạn đi NGAY sau khi Zalo vừa từ chối
      * Tin 1 của chính khách đó vì khách không nhận tin người lạ (Z122): Tin 1 đó chưa tới khách nên không tính thêm một khoảng nghỉ nữa
-     * (25/11/2026), nếu không khách phải chờ hai lần nghỉ liền. Khoảng nghỉ giữa các KHÁCH khác nhau, hạn mức ngày, cầu dao, khung giờ giữ nguyên.
+     * (25/11/2026), nếu không khách phải chờ hai lần nghỉ liền; Tin 1 gửi OK thì chờ 30 giây cố định. Khoảng nghỉ giữa các KHÁCH khác nhau, hạn mức ngày, cầu dao, khung giờ giữ nguyên.
      */
     public Optional<Block> blocker(String scope, Kind kind, Long refId, Integer scopeDaily, Integer scopeGap) {
         if (!enabled()) {
@@ -341,7 +354,10 @@ public class ZaloMessageService {
         }
         Instant last = lastAt(null);
         int gap = kind.answersInbound() ? Math.min(REPLY_GAP_SECONDS, l.gapSeconds()) : l.gapSeconds();
-        if (last != null && now.isBefore(last.plusSeconds(gap)) && !(kind == Kind.FRIEND && lastIsStrangerBlockedFor(refId))) {
+        if (kind == Kind.FRIEND) {
+            gap = Math.min(gap, friendGapAfterOwnTin1(refId).orElse(gap));
+        }
+        if (last != null && now.isBefore(last.plusSeconds(gap))) {
             return Optional.of(Block.GAP);
         }
         if (invite && scopeDaily != null && countSince(startOfDay(), scope, true) >= scopeDaily) {

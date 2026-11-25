@@ -1351,10 +1351,29 @@ test('lời mời kết bạn: đầu vào sai bị từ chối trước khi ch�
 test('lời mời kết bạn: dùng chung khoảng nghỉ cố định với tin, gửi sớm thì RATE_LIMITED và không gọi Zalo', async () => {
   const c = await ready();
   assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' })).outcome, 'OK');
-  c.clock.t += 30 * 1000;
-  assert.deepEqual(await c.bridge.sendFriendRequest({ uid: '501', text: 'a' }), { outcome: 'RATE_LIMITED', retryAfterSec: 60 });
+  c.clock.t += 10 * 1000;
+  assert.deepEqual(await c.bridge.sendFriendRequest({ uid: '501', text: 'a' }), { outcome: 'RATE_LIMITED', retryAfterSec: 20 });
   assert.equal(c.bridge.status().state, 'LISTENING');
   assert.equal(c.adapter.friendRequests, undefined);
+  c.cleanup();
+});
+
+test('lời mời kết bạn: sau Tin 1 của CHÍNH người đó chỉ chờ 30 giây cố định; người khác vẫn chờ khoảng nghỉ chung', async () => {
+  const c = await ready();
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' })).outcome, 'OK'); // uid 501
+  c.clock.t += 31 * 1000;
+  assert.equal((await c.bridge.sendFriendRequest({ uid: '501', text: 'a' })).outcome, 'OK');
+  // tin gần nhất là lời mời kết bạn, không phải Tin 1: người kế tiếp vẫn phải đủ khoảng nghỉ chung
+  assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000002', text: 'a' })).outcome, 'RATE_LIMITED');
+  c.cleanup();
+});
+
+test('lời mời kết bạn: Tin 1 bị chặn người lạ thì lời mời của chính người đó đi ngay, không chờ', async () => {
+  const c = await ready();
+  c.adapter.sendError = Object.assign(new Error('x'), { code: 122 });
+  const r = await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'a' });
+  assert.equal(r.code, 'STRANGER_BLOCKED');
+  assert.equal((await c.bridge.sendFriendRequest({ uid: r.uid, text: 'a' })).outcome, 'OK');
   c.cleanup();
 });
 
