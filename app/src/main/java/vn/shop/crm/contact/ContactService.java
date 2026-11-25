@@ -73,10 +73,12 @@ public class ContactService {
 
     private final JdbcClient jdbc;
     private final TestMode testMode;
+    private final ExchangeMarkers exchangeMarkers;
 
-    public ContactService(JdbcClient jdbc, TestMode testMode) {
+    public ContactService(JdbcClient jdbc, TestMode testMode, ExchangeMarkers exchangeMarkers) {
         this.jdbc = jdbc;
         this.testMode = testMode;
+        this.exchangeMarkers = exchangeMarkers;
     }
 
     /** Tên người đang đăng nhập, để ghi "ai làm". */
@@ -310,9 +312,13 @@ public class ContactService {
         public boolean any() {
             return !OLDEST_APPROVED.equals(order) || minDays != null || maxDays != null || product != null;
         }
-    }
 
-    private static final String PURCHASE_DAY = "(now() AT TIME ZONE 'Asia/Ho_Chi_Minh')";
+        /** Cùng ý nghĩa dưới dạng bộ lọc chung ({@link CustomerFilter}). */
+        public CustomerFilter toFilter() {
+            return new CustomerFilter(null, null, null, null, null, false, null, minDays, maxDays,
+                    product == null ? null : List.of(product), null, null, null, null, false, order);
+        }
+    }
 
     /** Các dòng tên hàng đang có trong đơn thuộc nhóm hàng này (để lọc khách đã mua nhóm đó). */
     List<String> goodsOf(ProductGroup group) {
@@ -320,53 +326,29 @@ public class ContactService {
                 .query(String.class).list().stream().filter(g -> ProductGroup.of(g).contains(group)).toList();
     }
 
-    private void appendPickFilter(StringBuilder sql, Pick pick) {
-        if (pick.product() != null) {
-            sql.append(" AND EXISTS (SELECT 1 FROM shipment ps WHERE ps.receiver_phone = c.phone AND ps.canonical_status = 'DELIVERED' "
-                    + "AND ps.goods = ANY(:pickGoods))");
-        }
-        if (pick.minDays() != null) {
-            sql.append(" AND c.last_order_on <= ").append(PURCHASE_DAY).append(" - make_interval(days => :minDays)");
-        }
-        if (pick.maxDays() != null) {
-            sql.append(" AND c.last_order_on >= ").append(PURCHASE_DAY).append(" - make_interval(days => :maxDays)");
-        }
-    }
-
-    private static String pickOrderSql(Pick pick) {
-        return switch (pick.order()) {
-            case Pick.NEWEST_PURCHASE -> " ORDER BY c.last_order_on DESC NULLS LAST, b.recorded_at, c.id";
-            case Pick.OLDEST_PURCHASE -> " ORDER BY c.last_order_on ASC NULLS LAST, b.recorded_at, c.id";
-            default -> " ORDER BY b.recorded_at, c.id";
-        };
-    }
-
-    private org.springframework.jdbc.core.simple.JdbcClient.StatementSpec bindPick(
-            org.springframework.jdbc.core.simple.JdbcClient.StatementSpec spec, Pick pick) {
-        if (pick.product() != null) {
-            spec.param("pickGoods", goodsOf(pick.product()).toArray(new String[0]));
-        }
-        if (pick.minDays() != null) {
-            spec.param("minDays", pick.minDays());
-        }
-        if (pick.maxDays() != null) {
-            spec.param("maxDays", pick.maxDays());
-        }
-        return spec;
+    /** Gắn các điều kiện của bộ lọc vào câu truy vấn đang dựng (bí danh {@code c}) và trả các tham số cần gán. */
+    private java.util.Map<String, Object> appendFilter(StringBuilder sql, CustomerFilter f) {
+        var built = CustomerFilterSql.build(f, this::goodsOf, exchangeMarkers.get());
+        sql.append(built.where());
+        return built.params();
     }
 
     public List<Invitee> eligibleNotInvited(int limit, String area, Pick pick) {
+        return eligibleNotInvited(limit, area, pick.toFilter());
+    }
+
+    /** Lấy khách đủ điều kiện mời, chưa từng được mời, ở khu vực (nếu có) và khớp bộ lọc; bộ lọc chỉ làm hẹp. */
+    public List<Invitee> eligibleNotInvited(int limit, String area, CustomerFilter filter) {
         StringBuilder sql = new StringBuilder("SELECT c.id, c.phone, c.name " + inviteFrom()
                 + " AND NOT EXISTS (SELECT 1 FROM invitation i WHERE i.customer_id = c.id)");
         var areaCodes = appendArea(sql, area);
-        appendPickFilter(sql, pick);
-        sql.append(pickOrderSql(pick)).append(" LIMIT :limit");
-        var spec = bindPick(jdbc.sql(sql.toString()).param("limit", limit), pick);
+        var params = appendFilter(sql, filter);
+        sql.append(CustomerFilterSql.orderSql(filter)).append(" LIMIT :limit");
+        var spec = jdbc.sql(sql.toString()).param("limit", limit).params(params);
         if (areaCodes != null) {
             spec = spec.param("areaCodes", areaCodes);
         }
-        return spec.query((rs, i) -> new Invitee(rs.getLong("id"), rs.getString("phone"), rs.getString("name")))
-                .list();
+        return spec.query((rs, i) -> new Invitee(rs.getLong("id"), rs.getString("phone"), rs.getString("name"))).list();
     }
 
     /**
@@ -374,11 +356,18 @@ public class ContactService {
      * liên hệ nào (chưa duyệt, chưa chặn), chưa từng được mời, đúng khu vực. Đây là tiêu chí duyệt sẵn thay cho duyệt từng người.
      */
     public List<Invitee> newCandidates(java.time.Instant since, String area, int limit) {
+        return newCandidates(since, area, limit, CustomerFilter.NONE);
+    }
+
+    /** Như trên, kèm bộ lọc của chiến dịch (chỉ làm hẹp; thứ tự vẫn theo giờ khách xuất hiện). */
+    public List<Invitee> newCandidates(java.time.Instant since, String area, int limit, CustomerFilter filter) {
         StringBuilder sql = new StringBuilder("SELECT c.id, c.phone, c.name FROM customer c WHERE " + candidateWhere()
                 + " AND c.first_seen_at >= :since AND NOT EXISTS (SELECT 1 FROM invitation i WHERE i.customer_id = c.id)");
         var areaCodes = appendArea(sql, area);
+        var params = appendFilter(sql, filter);
         sql.append(" ORDER BY c.first_seen_at, c.id LIMIT :limit");
-        var spec = jdbc.sql(sql.toString()).param("since", OffsetDateTime.ofInstant(since, java.time.ZoneOffset.UTC)).param("limit", limit);
+        var spec = jdbc.sql(sql.toString()).param("since", OffsetDateTime.ofInstant(since, java.time.ZoneOffset.UTC)).param("limit", limit)
+                .params(params);
         if (areaCodes != null) {
             spec = spec.param("areaCodes", areaCodes);
         }
@@ -415,11 +404,15 @@ public class ContactService {
     }
 
     public long countEligibleNotInvited(String area, Pick pick) {
+        return countEligibleNotInvited(area, pick.toFilter());
+    }
+
+    public long countEligibleNotInvited(String area, CustomerFilter filter) {
         StringBuilder sql = new StringBuilder("SELECT count(*) " + inviteFrom()
                 + " AND NOT EXISTS (SELECT 1 FROM invitation i WHERE i.customer_id = c.id)");
         var areaCodes = appendArea(sql, area);
-        appendPickFilter(sql, pick);
-        var spec = bindPick(jdbc.sql(sql.toString()), pick);
+        var params = appendFilter(sql, filter);
+        var spec = jdbc.sql(sql.toString()).params(params);
         if (areaCodes != null) {
             spec = spec.param("areaCodes", areaCodes);
         }

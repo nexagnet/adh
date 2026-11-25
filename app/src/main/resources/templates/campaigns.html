@@ -75,6 +75,69 @@
             <p class="muted">Tạo chiến dịch lớn không có nghĩa là nhắn cùng lúc: hệ thống chỉ tự gửi từng lô nhỏ mỗi ngày, theo hạn mức và khung giờ.</p>
         </div>
 
+        <details class="panel stack more">
+            <summary><strong>Lọc khách kỹ hơn (không bắt buộc)</strong></summary>
+            <p class="muted">Mọi điều kiện kết hợp bằng "và": khách phải thỏa tất cả điều kiện đã chọn. Bộ lọc chỉ làm hẹp danh sách khách đã duyệt, không bao giờ mở rộng:
+                khách từ chối, bị chặn, cần kiểm tra hay đã từng được mời vẫn không được nhắn. Để trống là không lọc. Muốn "hoặc" thì tạo hai chiến dịch.</p>
+
+            <h3>Lịch sử đơn</h3>
+            <div class="formrow">
+                <fieldset class="field"><legend>Đơn đổi</legend>
+                    <label class="check" th:each="t : ${tris}"><input type="radio" name="exchange" th:value="${t.name()}" th:checked="${t.name() == 'ANY'}" th:disabled="${!exchangeReady and t.name() != 'ANY'}"> <span th:text="${t.label}">Không quan tâm</span></label>
+                    <span class="hint" th:if="${!exchangeReady}">Chưa cài cách nhận biết đơn đổi (xem mục bên dưới).</span>
+                </fieldset>
+                <fieldset class="field"><legend>Đơn hủy</legend>
+                    <label class="check" th:each="t : ${tris}"><input type="radio" name="cancelled" th:value="${t.name()}" th:checked="${t.name() == 'ANY'}"> <span th:text="${t.label}">Không quan tâm</span></label>
+                </fieldset>
+                <fieldset class="field"><legend>Đơn hoàn hoặc đang hoàn</legend>
+                    <label class="check" th:each="t : ${tris}"><input type="radio" name="returned" th:value="${t.name()}" th:checked="${t.name() == 'ANY'}"> <span th:text="${t.label}">Không quan tâm</span></label>
+                </fieldset>
+            </div>
+            <div class="formrow">
+                <label class="check"><input type="checkbox" name="noOpenOrders" value="true"> Bỏ khách đang có đơn chưa giao xong</label>
+                <label class="field">Tổng số đơn (kể cả đơn hủy) không quá <input type="number" name="maxShipments" min="1" max="50"></label>
+            </div>
+            <fieldset class="field"><legend>Hãng vận chuyển (khách có đơn qua hãng nào)</legend>
+                <label class="check" th:each="c : ${carrierOptions}"><input type="checkbox" name="carriers" th:value="${c.name()}"> <span th:text="${c.label()}">J&amp;T Express</span></label>
+            </fieldset>
+
+            <h3>Mua gì, mua khi nào</h3>
+            <div class="formrow">
+                <label class="field">Lần mua gần nhất cách đây ít nhất (ngày) <input type="number" name="minDays" min="0" max="1100"></label>
+                <label class="field">... và nhiều nhất (ngày) <input type="number" name="maxDays" min="0" max="1100"></label>
+            </div>
+            <fieldset class="field"><legend>Đã mua nhóm hàng</legend>
+                <label class="check" th:each="g : ${groupOptions}"><input type="checkbox" name="bought" th:value="${g.name()}"> <span th:text="${g.label()}">Áo điều hòa</span></label>
+                <label class="check"><input type="radio" name="boughtMode" value="ANY" checked> bất kỳ nhóm đã chọn</label>
+                <label class="check"><input type="radio" name="boughtMode" value="ALL"> tất cả các nhóm đã chọn</label>
+            </fieldset>
+            <fieldset class="field"><legend>Chưa từng mua nhóm hàng</legend>
+                <label class="check" th:each="g : ${groupOptions}"><input type="checkbox" name="notBought" th:value="${g.name()}"> <span th:text="${g.label()}">Pin</span></label>
+                <span class="hint">Nhóm hàng đoán theo chữ trong tên hàng nên chỉ gần đúng. Khách có đơn giao thành công chưa rõ tên hàng sẽ bị bỏ cho chắc.</span>
+            </fieldset>
+            <div class="formrow">
+                <label class="field">Tổng tiền đã thu từ (đồng) <input type="text" inputmode="numeric" name="codMin" placeholder="1500000"></label>
+                <label class="field">... đến (đồng) <input type="text" inputmode="numeric" name="codMax"></label>
+            </div>
+            <p class="hint">Tiền đã thu chỉ tính từ file đối soát J&amp;T đã nhập; khách chưa có đối soát sẽ không được chọn khi đặt điều kiện này.</p>
+
+            <h3>Khu vực và an toàn</h3>
+            <label class="field">Loại trừ khu vực (giữ Ctrl để chọn nhiều)
+                <select name="excludeAreas" multiple size="6">
+                    <option value="U">Chưa rõ khu vực</option>
+                    <optgroup th:each="g : ${areaGroups}" th:label="${g.label}">
+                        <option th:each="o : ${g.options}" th:value="${o.code}" th:text="${o.label}">Miền Nam</option>
+                    </optgroup>
+                </select></label>
+            <label class="check"><input type="checkbox" name="skipOpenCases" value="true" checked> Bỏ khách đang có việc cần người thật (bảo hành, khiếu nại, chờ người trả lời)</label>
+            <label class="field">Lấy khách theo thứ tự
+                <select name="pickOrder">
+                    <option value="OLDEST_APPROVED">Khách được duyệt sớm nhất trước</option>
+                    <option value="NEWEST_PURCHASE">Khách mua gần đây nhất trước</option>
+                    <option value="OLDEST_PURCHASE">Khách mua đã lâu trước</option>
+                </select></label>
+        </details>
+
         <div class="panel stack">
             <h2>Bước 2. Xem trước tin nhắn</h2>
             <label class="field">Nội dung tin (có thể dùng {ten}, {cua_hang} và {mien} (Miền Bắc/Trung/Nam theo tỉnh của khách); {link} chỉ cần khi gửi link mời riêng)
@@ -91,6 +154,18 @@
         </div>
     </form>
 
+
+    <details class="more" th:if="${tab == 'moi'}">
+        <summary>Cách nhận biết đơn đổi</summary>
+        <form th:action="@{/campaigns/exchange-markers}" method="post" class="stack">
+            <p class="muted">File đơn của hãng không có trạng thái "đổi hàng" riêng, nên cần cho hệ thống biết đơn đổi của shop trông thế nào. Gõ chữ có trong file (không phân biệt hoa thường), cách nhau bằng dấu phẩy.
+                Một đơn được coi là đơn đổi khi mã đơn, tên hàng hoặc trạng thái gốc chứa một trong các chữ này. Để trống cả ba ô là tắt (khi đó không lọc được theo đơn đổi).</p>
+            <label class="field">Chữ trong mã đơn của shop (ví dụ: DOI) <input type="text" name="orderRef" maxlength="200" th:value="${#strings.listJoin(exchangeMarkers.orderRef, ', ')}"></label>
+            <label class="field">Chữ trong tên hàng (ví dụ: đổi size) <input type="text" name="goods" maxlength="200" th:value="${#strings.listJoin(exchangeMarkers.goods, ', ')}"></label>
+            <label class="field">Chữ trong trạng thái gốc của hãng <input type="text" name="status" maxlength="200" th:value="${#strings.listJoin(exchangeMarkers.status, ', ')}"></label>
+            <div class="actions"><button type="submit" class="btn secondary">Lưu cách nhận biết đơn đổi</button></div>
+        </form>
+    </details>
 
     <details class="more" th:if="${tab == 'moi'}">
         <summary>Nội dung tin mặc định</summary>

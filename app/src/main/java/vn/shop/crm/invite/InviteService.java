@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import vn.shop.crm.common.AppSettings;
 import vn.shop.crm.common.ImportException;
 import vn.shop.crm.contact.ContactService;
+import vn.shop.crm.contact.CustomerFilter;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
@@ -232,6 +233,15 @@ public class InviteService {
     /** Như trên, kèm cách chọn khách (thứ tự lấy, độ mới của lần mua); chỉ làm hẹp tập khách, xem {@link ContactService.Pick}. */
     @Transactional
     public long createCampaign(String name, String template, int expiresDays, int count, String area, ContactService.Pick pick) {
+        return createCampaign(name, template, expiresDays, count, area, pick.toFilter());
+    }
+
+    /**
+     * Như trên với bộ lọc khách đầy đủ ({@link CustomerFilter}); bộ lọc được lưu vào chiến dịch để xem lại và để chế độ tự nhận khách mới
+     * dùng đúng bộ lọc đó. Bộ lọc chỉ làm hẹp tập khách đủ điều kiện mời.
+     */
+    @Transactional
+    public long createCampaign(String name, String template, int expiresDays, int count, String area, CustomerFilter filter) {
         if (settings.paused()) {
             throw new ImportException("Đang tạm dừng tất cả chiến dịch. Hãy bỏ tạm dừng trước khi tạo chiến dịch mới.");
         }
@@ -254,7 +264,7 @@ public class InviteService {
                     + " khách. Mỗi ngày hệ thống chỉ đưa ra một lô nhỏ để nhắn (mục Lô nhắn hôm nay).");
         }
         String scope = normalizeArea(area);
-        List<ContactService.Invitee> picked = contacts.eligibleNotInvited(count, scope, pick);
+        List<ContactService.Invitee> picked = contacts.eligibleNotInvited(count, scope, filter);
         if (picked.isEmpty()) {
             throw new ImportException(scope == null
                     ? "Chưa có khách nào đủ điều kiện mời và chưa từng được mời. Hãy duyệt khách ở mục Danh sách mời trước."
@@ -262,13 +272,20 @@ public class InviteService {
                     + "Hãy duyệt thêm khách ở mục Danh sách mời, hoặc chọn khu vực khác.");
         }
         long campaignId = jdbc.sql("""
-                        INSERT INTO invitation_campaign (name, message_template, expires_days, created_by, geo_scope)
-                        VALUES (:name, :tpl, :days, :by, :scope) RETURNING id""")
+                        INSERT INTO invitation_campaign (name, message_template, expires_days, created_by, geo_scope, customer_filter)
+                        VALUES (:name, :tpl, :days, :by, :scope, CAST(:filter AS jsonb)) RETURNING id""")
                 .param("name", name.strip()).param("tpl", tpl).param("days", expiresDays)
                 .param("by", ContactService.actor()).param("scope", scope, java.sql.Types.VARCHAR)
+                .param("filter", filter.any() ? filter.toJson() : null, java.sql.Types.VARCHAR)
                 .query(Long.class).single();
         addInvitations(campaignId, expiresDays, name.strip(), picked);
         return campaignId;
+    }
+
+    /** Bộ lọc khách đã lưu của chiến dịch (không lọc gì nếu chiến dịch tạo trước khi có bộ lọc). */
+    public CustomerFilter campaignFilter(long campaignId) {
+        return CustomerFilter.fromJson(jdbc.sql("SELECT customer_filter::text FROM invitation_campaign WHERE id = :id")
+                .param("id", campaignId).query(String.class).optional().orElse(null));
     }
 
     /** Tạo lời mời READY cho các khách này trong chiến dịch (dùng cả khi tạo chiến dịch lẫn khi chiến dịch tự nhận khách mới). */

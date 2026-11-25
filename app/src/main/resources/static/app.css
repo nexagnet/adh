@@ -781,3 +781,7 @@ pre.wrap { white-space: pre-wrap; overflow-wrap: anywhere; margin: 6px 0 0; }
 .safety-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 8px 0; }
 .safety-bar form { margin: 0; }
 @media (max-width: 700px) { .safety-bar form { flex: 1 1 150px; } .safety-bar .btn { width: 100%; } }
+
+/* Bộ lọc khách của chiến dịch: nhóm lựa chọn không viền, chữ tiêu đề đậm. */
+fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
+fieldset.field > legend { font-weight: 600; padding: 0; margin-bottom: 4px; }

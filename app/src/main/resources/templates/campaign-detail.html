@@ -52,6 +52,13 @@
             <button type="submit" class="btn secondary">Khôi phục chiến dịch</button>
         </form>
     </div>
+    <div class="panel stack" th:if="${tab == 'tong-quan'}">
+        <h2>Chiến dịch này mời ai</h2>
+        <ul th:if="${!filterLines.isEmpty()}"><li th:each="l : ${filterLines}" th:text="${l}">Không có đơn đổi</li></ul>
+        <p th:if="${filterLines.isEmpty()}">Không lọc thêm: mọi khách đã duyệt, đủ điều kiện mời<span th:if="${campaign.geoScope != null and !campaign.geoScope.isBlank()}"> trong khu vực của chiến dịch</span>.</p>
+        <p class="muted" th:text="${filterPick}">Khách được duyệt sớm nhất trước</p>
+        <p class="hint">Bộ lọc được đặt lúc tạo chiến dịch và dùng cả cho chế độ tự nhận khách mới. Muốn đổi, hãy hủy các lời mời chưa gửi rồi tạo chiến dịch mới.</p>
+    </div>
     <div class="panel stack" th:if="${tab == 'tong-quan' and !campaign.archived()}">
         <h2>Lưu trữ chiến dịch cũ</h2>
         <p th:if="${campaign.pastEnd()}"><span class="badge warn">HẾT HẠN</span> Chiến dịch đã quá ngày kết thúc nên hệ thống không gửi nữa. Nên lưu trữ để AI không nhầm là còn chạy.</p>
