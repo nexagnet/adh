@@ -228,7 +228,7 @@ public class ZaloAutoService {
 
     /** Ghép một sự kiện. Gọi trong giao dịch. */
     void ingest(ZaloGateway.FriendEvent e) {
-        Integer seen = jdbc.sql("SELECT count(*) FROM zalo_friend_event WHERE bridge_seq = :s").param("s", e.seq())
+        Integer seen = jdbc.sql("SELECT count(*) FROM zalo_friend_event WHERE " + ZaloAccountContext.sql() + " AND bridge_seq = :s").param("s", e.seq())
                 .query(Integer.class).single();
         if (seen > 0) {
             return;
@@ -274,12 +274,13 @@ public class ZaloAutoService {
 
     private void record(ZaloGateway.FriendEvent e, String outcome, String uid, Long invitationId) {
         jdbc.sql("""
-                        INSERT INTO zalo_friend_event (bridge_seq, uid, event_at, received_at, outcome, invitation_id)
-                        VALUES (:s, :u, :at, :now, :o, :i) ON CONFLICT (account_id, bridge_seq) DO NOTHING""")
+                        INSERT INTO zalo_friend_event (bridge_seq, uid, event_at, received_at, outcome, invitation_id, account_id)
+                        VALUES (:s, :u, :at, :now, :o, :i, :acct) ON CONFLICT (account_id, bridge_seq) DO NOTHING""")
                 .param("s", e.seq()).param("u", uid, java.sql.Types.VARCHAR)
                 .param("at", OffsetDateTime.ofInstant(e.at(), ZoneOffset.UTC))
                 .param("now", OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC))
-                .param("o", outcome).param("i", invitationId, java.sql.Types.BIGINT).update();
+                .param("o", outcome).param("i", invitationId, java.sql.Types.BIGINT)
+                .param("acct", ZaloAccountContext.current()).update();
     }
 
     private record Match(long invitationId, long customerId, String status, boolean hasUid) {
@@ -356,7 +357,7 @@ public class ZaloAutoService {
     // ---------- hàng đợi xử lý tay (không ghép được số) ----------
 
     public List<ManualEvent> manualQueue() {
-        return jdbc.sql("SELECT id, event_at, uid FROM zalo_friend_event WHERE outcome = 'NO_PHONE' ORDER BY id")
+        return jdbc.sql("SELECT id, event_at, uid FROM zalo_friend_event WHERE " + ZaloAccountContext.sql() + " AND outcome = 'NO_PHONE' ORDER BY id")
                 .query((rs, n) -> new ManualEvent(rs.getLong("id"),
                         rs.getObject("event_at", OffsetDateTime.class).atZoneSameInstant(clock.getZone()).toLocalDateTime(),
                         tail(rs.getString("uid")))).list();
@@ -368,7 +369,7 @@ public class ZaloAutoService {
     }
 
     public long manualCount() {
-        return jdbc.sql("SELECT count(*) FROM zalo_friend_event WHERE outcome = 'NO_PHONE'").query(Long.class).single();
+        return jdbc.sql("SELECT count(*) FROM zalo_friend_event WHERE " + ZaloAccountContext.sql() + " AND outcome = 'NO_PHONE'").query(Long.class).single();
     }
 
     /** Lời mời đã nhắn, chưa gắn uid: người xử lý tay chọn một trong số này cho sự kiện không có số. */
@@ -556,7 +557,7 @@ public class ZaloAutoService {
 
     /** Có lần gọi Zalo nào còn ghi "đang gọi" không? Đang giữ khóa thêm người nên mọi dòng như vậy là của lần đã chết giữa chừng. */
     private boolean inFlightLeftover() {
-        return jdbc.sql("SELECT count(*) FROM zalo_auto_log WHERE action = :a AND result = 'DANG_GOI'")
+        return jdbc.sql("SELECT count(*) FROM zalo_auto_log WHERE " + ZaloAccountContext.sql() + " AND action = :a AND result = 'DANG_GOI'")
                 .param("a", ZaloAutoSettings.A_ADD).query(Long.class).single() > 0;
     }
 
@@ -565,8 +566,9 @@ public class ZaloAutoService {
         // cần người xem, KHÔNG quay về hàng đợi để lần sau thêm lại; nhật ký vẫn tính vào hạn mức.
         fail(t.invitationId(), "DANG_GOI");
         long logId = jdbc.sql("""
-                        INSERT INTO zalo_auto_log (at, action, invitation_id, group_id, result, actor)
-                        VALUES (:at, :a, :i, :g, 'DANG_GOI', 'system') RETURNING id""")
+                        INSERT INTO zalo_auto_log (at, action, invitation_id, group_id, result, actor, account_id)
+                        VALUES (:at, :a, :i, :g, 'DANG_GOI', 'system', :acct) RETURNING id""")
+                .param("acct", ZaloAccountContext.current())
                 .param("at", OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)).param("a", ZaloAutoSettings.A_ADD)
                 .param("i", t.invitationId()).param("g", group.id()).query(Long.class).single();
         ZaloGateway.AddResult r = gateway.addToGroup(t.uid(), group.zaloGroupId());
@@ -631,7 +633,7 @@ public class ZaloAutoService {
      * lần gần nhất (lẫn nhiều nhóm): dừng cầu dao, đừng đốt hạn mức.
      */
     private Step afterPersonError(GroupService.Group group) {
-        List<Map<String, Object>> last = jdbc.sql("SELECT result, group_id FROM zalo_auto_log WHERE action = :a AND result <> 'DANG_GOI' ORDER BY id DESC LIMIT :n")
+        List<Map<String, Object>> last = jdbc.sql("SELECT result, group_id FROM zalo_auto_log WHERE " + ZaloAccountContext.sql() + " AND action = :a AND result <> 'DANG_GOI' ORDER BY id DESC LIMIT :n")
                 .param("a", ZaloAutoSettings.A_ADD).param("n", TRIP_WINDOW).query().listOfRows();
         long persons = last.stream().filter(m -> "PERSON_ERROR".equals(m.get("result"))).count();
         if (last.size() == TRIP_WINDOW && persons >= TRIP_PERSON_ERRORS) {
@@ -648,7 +650,7 @@ public class ZaloAutoService {
     }
 
     private Step afterGroupError() {
-        List<String> last = jdbc.sql("SELECT result FROM zalo_auto_log WHERE action = :a AND result <> 'DANG_GOI' ORDER BY id DESC LIMIT :n")
+        List<String> last = jdbc.sql("SELECT result FROM zalo_auto_log WHERE " + ZaloAccountContext.sql() + " AND action = :a AND result <> 'DANG_GOI' ORDER BY id DESC LIMIT :n")
                 .param("a", ZaloAutoSettings.A_ADD).param("n", GROUP_ERROR_TRIP).query(String.class).list();
         if (last.size() == GROUP_ERROR_TRIP && last.stream().allMatch("GROUP_ERROR"::equals)) {
             tripAndStop("NHIEU_LOI_NHOM", true);

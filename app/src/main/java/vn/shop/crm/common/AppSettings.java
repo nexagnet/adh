@@ -3,6 +3,8 @@ package vn.shop.crm.common;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 
+import vn.shop.crm.zalo.ZaloAccountContext;
+
 import java.util.Optional;
 
 /** Cài đặt khóa/giá trị lưu trong cơ sở dữ liệu. Chỉ dành cho cờ vận hành, không chứa bí mật. */
@@ -24,7 +26,8 @@ public class AppSettings {
     }
 
     public Optional<String> get(String key) {
-        return jdbc.sql("SELECT value FROM app_setting WHERE key = :k").param("k", key).query(String.class).optional();
+        return jdbc.sql("SELECT value FROM app_setting WHERE key = :k").param("k", ZaloAccountContext.settingKey(key))
+                .query(String.class).optional();
     }
 
     public boolean flag(String key) {
@@ -36,7 +39,7 @@ public class AppSettings {
                         INSERT INTO app_setting (key, value, updated_by) VALUES (:k, :v, :by)
                         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(),
                                                         updated_by = EXCLUDED.updated_by""")
-                .param("k", key).param("v", value).param("by", by).update();
+                .param("k", ZaloAccountContext.settingKey(key)).param("v", value).param("by", by).update();
     }
 
     public boolean paused() {

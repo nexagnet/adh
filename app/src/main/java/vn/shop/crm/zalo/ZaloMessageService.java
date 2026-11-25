@@ -72,6 +72,7 @@ public class ZaloMessageService {
         MODE_OFF("Bộ nối Zalo đang tắt hoặc đã dừng (cầu dao)"),
         OUTSIDE_WINDOW("Ngoài khung giờ được gửi"),
         DAILY_LIMIT("Đã đủ số khách được nhắn trong ngày"),
+        TOTAL_LIMIT("Đã đủ tổng số khách được nhắn trong ngày của mọi tài khoản phụ"),
         GAP("Chưa đủ khoảng nghỉ sau tin trước"),
         BUSY("Đang có một tin khác được gửi"),
         NOT_READY("Cầu nối chưa nghe được hoặc chưa chắc đúng tài khoản phụ"),
@@ -159,14 +160,43 @@ public class ZaloMessageService {
 
     public Limits limits() {
         ZaloAutoProperties p = cfg.props();
-        return new Limits(clamp(intSetting(DAILY, p.msgDefaultDaily()), 1, p.msgMaxDaily()),
+        return new Limits(clamp(intSetting(DAILY, newAccountCap(p.msgDefaultDaily())), 1, p.msgMaxDaily()),
                 Math.max(p.msgMinGapSeconds(), intSetting(GAP, p.msgDefaultGapSeconds())));
+    }
+
+    /** Trần cứng cho TỔNG số khách được nhắn mỗi ngày của mọi tài khoản (D23); cố ý nằm trong mã, không chỉnh được trên web. */
+    static final int TOTAL_HARD_CAP = 200;
+    static final String TOTAL_DAILY = "zalo.total.daily";
+
+    /**
+     * Trần tổng số khách được nhắn chủ động mỗi ngày của TẤT CẢ tài khoản cộng lại (D23). Mặc định bằng trần cứng một tài khoản, nên khi chỉ có
+     * một tài khoản thì không bao giờ chặn thêm; muốn nhắn nhiều khách hơn mỗi ngày bằng nhiều tài khoản thì chủ shop nâng trần này (tối đa
+     * {@value #TOTAL_HARD_CAP}). Đây là khóa dùng chung, không theo tài khoản.
+     */
+    public int totalDaily() {
+        return clamp(intSetting(TOTAL_DAILY, cfg.props().msgMaxDaily()), 1, TOTAL_HARD_CAP);
+    }
+
+    public int setTotalDaily(int daily, String by) {
+        if (daily < 1 || daily > TOTAL_HARD_CAP) {
+            throw new ImportException("Tổng số khách nhắn mỗi ngày phải từ 1 đến " + TOTAL_HARD_CAP + ".");
+        }
+        int old = totalDaily();
+        settings.set(TOTAL_DAILY, Integer.toString(daily), by);
+        cfg.log(ZaloAutoSettings.A_CONFIG, null, null, "HAN_MUC_TONG " + daily, "CU " + old, by);
+        return totalDaily();
+    }
+
+    /** Số khách được nhắn chủ động hôm nay của mọi tài khoản cộng lại. */
+    public int usedTodayAllAccounts() {
+        return jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE at >= :s AND kind IN ('INVITE', 'FOLLOWUP2', 'FOLLOWUP3')")
+                .param("s", OffsetDateTime.ofInstant(startOfDay(), ZoneOffset.UTC)).query(Integer.class).single();
     }
 
     /** Trần lời mời kết bạn mỗi ngày (mặc định 10, trần cứng đặt ở cấu hình triển khai; 0 = tắt). */
     public int friendDaily() {
         ZaloAutoProperties p = cfg.props();
-        return clamp(intSetting(FRIEND_DAILY, p.friendDefaultDaily()), 0, p.friendMaxDaily());
+        return clamp(intSetting(FRIEND_DAILY, newAccountCap(p.friendDefaultDaily())), 0, p.friendMaxDaily());
     }
 
     public int setFriendDaily(int daily, String by) {
@@ -182,7 +212,7 @@ public class ZaloMessageService {
 
     /** Số lời mời kết bạn đã gọi hôm nay (tính cả lần lỗi). */
     public int friendUsedToday() {
-        return jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE at >= :s AND kind = 'FRIEND'")
+        return jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE " + ZaloAccountContext.sql() + " AND at >= :s AND kind = 'FRIEND'")
                 .param("s", OffsetDateTime.ofInstant(startOfDay(), ZoneOffset.UTC)).query(Integer.class).single();
     }
 
@@ -242,19 +272,19 @@ public class ZaloMessageService {
 
     /** Số lần thu hồi lời mời đã gọi hôm nay (tính cả lần lỗi). */
     public int undoUsedToday() {
-        return jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE at >= :s AND kind = 'UNDO_FRIEND'")
+        return jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE " + ZaloAccountContext.sql() + " AND at >= :s AND kind = 'UNDO_FRIEND'")
                 .param("s", OffsetDateTime.ofInstant(startOfDay(), ZoneOffset.UTC)).query(Integer.class).single();
     }
 
     /** Số lần nhận lời mời kết bạn đã gọi hôm nay (tính cả lần lỗi). */
     public int acceptUsedToday() {
-        return jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE at >= :s AND kind = 'ACCEPT_FRIEND'")
+        return jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE " + ZaloAccountContext.sql() + " AND at >= :s AND kind = 'ACCEPT_FRIEND'")
                 .param("s", OffsetDateTime.ofInstant(startOfDay(), ZoneOffset.UTC)).query(Integer.class).single();
     }
 
     /** Số tin nhờ khách kết bạn lại đã gọi hôm nay (tính cả lần lỗi). */
     public int askFriendUsedToday() {
-        return jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE at >= :s AND kind = 'ASK_FRIEND'")
+        return jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE " + ZaloAccountContext.sql() + " AND at >= :s AND kind = 'ASK_FRIEND'")
                 .param("s", OffsetDateTime.ofInstant(startOfDay(), ZoneOffset.UTC)).query(Integer.class).single();
     }
 
@@ -282,6 +312,13 @@ public class ZaloMessageService {
                 return fallback;
             }
         }).orElse(fallback);
+    }
+
+    /** Tài khoản thêm mới bắt đầu bằng hạn mức rất thấp (D23) cho tới khi người chỉnh lên; tài khoản 1 giữ mặc định cũ. */
+    static final int NEW_ACCOUNT_START_DAILY = 3;
+
+    private static int newAccountCap(int v) {
+        return ZaloAccountContext.current() == ZaloAccountContext.DEFAULT_ACCOUNT ? v : Math.min(v, NEW_ACCOUNT_START_DAILY);
     }
 
     private static int clamp(int v, int lo, int hi) {
@@ -312,7 +349,7 @@ public class ZaloMessageService {
     /** Đếm các lần gọi trong sổ tin. {@code invitesOnly}: chỉ tin shop chủ động nhắn (Tin 1 và tin nhắc), không tính Tin 2 và tin trả lời. */
     private int countSince(Instant since, String scope, boolean invitesOnly) {
         String where = (scope == null ? "" : " AND scope = :sc") + (invitesOnly ? " AND kind IN ('INVITE', 'FOLLOWUP2', 'FOLLOWUP3')" : "");
-        var spec = jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE at >= :s" + where)
+        var spec = jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE " + ZaloAccountContext.sql() + " AND at >= :s" + where)
                 .param("s", OffsetDateTime.ofInstant(since, ZoneOffset.UTC));
         if (scope != null) {
             spec = spec.param("sc", scope);
@@ -328,8 +365,7 @@ public class ZaloMessageService {
         if (refId == null || (kind != Kind.FRIEND && kind != Kind.INVITE && kind != Kind.ASK_FRIEND)) {
             return OptionalInt.empty();
         }
-        return jdbc.sql("""
-                        SELECT kind, outcome, code, ref_id FROM zalo_msg_log ORDER BY at DESC, id DESC LIMIT 1""")
+        return jdbc.sql("SELECT kind, outcome, code, ref_id FROM zalo_msg_log WHERE " + ZaloAccountContext.sql() + " ORDER BY at DESC, id DESC LIMIT 1")
                 .query((rs, n) -> {
                     long ref = rs.getLong("ref_id");
                     if (rs.wasNull() || ref != refId || "DANG_GOI".equals(rs.getString("outcome"))) {
@@ -347,7 +383,7 @@ public class ZaloMessageService {
     }
 
     private Instant lastAt(String scope) {
-        String where = scope == null ? "" : " WHERE scope = :sc";
+        String where = " WHERE " + ZaloAccountContext.sql() + (scope == null ? "" : " AND scope = :sc");
         var spec = jdbc.sql("SELECT max(at) FROM zalo_msg_log" + where);
         if (scope != null) {
             spec = spec.param("sc", scope);
@@ -366,7 +402,7 @@ public class ZaloMessageService {
 
     /** Mã lời mời của dòng sổ gần nhất (rỗng nếu không có hoặc đang gọi dở): khách duy nhất được hưởng khoảng nghỉ 7 giây. Chỉ đọc. */
     public Optional<Long> lastRefId() {
-        return jdbc.sql("SELECT ref_id FROM zalo_msg_log WHERE outcome <> 'DANG_GOI' AND ref_id IS NOT NULL ORDER BY at DESC, id DESC LIMIT 1")
+        return jdbc.sql("SELECT ref_id FROM zalo_msg_log WHERE " + ZaloAccountContext.sql() + " AND outcome <> 'DANG_GOI' AND ref_id IS NOT NULL ORDER BY at DESC, id DESC LIMIT 1")
                 .query(Long.class).optional();
     }
 
@@ -484,6 +520,9 @@ public class ZaloMessageService {
         if (invite && countSince(startOfDay(), null, true) >= l.daily()) {
             return Optional.of(Block.DAILY_LIMIT);
         }
+        if (invite && usedTodayAllAccounts() >= totalDaily()) {
+            return Optional.of(Block.TOTAL_LIMIT);
+        }
         if (kind == Kind.FRIEND && friendUsedToday() >= friendDaily()) {
             return Optional.of(Block.DAILY_LIMIT);
         }
@@ -574,10 +613,10 @@ public class ZaloMessageService {
             }
             // Ghi "đang gọi" TRƯỚC khi gọi: sập giữa chừng thì lần sau thấy dấu này mà dừng; sổ này cũng chính là hạn mức đã dùng.
             long logId = jdbc.sql("""
-                            INSERT INTO zalo_msg_log (at, scope, kind, ref_id, outcome) VALUES (:at, :sc, :k, :r, 'DANG_GOI')
+                            INSERT INTO zalo_msg_log (at, scope, kind, ref_id, outcome, account_id) VALUES (:at, :sc, :k, :r, 'DANG_GOI', :acct)
                             RETURNING id""")
                     .param("at", OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)).param("sc", scope)
-                    .param("k", kind.name()).param("r", refId, java.sql.Types.BIGINT).query(Long.class).single();
+                    .param("k", kind.name()).param("r", refId, java.sql.Types.BIGINT).param("acct", ZaloAccountContext.current()).query(Long.class).single();
             Sent s;
             try {
                 s = call.get();
@@ -639,12 +678,12 @@ public class ZaloMessageService {
     }
 
     private boolean leftover() {
-        return jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE outcome = 'DANG_GOI'").query(Long.class).single() > 0;
+        return jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE " + ZaloAccountContext.sql() + " AND outcome = 'DANG_GOI'").query(Long.class).single() > 0;
     }
 
     /** Lỗi riêng người liên tiếp: nhiều khả năng cấu hình hoặc Zalo đang chặn, đừng đốt hạn mức. Trả lý do dừng, hoặc null. */
     private String consecutivePersonErrors() {
-        List<String[]> last = jdbc.sql("SELECT outcome, code FROM zalo_msg_log ORDER BY id DESC LIMIT :n")
+        List<String[]> last = jdbc.sql("SELECT outcome, code FROM zalo_msg_log WHERE " + ZaloAccountContext.sql() + " ORDER BY id DESC LIMIT :n")
                 .param("n", MAX_CONSECUTIVE_NOT_FOUND)
                 .query((rs, i) -> new String[]{rs.getString("outcome"), rs.getString("code")}).list();
         boolean allPerson = last.stream().allMatch(r -> "PERSON_ERROR".equals(r[0]));

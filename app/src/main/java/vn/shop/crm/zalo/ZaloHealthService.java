@@ -186,7 +186,8 @@ public class ZaloHealthService implements ZaloTickHook {
                         SELECT count(*) FILTER (WHERE outcome <> 'DANG_GOI') AS attempts,
                                count(*) FILTER (WHERE outcome NOT IN ('OK', 'DANG_GOI')
                                                   AND NOT (outcome = 'PERSON_ERROR' AND code = 'NOT_FOUND')) AS fails
-                        FROM zalo_msg_log WHERE at >= :since""")
+                        FROM zalo_msg_log WHERE account_id = :acct AND at >= :since""")
+                .param("acct", ZaloAccountContext.current())
                 .param("since", OffsetDateTime.ofInstant(now.minus(Duration.ofHours(24)), ZoneOffset.UTC))
                 .query((rs, i) -> new int[]{rs.getInt("attempts"), rs.getInt("fails")}).single();
         int attempts = row[0];
@@ -218,12 +219,13 @@ public class ZaloHealthService implements ZaloTickHook {
         Set<String> active = new java.util.HashSet<>();
         for (Signal s : now) {
             active.add(s.kind());
-            var open = jdbc.sql("SELECT id, severity FROM zalo_health_alert WHERE kind = :k AND resolved_at IS NULL")
+            var open = jdbc.sql("SELECT id, severity FROM zalo_health_alert WHERE " + ZaloAccountContext.sql() + " AND kind = :k AND resolved_at IS NULL")
                     .param("k", s.kind()).query((rs, i) -> new Object[]{rs.getLong("id"), rs.getString("severity")}).optional();
             if (open.isEmpty()) {
                 jdbc.sql("""
-                                INSERT INTO zalo_health_alert (kind, severity, detail, opened_at, last_seen_at)
-                                VALUES (:k, :s, :d, :at, :at)""")
+                                INSERT INTO zalo_health_alert (kind, severity, detail, opened_at, last_seen_at, account_id)
+                                VALUES (:k, :s, :d, :at, :at, :acct)""")
+                        .param("acct", ZaloAccountContext.current())
                         .param("k", s.kind()).param("s", s.severity()).param("d", s.detail(), java.sql.Types.VARCHAR)
                         .param("at", at).update();
             } else {
@@ -236,7 +238,7 @@ public class ZaloHealthService implements ZaloTickHook {
                         .param("worse", worse).param("id", (Long) open.get()[0]).update();
             }
         }
-        jdbc.sql("UPDATE zalo_health_alert SET resolved_at = :at WHERE resolved_at IS NULL AND NOT (kind = ANY(:active))")
+        jdbc.sql("UPDATE zalo_health_alert SET resolved_at = :at WHERE " + ZaloAccountContext.sql() + " AND resolved_at IS NULL AND NOT (kind = ANY(:active))")
                 .param("at", at).param("active", active.toArray(new String[0])).update();
         notifyOutside(at);
         return now;
@@ -248,10 +250,10 @@ public class ZaloHealthService implements ZaloTickHook {
         if (n == null) {
             return;
         }
-        var pending = jdbc.sql("SELECT kind, severity, detail FROM zalo_health_alert WHERE resolved_at IS NULL AND notified_at IS NULL")
+        var pending = jdbc.sql("SELECT kind, severity, detail FROM zalo_health_alert WHERE " + ZaloAccountContext.sql() + " AND resolved_at IS NULL AND notified_at IS NULL")
                 .query((rs, i) -> new Signal(rs.getString("kind"), rs.getString("severity"), rs.getString("detail"))).list();
         for (Signal s : pending) {
-            String text = "Zalo tài khoản phụ" + ("CRITICAL".equals(s.severity()) ? " (KHẨN)" : " (lưu ý)") + ": "
+            String text = "Zalo tài khoản phụ" + (ZaloAccountContext.current() == ZaloAccountContext.DEFAULT_ACCOUNT ? "" : " số " + ZaloAccountContext.current()) + ("CRITICAL".equals(s.severity()) ? " (KHẨN)" : " (lưu ý)") + ": "
                     + labels.healthTitle(s.kind()) + (s.detail() == null ? "" : " [" + s.detail() + "]")
                     + ". Mở trang Zalo tài khoản phụ trong adh để xem việc cần làm.";
             boolean ok;
@@ -262,7 +264,7 @@ public class ZaloHealthService implements ZaloTickHook {
                 ok = false;
             }
             if (ok) {
-                jdbc.sql("UPDATE zalo_health_alert SET notified_at = :at WHERE kind = :k AND resolved_at IS NULL")
+                jdbc.sql("UPDATE zalo_health_alert SET notified_at = :at WHERE " + ZaloAccountContext.sql() + " AND kind = :k AND resolved_at IS NULL")
                         .param("at", at).param("k", s.kind()).update();
             }
         }
