@@ -35,9 +35,12 @@ public class ZaloAutoController {
 
     private final ZaloHealthService health;
 
+    private final ZaloQueueView queueView;
+
     public ZaloAutoController(ZaloAutoService service, ZaloMessageService messages, vn.shop.crm.send.SendService send,
                               ZaloGroupCreationService groupMaker, ZaloDeputyService deputy, ZaloInboxService inbox,
-                              vn.shop.crm.inbox.ComebackService comebacks, ZaloHealthService health) {
+                              vn.shop.crm.inbox.ComebackService comebacks, ZaloHealthService health, ZaloQueueView queueView) {
+        this.queueView = queueView;
         this.health = health;
         this.inbox = inbox;
         this.comebacks = comebacks;
@@ -89,6 +92,7 @@ public class ZaloAutoController {
             model.addAttribute("bridge", st);
             model.addAttribute("quota", cfg.quota());
             model.addAttribute("msg", messages.quota());
+            model.addAttribute("queue", queueView.preview());
             model.addAttribute("friendDaily", messages.friendDaily());
             model.addAttribute("friendUsed", messages.friendUsedToday());
             model.addAttribute("friendMax", cfg.props().friendMaxDaily());

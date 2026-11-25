@@ -223,10 +223,7 @@
     <th:block th:if="${tab == 'tong-quan'}">
 
     <h2>Lời mời</h2>
-    <p class="hint" id="next-send" th:attr="data-at=${nextSend.at() != null ? nextSend.at().toEpochMilli() : ''}">
-        <strong>Tin tiếp theo gửi sau: </strong><span class="mono" data-countdown th:text="${nextSend.at() != null ? '...' : '-'}">-</span>
-        <span th:if="${nextSend.reason() != null}" th:text="'(' + ${nextSend.reason()} + ')'" class="muted"></span>
-        <span class="muted" th:if="${nextSend.reason() == null}">Khoảng nghỉ cố định giữa hai tin; tin gửi vào nhịp kiểm tra kế tiếp.</span></p>
+    <div th:replace="~{fragments :: nextSend(${queue})}"></div>
     <p class="hint" th:with="waiting=${#lists.size(rows.?[tin1Blocked and !tin1Resent and status != 'CANCELLED' and status != 'FAILED'])}"
        th:if="${waiting > 0}">
         <strong th:text="${waiting}">0</strong> khách đang trong danh sách <strong>gửi lại Tin 1</strong>: Zalo không cho gửi Tin 1 vì họ không nhận tin người lạ.

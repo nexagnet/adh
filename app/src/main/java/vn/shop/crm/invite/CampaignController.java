@@ -20,6 +20,7 @@ public class CampaignController {
     private final AppSettings settings;
     private final vn.shop.crm.zalo.ZaloInviteSender autoSender;
     private final vn.shop.crm.zalo.ZaloMessageService messages;
+    private final vn.shop.crm.zalo.ZaloQueueView queueView;
     private final vn.shop.crm.zalo.ZaloCampaignIntake intake;
     private final vn.shop.crm.zalo.CampaignPolicy policy;
     private final CampaignSteps steps;
@@ -31,7 +32,8 @@ public class CampaignController {
                               vn.shop.crm.zalo.ZaloInviteSender autoSender, vn.shop.crm.zalo.ZaloMessageService messages,
                               vn.shop.crm.zalo.ZaloCampaignIntake intake, vn.shop.crm.zalo.CampaignPolicy policy,
                               CampaignSteps steps, vn.shop.crm.zalo.CampaignAutoStop autoStop,
-                              vn.shop.crm.zalo.CampaignGroupTarget groupTarget, vn.shop.crm.inbox.ComebackService comebacks) {
+                              vn.shop.crm.zalo.CampaignGroupTarget groupTarget, vn.shop.crm.inbox.ComebackService comebacks,
+                              vn.shop.crm.zalo.ZaloQueueView queueView) {
         this.comebacks = comebacks;
         this.groupTarget = groupTarget;
         this.autoStop = autoStop;
@@ -43,6 +45,7 @@ public class CampaignController {
         this.settings = settings;
         this.autoSender = autoSender;
         this.messages = messages;
+        this.queueView = queueView;
     }
 
     @GetMapping("/campaigns")
@@ -117,7 +120,7 @@ public class CampaignController {
         model.addAttribute("joinGroups", invites.joinableGroups());
         model.addAttribute("autoApproved", autoSender.approved(id));
         model.addAttribute("autoSwitch", messages.enabled());
-        model.addAttribute("nextSend", messages.nextSend());
+        model.addAttribute("queue", queueView.preview());
         model.addAttribute("intake", intake.status(id));
         var raw = policy.load(id);
         model.addAttribute("sched", raw);
