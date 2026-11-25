@@ -31,6 +31,7 @@ class AdvisorServiceTest extends AbstractPostgresTest {
     @Autowired AiUsage usage;
     @Autowired ContactService contacts;
     @Autowired Clock clock;
+    @Autowired ProposalService proposals;
 
     final AtomicReference<String> reply = new AtomicReference<>();
     final AtomicInteger calls = new AtomicInteger();
@@ -76,7 +77,7 @@ class AdvisorServiceTest extends AbstractPostgresTest {
             }
         };
         AiGate gate = new AiGate(client, new AiProperties(aiOn, "khoa", "m", "https://api.deepseek.com", 100, 10, 300), usage, Clock.systemUTC());
-        return new AdvisorService(snapshots, new CampaignAdvisor(gate, "", true), store, clock, advisorOn, maxRuns);
+        return new AdvisorService(snapshots, new CampaignAdvisor(gate, "", true), store, clock, contacts, advisorOn, maxRuns);
     }
 
     private String proposal(String extra) {
@@ -192,5 +193,91 @@ class AdvisorServiceTest extends AbstractPostgresTest {
         var view = service(true, true, 5).run("admin");
         assertThat(view.result().proposals()).isEmpty();
         assertThat(view.result().rejected()).singleElement().asString().contains("daily_cap");
+    }
+
+    /** Biến 3 khách chưa duyệt thành khách mua 2 lần (chưa có cơ sở liên hệ): chỉ chiến dịch cho phép mua nhiều lần mới mời được. */
+    private void makeRepeatBuyers() {
+        jdbc.sql("""
+                UPDATE customer SET segment = 'REPEAT', successful_purchases = 2
+                WHERE phone IN ('+84900001008', '+84900001009', '+84900001010')""").update();
+    }
+
+    @Test
+    void boLocKhopThiLuuNguyenVanVaDuyetTaoChienDichDungBoLoc() {
+        makeRepeatBuyers();
+        reply.set(proposal(",\"filter\":{\"purchases_min\":2,\"purchases_max\":3}").replace("\"batch_size\":8", "\"batch_size\":3"));
+        var view = service(true, true, 5).run("admin");
+
+        assertThat(view.result().proposals()).hasSize(1);
+        assertThat(view.result().proposals().getFirst().filter().multi()).isTrue();
+        String saved = jdbc.sql("SELECT filter_json::text FROM campaign_proposal").query(String.class).single();
+        assertThat(saved).contains("\"purchasesMin\"", "\"purchasesMax\"");
+        // duyệt: chiến dịch mang đúng bộ lọc và số lần mua; khách mua 2 lần được duyệt riêng cho chiến dịch này
+        long pid = proposals.open().getFirst().id();
+        assertThat(proposals.open().getFirst().multi()).isTrue();
+        long campaignId = proposals.approve(pid, "admin");
+        assertThat(jdbc.sql("SELECT max_purchases FROM invitation_campaign WHERE id = :id").param("id", campaignId).query(Integer.class).single()).isEqualTo(3);
+        assertThat(jdbc.sql("SELECT customer_filter::text FROM invitation_campaign WHERE id = :id").param("id", campaignId).query(String.class).single())
+                .contains("\"purchasesMax\"");
+        assertThat(count("invitation")).isEqualTo(3);
+        // vẫn chưa gửi gì cho ai
+        assertThat(count("zalo_msg_log")).isZero();
+    }
+
+    @Test
+    void boLocKhongKhopAiThiBoDeXuatVaGhiLyDo() {
+        makeRepeatBuyers();
+        reply.set(proposal(",\"filter\":{\"purchases_min\":5,\"purchases_max\":6}"));
+        var view = service(true, true, 5).run("admin");
+
+        assertThat(view.result().proposals()).isEmpty();
+        assertThat(view.result().rejected()).singleElement().asString().contains("không khớp khách nào");
+        assertThat(count("campaign_proposal")).isZero();
+    }
+
+    @Test
+    void boLocKhopItHonLoThiKepLoVaGhiRuiRo() {
+        makeRepeatBuyers();
+        reply.set(proposal(",\"filter\":{\"purchases_min\":2,\"purchases_max\":3}")); // lô 8, chỉ 3 khách khớp
+        var view = service(true, true, 5).run("admin");
+
+        var p = view.result().proposals().getFirst();
+        assertThat(p.batchSize()).isEqualTo(3);
+        assertThat(p.risks()).anyMatch(r -> r.contains("chỉ khớp 3 khách"));
+        assertThat(jdbc.sql("SELECT batch_size FROM campaign_proposal").query(Integer.class).single()).isEqualTo(3);
+    }
+
+    @Test
+    void boLocSaiKhuonCuaAiBiBoVaKhongDungDenKhach() {
+        reply.set(proposal(",\"filter\":{\"so_dien_thoai\":\"0900001001\"}"));
+        var view = service(true, true, 5).run("admin");
+
+        assertThat(view.result().proposals()).isEmpty();
+        assertThat(view.result().rejected()).singleElement().asString().contains("filter");
+        assertThat(count("invitation_campaign")).isZero();
+    }
+
+    @Test
+    void soLieuBoLocChoAiChiLaSoDemAnDanh() {
+        makeRepeatBuyers();
+        // thêm khách mua 2 lần cho đủ ngưỡng ẩn (10): 3 + 8 = 11
+        for (int i = 0; i < 8; i++) {
+            jdbc.sql("""
+                    INSERT INTO customer (phone, name, address, segment, successful_purchases, province, last_order_on)
+                    VALUES (:p, 'Rieng Tu', 'So 1 Duong Kin', 'REPEAT', 2, 'tphcm', now() - interval '20 days')""")
+                    .param("p", String.format("+84900002%03d", i)).update();
+        }
+        var audience = snapshots.build().insights().audience();
+        assertThat(audience.multiPurchase2()).isEqualTo(11L);
+        assertThat(audience.multiPurchase3()).isNull(); // dưới 10 khách thì ẩn
+        String json = snapshots.build().toJson();
+        assertThat(json).contains("\"multi_purchase2\":11", "\"exchange_ready\":false");
+        assertThat(json).doesNotContain("Rieng", "Kin", "+84", "0900002", "BiMat", "Tran");
+        assertThat(json).doesNotContainPattern("\\d{8,}");
+    }
+
+    @Test
+    void loiNhacAiVeBoLoc() {
+        assertThat(CampaignAdvisor.SYSTEM).contains("filter", "audience");
     }
 }

@@ -262,4 +262,86 @@ class ProposalValidatorTest {
         assertThat(outside.accepted().getFirst().confidence()).isEqualTo(ProposalValidator.CAP_BEYOND_FORECAST);
         assertThat(outside.accepted().getFirst().confidenceCapped()).isTrue();
     }
+
+    /** Bản chụp có mục "audience" (cho phép lọc theo đơn đổi và theo tiền thu được tùy cờ). */
+    static AdvisorSnapshot withAudience(boolean exchange, boolean settlement) {
+        var b = snapshot(0, true);
+        var audience = new AdvisorSnapshot.Audience(exchange, settlement, 12L, 11L, null, null, null, null, null, null, null, null, null);
+        return new AdvisorSnapshot(b.generatedOn(), b.calendar(), b.limits(), b.overall(), b.areas(), b.sendSlots(), List.of(), List.of(), List.of(),
+                new AdvisorSnapshot.Insights(null, null, null, null, null, null, audience));
+    }
+
+    private static ProposalValidator.Outcome checkWith(AdvisorSnapshot snap, String json) {
+        return ProposalValidator.validate(wrap(json), snap, TODAY);
+    }
+
+    @Test
+    void boLocCuaAiDuocDocDungKhuonVaKhongCoThiLaRong() {
+        var none = check(wrap(one())).accepted().getFirst();
+        assertThat(none.filter().any()).isFalse();
+        var p = check(wrap(one("filter", "{\"purchases_max\":3,\"cancelled\":\"NO\",\"no_open_orders\":true,\"bought\":[\"AO_DIEU_HOA\"],"
+                + "\"not_bought\":[\"PIN\"],\"max_shipments\":4}"))).accepted().getFirst();
+        assertThat(p.filter().maxPurchases()).isEqualTo(3);
+        assertThat(p.filter().multi()).isTrue();
+        assertThat(p.filter().cancelled()).isEqualTo(vn.shop.crm.contact.CustomerFilter.Tri.NO);
+        assertThat(p.filter().noOpenOrders()).isTrue();
+        assertThat(p.filter().maxShipments()).isEqualTo(4);
+        assertThat(check(wrap(one("filter", "null"))).accepted().getFirst().filter().any()).isFalse();
+        assertThat(check(wrap(one("filter", "{}"))).accepted().getFirst().filter().any()).isFalse();
+    }
+
+    @Test
+    void boLocSaiKhuonBiTuChoiKhongSuaHo() {
+        rejected(one("filter", "{\"khoa_la\":1}"), "filter");
+        rejected(one("filter", "\"mua nhieu\""), "filter");
+        rejected(one("filter", "[1]"), "filter");
+        rejected(one("filter", "{\"purchases_max\":\"3\"}"), "purchases");
+        rejected(one("filter", "{\"purchases_max\":2.5}"), "purchases");
+        rejected(one("filter", "{\"purchases_min\":5,\"purchases_max\":2}"), "filter");
+        rejected(one("filter", "{\"purchases_max\":999}"), "filter");
+        rejected(one("filter", "{\"cancelled\":\"MAYBE\"}"), "cancelled");
+        rejected(one("filter", "{\"no_open_orders\":\"yes\"}"), "no_open_orders");
+        rejected(one("filter", "{\"bought\":[\"GIAY_DEP\"]}"), "bought");
+        rejected(one("filter", "{\"bought\":\"PIN\"}"), "bought");
+        rejected(one("filter", "{\"bought_mode\":\"SOME\"}"), "bought_mode");
+        rejected(one("filter", "{\"max_shipments\":\"nhieu\"}"), "max_shipments");
+    }
+
+    @Test
+    void khongDungChungNhomHangCuVaBoughtMoi() {
+        rejected(one("product_group", "\"PIN\"", "filter", "{\"bought\":[\"AO_DIEU_HOA\"]}"), "product_group");
+    }
+
+    @Test
+    void locTheoDonDoiChiKhiChuShopDaCaiCachNhanBiet() {
+        String f = "{\"exchange\":\"NO\"}";
+        // chưa cài (không có mục audience, hoặc exchangeReady = false): bị từ chối
+        var noAudience = ProposalValidator.validate(wrap(one("filter", f)), snapshot(0, true), TODAY);
+        assertThat(noAudience.accepted()).isEmpty();
+        assertThat(noAudience.rejected()).singleElement().asString().contains("đơn đổi");
+        var notReady = checkWith(withAudience(false, false), one("filter", f));
+        assertThat(notReady.accepted()).isEmpty();
+        // đã cài: nhận; ANY thì không cần
+        assertThat(checkWith(withAudience(true, false), one("filter", f)).accepted()).hasSize(1);
+        assertThat(checkWith(withAudience(false, false), one("filter", "{\"exchange\":\"ANY\"}")).accepted()).hasSize(1);
+    }
+
+    @Test
+    void locTheoTienChiKhiDaCoFileDoiSoat() {
+        String f = "{\"cod_min\":300000}";
+        assertThat(checkWith(withAudience(false, false), one("filter", f)).accepted()).isEmpty();
+        assertThat(checkWith(withAudience(false, false), one("filter", f)).rejected()).singleElement().asString().contains("đối soát");
+        assertThat(checkWith(withAudience(false, true), one("filter", f)).accepted()).hasSize(1);
+        assertThat(checkWith(withAudience(false, true), one("filter", "{\"cod_min\":\"1\"}")).accepted()).isEmpty();
+    }
+
+    @Test
+    void chienDichMuaNhieuLanKhongBiChanLoBangSoKhachMotLan() {
+        // khu vực chỉ có 100 khách mua đúng 1 lần đủ điều kiện; chiến dịch mua nhiều lần được xin lô lớn hơn (vẫn không quá trần chiến dịch 300)
+        assertThat(check(wrap(one("end_date", "\"2026-12-08\"", "batch_size", "130"))).accepted()).isEmpty();
+        assertThat(check(wrap(one("end_date", "\"2026-12-08\"", "batch_size", "130", "filter", "{\"purchases_max\":3}"))).accepted()).hasSize(1);
+        assertThat(check(wrap(one("end_date", "\"2026-12-08\"", "batch_size", "301", "filter", "{\"purchases_max\":3}"))).accepted()).isEmpty();
+        // chỉ đặt purchases_max = 1 thì vẫn bị chặn như thường
+        assertThat(check(wrap(one("end_date", "\"2026-12-08\"", "batch_size", "130", "filter", "{\"purchases_max\":1}"))).accepted()).isEmpty();
+    }
 }

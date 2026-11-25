@@ -3,6 +3,7 @@ package vn.shop.crm.advisor;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import vn.shop.crm.contact.ContactService;
+import vn.shop.crm.contact.CustomerFilter;
 import vn.shop.crm.contact.ProductGroup;
 import vn.shop.crm.geo.GeoArea;
 import vn.shop.crm.geo.Province;
@@ -462,11 +463,55 @@ public class AdvisorSnapshotService {
                 byArea.add(new AdvisorSnapshot.AreaFailures(a.code(), acc.toFailures(null, null)));
             }
         }
-        if (profile == null && weekdays == null && repurchase == null && overallFailures == null) {
+        AdvisorSnapshot.Audience audience = audience();
+        if (profile == null && weekdays == null && repurchase == null && overallFailures == null && audience == null) {
             return null;
         }
         return new AdvisorSnapshot.Insights(profile, weekdays, repurchase, overallFailures, byArea.isEmpty() ? null : byArea,
-                overallFailures == null ? null : messages.friendDaily());
+                overallFailures == null ? null : messages.friendDaily(), audience);
+    }
+
+    /**
+     * Số khách khớp từng kiểu bộ lọc phổ biến (PR 4): để AI biết kiểu chiến dịch nào có đủ khách. Chỉ số đếm; dưới {@link #MIN_CELL} thì ẩn. Mọi truy vấn là
+     * đếm qua đúng bộ lọc mà chiến dịch thật dùng, bỏ khách thuộc danh sách số thử. Lỗi thì không có mục này (AI vẫn đề xuất được như trước).
+     */
+    private AdvisorSnapshot.Audience audience() {
+        try {
+            boolean exchange = contacts.exchangeConfigured();
+            boolean settlement = jdbc.sql("SELECT EXISTS (SELECT 1 FROM settlement_line)").query(Boolean.class).single();
+            var yes = CustomerFilter.Tri.YES;
+            var shirt = ProductGroup.AO_DIEU_HOA;
+            long total = contacts.countEligibleNotInvitedReal(CustomerFilter.NONE);
+            AdvisorSnapshot.Audience a = new AdvisorSnapshot.Audience(exchange, settlement,
+                    cell(CustomerFilter.builder().purchases(2, 2).build()),
+                    cell(CustomerFilter.builder().purchases(3, 3).build()),
+                    cell(CustomerFilter.builder().purchases(4, CustomerFilter.MAX_PURCHASES).build()),
+                    cell(CustomerFilter.builder().cancelled(yes).build()),
+                    cell(CustomerFilter.builder().returned(yes).build()),
+                    // "có đơn chưa giao xong" và "có việc cần người thật" tính bằng hiệu (bộ lọc chỉ có dạng "bỏ khách có ...")
+                    hide(total - contacts.countEligibleNotInvitedReal(CustomerFilter.builder().noOpenOrders().build())),
+                    hide(total - contacts.countEligibleNotInvitedReal(CustomerFilter.builder().skipOpenCases().build())),
+                    exchange ? cell(CustomerFilter.builder().exchange(yes).build()) : null,
+                    cell(CustomerFilter.builder().bought(CustomerFilter.Mode.ANY, shirt).notBought(ProductGroup.PIN).build()),
+                    cell(CustomerFilter.builder().bought(CustomerFilter.Mode.ANY, shirt).notBought(ProductGroup.PHU_KIEN_KHAC).build()),
+                    cell(CustomerFilter.builder().bought(CustomerFilter.Mode.ANY, ProductGroup.PIN).notBought(shirt).build()));
+            // Không có gì để nói (chưa cài đơn đổi, chưa có đối soát, mọi ô bị ẩn): bỏ cả mục để prompt gọn
+            return a.exchangeReady() || a.settlementAvailable() || a.multiPurchase2() != null || a.multiPurchase3() != null
+                    || a.multiPurchase4Plus() != null || a.withCancelled() != null || a.withReturned() != null || a.withOpenOrders() != null
+                    || a.withOpenCases() != null || a.withExchange() != null || a.boughtShirtNotPin() != null
+                    || a.boughtShirtNotAccessory() != null || a.boughtPinNotShirt() != null ? a : null;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** Một ô số liệu: null nếu dưới {@link #MIN_CELL} khách (ẩn). */
+    private Long cell(CustomerFilter f) {
+        return hide(contacts.countEligibleNotInvitedReal(f));
+    }
+
+    private static Long hide(long n) {
+        return n >= MIN_CELL ? n : null;
     }
 
     /** Số tin đã nhắn và số khách kết bạn theo ngày trong tuần (giờ Việt Nam); null nếu chưa nhắn tin nào. */

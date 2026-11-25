@@ -3,6 +3,8 @@ package vn.shop.crm.advisor;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import vn.shop.crm.bot.PiiMasker;
+import vn.shop.crm.contact.CustomerFilter;
+import vn.shop.crm.contact.ProductGroup;
 
 import java.text.Normalizer;
 import java.time.DateTimeException;
@@ -44,7 +46,10 @@ final class ProposalValidator {
     private static final Set<String> KEYS = Set.of("title", "area", "batch_size", "start_date", "end_date", "window_from",
             "window_to", "daily_cap", "message_angle", "reasons", "risks", "confidence");
     /** Khóa tùy chọn: thiếu thì lấy mặc định của hệ thống (mọi ngày, duyệt sớm nhất, không lọc độ mới lần mua). */
-    private static final Set<String> OPTIONAL_KEYS = Set.of("weekdays", "pick_order", "min_days_since_purchase", "max_days_since_purchase", "product_group");
+    private static final Set<String> OPTIONAL_KEYS = Set.of("weekdays", "pick_order", "min_days_since_purchase", "max_days_since_purchase", "product_group", "filter");
+    /** Khóa của đối tượng {@code filter} (cùng khuôn với bộ lọc khách của người dùng, {@link CustomerFilter}). */
+    private static final Set<String> FILTER_KEYS = Set.of("purchases_min", "purchases_max", "exchange", "cancelled", "returned", "no_open_orders",
+            "max_shipments", "bought", "bought_mode", "not_bought", "cod_min", "cod_max", "skip_open_cases");
     private static final Set<String> PICK_ORDERS = Set.of("OLDEST_APPROVED", "NEWEST_PURCHASE", "OLDEST_PURCHASE");
     static final int MAX_DAYS_SINCE_PURCHASE = 1100;
     private static final Set<String> PRODUCT_GROUPS = Set.of("AO_DIEU_HOA", "PIN", "PHU_KIEN_KHAC");
@@ -146,7 +151,10 @@ final class ProposalValidator {
         }
 
         int batch = n.get("batch_size").asInt();
-        int maxBatch = (int) Math.min(a.get().eligible(), snap.limits().maxCampaignSize());
+        // Chiến dịch mời cả khách mua nhiều lần: số khách đủ điều kiện của khu vực (chỉ khách mua 1 lần) không còn là trần; số khớp thật được kẹp lúc lưu.
+        boolean multi = n.has("filter") && n.get("filter").isObject() && n.get("filter").has("purchases_max")
+                && n.get("filter").get("purchases_max").isIntegralNumber() && n.get("filter").get("purchases_max").asInt() > 1;
+        int maxBatch = (int) Math.min(multi ? Long.MAX_VALUE : a.get().eligible(), snap.limits().maxCampaignSize());
         if (batch < 1 || batch > maxBatch) {
             return "batch_size phải từ 1 đến " + maxBatch + " (số khách đủ điều kiện mời của khu vực, không quá trần chiến dịch)";
         }
@@ -272,6 +280,18 @@ final class ProposalValidator {
             productGroup = n.get("product_group").asString();
         }
 
+        CustomerFilter filter = CustomerFilter.NONE;
+        if (n.has("filter") && !n.get("filter").isNull()) {
+            Object parsed = filter(n.get("filter"), snap);
+            if (parsed instanceof String why) {
+                return why;
+            }
+            filter = (CustomerFilter) parsed;
+            if (productGroup != null && !filter.bought().isEmpty()) {
+                return "product_group và filter.bought không dùng cùng lúc (chỉ dùng filter.bought)";
+            }
+        }
+
         double confidence = n.get("confidence").asDouble();
         double ceiling = 1.0;
         if (snap.overall().funnel().sent() < MIN_HISTORY_SENT) {
@@ -284,7 +304,125 @@ final class ProposalValidator {
         }
         boolean capped = confidence > ceiling;
         return new AdvisorProposal(title, area, batch, start, end, from, to, cap, angle, reasons, risks,
-                Math.min(confidence, ceiling), capped, weekdays, pickOrder, minDays, maxDays, productGroup);
+                Math.min(confidence, ceiling), capped, weekdays, pickOrder, minDays, maxDays, productGroup, filter);
+    }
+
+    /**
+     * Đọc đối tượng {@code filter} của AI thành {@link CustomerFilter}; trả chuỗi lý do nếu sai. Chỉ nhận đúng các khóa của khuôn, đúng kiểu, nằm trong miền
+     * cho phép; lọc theo đơn đổi chỉ khi chủ shop đã cài cách nhận biết, lọc theo tiền chỉ khi đã có đối soát. Không bao giờ sửa hộ.
+     */
+    static Object filter(JsonNode f, AdvisorSnapshot snap) {
+        if (!f.isObject() || !FILTER_KEYS.containsAll(keysOf(f))) {
+            return "filter phải là đối tượng chỉ gồm các khóa: " + String.join(", ", new java.util.TreeSet<>(FILTER_KEYS));
+        }
+        var audience = snap.insights() == null ? null : snap.insights().audience();
+        CustomerFilter.Builder b = CustomerFilter.builder();
+        Integer pMin = intField(f, "purchases_min");
+        Integer pMax = intField(f, "purchases_max");
+        if (pMin != null && pMin == Integer.MIN_VALUE || pMax != null && pMax == Integer.MIN_VALUE) {
+            return "filter.purchases_min và purchases_max phải là số nguyên";
+        }
+        b.purchases(pMin, pMax);
+        for (String k : List.of("exchange", "cancelled", "returned")) {
+            if (!f.has(k) || f.get(k).isNull()) {
+                continue;
+            }
+            String v = f.get(k).isString() ? f.get(k).asString() : "";
+            if (!List.of("YES", "NO", "ANY").contains(v)) {
+                return "filter." + k + " chỉ nhận YES, NO hoặc ANY";
+            }
+            CustomerFilter.Tri t = CustomerFilter.Tri.valueOf(v);
+            switch (k) {
+                case "exchange" -> {
+                    if (t != CustomerFilter.Tri.ANY && (audience == null || !audience.exchangeReady())) {
+                        return "filter.exchange chưa dùng được: chủ cửa hàng chưa cài cách nhận biết đơn đổi";
+                    }
+                    b.exchange(t);
+                }
+                case "cancelled" -> b.cancelled(t);
+                default -> b.returned(t);
+            }
+        }
+        for (String k : List.of("no_open_orders", "skip_open_cases")) {
+            if (f.has(k) && !f.get(k).isNull()) {
+                if (!f.get(k).isBoolean()) {
+                    return "filter." + k + " phải là true hoặc false";
+                }
+                if (f.get(k).asBoolean()) {
+                    if (k.equals("no_open_orders")) {
+                        b.noOpenOrders();
+                    } else {
+                        b.skipOpenCases();
+                    }
+                }
+            }
+        }
+        Integer maxShip = intField(f, "max_shipments");
+        if (maxShip != null && maxShip == Integer.MIN_VALUE) {
+            return "filter.max_shipments phải là số nguyên";
+        }
+        b.maxShipments(maxShip);
+        List<ProductGroup> bought = groups(f, "bought");
+        List<ProductGroup> notBought = groups(f, "not_bought");
+        if (bought == null || notBought == null) {
+            return "filter.bought và not_bought chỉ nhận danh sách AO_DIEU_HOA, PIN, PHU_KIEN_KHAC";
+        }
+        CustomerFilter.Mode mode = CustomerFilter.Mode.ANY;
+        if (f.has("bought_mode") && !f.get("bought_mode").isNull()) {
+            String m = f.get("bought_mode").isString() ? f.get("bought_mode").asString() : "";
+            if (!List.of("ANY", "ALL").contains(m)) {
+                return "filter.bought_mode chỉ nhận ANY hoặc ALL";
+            }
+            mode = CustomerFilter.Mode.valueOf(m);
+        }
+        b.bought(mode, bought.toArray(new ProductGroup[0])).notBought(notBought.toArray(new ProductGroup[0]));
+        Long codMin = longField(f, "cod_min");
+        Long codMax = longField(f, "cod_max");
+        if (codMin != null && codMin == Long.MIN_VALUE || codMax != null && codMax == Long.MIN_VALUE) {
+            return "filter.cod_min và cod_max phải là số nguyên (đồng)";
+        }
+        if ((codMin != null || codMax != null) && (audience == null || !audience.settlementAvailable())) {
+            return "filter.cod chưa dùng được: chưa có file đối soát";
+        }
+        b.cod(codMin, codMax);
+        try {
+            return b.build();
+        } catch (vn.shop.crm.common.ImportException e) {
+            return "filter không hợp lệ: " + e.getMessage();
+        }
+    }
+
+    /** Số nguyên tùy chọn: null nếu thiếu; {@link Integer#MIN_VALUE} nếu sai kiểu. */
+    private static Integer intField(JsonNode n, String key) {
+        if (!n.has(key) || n.get(key).isNull()) {
+            return null;
+        }
+        return n.get(key).isIntegralNumber() && n.get(key).canConvertToInt() ? n.get(key).asInt() : Integer.MIN_VALUE;
+    }
+
+    private static Long longField(JsonNode n, String key) {
+        if (!n.has(key) || n.get(key).isNull()) {
+            return null;
+        }
+        return n.get(key).isIntegralNumber() && n.get(key).canConvertToLong() ? n.get(key).asLong() : Long.MIN_VALUE;
+    }
+
+    /** Danh sách nhóm hàng tùy chọn; null nếu sai. Thiếu hoặc null là danh sách rỗng. */
+    private static List<ProductGroup> groups(JsonNode n, String key) {
+        if (!n.has(key) || n.get(key).isNull()) {
+            return List.of();
+        }
+        if (!n.get(key).isArray() || n.get(key).size() > PRODUCT_GROUPS.size()) {
+            return null;
+        }
+        List<ProductGroup> out = new ArrayList<>();
+        for (JsonNode x : n.get(key)) {
+            if (!x.isString() || !PRODUCT_GROUPS.contains(x.asString())) {
+                return null;
+            }
+            out.add(ProductGroup.valueOf(x.asString()));
+        }
+        return out;
     }
 
     /** Hai khu vực có chung tỉnh nào không. "ALL" là mọi nơi, "U" là chưa rõ tỉnh. */

@@ -189,6 +189,42 @@ public record CustomerFilter(
         return exchange != Tri.ANY;
     }
 
+    /** Dựng bộ lọc từng trường cho dễ đọc (trường không gọi thì không lọc). */
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static final class Builder {
+        private Integer purchasesMin, purchasesMax, maxShipments, minDays, maxDays;
+        private List<String> excludeAreas, carriers;
+        private Tri exchange, cancelled, returned;
+        private boolean noOpenOrders, skipOpenCases;
+        private List<ProductGroup> bought, notBought;
+        private Mode boughtMode;
+        private Long codMin, codMax;
+        private String pickOrder;
+
+        public Builder purchases(Integer min, Integer max) { purchasesMin = min; purchasesMax = max; return this; }
+        public Builder exchange(Tri t) { exchange = t; return this; }
+        public Builder cancelled(Tri t) { cancelled = t; return this; }
+        public Builder returned(Tri t) { returned = t; return this; }
+        public Builder noOpenOrders() { noOpenOrders = true; return this; }
+        public Builder skipOpenCases() { skipOpenCases = true; return this; }
+        public Builder maxShipments(Integer n) { maxShipments = n; return this; }
+        public Builder days(Integer min, Integer max) { minDays = min; maxDays = max; return this; }
+        public Builder bought(Mode mode, ProductGroup... g) { bought = List.of(g); boughtMode = mode; return this; }
+        public Builder notBought(ProductGroup... g) { notBought = List.of(g); return this; }
+        public Builder cod(Long min, Long max) { codMin = min; codMax = max; return this; }
+        public Builder excludeAreas(List<String> a) { excludeAreas = a; return this; }
+        public Builder carriers(List<String> c) { carriers = c; return this; }
+        public Builder pickOrder(String o) { pickOrder = o; return this; }
+
+        public CustomerFilter build() {
+            return new CustomerFilter(purchasesMin, purchasesMax, excludeAreas, carriers, exchange, cancelled, returned, noOpenOrders, maxShipments,
+                    minDays, maxDays, bought, boughtMode, notBought, codMin, codMax, skipOpenCases, pickOrder);
+        }
+    }
+
     // ---------- từng điều kiện (cho phần xem trước) ----------
 
     /** Một điều kiện riêng lẻ của bộ lọc: chữ mô tả và bộ lọc chỉ chứa đúng điều kiện đó. */

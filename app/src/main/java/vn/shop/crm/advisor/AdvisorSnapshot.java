@@ -155,7 +155,25 @@ public record AdvisorSnapshot(
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Insights(Shop shop, List<Slot> sendWeekdays, Repurchase repurchase, Failures failures, List<AreaFailures> failuresByArea,
-                           Integer friendRequestDaily) {
+                           Integer friendRequestDaily, Audience audience) {
+        /** Bản không có số liệu bộ lọc khách (dùng trong test). */
+        public Insights(Shop shop, List<Slot> sendWeekdays, Repurchase repurchase, Failures failures, List<AreaFailures> failuresByArea,
+                        Integer friendRequestDaily) {
+            this(shop, sendWeekdays, repurchase, failures, failuresByArea, friendRequestDaily, null);
+        }
+    }
+
+    /**
+     * Số khách (toàn hệ thống, đủ điều kiện mời và chưa từng được mời) khớp từng kiểu bộ lọc mà AI có thể dùng ở khóa {@code filter} của đề xuất: chỉ chỉ số đếm,
+     * không khách nào; ô dưới {@link AdvisorSnapshotService#MIN_CELL} khách là null (ẩn). {@code exchangeReady}: chủ shop đã cài cách nhận biết đơn đổi (chưa cài thì
+     * AI không được lọc theo đơn đổi). {@code settlementAvailable}: đã có file đối soát (chưa có thì không lọc theo tiền đã thu được).
+     * Các số {@code multiPurchase*} đếm khách đã mua đúng 2, đúng 3, từ 4 lần: chỉ mời được khi đề xuất đặt purchases_max lớn hơn 1.
+     * {@code boughtShirtNotPin}/{@code boughtShirtNotAccessory}/{@code boughtPinNotShirt}: khách đã mua nhóm hàng này mà chưa mua nhóm kia (nhóm hàng chỉ gần đúng).
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Audience(boolean exchangeReady, boolean settlementAvailable, Long multiPurchase2, Long multiPurchase3, Long multiPurchase4Plus,
+                           Long withCancelled, Long withReturned, Long withOpenOrders, Long withOpenCases, Long withExchange,
+                           Long boughtShirtNotPin, Long boughtShirtNotAccessory, Long boughtPinNotShirt) {
     }
 
     /**
