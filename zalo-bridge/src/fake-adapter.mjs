@@ -59,6 +59,12 @@ export class FakeAdapter {
     return [...(this.friends ?? [])].map(String);
   }
 
+  async friendRequestStatus(uid) {
+    (this.friendRequestReads ??= []).push(uid);
+    if (this.friendRequestError) throw this.friendRequestError;
+    return this.friendRequestStates?.get(uid);
+  }
+
   async findUid(phone) {
     if (this.findError) throw this.findError;
     return this.uids?.get(String(phone)) ?? null;

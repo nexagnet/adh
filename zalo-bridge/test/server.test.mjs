@@ -65,6 +65,26 @@ test('trạng thái, sự kiện và thêm người theo đúng hợp đồng', 
   await s.close();
 });
 
+test('đọc trạng thái lời mời chỉ cho mã đã nhận Tin 1 của đúng tài khoản', async () => {
+  const s = await boot();
+  try {
+    const tag = (await s.call('GET', '/status')).json.accountTag;
+    const p = '/friend-requests/status?uid=555';
+    assert.equal((await s.call('GET', p, { key: '' })).status, 401);
+    assert.equal((await s.call('GET', p, { accountTag: '000000000000' })).status, 409);
+    assert.deepEqual((await s.call('GET', p, { accountTag: tag })).json, { ok: false, code: 'NO_INVITE' });
+    s.c.bridge.msgLedger.markSent('INVITE', '555');
+    s.c.adapter.friendRequestStates = new Map([['555', { is_friend: 0, is_requested: 0, is_requesting: 1 }]]);
+    assert.deepEqual((await s.call('GET', p + '&uid=123', { accountTag: tag })).json, { ok: false, code: 'BAD_INPUT' });
+    assert.deepEqual((await s.call('GET', p, { accountTag: tag })).json, { ok: true, state: 'OUTGOING' });
+    assert.deepEqual(s.c.adapter.friendRequestReads, ['555']);
+    assert.equal(s.c.adapter.friendRequests, undefined);
+  } finally {
+    await s.close();
+    s.c.cleanup();
+  }
+});
+
 test('mã sai hoặc body lạ không gọi được Zalo', async () => {
   const s = await boot();
   assert.deepEqual((await s.call('POST', '/groups/abc/members', { body: { uid: '1' } })).json, { outcome: 'PERSON_ERROR', code: 'BAD_ID' });
@@ -124,7 +144,7 @@ test('POST /people/lookup (D19) cần khóa, tra đúng một số, số sai kh�
 
 test('danh sách đường được phép là cố định', () => {
   assert.deepEqual(ROUTES, [
-    'GET /healthz', 'GET /status', 'GET /events', 'GET /inbox', 'POST /reactions', 'GET /groups', 'POST /groups', 'POST /groups/{id}/members', 'POST /groups/{id}/deputy', 'POST /messages', 'POST /friend-requests', 'POST /friend-requests/undo', 'GET /friend-requests/incoming', 'POST /friend-requests/accept', 'POST /people/lookup', 'POST /session/login', 'GET /session/login',
+    'GET /healthz', 'GET /status', 'GET /events', 'GET /inbox', 'POST /reactions', 'GET /groups', 'POST /groups', 'POST /groups/{id}/members', 'POST /groups/{id}/deputy', 'POST /messages', 'POST /friend-requests', 'POST /friend-requests/undo', 'GET /friend-requests/incoming', 'GET /friend-requests/status', 'POST /friend-requests/accept', 'POST /people/lookup', 'POST /session/login', 'GET /session/login',
     'POST /session/logout', 'POST /session/stop', 'POST /session/resume',
   ]);
 });

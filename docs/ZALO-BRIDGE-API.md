@@ -31,6 +31,12 @@ Tin nhắn RIÊNG (1-1, dạng văn bản, không phải của chính tài kho�
 ```
 Chỉ có khi đặt `BRIDGE_INBOX_ENABLED=true` ở cầu nối; tắt thì cầu nối **không đăng ký nghe tin nhắn** và trả `{ "enabled": false, "messages": [] }`. Cầu nối lọc bằng sổ gửi tin của chính nó (băm HMAC): tin của người chưa từng nhận tin của hệ thống bị bỏ ngay, không lưu, không ghi log. Không đọc tin nhóm, tệp, ảnh hay lịch sử cũ. Tin giữ **trong bộ nhớ** tối đa 6 giờ và 300 tin, cắt còn 500 ký tự, bỏ khi Adh xác nhận (`seq` ≤ `after`); nội dung, mã Zalo không bao giờ vào log. Adh che dữ liệu (`PiiMasker`) rồi mới nhờ AI gắn nhãn.
 
+### `GET /friend-requests/status?uid=123456789`
+
+Đọc trạng thái lời mời của một UID đã có trong sổ Tin 1 của cầu nối. Trả `{"ok":true,"state":"FRIENDS"}` hoặc một trong các trạng thái `OUTGOING`, `INCOMING`, `NONE`. Lỗi đọc trả `{"ok":false,"code":"..."}`. Dữ liệu trống hoặc trái hợp đồng được coi là lỗi đọc. `NONE` là quan sát không thấy quan hệ hay lời mời, chưa xác định được ai đã thu hồi hoặc từ chối.
+
+ADH có thể quan sát một việc mỗi tài khoản trong từng nhịp với `APP_ZALO_RECONCILE_ENABLED=true`. Mặc định chạy cách nhau 30 phút để phù hợp với ngân sách đọc mặc định của cầu nối. Ảnh cầu nối cũ chưa có endpoint này sẽ chỉ cho kết quả không đọc được. Kiểm chứng chiều lời mời bằng tài khoản thử trước khi dùng làm điều kiện phục hồi.
+
 ### `POST /groups/{zaloGroupId}/members`  body `{"uid": "123456789"}`
 Kết quả có thể là `GROUP_ERROR` (24/11/2026): Zalo báo lỗi của CẢ NHÓM (nhóm không còn, không đủ quyền...). Chỉ khi mã lỗi nằm trong `BRIDGE_GROUP_ERROR_CODES` (mặc định rỗng, điền sau khi chạy thật); không làm cầu nối dừng, Adh tạm dừng đúng nhóm đó.
 Cả hai mã chỉ gồm chữ số (≤ 32). Trả:

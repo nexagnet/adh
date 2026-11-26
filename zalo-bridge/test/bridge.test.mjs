@@ -1793,3 +1793,43 @@ test('trạng thái có dấu băm ngắn của tài khoản phụ, không phả
   assert.match(tag, /^[0-9a-f]{12}$/);
   c.cleanup();
 });
+
+test('đối chiếu lời mời kén dữ liệu hợp lệ và vẫn đọc khi cầu dao mềm', async () => {
+  const c = setup({ env: { BRIDGE_INBOX_ENABLED: 'true', BRIDGE_FRIEND_SYNC_DAILY: '8' } });
+  try {
+    await c.bridge.start();
+    await loginAndListen(c);
+    c.bridge.msgLedger.markSent('INVITE_BLOCKED', '555');
+    c.adapter.friendRequestStates = new Map();
+    const cases = [
+      [{ is_friend: 1, is_requested: 0, is_requesting: 0 }, { ok: true, state: 'FRIENDS' }],
+      [{ is_friend: 0, is_requested: 1, is_requesting: 0 }, { ok: true, state: 'INCOMING' }],
+      [{ is_friend: 0, is_requested: 0, is_requesting: 0 }, { ok: true, state: 'NONE' }],
+      [{ is_friend: 0, is_requested: 1, is_requesting: 1 }, { ok: false, code: 'BAD_RESPONSE' }],
+      [{ is_friend: 0, is_requested: '0', is_requesting: 0 }, { ok: false, code: 'BAD_RESPONSE' }],
+      [{}, { ok: false, code: 'BAD_RESPONSE' }],
+    ];
+    c.bridge.trip('SYSTEM_ERROR:TIMEOUT');
+    assert.equal(c.bridge.status().state, 'TRIPPED');
+    for (const [flags, expected] of cases) {
+      c.adapter.friendRequestStates.set('555', flags);
+      assert.deepEqual(await c.bridge.readFriendRequestStatus('555'), expected);
+      assert.deepEqual(await c.bridge.readFriendRequestStatus('555'), { ok: false, code: 'GAP' });
+      c.clock.t += 3000;
+    }
+    c.adapter.friendRequestError = Object.assign(new Error('lỗi trả về chứa thông tin riêng'), { code: 9876 });
+    assert.deepEqual(await c.bridge.readFriendRequestStatus('555'), { ok: false, code: 'Z9876' });
+    assert.ok(c.logs.some((line) => line.includes('Z9876')));
+    assert.ok(c.logs.every((line) => !line.includes('555') && !line.includes('thông tin riêng')));
+    c.clock.t += 3000;
+    delete c.adapter.friendRequestError;
+    await c.bridge.readFriendRequestStatus('555');
+    c.clock.t += 3000;
+    assert.deepEqual(await c.bridge.readFriendRequestStatus('555'), { ok: false, code: 'LIMIT' });
+    c.bridge.trip('RESTRICTED');
+    assert.deepEqual(await c.bridge.readFriendRequestStatus('555'), { ok: false, code: 'NOT_ACTIVE' });
+    assert.equal(c.adapter.friendRequestReads.length, 8);
+  } finally {
+    c.cleanup();
+  }
+});

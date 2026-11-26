@@ -189,6 +189,11 @@ export class ZcaAdapter {
     return (Array.isArray(all) ? all : []).map((u) => String(u?.userId ?? '')).filter((id) => /^\d{1,32}$/.test(id));
   }
 
+  /** Chỉ đọc trạng thái quan hệ của một người. */
+  async friendRequestStatus(uid) {
+    return this.api.getFriendRequestStatus(uid);
+  }
+
   loginQR(h) {
     let abortFn = null;
     const promise = (async () => {
