@@ -29,10 +29,12 @@ public class CustomerController {
 
     private final CustomerService customers;
     private final ContactService contacts;
+    private final CustomerZaloHistory zaloHistory;
 
-    public CustomerController(CustomerService customers, ContactService contacts) {
+    public CustomerController(CustomerService customers, ContactService contacts, CustomerZaloHistory zaloHistory) {
         this.customers = customers;
         this.contacts = contacts;
+        this.zaloHistory = zaloHistory;
     }
 
     @GetMapping
@@ -46,6 +48,7 @@ public class CustomerController {
         var ids = pageResult.items().stream().map(c -> c.id()).toList();
         model.addAttribute("states", contacts.inviteStates(ids));
         model.addAttribute("notes", contacts.notes(ids));
+        model.addAttribute("latestZalo", zaloHistory.latest(ids));
         // Số trên hai nút "Tất cả" và "Cần kiểm tra" theo đúng bộ lọc đang chọn.
         model.addAttribute("allCount", query.review() ? customers.search(query.withReview(false), 1).total() : pageResult.total());
         model.addAttribute("reviewCount", query.review() ? pageResult.total() : customers.search(query.withReview(true), 1).total());
@@ -106,6 +109,7 @@ public class CustomerController {
         model.addAttribute("canApprove", basis == null && !suppressed
                 && detail.customer().segment() == Segment.ONE_TIME && !detail.customer().needsReview());
         model.addAttribute("events", contacts.events(id));
+        model.addAttribute("zaloDeliveries", zaloHistory.recent(id));
         model.addAttribute("inviteState", contacts.inviteStates(java.util.List.of(id)).get(id));
         model.addAttribute("note", contacts.note(id));
         model.addAttribute("today", java.time.LocalDate.now());

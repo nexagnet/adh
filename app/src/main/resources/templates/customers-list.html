@@ -147,7 +147,14 @@
             <tbody>
             <tr th:each="c : ${page.items}">
                 <td th:each="col : ${columns}" th:switch="${col.key}" th:classappend="${col.key == 'purchases'} ? 'num'">
-                    <a th:case="'phone'" th:href="@{/customers/{id}(id=${c.id})}" th:text="${c.displayPhone()}">0912 345 678</a>
+                    <th:block th:case="'phone'" th:with="delivery=${latestZalo[c.id]}">
+                        <a th:href="@{/customers/{id}(id=${c.id})}" th:text="${c.displayPhone()}">0912 345 678</a>
+                        <span class="sub-line" th:if="${delivery != null}">
+                            <span th:text="|Zalo gửi gần nhất · ${delivery.accountLabel}|">Zalo gửi gần nhất · Tài khoản phụ 1</span>
+                            <span th:text="|· ${#temporals.format(delivery.at, 'dd/MM HH:mm')}|">· 20/11 15:03</span>
+                            <span th:if="${delivery.partial}">· một phần</span>
+                        </span>
+                    </th:block>
                     <strong th:case="'name'" th:text="${c.name}">Nguyễn Văn An</strong>
                     <span th:case="'address'" th:text="${c.address}">Xóm 3, Hà Nam</span>
                     <span th:case="'area'" th:text="${c.provinceLabel()}" th:classappend="${c.province == null} ? 'muted'">Hà Nội</span>
