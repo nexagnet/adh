@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ZaloGatewayShapeTest {
 
     private static List<String> names(Class<?> type) {
-        return Arrays.stream(type.getDeclaredMethods()).map(Method::getName).sorted().toList();
+        return Arrays.stream(type.getDeclaredMethods()).filter(m -> !m.isSynthetic()).map(Method::getName).sorted().toList();
     }
 
     @Test
@@ -45,7 +45,8 @@ class ZaloGatewayShapeTest {
 
     @Test
     void messengerChiCoGuiTheoSoHoacTheoMa() {
-        assertThat(names(ZaloMessenger.class)).containsExactly("acceptFriendRequest", "sendByPhone", "sendByUid", "sendFriendRequest", "undoFriendRequest");
+        assertThat(names(ZaloMessenger.class)).containsExactly("acceptFriendRequest", "sendByPhone", "sendByUid",
+                "sendFollowup", "sendFriendRequest", "undoFriendRequest");
     }
 
     /** 24/11/2026: lời mời kết bạn (Kind.FRIEND) chỉ có MỘT nơi gửi, chỉ theo mã Zalo của người đã nhận Tin 1, qua cổng gửi chung. */
@@ -131,8 +132,8 @@ class ZaloGatewayShapeTest {
 
     /** D19: đọc tin riêng chỉ có MỘT hàm chỉ đọc; phần nhận diện từ chối không có đường nào để trả lời khách. */
     @Test
-    void docTinRiengChiCoMotHamChiDocVaKhongCoDuongTraLoiKhach() throws IOException {
-        assertThat(names(ZaloInboxReader.class)).containsExactly("inbound");
+    void docTinRiengChiLayDuLieuVaTrangThaiInbox() throws IOException {
+        assertThat(names(ZaloInboxReader.class)).containsExactly("inbound", "snapshot");
         for (Class<?> c : List.of(ZaloInboxReader.class, ZaloInboxService.class)) {
             for (Method m : c.getDeclaredMethods()) {
                 String n = m.getName().toLowerCase();
@@ -146,7 +147,7 @@ class ZaloGatewayShapeTest {
         }
         files.add(Path.of("src/main/java/vn/shop/crm/zalo/ZaloInboxService.java"));
         for (Path f : files) {
-            assertThat(Files.readString(f)).as(f.toString()).doesNotContain("ZaloMessenger", "sendByPhone", "sendByUid", "addToGroup",
+            assertThat(Files.readString(f)).as(f.toString()).doesNotContain("ZaloMessenger", "sendByPhone", "sendByUid", "sendFollowup", "addToGroup",
                     "ZaloGroupMaker", "createGroup", "ZaloPersonFinder", "findByPhone");
         }
     }
@@ -214,9 +215,10 @@ class ZaloGatewayShapeTest {
         }
         assertThat(offenders).isEmpty();
         String sender = Files.readString(Path.of("src/main/java/vn/shop/crm/zalo/ZaloFollowupSender.java"));
-        assertThat(sender).contains("Kind.FOLLOWUP2", "Kind.FOLLOWUP3", "sendByUid", "inbox.running()", "CampaignSteps.STOP_FOOTER",
+        assertThat(sender).contains("Kind.FOLLOWUP2", "Kind.FOLLOWUP3", "sendFollowup", "inbox.running()",
+                        "inbox.catchUpForFollowup()", "i.sent_at > :coverage", "CampaignSteps.STOP_FOOTER",
                         "INSERT INTO invitation_touch", "ON CONFLICT DO NOTHING", "inbound_at IS NULL", "policy.blocker", "testMode.onlyTestSql")
-                .doesNotContain("sendByPhone", "addToGroup", "createGroup", "findByPhone", "while");
+                .doesNotContain("sendByPhone", "sendByUid", "addToGroup", "createGroup", "findByPhone", "while");
         // phần soạn tin nhắc (cấu hình) và phần nhận tin riêng không có đường gửi nào
         assertThat(Files.readString(Path.of("src/main/java/vn/shop/crm/invite/CampaignSteps.java")))
                 .doesNotContain("ZaloMessenger", "sendByUid", "sendByPhone", "Kind.");
