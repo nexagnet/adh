@@ -324,6 +324,23 @@ class ZaloTwoBridgeSchedulerTest extends AbstractPostgresTest {
     @Autowired ManualAttention attention;
 
     @Test
+    void firstUnavailableReadShowsActionableProviderCode() {
+        prepareCampaign();
+        markInvited(1, "+84900000001", "60000001");
+        jdbc.sql("""
+                UPDATE invitation SET sent_channel = 'ZALO_AUTO', friend_request_outcome = 'SENT',
+                    friend_request_at = now() - interval '10 minutes', expires_at = now() + interval '1 day'
+                """).update();
+        bridges.first().friendReadReason = "NO_INVITE";
+        new ZaloFriendReconciliationScheduler(registry, reconciliation, Runnable::run).tick();
+        long campaign = jdbc.sql("SELECT id FROM invitation_campaign").query(Long.class).single();
+        assertThat(attention.rows(campaign)).singleElement().satisfies(row -> {
+            assertThat(row.canResendFriend()).isFalse();
+            assertThat(row.observation().reasonCode()).isEqualTo("NO_INVITE");
+        });
+    }
+
+    @Test
     void failedReadAfterUpgradeKeepsEvidenceOfExistingOutgoingRequest() {
         prepareCampaign();
         markInvited(1, "+84900000001", "60000001");

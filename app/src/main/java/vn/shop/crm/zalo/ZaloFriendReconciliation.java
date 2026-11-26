@@ -81,8 +81,9 @@ class ZaloFriendReconciliation {
                 """).param("account", account).param("id", target.id()).param("attempt", target.attemptAt())
                 .query((rs, n) -> new Previous(rs.getString("state"), rs.getString("reason_code"), rs.getBoolean("needs_review"))).optional();
         boolean confirmed = state != ZaloLink.FriendRequestState.UNAVAILABLE;
-        boolean review = confirmed ? state != ZaloLink.FriendRequestState.OUTGOING || "UNKNOWN".equals(target.expected())
-                : previous.map(Previous::review).orElse(false);
+        boolean unknownAttempt = "UNKNOWN".equals(target.expected());
+        boolean review = confirmed ? state != ZaloLink.FriendRequestState.OUTGOING || unknownAttempt
+                : unknownAttempt || actionableReadError(observation.reasonCode()) || previous.map(Previous::review).orElse(false);
         int stored = jdbc.sql("""
                 INSERT INTO zalo_friend_observation AS o
                     (account_id, invitation_id, state, observed_at, last_confirmed_state, last_confirmed_at, needs_review, reason_code, attempt_at)
@@ -105,6 +106,13 @@ class ZaloFriendReconciliation {
         if (stored == 1 && !previous.equals(Optional.of(new Previous(state.name(), observation.reasonCode(), review)))) {
             recordTransition(account, target, observation, review);
         }
+    }
+
+    private static boolean actionableReadError(String code) {
+        return code != null && (code.matches("Z[0-9]{1,5}") || switch (code) {
+            case "NO_INVITE", "ACCOUNT_MISMATCH", "ACCOUNT_UNVERIFIED", "BAD_RESPONSE", "SESSION", "RESTRICTED" -> true;
+            default -> false;
+        });
     }
 
     private void recordTransition(long account, Candidate target, ZaloLink.FriendRequestObservation observation, boolean review) {
