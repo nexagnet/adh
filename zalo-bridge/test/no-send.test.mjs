@@ -38,9 +38,9 @@ test('findUser và sendMessage (D18) chỉ nằm trong bộ điều hợp thật
   assert.match(code('zca-adapter.mjs'), /sendMessage\(\{ msg: text \}, id, group \? ThreadType\.Group : ThreadType\.User\)/);
 });
 
-test('bộ điều hợp zca-js chỉ dùng đúng mười bảy thành phần (thêm acceptFriendRequest cho người đã nhận Tin 1, addReaction để thả tim) của api (thêm getAllFriends chỉ đọc để đối chiếu, hai hàm chỉ đọc nhóm, findUser và sendMessage của D18, ba hàm tạo nhóm của D19, sendFriendRequest)', () => {
+test('bộ điều hợp zca-js chỉ dùng các thành phần đã khai báo', () => {
   const used = new Set([...code('zca-adapter.mjs').matchAll(/this\.api\??\.([A-Za-z]+)/g)].map((m) => m[1]));
-  assert.deepEqual([...used].sort(), ['acceptFriendRequest', 'addGroupDeputy', 'addReaction', 'addUserToGroup', 'createGroup', 'enableGroupLink', 'findUser', 'getAllFriends', 'getAllGroups', 'getGroupInfo', 'getOwnId', 'getUserInfo', 'listener', 'logout', 'sendFriendRequest', 'sendMessage', 'undoFriendRequest'].sort());
+  assert.deepEqual([...used].sort(), ['acceptFriendRequest', 'addGroupDeputy', 'addReaction', 'addUserToGroup', 'createGroup', 'enableGroupLink', 'findUser', 'getAllFriends', 'getAllGroups', 'getFriendRequestStatus', 'getGroupInfo', 'getOwnId', 'getUserInfo', 'listener', 'logout', 'sendFriendRequest', 'sendMessage', 'undoFriendRequest'].sort());
 });
 
 test('sendFriendRequest chỉ có đúng một chỗ gọi (bộ điều hợp thật), chỉ gọi từ Bridge.sendFriendRequest và chỉ khi người đó đã nhận Tin 1', () => {
@@ -54,7 +54,16 @@ test('sendFriendRequest chỉ có đúng một chỗ gọi (bộ điều hợp t
   assert.match(b, /if \(!this\.msgLedger\.has\('INVITE', uid\) && !this\.msgLedger\.has\('INVITE_BLOCKED', uid\)\) return \{ outcome: 'PERSON_ERROR', code: 'NO_INVITE' \}/);
   assert.equal((b.match(/markSent\('INVITE_BLOCKED'/g) ?? []).length, 1);
   assert.match(b, /this\.friendLedger\.has\('FRIEND', uid\)/);
-  assert.ok(!/getFriendRequest|getReceivedFriendRequests|getSentFriendRequest/.test(files.map(code).join('\n')));
+  assert.ok(!/\b(?:getFriendRequest|getReceivedFriendRequests|getSentFriendRequest)\b/.test(files.map(code).join('\n')));
+});
+
+test('getFriendRequestStatus chỉ đọc một mã và chỉ có một đường gọi qua cầu nối', () => {
+  for (const f of files) {
+    const n = (code(f).match(/\bapi\??\.getFriendRequestStatus\b/g) ?? []).length;
+    assert.equal(n, f === 'zca-adapter.mjs' ? 1 : 0, `${f}: getFriendRequestStatus`);
+  }
+  assert.equal((code('bridge.mjs').match(/adapter\.friendRequestStatus\(/g) ?? []).length, 1);
+  assert.match(code('zca-adapter.mjs'), /async friendRequestStatus\(uid\) \{\s*return this\.api\.getFriendRequestStatus\(uid\);/);
 });
 
 test('acceptFriendRequest (nhận lời mời) chỉ có đúng một chỗ gọi (bộ điều hợp thật), chỉ từ Bridge.acceptFriendRequest và chỉ cho người đã nhận Tin 1 vừa tự gửi lời mời tới', () => {

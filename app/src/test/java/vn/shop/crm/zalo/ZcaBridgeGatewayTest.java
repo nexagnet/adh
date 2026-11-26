@@ -22,6 +22,7 @@ class ZcaBridgeGatewayTest {
     ZcaBridgeGateway gateway;
     final List<String> requests = new ArrayList<>();
     final List<String> keys = new ArrayList<>();
+    final List<String> accountTags = new ArrayList<>();
     final List<String> bodies = new ArrayList<>();
     final AtomicReference<String> reply = new AtomicReference<>("{}");
     volatile int httpStatus = 200;
@@ -33,6 +34,7 @@ class ZcaBridgeGatewayTest {
         server.createContext("/", ex -> {
             requests.add(ex.getRequestMethod() + " " + ex.getRequestURI());
             keys.add(ex.getRequestHeaders().getFirst("X-Bridge-Key"));
+            accountTags.add(ex.getRequestHeaders().getFirst("X-Bridge-Account-Tag"));
             bodies.add(new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             try {
                 Thread.sleep(delayMillis);
@@ -68,6 +70,47 @@ class ZcaBridgeGatewayTest {
         int calls = requests.size();
         assertThat(gateway.friendsAmong(List.of("abc")).code()).isEqualTo("BAD_INPUT");
         assertThat(gateway.friendsAmong(List.of()).code()).isEqualTo("BAD_INPUT");
+        assertThat(requests).hasSize(calls);
+    }
+
+    @Test
+    void docTrangThaiLoiMoiChiDungGetVaXacMinhTaiKhoan() {
+        String tag = "000000000002";
+        var guarded = new ZcaBridgeGateway("http://127.0.0.1:" + server.getAddress().getPort(), "khoa-chung",
+                () -> tag, true, () -> null, () -> true);
+        reply.set("""
+                {"state":"OUTGOING","accountTag":"000000000002","ok":true}
+                """);
+
+        assertThat(guarded.friendRequestState("501")).isEqualTo(ZaloLink.FriendRequestState.OUTGOING);
+        assertThat(requests).containsExactly("GET /status", "GET /friend-requests/status?uid=501");
+        assertThat(keys).containsExactly("khoa-chung", "khoa-chung");
+        assertThat(accountTags).containsExactly(null, tag);
+        assertThat(bodies).containsExactly("", "");
+
+        reply.set("{\"accountTag\":\"000000000099\",\"ok\":true,\"state\":\"NONE\"}");
+        assertThat(guarded.friendRequestState("501")).isEqualTo(ZaloLink.FriendRequestState.UNAVAILABLE);
+        assertThat(requests).hasSize(3).last().isEqualTo("GET /status");
+    }
+
+    @Test
+    void chiNhanTrangThaiLoiMoiTuPhanHoiHopLe() {
+        for (var state : List.of(ZaloLink.FriendRequestState.FRIENDS, ZaloLink.FriendRequestState.OUTGOING,
+                ZaloLink.FriendRequestState.INCOMING, ZaloLink.FriendRequestState.NONE)) {
+            reply.set("{\"ok\":true,\"state\":\"" + state.name() + "\"}");
+            assertThat(gateway.friendRequestState("501")).isEqualTo(state);
+        }
+        for (String invalid : List.of("{}", "{\"ok\":false,\"code\":\"TIMEOUT\",\"state\":\"NONE\"}",
+                "{\"ok\":\"true\",\"state\":\"NONE\"}", "{\"ok\":1,\"state\":\"NONE\"}",
+                "{\"ok\":true,\"state\":\"OTHER\"}", "{\"ok\":true,\"state\":null}", "{\"ok\":true}")) {
+            reply.set(invalid);
+            assertThat(gateway.friendRequestState("501")).as(invalid).isEqualTo(ZaloLink.FriendRequestState.UNAVAILABLE);
+        }
+        httpStatus = 404; // bridge phiên bản cũ
+        assertThat(gateway.friendRequestState("501")).isEqualTo(ZaloLink.FriendRequestState.UNAVAILABLE);
+        int calls = requests.size();
+        assertThat(gateway.friendRequestState("501&uid=502")).isEqualTo(ZaloLink.FriendRequestState.UNAVAILABLE);
+        assertThat(gateway.friendRequestState(null)).isEqualTo(ZaloLink.FriendRequestState.UNAVAILABLE);
         assertThat(requests).hasSize(calls);
     }
 

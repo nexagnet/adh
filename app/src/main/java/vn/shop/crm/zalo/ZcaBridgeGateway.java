@@ -165,6 +165,32 @@ public class ZcaBridgeGateway implements ZaloLink {
     }
 
     @Override
+    public FriendRequestState friendRequestState(String uid) {
+        if (uid == null || !ZALO_ID.matcher(uid).matches()) {
+            return FriendRequestState.UNAVAILABLE;
+        }
+        try {
+            JsonNode n = call("GET", "/friend-requests/status?uid=" + uid, null, 10);
+            JsonNode ok = n.path("ok");
+            JsonNode state = n.path("state");
+            if (ok.isBoolean() && ok.asBoolean() && state.isString()) {
+                return switch (state.asString()) {
+                    case "FRIENDS" -> FriendRequestState.FRIENDS;
+                    case "OUTGOING" -> FriendRequestState.OUTGOING;
+                    case "INCOMING" -> FriendRequestState.INCOMING;
+                    case "NONE" -> FriendRequestState.NONE;
+                    default -> FriendRequestState.UNAVAILABLE;
+                };
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (IOException | RuntimeException e) {
+            log.debug("Không đọc được trạng thái lời mời qua cầu nối: {}", e.getClass().getSimpleName());
+        }
+        return FriendRequestState.UNAVAILABLE;
+    }
+
+    @Override
     public AddResult addToGroup(String uid, String zaloGroupId) {
         if (uid == null || zaloGroupId == null || !ZALO_ID.matcher(uid).matches() || !ZALO_ID.matcher(zaloGroupId).matches()) {
             return AddResult.of(Outcome.PERSON_ERROR, "BAD_ID");

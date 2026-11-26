@@ -395,6 +395,44 @@ class FriendRequestSendTest extends AbstractPostgresTest {
     // ---------- tab "Cần xử lý tay" ----------
 
     @Test
+    void hienTaiKhoanVaBangChungDoiChieuMaKhongThemNutGuiLai() throws Exception {
+        long invitation = inviteOne();
+        jdbc.sql("INSERT INTO zalo_account (id, label) VALUES (2, 'Tài khoản đối chiếu')").update();
+        jdbc.sql("""
+                UPDATE invitation SET account_id = 2, friend_request_outcome = 'SENT', friend_request_at = '2026-11-22T02:00:00Z'
+                WHERE id = :i
+                """).param("i", invitation).update();
+        jdbc.sql("""
+                INSERT INTO zalo_friend_observation
+                    (account_id, invitation_id, state, observed_at, last_confirmed_state, last_confirmed_at, needs_review)
+                VALUES (2, :i, 'UNAVAILABLE', '2026-11-22T04:00:00Z', 'NONE', '2026-11-22T03:00:00Z', false)
+                """).param("i", invitation).update();
+        assertThat(attention.count(campaign)).isZero();
+        jdbc.sql("UPDATE zalo_friend_observation SET needs_review = true WHERE account_id = 2 AND invitation_id = :i")
+                .param("i", invitation).update();
+        assertThat(attention.count(campaign)).isEqualTo(1);
+        assertThat(attention.rows(campaign)).singleElement().satisfies(row -> {
+            assertThat(row.accountLabel()).isEqualTo("Tài khoản đối chiếu");
+            assertThat(row.canResendFriend()).isFalse();
+            assertThat(row.canMarkDone()).isFalse();
+        });
+        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup(context)
+                .apply(org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity()).build();
+        var owner = org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin").roles("OWNER");
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/campaigns/" + campaign)
+                        .param("tab", "can-xu-ly").with(owner))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(
+                        org.hamcrest.Matchers.allOf(org.hamcrest.Matchers.containsString("Tài khoản đối chiếu"),
+                                org.hamcrest.Matchers.containsString("Chưa đọc được trạng thái từ Zalo"),
+                                org.hamcrest.Matchers.containsString("22/11/2026 11:00"),
+                                org.hamcrest.Matchers.containsString("22/11/2026 10:00"),
+                                org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("/resend-friend")))));
+        jdbc.sql("UPDATE invitation SET friended_at = now() WHERE id = :i").param("i", invitation).update();
+        assertThat(attention.count(campaign)).isZero();
+    }
+
+    @Test
     void khachChuaRoLoiMoiHienOTabVaGuiLaiKetBanDuocDungMotLan() {
         long invitation = inviteOne();
         gap();

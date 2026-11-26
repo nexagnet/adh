@@ -20,22 +20,31 @@
     </div>
     <div class="panel stack" th:if="${tab == 'can-xu-ly'}">
         <h2>Khách cần xử lý tay</h2>
-        <p class="hint">Hệ thống không tự làm tiếp cho những khách này. <strong>Tin 1 không gửi được</strong>: xem lý do rồi tự nhắn trên Zalo nếu cần.
+        <p class="hint">Đối chiếu trên đúng tài khoản Zalo được ghi cho từng khách. <strong>Tin 1 không gửi được</strong>: xem lý do rồi tự nhắn trên Zalo nếu cần.
             <strong>Chưa rõ lời mời kết bạn đã gửi chưa</strong>: mở Zalo của tài khoản phụ xem đã có lời mời chưa; nếu chưa, bấm <em>Gửi lại kết bạn</em>
             (chỉ được <strong>một lần</strong> cho mỗi khách, hệ thống gửi ở nhịp kế tiếp theo hạn mức và khoảng nghỉ). Xong việc thì bấm <em>Đã xử lý</em> để ẩn khỏi danh sách; việc này không xóa khách hay số điện thoại.</p>
         <p class="muted" th:if="${#lists.isEmpty(attention)}">Không có khách nào cần xử lý tay.</p>
         <table th:unless="${#lists.isEmpty(attention)}">
-            <thead><tr><th>Khách</th><th>Vấn đề</th><th></th></tr></thead>
+            <thead><tr><th>Khách</th><th>Tài khoản Zalo</th><th>Vấn đề</th><th></th></tr></thead>
             <tbody>
             <tr th:each="a : ${attention}">
                 <td th:text="${a.who}">Khách (số …1234)</td>
-                <td><div th:each="p : ${a.problems}" th:text="${p}">Tin 1 không gửi được</div></td>
+                <td th:text="${a.accountLabel}">Tài khoản phụ 1</td>
+                <td>
+                    <div th:each="p : ${a.problems}" th:text="${p}">Tin 1 không gửi được</div>
+                    <div th:if="${a.observation != null}" class="stack">
+                        <strong th:text="${a.observation.stateLabel}">Trạng thái trên Zalo</strong>
+                        <span class="muted small" th:text="${'Đã kiểm tra lúc ' + #temporals.format(a.observation.observedAt, 'dd/MM/yyyy HH:mm')}">Đã kiểm tra</span>
+                        <span class="muted small" th:if="${a.observation.previousStateLabel != null and a.observation.previousObservedAt != null}"
+                              th:text="${'Lần đọc thành công gần nhất lúc ' + #temporals.format(a.observation.previousObservedAt, 'dd/MM/yyyy HH:mm') + ' · ' + a.observation.previousStateLabel}">Lần đọc thành công gần nhất</span>
+                    </div>
+                </td>
                 <td>
                     <div class="actions">
                         <form th:action="@{/campaigns/{id}/attention/{inv}/resend-friend(id=${campaign.id}, inv=${a.id})}" method="post" th:if="${a.canResendFriend}">
                             <button type="submit" class="btn secondary">Gửi lại kết bạn</button>
                         </form>
-                        <form th:action="@{/campaigns/{id}/attention/{inv}/done(id=${campaign.id}, inv=${a.id})}" method="post">
+                        <form th:action="@{/campaigns/{id}/attention/{inv}/done(id=${campaign.id}, inv=${a.id})}" method="post" th:if="${a.canMarkDone}">
                             <button type="submit" class="btn secondary">Đã xử lý</button>
                         </form>
                     </div>

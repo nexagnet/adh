@@ -22,6 +22,7 @@ const MAX_DEPUTY_TRIES_PER_DAY = 10;
 const REPLY_WINDOW_MS = 24 * 3600 * 1000; // WELCOME và REPLY chỉ trả lời người vừa nhắn trong khoảng này
 const MAX_REPLYABLE = 500;
 const MAX_FRIEND_TEXT = 150; // lời mời kết bạn của Zalo chỉ nhận câu ngắn
+const FRIEND_REQUEST_READ_GAP_MS = 3000;
 const MAX_PARTS = 4; // Tin 1 tối đa bấy nhiêu tin ngắn gửi liền (phần dư gộp vào phần cuối)
 const MAX_TEXT = 1000; // ký tự; tin mời của shop chỉ vài trăm ký tự
 
@@ -104,6 +105,7 @@ export class Bridge {
     this.reactTimes = []; // giờ các lần thả tim (trong bộ nhớ) để đếm trần ngày và khoảng nghỉ cố định
     this.friendSnapshot = null; // bản danh sách bạn đã đọc gần nhất (chỉ trong bộ nhớ, không ghi đĩa, không ghi log)
     this.friendReads = { day: null, n: 0 };
+    this.friendRequestReads = { day: null, n: 0, lastAt: null };
     this.login = { state: 'IDLE', qr: null };
     this.loginHandle = null;
     this.generation = 0; // tăng mỗi lần dừng/đổi phiên để bỏ qua sự kiện của kết nối cũ
@@ -1181,6 +1183,46 @@ export class Bridge {
     } catch (e) {
       this.log(isSessionDead(e) ? 'đối chiếu bạn bè: phiên có vẻ đã hỏng' : 'đối chiếu bạn bè: lỗi');
       return { ok: false, code: 'LIST_FAILED' };
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /** Chỉ đọc một mã đã được cầu nối này gửi hoặc thử gửi Tin 1. */
+  async readFriendRequestStatus(uid) {
+    if (typeof uid !== 'string' || !ZALO_ID.test(uid)) return { ok: false, code: 'BAD_INPUT' };
+    if (!this.msgLedger.has('INVITE', uid) && !this.msgLedger.has('INVITE_BLOCKED', uid)) {
+      return { ok: false, code: 'NO_INVITE' };
+    }
+    const canRead = () => this.accountOk === true && this.activeListen !== 0
+      && (this.state === 'LISTENING' || (this.state === 'TRIPPED' && isSoftTrip(this.tripReason)));
+    if (!canRead()) return { ok: false, code: 'NOT_ACTIVE' };
+    const at = this.now();
+    if (!inWindow(at, this.config.windowStartMin, this.config.windowEndMin)) return { ok: false, code: 'WINDOW' };
+    const day = vnDayStart(at);
+    if (this.friendRequestReads.day !== day) this.friendRequestReads = { day, n: 0, lastAt: null };
+    const budget = this.friendRequestReads;
+    if (budget.n >= this.config.friendSyncDaily) return { ok: false, code: 'LIMIT' };
+    if (budget.lastAt !== null && at - budget.lastAt < FRIEND_REQUEST_READ_GAP_MS) return { ok: false, code: 'GAP' };
+    if (this.busy) return { ok: false, code: 'BUSY' };
+
+    const generation = this.generation;
+    this.busy = true;
+    budget.n += 1;
+    budget.lastAt = at;
+    try {
+      const result = await withTimeout(this.adapter.friendRequestStatus(uid), Math.min(this.config.addTimeoutMs, 8000));
+      if (generation !== this.generation || !canRead()) return { ok: false, code: 'NOT_ACTIVE' };
+      const flags = [result?.is_friend, result?.is_requesting, result?.is_requested];
+      if (!flags.every((value) => value === 0 || value === 1) || flags.filter((value) => value === 1).length > 1) {
+        return { ok: false, code: 'BAD_RESPONSE' };
+      }
+      const state = ['FRIENDS', 'OUTGOING', 'INCOMING'][flags.indexOf(1)] ?? 'NONE';
+      return { ok: true, state };
+    } catch (e) {
+      const { code } = classifyError(e);
+      this.log(`đọc trạng thái lời mời: ${code}`);
+      return { ok: false, code };
     } finally {
       this.busy = false;
     }
