@@ -185,6 +185,60 @@ class FriendRequestSendTest extends AbstractPostgresTest {
     }
 
     @Test
+    void gianDoanKhiGhiNhatKyTruocKhiGoiZaloThiLanSauGuiMotLan() {
+        long invitation = inviteOne();
+        gap();
+        jdbc.sql("""
+                CREATE FUNCTION interrupt_friend_attempt() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN
+                    RAISE EXCEPTION 'test interrupt before dispatch';
+                END;
+                $$
+                """).update();
+        try {
+            jdbc.sql("""
+                    CREATE TRIGGER interrupt_friend_attempt BEFORE INSERT ON zalo_msg_log
+                    FOR EACH ROW WHEN (NEW.kind = 'FRIEND') EXECUTE FUNCTION interrupt_friend_attempt()
+                    """).update();
+            assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.TRIPPED);
+            assertThat(fake.friendRequests).isEmpty();
+            assertThat(outcome(invitation)).isNull();
+            assertThat(count("SELECT count(*) FROM zalo_msg_log WHERE kind = 'FRIEND'")).isZero();
+        } finally {
+            jdbc.sql("DROP TRIGGER IF EXISTS interrupt_friend_attempt ON zalo_msg_log").update();
+            jdbc.sql("DROP FUNCTION interrupt_friend_attempt()").update();
+        }
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.FRIEND_SENT);
+        gap();
+        sender.step();
+        assertThat(fake.friendRequests).hasSize(1);
+        assertThat(outcome(invitation)).isEqualTo("SENT");
+    }
+
+    @Test
+    void gianDoanSauKhiGoiCauNoiKhongTuGuiLai() {
+        long invitation = inviteOne();
+        gap();
+        fake.afterFriendRequest = () -> {
+            assertThat(attention.rows(campaign)).singleElement().satisfies(row -> assertThat(row.canResendFriend()).isFalse());
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> attention.resendFriend(campaign, invitation, "test"))
+                    .isInstanceOf(vn.shop.crm.common.ImportException.class);
+            throw new AssertionError("test interrupt after dispatch");
+        };
+        try {
+            org.assertj.core.api.Assertions.assertThatThrownBy(sender::step)
+                    .isInstanceOf(AssertionError.class).hasMessage("test interrupt after dispatch");
+        } finally {
+            fake.afterFriendRequest = () -> {};
+        }
+        assertThat(outcome(invitation)).isEqualTo("UNKNOWN");
+        assertThat(count("SELECT count(*) FROM zalo_msg_log WHERE kind = 'FRIEND' AND outcome = 'DANG_GOI'")).isEqualTo(1);
+        gap();
+        sender.step();
+        assertThat(fake.friendRequests).hasSize(1);
+    }
+
+    @Test
     void khongRoKetQuaThiDanhDauUnknownVaKhongBaoGioGuiLai() {
         long invitation = inviteOne();
         gap();

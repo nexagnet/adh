@@ -62,6 +62,12 @@ public class ManualAttention {
                       AND confirmed.last_confirmed_state IN ('FRIENDS', 'OUTGOING', 'INCOMING'))
             """;
 
+    private static final String INCOMPLETE_DISPATCH = """
+            EXISTS (SELECT 1 FROM zalo_msg_log attempt
+                    WHERE attempt.account_id = i.account_id AND attempt.ref_id = i.id
+                      AND attempt.kind = 'FRIEND' AND attempt.outcome = 'DANG_GOI')
+            """;
+
     public long count(long campaignId) {
         return jdbc.sql("SELECT count(*) FROM invitation i " + OBSERVATION_JOIN + "WHERE " + WHERE)
                 .param("c", campaignId).query(Long.class).single();
@@ -72,9 +78,10 @@ public class ManualAttention {
                         SELECT i.id, c.name, c.phone, i.status, i.last_error, i.friend_request_outcome, i.friend_request_retry_at, i.friend_ask_outcome,
                                i.friended_at, i.joined_at, i.inbound_at, a.label AS account_label,
                                o.state, o.observed_at, o.last_confirmed_state, o.last_confirmed_at,
-                               %s AS manual_problem, %s AS positive_evidence
+                               %s AS manual_problem, (%s OR %s) AS resend_blocked
                         FROM invitation i JOIN customer c ON c.id = i.customer_id JOIN zalo_account a ON a.id = i.account_id
-                        """.formatted(MANUAL_PROBLEM, POSITIVE_EVIDENCE) + OBSERVATION_JOIN + "WHERE " + WHERE + " ORDER BY i.id LIMIT :n")
+                        """.formatted(MANUAL_PROBLEM, POSITIVE_EVIDENCE, INCOMPLETE_DISPATCH)
+                + OBSERVATION_JOIN + "WHERE " + WHERE + " ORDER BY i.id LIMIT :n")
                 .param("c", campaignId).param("n", LIMIT)
                 .query((rs, n) -> {
                     List<String> problems = new ArrayList<>();
@@ -93,7 +100,7 @@ public class ManualAttention {
                         problems.add("Chưa rõ tin nhờ khách kết bạn lại đã gửi chưa. Hãy mở Zalo của tài khoản phụ kiểm tra.");
                     }
                     boolean can = friendUnknown && !retried && "SENT".equals(rs.getString("status"))
-                            && rs.getObject("inbound_at") == null && !rs.getBoolean("positive_evidence");
+                            && rs.getObject("inbound_at") == null && !rs.getBoolean("resend_blocked");
                     String state = rs.getString("state");
                     Observation observation = state == null ? null : new Observation(observationLabel(state),
                             localTime(rs.getObject("observed_at", OffsetDateTime.class)),
@@ -141,7 +148,7 @@ public class ManualAttention {
                         UPDATE invitation i SET friend_request_at = NULL, friend_request_outcome = NULL, friend_request_retry_at = :now
                         WHERE id = :id AND campaign_id = :c AND status = 'SENT' AND friend_request_outcome = 'UNKNOWN' AND friend_request_retry_at IS NULL
                           AND friended_at IS NULL AND joined_at IS NULL AND inbound_at IS NULL
-                        """ + " AND NOT " + POSITIVE_EVIDENCE)
+                        """ + " AND NOT " + POSITIVE_EVIDENCE + " AND NOT " + INCOMPLETE_DISPATCH)
                 .param("id", invitationId).param("c", campaignId).param("now", OffsetDateTime.now(clock)).update();
         if (n == 0) {
             throw new ImportException("Không thể xếp gửi lại. Hãy kiểm tra trạng thái lời mời và kết quả đối chiếu mới nhất.");

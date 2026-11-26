@@ -18,6 +18,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.concurrent.locks.ReentrantLock;
@@ -570,6 +571,7 @@ public class ZaloMessageService {
 
     /** Lời mời kết bạn cho người đã nhận Tin 1 (theo mã Zalo): cùng chốt chặn như tin, thêm trần lời mời mỗi ngày. */
     public Delivery sendFriendRequest(String scope, Long refId, String uid, String text) {
+        Objects.requireNonNull(refId, "friend invitation ID");
         return deliver(scope, Kind.FRIEND, refId, null, null, () -> link.sendFriendRequest(uid, text));
     }
 
@@ -615,14 +617,13 @@ public class ZaloMessageService {
             if (!st.listening() || !Boolean.TRUE.equals(st.accountOk())) {
                 return Delivery.blocked(Block.NOT_READY); // thất bại kín: chưa chắc đúng tài khoản phụ thì không gửi
             }
-            // Ghi "đang gọi" TRƯỚC khi gọi: sập giữa chừng thì lần sau thấy dấu này mà dừng; sổ này cũng chính là hạn mức đã dùng.
-            long logId = jdbc.sql("""
-                            INSERT INTO zalo_msg_log (at, scope, kind, ref_id, outcome, account_id) VALUES (:at, :sc, :k, :r, 'DANG_GOI', :acct)
-                            RETURNING id""")
-                    .param("at", OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)).param("sc", scope)
-                    .param("k", kind.name()).param("r", refId, java.sql.Types.BIGINT).param("acct", ZaloAccountContext.current()).query(Long.class).single();
+            var attempt = startAttempt(scope, kind, refId);
+            if (attempt.isEmpty()) {
+                return Delivery.blocked(Block.BUSY);
+            }
+            long logId = attempt.get();
             if (cfg.tripped()) {
-                deleteUnsentAttempt(logId);
+                deleteUnsentAttempt(logId, kind, null);
                 return Delivery.blocked(Block.MODE_OFF);
             }
             Sent s;
@@ -632,20 +633,50 @@ public class ZaloMessageService {
                 log.warn("Gửi tin qua cầu nối báo lỗi: {}", e.getClass().getSimpleName());
                 s = Sent.of(Result.SYSTEM_ERROR, "BRIDGE_ERROR", false);
             }
-            return finish(logId, s);
+            return finish(logId, kind, s);
         } finally {
             lock.unlock();
         }
     }
 
-    private void deleteUnsentAttempt(long logId) {
-        jdbc.sql("DELETE FROM zalo_msg_log WHERE id = :id").param("id", logId).update();
+    private Optional<Long> startAttempt(String scope, Kind kind, Long refId) {
+        // Lời mời kết bạn và dấu đang gọi cùng commit TRƯỚC khi gọi cầu nối. Nếu câu lệnh
+        // chưa commit lúc app dừng, khách vẫn trong hàng chờ. Không suy ra gì từ các dòng UNKNOWN cũ.
+        String claim = """
+                WITH claimed AS (
+                    UPDATE invitation SET friend_request_at = :at, friend_request_outcome = 'UNKNOWN'
+                    WHERE id = :r AND account_id = :acct AND status = 'SENT' AND sent_channel = 'ZALO_AUTO'
+                      AND expires_at > :at AND friend_request_at IS NULL AND friend_accept_at IS NULL
+                      AND friended_at IS NULL AND joined_at IS NULL AND inbound_at IS NULL
+                      AND EXISTS (SELECT 1 FROM invitation_campaign k WHERE k.id = invitation.campaign_id
+                                  AND k.auto_send_approved_at IS NOT NULL)
+                    RETURNING id
+                )
+                """;
+        String insert = "INSERT INTO zalo_msg_log (at, scope, kind, ref_id, outcome, account_id) ";
+        String sql = kind == Kind.FRIEND
+                ? claim + insert + "SELECT :at, :sc, :k, id, 'DANG_GOI', :acct FROM claimed RETURNING id"
+                : insert + "VALUES (:at, :sc, :k, :r, 'DANG_GOI', :acct) RETURNING id";
+        return jdbc.sql(sql)
+                .param("at", OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)).param("sc", scope)
+                .param("k", kind.name()).param("r", refId, java.sql.Types.BIGINT)
+                .param("acct", ZaloAccountContext.current()).query(Long.class).optional();
     }
 
-    private Delivery finish(long logId, Sent s) {
+    private void deleteUnsentAttempt(long logId, Kind kind, String friendOutcome) {
+        if (kind == Kind.FRIEND) {
+            finishFriendAttempt("""
+                    DELETE FROM zalo_msg_log WHERE id = :id
+                    """, logId, null, null, friendOutcome);
+        } else {
+            jdbc.sql("DELETE FROM zalo_msg_log WHERE id = :id").param("id", logId).update();
+        }
+    }
+
+    private Delivery finish(long logId, Kind kind, Sent s) {
         try {
             if (s.result() == Result.OK) {
-                setOutcome(logId, "OK", s.code());
+                setOutcome(logId, kind, "OK", s.code(), "SENT");
                 if ("PARTIAL".equals(s.code())) {
                     observePartialDelivery();
                 }
@@ -653,7 +684,9 @@ public class ZaloMessageService {
             }
             if (s.notSent()) {
                 // Cầu nối chắc chắn chưa chạm Zalo: không tính hạn mức.
-                deleteUnsentAttempt(logId);
+                String friendOutcome = s.result() == Result.PERSON_ERROR && !FRIEND_LIST_FULL.equals(s.code())
+                        ? "FAILED" : null;
+                deleteUnsentAttempt(logId, kind, friendOutcome);
                 return switch (s.result()) {
                     case RATE_LIMITED, UNREACHABLE -> new Delivery(Status.RETRY, null, s);
                     case PERSON_ERROR -> new Delivery(Status.PERSON_ERROR, null, s); // đầu vào sai, chưa chạm Zalo
@@ -667,7 +700,7 @@ public class ZaloMessageService {
                     }
                 };
             }
-            setOutcome(logId, s.result().name(), s.code());
+            setOutcome(logId, kind, s.result().name(), s.code(), s.result() == Result.PERSON_ERROR ? "FAILED" : null);
             if (s.result() == Result.PERSON_ERROR) {
                 String stop = consecutivePersonErrors();
                 if (stop != null) {
@@ -697,9 +730,26 @@ public class ZaloMessageService {
         }
     }
 
-    private void setOutcome(long logId, String outcome, String code) {
-        jdbc.sql("UPDATE zalo_msg_log SET outcome = :o, code = :c WHERE id = :id")
+    private static final String UPDATE_OUTCOME = "UPDATE zalo_msg_log SET outcome = :o, code = :c WHERE id = :id";
+
+    private void setOutcome(long logId, Kind kind, String outcome, String code, String friendOutcome) {
+        if (kind == Kind.FRIEND && friendOutcome != null) {
+            finishFriendAttempt(UPDATE_OUTCOME, logId, outcome, code, friendOutcome);
+            return;
+        }
+        jdbc.sql(UPDATE_OUTCOME)
                 .param("o", outcome).param("c", code, java.sql.Types.VARCHAR).param("id", logId).update();
+    }
+
+    private void finishFriendAttempt(String logChange, long logId, String outcome, String code, String friendOutcome) {
+        jdbc.sql("WITH attempt AS (" + logChange + " RETURNING ref_id, account_id, at) " + """
+                UPDATE invitation i SET friend_request_outcome = :friend_outcome,
+                    friend_request_at = CASE WHEN :friend_outcome IS NULL THEN NULL ELSE i.friend_request_at END
+                FROM attempt a
+                WHERE i.id = a.ref_id AND i.account_id = a.account_id
+                  AND i.friend_request_at = a.at AND i.friend_request_outcome = 'UNKNOWN'
+                """).param("id", logId).param("o", outcome, java.sql.Types.VARCHAR)
+                .param("c", code, java.sql.Types.VARCHAR).param("friend_outcome", friendOutcome, java.sql.Types.VARCHAR).update();
     }
 
     private boolean leftover() {
