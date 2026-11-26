@@ -194,3 +194,17 @@ Nếu máy chủ ở Singapore (D7): dữ liệu khách nằm ngoài Việt Nam,
 
 ### 8. Bot
 Chưa có kênh Zalo nào được cài. Xem `docs/ADR-0001-chon-kenh-bot.md` để biết cần chạy thử (spike) những gì trước khi chọn. Cho tới lúc đó bot chỉ để soạn FAQ và thử bằng ô "Thử bot".
+
+### 9. Triển khai ứng dụng và hai cầu nối từ GitHub Actions
+
+Workflow **cd** chỉ xử lý commit hiện tại của `main` khi cả **ci** và **image** đều đạt trên cùng SHA. Môi trường GitHub `production` chỉ nhận nhánh `main`. Mỗi máy có một khóa SSH riêng với lệnh bắt buộc `deploy <sha>`, dùng host key đã xác minh. Khóa triển khai không mở shell, chuyển tiếp cổng hoặc đăng nhập máy khác.
+
+- Máy chính gọi đường triển khai hiện có, giữ sao lưu và cơ chế quay lui của `auto-deploy.sh` và `deploy.sh`. Workflow xác minh ảnh app và cầu nối 1 đúng SHA, trang đăng nhập trả HTTP 200, PostgreSQL sẵn sàng và cầu nối đáp ứng kiểm tra sức khỏe. Cron vẫn là đường dự phòng và dùng chung khóa triển khai.
+- Máy hai chỉ cập nhật dịch vụ `zalo-bridge` của project Compose `adh-zalo-bridge-2` trong `/home/deploy/adh-bridge2`. Giữ lại volume và phiên. Nếu ảnh mới không khỏe, script khởi chạy lại ảnh trước và workflow báo lỗi.
+- Máy chủ giữ tệp cấu hình Compose, `.env` và công tắc E2E riêng. Deploy ảnh không đặt lại cờ gửi thật. Thay đổi cấu hình hoặc chạy lại cùng SHA được ghi riêng trong nhật ký vận hành.
+
+#### Thiết lập hoặc phục hồi CD
+
+1. Tạo environment `production` giới hạn ở nhánh `main`. Đặt `CD_MAIN_HOST` và `CD_BRIDGE2_HOST` dạng `user@host`. Đặt `CD_MAIN_SSH_KEY`, `CD_BRIDGE2_SSH_KEY` và `CD_KNOWN_HOSTS` trong environment secrets. Lấy host key từ bản đã xác minh qua đường quản trị.
+2. Cài `infra/github-deploy.sh` vào thư mục ADH cạnh Compose trên mỗi máy. Đặt `restrict,command="/bin/bash <đường dẫn>/github-deploy.sh main"` hoặc `bridge2` trước khóa công khai tương ứng trong `authorized_keys`. Chạy thử lệnh sai và xác minh bị từ chối.
+3. Dùng **Actions → cd → Run workflow** trên `main` để chạy lại một bản có CI và ảnh đã đạt. Đọc nhật ký job để xác định máy nào đã cập nhật nếu lượt triển khai thất bại giữa chừng.

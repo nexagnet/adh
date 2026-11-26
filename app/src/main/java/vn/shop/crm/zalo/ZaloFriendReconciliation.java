@@ -2,6 +2,7 @@ package vn.shop.crm.zalo;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -18,18 +19,24 @@ class ZaloFriendReconciliation {
             AND i.friend_request_outcome IN ('SENT', 'UNKNOWN') AND i.zalo_target_uid IS NOT NULL
             AND i.friended_at IS NULL AND i.joined_at IS NULL AND i.expires_at > now()
             AND i.friend_request_at <= now() - interval '2 minutes'
+            AND (:includeNonTest OR EXISTS (
+                SELECT 1 FROM customer c JOIN zalo_test_number n ON n.phone = c.phone
+                WHERE c.id = i.customer_id))
             """;
 
     private final JdbcClient jdbc;
     private final TransactionTemplate transaction;
     private final ZaloLink bridge;
     private final TestMode testMode;
+    private final boolean testOnly;
 
-    ZaloFriendReconciliation(JdbcClient jdbc, TransactionTemplate transaction, ZaloLink bridge, TestMode testMode) {
+    ZaloFriendReconciliation(JdbcClient jdbc, TransactionTemplate transaction, ZaloLink bridge, TestMode testMode,
+                             @Value("${app.zalo.reconcile.test-only:${APP_ZALO_RECONCILE_TEST_ONLY:true}}") boolean testOnly) {
         this.jdbc = jdbc;
         this.transaction = transaction;
         this.bridge = bridge;
         this.testMode = testMode;
+        this.testOnly = testOnly;
     }
 
     private record Candidate(long id, String uid, String expected, OffsetDateTime attemptAt, OffsetDateTime startedAt) {}
@@ -48,13 +55,14 @@ class ZaloFriendReconciliation {
     private Optional<Candidate> next(long account) {
         return jdbc.sql("""
                 SELECT i.id, i.zalo_target_uid, i.friend_request_outcome, i.friend_request_at, clock_timestamp() AS started_at
-                FROM invitation i JOIN customer c ON c.id = i.customer_id
+                FROM invitation i
                 LEFT JOIN zalo_friend_observation o ON o.account_id = i.account_id AND o.invitation_id = i.id
                 WHERE i.account_id = :account AND (o.observed_at IS NULL OR o.observed_at < now() - interval '5 minutes')
                 AND
-                """ + ELIGIBLE + testMode.onlyTestSql("c.phone")
+                """ + ELIGIBLE
                 + " ORDER BY (i.friend_request_outcome = 'UNKNOWN' AND o.observed_at IS NULL) DESC, o.observed_at NULLS FIRST, i.id LIMIT 1")
                 .param("account", account)
+                .param("includeNonTest", includeNonTestNumbers())
                 .query((rs, n) -> new Candidate(rs.getLong("id"), rs.getString("zalo_target_uid"),
                         rs.getString("friend_request_outcome"), rs.getObject("friend_request_at", OffsetDateTime.class),
                         rs.getObject("started_at", OffsetDateTime.class))).optional();
@@ -69,7 +77,8 @@ class ZaloFriendReconciliation {
                 WHERE i.id = :id AND i.account_id = :account AND i.zalo_target_uid = :uid
                   AND i.friend_request_outcome = :expected AND i.friend_request_at = :attempt AND
                 """ + ELIGIBLE + " FOR UPDATE").param("id", target.id()).param("account", account).param("uid", target.uid())
-                .param("expected", target.expected()).param("attempt", target.attemptAt()).query(Long.class).optional().isPresent();
+                .param("expected", target.expected()).param("attempt", target.attemptAt())
+                .param("includeNonTest", includeNonTestNumbers()).query(Long.class).optional().isPresent();
         if (!current) {
             return;
         }
@@ -106,6 +115,10 @@ class ZaloFriendReconciliation {
         if (stored == 1 && !previous.equals(Optional.of(new Previous(state.name(), observation.reasonCode(), review)))) {
             recordTransition(account, target, observation, review);
         }
+    }
+
+    private boolean includeNonTestNumbers() {
+        return !testOnly && testMode.live();
     }
 
     private static boolean actionableReadError(String code) {
