@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ZaloGatewayShapeTest {
 
     private static List<String> names(Class<?> type) {
-        return Arrays.stream(type.getDeclaredMethods()).map(Method::getName).sorted().toList();
+        return Arrays.stream(type.getDeclaredMethods()).filter(method -> !method.isSynthetic()).map(Method::getName).sorted().toList();
     }
 
     @Test
