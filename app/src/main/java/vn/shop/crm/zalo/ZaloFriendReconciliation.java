@@ -52,7 +52,8 @@ class ZaloFriendReconciliation {
                 LEFT JOIN zalo_friend_observation o ON o.account_id = i.account_id AND o.invitation_id = i.id
                 WHERE i.account_id = :account AND (o.observed_at IS NULL OR o.observed_at < now() - interval '5 minutes')
                 AND
-                """ + ELIGIBLE + testMode.onlyTestSql("c.phone") + " ORDER BY o.observed_at NULLS FIRST, i.id LIMIT 1")
+                """ + ELIGIBLE + testMode.onlyTestSql("c.phone")
+                + " ORDER BY (i.friend_request_outcome = 'UNKNOWN' AND o.observed_at IS NULL) DESC, o.observed_at NULLS FIRST, i.id LIMIT 1")
                 .param("account", account)
                 .query((rs, n) -> new Candidate(rs.getLong("id"), rs.getString("zalo_target_uid"),
                         rs.getString("friend_request_outcome"), rs.getObject("friend_request_at", OffsetDateTime.class),

@@ -464,6 +464,24 @@ class FriendRequestSendTest extends AbstractPostgresTest {
     }
 
     @Test
+    void bangChungLoiMoiDangChoChanGuiLaiKeCaKhiLanDocMoiLoi() {
+        long invitation = inviteOne();
+        jdbc.sql("""
+                UPDATE invitation SET friend_request_outcome = 'UNKNOWN',
+                    friend_request_at = now() - interval '10 minutes' WHERE id = :i
+                """).param("i", invitation).update();
+        jdbc.sql("""
+                INSERT INTO zalo_friend_observation
+                    (account_id, invitation_id, state, observed_at, last_confirmed_state, last_confirmed_at, needs_review)
+                VALUES (1, :i, 'UNAVAILABLE', now(), 'OUTGOING', now() - interval '5 minutes', true)
+                """).param("i", invitation).update();
+        assertThat(attention.rows(campaign)).singleElement().satisfies(row -> assertThat(row.canResendFriend()).isFalse());
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> attention.resendFriend(campaign, invitation, "mẹ"))
+                .isInstanceOf(vn.shop.crm.common.ImportException.class);
+        assertThat(outcome(invitation)).isEqualTo("UNKNOWN");
+    }
+
+    @Test
     void khachTin1LoiHienKemLyDoVaKhongCoNutGuiLai() {
         long invitation = inviteOne();
         jdbc.sql("UPDATE invitation SET status = 'FAILED', last_error = 'Không tìm thấy trên Zalo' WHERE id = :i").param("i", invitation).update();
