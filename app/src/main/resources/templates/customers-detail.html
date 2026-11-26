@@ -86,6 +86,27 @@
                 </table>
             </div>
         </section>
+
+        <section>
+            <h2>Lịch sử gửi Zalo</h2>
+            <p class="muted" th:if="${zaloDeliveries.isEmpty()}">Chưa ghi nhận lần gửi Zalo nào.</p>
+            <div class="table-wrap" th:unless="${zaloDeliveries.isEmpty()}">
+                <table>
+                    <caption>Lần gửi được hệ thống xác nhận (tối đa 50 lần gần nhất)</caption>
+                    <thead><tr><th scope="col">Lúc gửi</th><th scope="col">Tài khoản gửi</th><th scope="col">Loại tin</th></tr></thead>
+                    <tbody>
+                        <tr th:each="delivery : ${zaloDeliveries}">
+                            <td th:text="${#temporals.format(delivery.at, 'dd/MM/yyyy HH:mm')}">20/11/2026 15:03</td>
+                            <td th:text="${delivery.accountLabel}">Tài khoản phụ 1</td>
+                            <td>
+                                <span th:text="${delivery.messageLabel}">Tin 1 mời khách</span>
+                                <span class="sub-line" th:if="${delivery.partial}">Đã gửi một phần</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
     </div>
 
     <div class="col-side">
