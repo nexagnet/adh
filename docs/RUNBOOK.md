@@ -128,8 +128,9 @@ cp .env.example .env && chmod 600 .env     # sửa DB_PASSWORD, APP_ADMIN_PASSWO
 ### 2c. Tự cập nhật bằng cron (máy chủ dùng chung)
 `infra/auto-deploy.sh` thay cho việc gõ tay `./deploy.sh deploy`: mỗi lượt cron hỏi GitHub commit mới nhất của `main` và **chỉ triển khai khi** (1) workflow `ci` của đúng commit đó đã xanh, (2) ảnh `ghcr.io/nexagnet/adh-app:<commit>` đã có trên ghcr, (3) RAM trống ≥ 250 MB và đĩa trống ≥ 1500 MB, (4) bản đang chạy đang khỏe. Việc triển khai thật vẫn là `deploy.sh deploy <commit>`: sao lưu cơ sở dữ liệu **trước** khi ứng dụng mới chạy migration (sao lưu lỗi thì dừng, không đổi gì), chờ ứng dụng khỏe tối đa 3 phút, không khỏe thì lùi ảnh về thẻ trước. Không đụng container hay ảnh của dự án khác; chỉ dọn ảnh `adh-app` cũ (giữ thẻ đang chạy và thẻ trước).
 - **Khóa:** `flock` trên `infra/.auto-deploy.lock`; lượt trước chưa xong thì lượt sau thoát im lặng. **Không chạy lần triển khai đầu tiên:** phải có `.current-tag` do `./deploy.sh deploy` tạo bằng tay.
-- **Lỗi:** bản đã khởi động rồi mà không khỏe (đã lùi) bị **chặn, không thử lại** vì migration có thể đã chạy một phần; lỗi tạm (mạng, kéo ảnh) thử lại tối đa 3 lượt. Có commit mới thì tự thử bản mới; muốn thử lại cùng commit: `./auto-deploy.sh unblock`.
-- **Lưu ý cơ sở dữ liệu:** lùi ảnh KHÔNG lùi migration Flyway. Nếu bản mới đã đổi cấu trúc rồi mới hỏng, bản cũ có thể không chạy được với cấu trúc mới; log ghi đường dẫn bản sao lưu trước khi cập nhật để khôi phục (mục 4 và `infra/restore-test.sh`). Việc khôi phục này làm bằng tay, script không tự khôi phục vì sẽ mất dữ liệu ghi sau lúc sao lưu.
+- **Readiness:** cron xác minh bản đang chạy, còn cả deploy tay và cron yêu cầu `GET /readyz` trả HTTP 200 với đúng SHA nhúng trong JAR sau khi bắt tay với PostgreSQL. Mất kết nối tới bridge được xử lý ở trang sức khỏe Zalo. Đợt chuyển từ ảnh cũ chưa có `/readyz` cần triển khai có giám sát khi cron tạm dừng.
+- **Lỗi:** sau khi bản mới đã khởi động nhưng chưa đạt readiness, cron chặn thẻ đó. Lỗi tạm khi kéo ảnh hoặc mạng được thử tối đa ba lần. Người vận hành xem nguyên nhân trước khi dùng `./auto-deploy.sh unblock`.
+- **Cơ sở dữ liệu:** tự lùi và lùi tay đều yêu cầu ảnh lùi có nhãn readiness và dấu Flyway trùng bản ghi trước lúc triển khai. Nếu schema đã đổi, giữ bản sao lưu và xử lý theo mục 5. Việc nạp dữ liệu diễn ra bằng tay vì có thể mất dữ liệu đã ghi sau bản sao.
 - **Log:** `infra/auto-deploy.log` (tự cắt khi quá 1 MB); chỉ ghi khi trạng thái đổi, kèm RAM/swap/đĩa và bộ nhớ từng container `adh` trước và sau mỗi lần triển khai. Xem nhanh: `./auto-deploy.sh status`.
 - **Tạm dừng / bật lại:** `./auto-deploy.sh pause` và `./auto-deploy.sh resume` (cron vẫn chạy nhưng không làm gì khi đang tạm dừng). Thử không đổi gì: `./auto-deploy.sh --dry-run`.
 - **Cài (người có quyền trên máy chủ làm, sau khi đã deploy tay lần đầu thành công):**
@@ -141,7 +142,7 @@ crontab -e                          # thêm MỘT dòng (10 phút một lần, �
 ```
   Muốn chỉ cập nhật ban đêm (ít khách dùng, ứng dụng ngừng khoảng 1 phút khi khởi động lại): đổi `*/10 * * * *` thành `*/10 1-4 * * *`. Người chạy cron phải chạy được `docker` (thuộc nhóm docker, hoặc `sudo` không hỏi mật khẩu cho docker) và ghi được vào `infra/` và `BACKUP_DIR`. Repo công khai nên không cần token; nếu repo riêng tư, đặt `ADH_AUTO_GITHUB_TOKEN` (quyền đọc Actions) trong `infra/.env` (chmod 600). Muốn được báo khi có lỗi: đặt `ADH_AUTO_NOTIFY_CMD` trong dòng cron (lệnh nhận nội dung ở tham số cuối), nếu không thì xem `status`/log.
 - **Gỡ:** xóa dòng cron (`crontab -e`) hoặc `./auto-deploy.sh pause`.
-- **Thử script (không cần Docker):** `infra/test-auto-deploy.sh` (dùng `git`, `curl`, `docker`, `deploy.sh` giả) và `infra/test-deploy.sh` (deploy.sh, backup.sh, restore-test.sh với `docker` giả: đọc `COMPOSE_FILE`/`COMPOSE_PROFILES` từ `.env`, không dừng hay xóa gì). CI chạy cả hai.
+- **Thử script (không cần Docker thật):** chạy `infra/test-auto-deploy.sh`, `infra/test-deploy.sh` và `infra/test-backup.sh` trên Linux. Khi cập nhật các script trên máy chủ, đi cùng `deploy-readiness.sh` và `backup-common.sh`.
 
 ### 3. Cập nhật phiên bản
 ```bash
@@ -157,14 +158,14 @@ Cơ sở dữ liệu được nâng cấp tự động (Flyway) khi ứng dụng
 17 3 * * * /đường/dẫn/adh/infra/backup.sh >> /var/log/adh-backup.log 2>&1
 ```
 - **Mã hóa (khuyến nghị):** cài `age`, tạo khóa (`age-keygen`), đặt khóa **công khai** vào `BACKUP_AGE_RECIPIENT`, cất khóa **riêng** ở nơi khác máy chủ. Mất khóa riêng là mất bản sao lưu.
-- **Chép ra ngoài máy chủ (khuyến nghị):** đặt `BACKUP_REMOTE_CMD`, ví dụ `rclone copy --no-traverse` hoặc một lệnh `scp`. Bản sao lưu chỉ nằm trên cùng máy chủ thì mất máy là mất hết.
+- Bản sao lưu gồm tệp dữ liệu và tệp `SHA256` trong một thư mục riêng chỉ hiện sau khi ghi xong. Khi sao chép tay ra ngoài máy, giữ cả hai tệp.
 - File sao lưu chứa số điện thoại và địa chỉ khách thật: không đưa lên git, không chia sẻ.
 
 ### 5. Thử khôi phục (làm định kỳ, ít nhất mỗi tháng)
 ```bash
 ./restore-test.sh            # nếu mã hóa: AGE_IDENTITY=/đường/dẫn/khóa-riêng ./restore-test.sh
 ```
-Script nạp bản sao lưu mới nhất vào một cơ sở dữ liệu tạm `crm_restore_test`, kiểm tra các bảng cốt lõi, rồi xóa nó. Không đụng dữ liệu đang chạy. Kết thúc bằng dòng `THỬ KHÔI PHỤC THÀNH CÔNG`. Chưa từng khôi phục thử thì bản sao lưu chưa đáng tin.
+Script kiểm SHA256 cho bản mới, thử giải mã và giải nén, sau đó nạp vào DB tạm có tên riêng theo lượt. DB thử được xóa sau khi kiểm tra. Kết thúc bằng dòng `THỬ KHÔI PHỤC THÀNH CÔNG`. Trước khi chạy app thử trên dữ liệu phục hồi, giữ gửi Zalo và AI tắt. Đối chiếu danh sách từ chối, danh tính hai bridge, dấu chốt dừng, con trỏ inbox và sổ lần gửi chưa rõ kết quả trên volume từng bridge.
 
 **Khôi phục thật** (khi mất dữ liệu): dừng ứng dụng (`docker compose ... stop app`), tạo lại cơ sở dữ liệu rỗng, nạp file `.sql.gz` bằng `gzip -dc file | docker compose ... exec -T postgres psql -U crm -d crm`, rồi bật lại ứng dụng.
 

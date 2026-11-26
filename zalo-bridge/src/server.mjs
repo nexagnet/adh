@@ -87,7 +87,7 @@ export function createServer({ bridge, config, fake = null }) {
       }
       if (route === 'GET /inbox') {
         const after = Number(url.searchParams.get('after') ?? '0');
-        return send(200, { enabled: config.inboxEnabled, messages: bridge.inboxMessages(after) });
+        return send(200, bridge.inboxSnapshot(after));
       }
       if (route === 'POST /friends/check') {
         const body = await readJson(req);
@@ -113,7 +113,7 @@ export function createServer({ bridge, config, fake = null }) {
       }
       if (route === 'POST /messages') {
         const body = await readJson(req);
-        return send(200, await bridge.sendMessage({ kind: body.kind, phone: body.phone, uid: body.uid, text: body.text }));
+        return send(200, await bridge.sendMessage({ kind: body.kind, phone: body.phone, uid: body.uid, text: body.text, inboxSince: body.inboxSince }));
       }
       if (route === 'POST /reactions') {
         const body = await readJson(req);

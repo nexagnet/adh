@@ -62,7 +62,8 @@ class ImportExtrasTest extends AbstractPostgresTest {
 
     @Test
     void khongCanhBaoChoHangKhongBietHanMuc() {
-        var report = new ImportService.Report(500, 500, 0, 0, 500, 0, 0, 0, java.util.Map.of(), List.of(), 0);
+        var report = new ImportService.Report(500, 500, 0, 0, 500, 0, 0, 0, java.util.Map.of(), List.of(), 0,
+                0, 0, List.of(), null);
         assertThat(report.atFileLimit()).isFalse();
     }
 

@@ -80,6 +80,15 @@ public final class SafeZaloLink implements ZaloLink {
     }
 
     @Override
+    public Sent sendFollowup(Kind kind, String uid, String text, java.time.Instant coverageSince) {
+        if (!mode.uidAllowed(uid)) {
+            mode.noteBlocked("GUI_TIN_" + kind);
+            return Sent.of(Result.UNREACHABLE, CODE, true);
+        }
+        return inner.sendFollowup(kind, uid, text, coverageSince);
+    }
+
+    @Override
     public Sent sendFriendRequest(String uid, String text) {
         if (!mode.uidAllowed(uid)) {
             mode.noteBlocked("KET_BAN");
@@ -144,7 +153,16 @@ public final class SafeZaloLink implements ZaloLink {
     /** Ở chế độ thử chỉ tin của số thử đi tiếp: tin của khách thật bị bỏ ngay, nội dung không bao giờ tới AI. */
     @Override
     public List<Inbound> inbound(long afterSeq) {
-        List<Inbound> all = inner.inbound(afterSeq);
+        return allowedInbound(inner.inbound(afterSeq));
+    }
+
+    @Override
+    public Snapshot snapshot(long afterSeq) {
+        Snapshot snapshot = inner.snapshot(afterSeq);
+        return new Snapshot(allowedInbound(snapshot.messages()), snapshot.lastSeq(), snapshot.coverageSince());
+    }
+
+    private List<Inbound> allowedInbound(List<Inbound> all) {
         if (mode.live() || all.isEmpty()) {
             return all;
         }

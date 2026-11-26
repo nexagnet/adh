@@ -41,6 +41,11 @@ services:
       APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-https://adh.invalid}
       APP_SHOP_NAME: ${APP_SHOP_NAME:-Cửa hàng}
       APP_SHOP_PHONE: ${APP_SHOP_PHONE:-}
+      APP_ADH_STAGE2_ENABLED: ${APP_ADH_STAGE2_ENABLED:-false}
+      APP_TIKTOK_APP_KEY: ${APP_TIKTOK_APP_KEY:-}
+      APP_TIKTOK_APP_SECRET: ${APP_TIKTOK_APP_SECRET:-}
+      APP_TIKTOK_SHOP_CIPHER: ${APP_TIKTOK_SHOP_CIPHER:-}
+      APP_TIKTOK_ACCESS_TOKEN: ${APP_TIKTOK_ACCESS_TOKEN:-}
       APP_SENDING_ENABLED: ${APP_SENDING_ENABLED:-false}
       # Thời tiết trên bản đồ (MET Norway). Mặc định TẮT; bật bằng APP_WEATHER_ENABLED=true trong file .env rồi chạy lại.
       APP_WEATHER_ENABLED: ${APP_WEATHER_ENABLED:-false}

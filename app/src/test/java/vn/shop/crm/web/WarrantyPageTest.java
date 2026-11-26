@@ -74,7 +74,7 @@ class WarrantyPageTest extends AbstractPostgresTest {
     @Test
     void viecBaoHanhHienKemDonVaDuocXuLyXong() throws Exception {
         openCase("CAO", "Khách báo pin sạc không vào điện.");
-        mvc.perform(get("/handoffs").with(user("me").roles("STAFF")))
+        mvc.perform(get("/handoffs").with(user("me").roles("OWNER")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Bảo hành và khiếu nại")))
                 .andExpect(content().string(containsString("Gấp")))
@@ -89,10 +89,10 @@ class WarrantyPageTest extends AbstractPostgresTest {
         mvc.perform(get("/").with(user("admin").roles("OWNER")))
                 .andExpect(content().string(containsString("việc trợ lý AI chuyển cho người thật")));
         long id = warranty.open().get(0).id();
-        mvc.perform(post("/handoffs/warranty/{id}/done", id).with(user("me").roles("STAFF")).with(csrf()))
+        mvc.perform(post("/handoffs/warranty/{id}/done", id).with(user("me").roles("OWNER")).with(csrf()))
                 .andExpect(redirectedUrl("/handoffs"));
         assertThat(warranty.openCount()).isZero();
-        mvc.perform(get("/handoffs").with(user("me").roles("STAFF")))
+        mvc.perform(get("/handoffs").with(user("me").roles("OWNER")))
                 .andExpect(content().string(not(containsString("Nháp (chưa gửi)"))));
     }
 }

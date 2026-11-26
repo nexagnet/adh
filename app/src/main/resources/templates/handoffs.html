@@ -8,8 +8,7 @@
     <header class="page-head">
         <div class="titles">
             <h1>Việc cần người thật xử lý</h1>
-            <p class="hint">Người thật (mẹ, sau này là đội bán hàng) trả lời khách trên Zalo thật, rồi bấm «Đã xem» hoặc «Đã xử lý xong» ở đây để mọi người biết.
-                Trợ lý AI không tự chốt đơn, không tự hứa giá hay bảo hành.</p>
+            <p class="hint">Mở đúng tài khoản Zalo để trả lời khách, rồi cập nhật trạng thái việc tại đây.</p>
         </div>
         <div class="actions" th:if="${botEnabled}">
             <form th:action="@{/bot/enable}" method="post">
@@ -20,18 +19,11 @@
     </header>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã nhận.</div>
-    <div class="notice">
-        <strong>Việc chỉ hiện ở trang này và trên Tổng quan</strong>
-        Đây là hàng đợi chung của người thật (mẹ, sau này là đội bán hàng). Nếu không ai mở trang này, việc khách muốn mua có thể bị bỏ sót. Chưa có tin Zalo tự báo ra ngoài; phần đó để sau, chờ duyệt.
-    </div>
-
-    <nav class="chips" aria-label="Đi nhanh tới nhóm việc">
-        <a class="chip" href="#v-nghi-tu-choi" th:if="${!heldRefusals.isEmpty()}">Nghi từ chối <span class="n" th:text="${heldRefusals.size()}">0</span></a>
-        <a class="chip" href="#v-bao-hanh" th:if="${!warrantyCases.isEmpty()}">Bảo hành, khiếu nại <span class="n" th:text="${warrantyCases.size()}">0</span></a>
-        <a class="chip" href="#v-tra-loi" th:if="${!replyHandoffs.isEmpty()}">Cần trả lời <span class="n" th:text="${replyHandoffs.size()}">0</span></a>
-        <a class="chip" href="#v-quay-lai" th:if="${!comebackTasks.isEmpty()}">Khách quay lại <span class="n" th:text="${comebackTasks.size()}">0</span></a>
-        <a class="chip" href="#v-da-go" th:if="${!comebackLifted.isEmpty()}">Đã gỡ cờ <span class="n" th:text="${comebackLifted.size()}">0</span></a>
-        <a class="chip" href="#v-ai-tu-choi" th:if="${!autoRefusals.isEmpty()}">AI đã ghi từ chối <span class="n" th:text="${autoRefusals.size()}">0</span></a>
+    <p th:if="${teamEnabled}"><a th:href="@{/staff/members}">Nhân viên và phân quyền nhóm</a></p>
+    <nav class="chips" aria-label="Loại việc">
+        <a class="chip" th:each="filter : ${workTypes}"
+           th:classappend="${filter.key == workType} ? 'on'" th:attr="aria-current=${filter.key == workType ? 'page' : null}"
+           th:href="@{/handoffs(type=${filter.key})}" th:text="${filter.label}">Tất cả</a>
     </nav>
 
     <section class="stack" id="v-nghi-tu-choi" th:if="${!heldRefusals.isEmpty()}" aria-label="Tin khách nhắn riêng cần người thật xem">
@@ -40,6 +32,7 @@
             <strong>tạm dừng mọi tin cho khách này</strong>. Người thật xem tin trên Zalo rồi chọn. Trợ lý không tự trả lời khách.</p>
         <div class="job" th:each="r : ${heldRefusals}">
             <div class="meta">
+                <span class="badge" th:attr="data-zalo-account=${r.accountId}" th:text="${accountLabels[r.accountId] ?: ('Tài khoản ' + r.accountId)}">Nguồn Zalo</span>
                 <span class="badge bad" th:text="${r.reason.label()}">AI nghi khách từ chối</span>
                 <span><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.customerName}">Khách</a>
                     · <span th:text="${#temporals.format(r.createdAt, 'dd/MM HH:mm')}">21/11 09:12</span></span>
@@ -47,9 +40,11 @@
             <div class="what" th:if="${r.excerpt != null}" th:text="'“' + ${r.excerpt} + '”'">“Thôi đừng nhắn nữa nhé”</div>
             <div class="actions">
                 <form th:action="@{/handoffs/refusals/{id}/confirm(id=${r.id})}" method="post">
+                    <input type="hidden" name="type" th:value="${workType}">
                     <button type="submit" class="btn sm danger">Khách từ chối thật, đừng nhắn lại</button>
                 </form>
                 <form th:action="@{/handoffs/refusals/{id}/release(id=${r.id})}" method="post">
+                    <input type="hidden" name="type" th:value="${workType}">
                     <button type="submit" class="btn sm secondary">Khách không từ chối, cho tiếp tục</button>
                 </form>
             </div>
@@ -63,6 +58,7 @@
             sau đó bấm "Đã xử lý". Nháp chỉ để tham khảo, người xử lý sửa thoải mái.</p>
         <div class="job" th:each="w : ${warrantyCases}">
             <div class="meta">
+                <span class="badge" th:attr="data-zalo-account=${w.accountId}" th:text="${accountLabels[w.accountId] ?: ('Tài khoản ' + w.accountId)}">Nguồn Zalo</span>
                 <span class="badge" th:classappend="${w.urgency.name() == 'CAO'} ? 'bad' : (${w.urgency.name() == 'THAP'} ? 'info' : 'warn')" th:text="${w.urgency.label()}">Gấp</span>
                 <span class="badge info" th:text="${w.category.label()}">Sản phẩm lỗi hoặc hỏng</span>
                 <span><a th:href="@{/customers/{id}(id=${w.customerId})}" th:text="${w.customerName}">Khách</a>
@@ -82,6 +78,7 @@
                           + ' · ' + ${o.status}">Đơn: ...</div>
             <div class="actions">
                 <form th:action="@{/handoffs/warranty/{id}/done(id=${w.id})}" method="post">
+                    <input type="hidden" name="type" th:value="${workType}">
                     <button type="submit" class="btn sm">Đã xử lý</button>
                 </form>
             </div>
@@ -94,6 +91,7 @@
             trên Zalo thật, rồi bấm "Đã xử lý". Khách nhắn thêm thì tin được ghi tiếp vào cùng việc.</p>
         <div class="job" th:each="r : ${replyHandoffs}">
             <div class="meta">
+                <span class="badge" th:attr="data-zalo-account=${r.accountId}" th:text="${accountLabels[r.accountId] ?: ('Tài khoản ' + r.accountId)}">Nguồn Zalo</span>
                 <span class="badge bad" th:text="${r.reason.label()}">Khách muốn mua hàng</span>
                 <span><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.customerName}">Khách</a>
                     · <span th:text="${#temporals.format(r.createdAt, 'dd/MM HH:mm')}">21/11 09:12</span></span>
@@ -101,6 +99,7 @@
             <div class="what" th:if="${r.inbound != null}" th:text="'“' + ${r.inbound} + '”'">“Cho mình hỏi giá pin”</div>
             <div class="actions">
                 <form th:action="@{/handoffs/replies/{id}/done(id=${r.id})}" method="post">
+                    <input type="hidden" name="type" th:value="${workType}">
                     <button type="submit" class="btn sm">Đã xử lý</button>
                 </form>
             </div>
@@ -113,6 +112,7 @@
             Gỡ cờ chỉ đánh dấu "đã gỡ", số điện thoại vẫn giữ nguyên.</p>
         <div class="job" th:each="r : ${comebackTasks}">
             <div class="meta">
+                <span class="badge" th:attr="data-zalo-account=${r.accountId}" th:text="${accountLabels[r.accountId] ?: ('Tài khoản ' + r.accountId)}">Nguồn Zalo</span>
                 <span class="badge info" th:text="${r.reason.label()}">Khách muốn mua</span>
                 <span><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.customerName}">Khách</a>
                     · <span th:text="${#temporals.format(r.createdAt, 'dd/MM HH:mm')}">21/11 09:12</span></span>
@@ -121,9 +121,11 @@
             <ul class="sub-line" th:if="${!r.orders.isEmpty()}"><li th:each="o : ${r.orders}" th:text="${o}">12/05/2026 · pin 48V · DELIVERED</li></ul>
             <div class="actions">
                 <form th:action="@{/handoffs/comebacks/{id}/lift(id=${r.id})}" method="post">
+                    <input type="hidden" name="type" th:value="${workType}">
                     <button type="submit" class="btn sm">Gỡ không nhắn nữa, cho vào nhóm</button>
                 </form>
                 <form th:action="@{/handoffs/comebacks/{id}/keep(id=${r.id})}" method="post">
+                    <input type="hidden" name="type" th:value="${workType}">
                     <button type="submit" class="btn sm secondary">Giữ nguyên, vẫn không nhắn</button>
                 </form>
             </div>
@@ -135,6 +137,7 @@
         <p class="hint">Gỡ nhầm thì bấm Hoàn tác: khách lại bị đánh dấu không nhắn nữa. Khách đã vào nhóm rồi thì hệ thống không đưa ra khỏi nhóm được, mẹ tự mời ra trên Zalo.</p>
         <div class="job" th:each="r : ${comebackLifted}">
             <div class="meta">
+                <span class="badge" th:attr="data-zalo-account=${r.accountId}" th:text="${accountLabels[r.accountId] ?: ('Tài khoản ' + r.accountId)}">Nguồn Zalo</span>
                 <span class="badge ok" th:text="${r.liftedBy == 'tro-ly-ai'} ? 'Trợ lý AI gỡ' : 'Mẹ gỡ'">Trợ lý AI gỡ</span>
                 <span><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.customerName}">Khách</a>
                     · <span th:text="${#temporals.format(r.createdAt, 'dd/MM HH:mm')}">21/11 09:12</span></span>
@@ -145,6 +148,7 @@
             <ul class="sub-line" th:if="${!r.orders.isEmpty()}"><li th:each="o : ${r.orders}" th:text="${o}">12/05/2026 · pin 48V</li></ul>
             <div class="actions">
                 <form th:action="@{/handoffs/comebacks/{id}/undo(id=${r.id})}" method="post">
+                    <input type="hidden" name="type" th:value="${workType}">
                     <button type="submit" class="btn sm secondary">Hoàn tác</button>
                 </form>
             </div>
@@ -156,26 +160,29 @@
         <p class="hint">AI rất chắc khách từ chối nên đã ghi sổ và không nhắn lại. Nếu ghi nhầm, mẹ bấm Hoàn tác. Hệ thống không giữ nội dung tin của khách.</p>
         <div class="job" th:each="r : ${autoRefusals}">
             <div class="meta">
+                <span class="badge" th:attr="data-zalo-account=${r.accountId}" th:text="${accountLabels[r.accountId] ?: ('Tài khoản ' + r.accountId)}">Nguồn Zalo</span>
                 <span class="badge info">AI ghi từ chối</span>
                 <span><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.customerName}">Khách</a>
                     · <span th:text="${#temporals.format(r.createdAt, 'dd/MM HH:mm')}">21/11 09:12</span></span>
             </div>
             <div class="actions">
                 <form th:action="@{/handoffs/refusals/{id}/undo(id=${r.id})}" method="post">
+                    <input type="hidden" name="type" th:value="${workType}">
                     <button type="submit" class="btn sm secondary">Hoàn tác</button>
                 </form>
             </div>
         </div>
     </section>
 
-    <div class="chips" aria-label="Lọc việc">
-        <a class="chip" th:classappend="${!done and !all} ? 'on'" th:href="@{/handoffs}">Cần xử lý <span class="n" th:text="${openCount}">0</span></a>
-        <a class="chip" th:classappend="${done} ? 'on'" th:href="@{/handoffs(done=true)}">Đã xong <span class="n" th:text="${doneCount}">0</span></a>
+    <div class="chips" aria-label="Trạng thái việc trong nhóm" th:if="${workType == 'all' or workType == 'group'}">
+        <a class="chip" th:classappend="${!done} ? 'on'" th:href="@{/handoffs(type='group')}">Việc nhóm đang mở <span class="n" th:text="${groupOpenCount}">0</span></a>
+        <a class="chip" th:classappend="${done} ? 'on'" th:href="@{/handoffs(done=true)}">Việc nhóm đã xong <span class="n" th:text="${doneCount}">0</span></a>
     </div>
 
-    <div class="stack">
+    <section class="stack" id="v-nhom" th:if="${!rows.isEmpty()}">
         <div class="job" th:each="r : ${rows}">
             <div class="meta">
+                <span class="badge" th:attr="data-zalo-account=${r.accountId}" th:text="${accountLabels[r.accountId] ?: ('Tài khoản ' + r.accountId)}">Nguồn Zalo</span>
                 <span class="badge info" th:text="${r.reason.label()}">Muốn đặt thêm hàng</span>
                 <span class="badge bad" th:if="${r.status == 'OPEN'}">Mới</span>
                 <span class="badge" th:if="${r.status == 'ACKNOWLEDGED'}">Đã xem<span th:if="${r.ackedBy != null}" th:text="' (' + ${r.ackedBy} + ')'"></span></span>
@@ -183,17 +190,30 @@
                 <span><span th:text="${r.groupName}">Nhóm 1</span> · <span th:text="${#temporals.format(r.createdAt, 'dd/MM HH:mm')}">21/11 09:12</span></span>
             </div>
             <div class="what" th:text="${r.excerpt}">Khách hỏi còn pin Aki ta 18V và muốn lấy 2 cái</div>
+            <p th:if="${r.assignedTo}" th:text="|${r.assignedTo} đang phụ trách|"></p>
             <div class="actions" th:if="${r.status != 'RESOLVED'}">
+                <a class="btn sm secondary" th:if="${teamEnabled and r.reason.name() == 'ORDER'}"
+                   th:href="@{/handoffs/{id}/order-draft(id=${r.id})}">Đơn nháp</a>
+                <form th:if="${assignees[r.groupId] != null}" th:action="@{/staff/assign/{id}(id=${r.id})}" method="post">
+                    <select name="assignee" aria-label="Nhân viên phụ trách" required>
+                        <option value="">Chọn nhân viên</option>
+                        <option th:each="a : ${assignees[r.groupId]}" th:value="${a.username}" th:text="${a.display_name}"></option>
+                    </select>
+                    <button class="btn sm secondary" type="submit">Giao việc</button>
+                </form>
                 <form th:if="${r.status == 'OPEN'}" th:action="@{/handoffs/{id}/ack(id=${r.id})}" method="post">
+                    <input type="hidden" name="type" th:value="${workType}">
                     <button type="submit" class="btn sm">Đã xem</button>
                 </form>
                 <form th:action="@{/handoffs/{id}/resolve(id=${r.id})}" method="post">
+                    <input type="hidden" name="type" th:value="${workType}">
                     <button type="submit" class="btn sm" th:classappend="${r.status == 'OPEN'} ? 'secondary'">Đã xử lý xong</button>
                 </form>
             </div>
         </div>
-        <p class="muted" th:if="${rows.isEmpty() and replyHandoffs.isEmpty() and warrantyCases.isEmpty()}">Không có việc nào đang chờ.</p>
-    </div>
+    </section>
+    <p class="muted" th:if="${rows.isEmpty() and replyHandoffs.isEmpty() and warrantyCases.isEmpty()
+                and heldRefusals.isEmpty() and comebackTasks.isEmpty() and comebackLifted.isEmpty() and autoRefusals.isEmpty()}">Không có việc theo bộ lọc này.</p>
 </main>
 </body>
 </html>

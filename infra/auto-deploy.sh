@@ -21,11 +21,13 @@ export PATH="${PATH:-/usr/bin:/bin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/sb
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$HERE" || exit 1
+# shellcheck source=infra/deploy-readiness.sh
+source "$HERE/deploy-readiness.sh" || exit 1
 
 # Đọc biến: ưu tiên môi trường, sau đó .env (đọc từng dòng, KHÔNG nạp file như mã để không chạy lệnh trong đó).
 envval() { # $1 tên, $2 mặc định
     local v="${!1:-}"
-    if [ -z "$v" ] && [ -f .env ]; then v="$(grep -E "^$1=" .env | tail -n1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//' || true)"; fi
+    if [ -z "$v" ] && [ -f .env ]; then v="$(grep -E "^$1=" .env | tail -n1 | cut -d= -f2- | tr -d '\r' | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'\$//" || true)"; fi
     printf '%s' "${v:-$2}"
 }
 
@@ -37,7 +39,7 @@ LOG="$(envval ADH_AUTO_LOG "$HERE/auto-deploy.log")"
 MIN_FREE_MB="$(envval ADH_AUTO_MIN_FREE_MB 250)"
 MIN_DISK_MB="$(envval ADH_AUTO_MIN_DISK_MB 1500)"
 MAX_ATTEMPTS="$(envval ADH_AUTO_MAX_ATTEMPTS 3)"
-HOST_PORT="$(envval ADH_HOST_PORT 8081)"
+HOST_PORT="$(ADH_HOST_PORT='' envval ADH_HOST_PORT 8081)"
 IMAGE="ghcr.io/nexagnet/adh-app"
 BRIDGE_IMAGE="ghcr.io/nexagnet/adh-zalo-bridge"
 
@@ -86,10 +88,6 @@ snapshot() { # ghi lại tài nguyên để theo dõi máy nhỏ
             while IFS= read -r l; do log "$l"; done
     fi
     return 0
-}
-healthy() {
-    local code; code="$(curl -s -o /dev/null -m 5 -w '%{http_code}' "http://127.0.0.1:$HOST_PORT/" || true)"
-    [[ "$code" =~ ^[1-4][0-9][0-9]$ ]]
 }
 api() { # $1 đường dẫn sau /repos/<repo>/
     if [ -n "$TOKEN" ]; then
@@ -144,10 +142,17 @@ rotate_log
 cur="$(cat "$CUR")"
 
 head="$(timeout 30 git ls-remote "https://github.com/$REPO.git" "refs/heads/$BRANCH" 2>/dev/null | cut -f1)"
-[[ "$head" =~ ^[0-9a-f]{40}$ ]] || { note info "Không hỏi được commit mới nhất của $BRANCH (mạng hoặc GitHub); thử lại lượt sau."; exit 0; }
+adh_revision "$head" || { note info "Không hỏi được commit mới nhất của $BRANCH (mạng hoặc GitHub); thử lại lượt sau."; exit 0; }
 short="${head:0:9}"
 
-[ "$head" = "$cur" ] && { note info "Đã là bản mới nhất ($short)."; exit 0; }
+if [ "$head" = "$cur" ]; then
+    if adh_ready_at "$HOST_PORT" "$cur"; then
+        note info "Đã là bản mới nhất ($short)."
+    else
+        note warn "Chưa xác minh được readiness của bản mới nhất ($short). Cần người xem (./deploy.sh status)."
+    fi
+    exit 0
+fi
 [ "$head" = "$(cat "$FAILED" 2>/dev/null || true)" ] && { note info "Bản $short đã lỗi khi triển khai trước đó nên không thử lại; chờ commit mới (hoặc ./auto-deploy.sh unblock)."; exit 0; }
 
 # 1) CI phải xanh.
@@ -167,7 +172,7 @@ free="$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo)"
 [ "$free" -ge "$MIN_FREE_MB" ] || { note info "RAM trống ${free} MB < ${MIN_FREE_MB} MB; hoãn để không ảnh hưởng dự án chạy chung."; exit 0; }
 disk="$(df -Pm "$HERE" | awk 'NR==2 {print $4}')"
 [ "$disk" -ge "$MIN_DISK_MB" ] || { note warn "Đĩa trống ${disk} MB < ${MIN_DISK_MB} MB; hoãn (cần chỗ cho ảnh mới và bản sao lưu)."; exit 0; }
-healthy || { note warn "Ứng dụng đang chạy (${cur:0:9}) KHÔNG khỏe; không tự triển khai chồng lên. Cần người xem (./deploy.sh status)."; exit 0; }
+adh_ready_at "$HOST_PORT" "$cur" || { note warn "Ứng dụng đang chạy (${cur:0:9}) chưa khỏe hoặc sai SHA; không tự triển khai chồng lên. Cần người xem (./deploy.sh status)."; exit 0; }
 
 if [ "$DRY" = 1 ]; then
     log "[dry-run] sẽ triển khai ${short} (CI xanh, ảnh có sẵn, RAM trống ${free} MB, đĩa trống ${disk} MB) thay cho ${cur:0:9}."
@@ -184,6 +189,11 @@ sed 's/^/    | /' "$out" | while IFS= read -r l; do log "$l"; done
 backup="$(grep -o 'Đã sao lưu: [^ ]*' "$out" | tail -n1 | cut -d' ' -f4)"
 
 if [ "$rc" -eq 0 ] && [ "$(cat "$CUR" 2>/dev/null)" = "$head" ]; then
+    if ! adh_ready_at "$HOST_PORT" "$head"; then
+        echo "$head" >"$FAILED"
+        note warn "Bản ${short} có thẻ đã ghi nhưng chưa xác minh được readiness. Cần người xem (./deploy.sh status)."
+        exit 1
+    fi
     rm -f "$FAILED" "$ATTEMPTS"; printf '' >"$NOTE"
     log "XONG: adh đang chạy ${short}. Bản sao lưu trước khi cập nhật: ${backup:-không có (chưa chạy postgres?)}"
     snapshot
@@ -205,7 +215,7 @@ n=$((n + 1)); echo "$head $n" >"$ATTEMPTS"
 now="$(cat "$CUR" 2>/dev/null || true)"
 if grep -q 'ứng dụng không khỏe' "$out"; then
     echo "$head" >"$FAILED"   # đã khởi động thử và hỏng: KHÔNG thử lại (migration có thể đã chạy một phần)
-    if healthy; then
+    if adh_ready_at "$HOST_PORT" "$now"; then
         msg="bản ${short} KHÔNG khỏe sau khi triển khai; đã lùi về ${now:0:9} và chặn bản này."
     else
         msg="bản ${short} KHÔNG khỏe và lùi về ${now:0:9} cũng chưa khỏe: CẦN NGƯỜI XEM NGAY (./deploy.sh status, logs)."

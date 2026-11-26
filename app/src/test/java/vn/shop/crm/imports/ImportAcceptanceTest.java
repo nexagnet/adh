@@ -14,6 +14,9 @@ import vn.shop.crm.shipping.StatusMappingService;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -117,6 +120,28 @@ class ImportAcceptanceTest extends AbstractPostgresTest {
         assertThat(shipmentCount()).isEqualTo(1);
         assertThat(only().successfulPurchases()).isEqualTo(1);
         assertThat(only().segment()).isEqualTo(Segment.ONE_TIME);
+    }
+
+    @Test
+    void twoBatchesForOneReceiverPreserveTheCombinedCustomerCount() throws Exception {
+        var start = new CountDownLatch(1);
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var first = pool.submit(() -> {
+                start.await();
+                return importCsv(Carrier.VIETTEL_POST,
+                        vtp("VTP1,DH1,05/01/2026 09:00:00,Nguyen Van A,0912345678,12 Duong A,Giao thành công"));
+            });
+            var second = pool.submit(() -> {
+                start.await();
+                return importCsv(Carrier.VIETTEL_POST,
+                        vtp("VTP2,DH2,06/01/2026 09:00:00,Nguyen Van A,+84912345678,12 Duong A,Giao thành công"));
+            });
+            start.countDown();
+            assertThat(first.get(20, TimeUnit.SECONDS).newShipments()).isEqualTo(1);
+            assertThat(second.get(20, TimeUnit.SECONDS).newShipments()).isEqualTo(1);
+        }
+        assertThat(shipmentCount()).isEqualTo(2);
+        assertThat(only().successfulPurchases()).isEqualTo(2);
     }
 
     // ---------- tiêu chí 2 ----------
@@ -254,6 +279,31 @@ class ImportAcceptanceTest extends AbstractPostgresTest {
         assertThat(only().segment()).isEqualTo(Segment.NO_SUCCESSFUL_PURCHASE);
         long history = jdbc.sql("SELECT count(*) FROM shipment_status_history").query(Long.class).single();
         assertThat(history).isEqualTo(2);
+    }
+
+    @Test
+    void fileCuCoMocTrangThaiKhongGhiDeHoacThemLichSu() {
+        String header = VTP_HEADER.stripTrailing() + ",Thời gian cập nhật trạng thái\n";
+        String shipment = "VTP1,DH1,05/01/2026 09:00:00,A,0912345678,Dia chi,";
+        importCsv(Carrier.VIETTEL_POST, header + shipment + "Giao thành công,10/01/2026 10:00:00\n");
+
+        var old = importCsv(Carrier.VIETTEL_POST, header + shipment + "Đang chuyển hoàn,08/01/2026 10:00:00\n");
+
+        assertThat(old.statusChanges()).isZero();
+        assertThat(only().successfulPurchases()).isEqualTo(1);
+        assertThat(jdbc.sql("SELECT raw_status FROM shipment_status_history").query(String.class).list())
+                .containsExactly("Giao thành công");
+    }
+
+    @Test
+    void fileKhongCoMocKhongTuKeoDonDaGiaoVeDangGiao() {
+        String shipment = "VTP1,DH1,05/01/2026 09:00:00,A,0912345678,Dia chi,";
+        importCsv(Carrier.VIETTEL_POST, vtp(shipment + "Giao thành công"));
+
+        var ambiguous = importCsv(Carrier.VIETTEL_POST, vtp(shipment + "Đang giao"));
+
+        assertThat(ambiguous.statusChanges()).isZero();
+        assertThat(only().successfulPurchases()).isEqualTo(1);
     }
 
     @Test

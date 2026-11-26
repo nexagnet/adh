@@ -564,6 +564,10 @@ public class ZaloMessageService {
         return deliver(scope, kind, refId, scopeDaily, scopeGap, () -> link.sendByUid(kind, uid, text));
     }
 
+    public Delivery sendFollowup(Kind kind, long invitationId, String uid, String text, java.time.Instant coverageSince) {
+        return deliver(SCOPE_REAL, kind, invitationId, null, null, () -> link.sendFollowup(kind, uid, text, coverageSince));
+    }
+
     /** Lời mời kết bạn cho người đã nhận Tin 1 (theo mã Zalo): cùng chốt chặn như tin, thêm trần lời mời mỗi ngày. */
     public Delivery sendFriendRequest(String scope, Long refId, String uid, String text) {
         return deliver(scope, Kind.FRIEND, refId, null, null, () -> link.sendFriendRequest(uid, text));
@@ -654,7 +658,7 @@ public class ZaloMessageService {
                     case RATE_LIMITED, UNREACHABLE -> new Delivery(Status.RETRY, null, s);
                     case PERSON_ERROR -> new Delivery(Status.PERSON_ERROR, null, s); // đầu vào sai, chưa chạm Zalo
                     default -> {
-                        if ("BUSY".equals(s.code()) || "NOT_CONNECTED".equals(s.code())) {
+                        if ("BUSY".equals(s.code()) || "NOT_CONNECTED".equals(s.code()) || "INBOX_BEHIND".equals(s.code())) {
                             yield new Delivery(Status.RETRY, null, s);
                         }
                         // cầu nối đã dừng/đăng xuất/hết hạn mức của nó: Adh cũng dừng để người xem

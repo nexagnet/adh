@@ -33,43 +33,71 @@ public class HandoffService {
     }
 
     public record Row(long id, long groupId, String groupName, Reason reason, String excerpt, String status,
-                      LocalDateTime createdAt, String ackedBy) {
+                      LocalDateTime createdAt, String ackedBy, long accountId, String assignedTo) {
     }
 
     private final JdbcClient jdbc;
+    private final boolean stage2;
 
-    public HandoffService(JdbcClient jdbc) {
+    public HandoffService(JdbcClient jdbc, @org.springframework.beans.factory.annotation.Value("${APP_ADH_STAGE2_ENABLED:false}") boolean stage2) {
         this.jdbc = jdbc;
+        this.stage2 = stage2;
+    }
+
+    public boolean teamEnabled() {
+        return stage2;
     }
 
     /** Tạo việc mới nếu nhóm chưa có việc đang mở. Trả true nếu có tạo mới. */
     @Transactional
     public boolean open(long groupId, String reason, String excerpt) {
+        jdbc.sql("SELECT id FROM zalo_group WHERE id = :g FOR UPDATE")
+                .param("g", groupId).query(Long.class).single();
         boolean exists = jdbc.sql("SELECT EXISTS (SELECT 1 FROM handoff WHERE group_id = :g AND status <> 'RESOLVED')")
                 .param("g", groupId).query(Boolean.class).single();
         if (exists) {
             return false;
         }
-        jdbc.sql("INSERT INTO handoff (group_id, reason, excerpt) VALUES (:g, :r, :e)")
-                .param("g", groupId).param("r", reason).param("e", excerpt).update();
+        long id = jdbc.sql("INSERT INTO handoff (group_id, reason, excerpt) VALUES (:g, :r, :e) RETURNING id")
+                .param("g", groupId).param("r", reason).param("e", excerpt).query(Long.class).single();
+        if (stage2) {
+            jdbc.sql("INSERT INTO handoff_notification (handoff_id) VALUES (:id)").param("id", id).update();
+        }
         return true;
     }
 
     public List<Row> list(boolean onlyActive) {
+        return list(onlyActive ? "WHERE h.status <> 'RESOLVED' " : "");
+    }
+
+    public List<Row> resolved() {
+        return list("WHERE h.status = 'RESOLVED' ");
+    }
+
+    private List<Row> list(String filter) {
         return jdbc.sql("""
-                        SELECT h.id, h.group_id, g.name, h.reason, h.excerpt, h.status, h.created_at, h.acked_by
+                        SELECT h.id, h.group_id, g.name, h.reason, h.excerpt, h.status, h.created_at, h.acked_by,
+                               g.account_id, h.assigned_to
                         FROM handoff h JOIN zalo_group g ON g.id = h.group_id
-                        """ + (onlyActive ? "WHERE h.status <> 'RESOLVED' " : "")
+                        """ + filter
                         + "ORDER BY (h.status = 'RESOLVED'), h.created_at DESC LIMIT 100")
                 .query((rs, i) -> new Row(rs.getLong("id"), rs.getLong("group_id"), rs.getString("name"),
                         Reason.valueOf(rs.getString("reason")), rs.getString("excerpt"), rs.getString("status"),
                         rs.getObject("created_at", OffsetDateTime.class).atZoneSameInstant(ZoneId.of("Asia/Ho_Chi_Minh"))
-                                .toLocalDateTime(), rs.getString("acked_by")))
+                                .toLocalDateTime(), rs.getString("acked_by"), rs.getLong("account_id"), rs.getString("assigned_to")))
                 .list();
     }
 
     public long openCount() {
         return jdbc.sql("SELECT count(*) FROM handoff WHERE status = 'OPEN'").query(Long.class).single();
+    }
+
+    public long unresolvedCount() {
+        return jdbc.sql("SELECT count(*) FROM handoff WHERE status <> 'RESOLVED'").query(Long.class).single();
+    }
+
+    public long resolvedCount() {
+        return jdbc.sql("SELECT count(*) FROM handoff WHERE status = 'RESOLVED'").query(Long.class).single();
     }
 
     @Transactional

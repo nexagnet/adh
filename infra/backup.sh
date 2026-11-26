@@ -5,49 +5,75 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-[ -f "$HERE/.env" ] && set -a && . "$HERE/.env" && set +a
+# shellcheck source=infra/backup-common.sh
+. "$HERE/backup-common.sh"
 
-BACKUP_DIR="${BACKUP_DIR:-/var/backups/adh}"
-KEEP_DAYS="${KEEP_DAYS:-14}"
-# COMPOSE_FILE có thể là DANH SÁCH cách nhau bằng dấu hai chấm (D23: docker-compose.shared.yml:docker-compose.zalo-2.yml); cờ -f chỉ nhận một tệp,
-# nên tách ra thành nhiều cờ -f. Một tệp thì y như trước.
-compose_f=""
-IFS=: read -ra _cf <<<"${COMPOSE_FILE:-docker-compose.prod.yml}"
-for _f in "${_cf[@]}"; do compose_f="$compose_f -f $HERE/$_f"; done
-PG_DUMP_CMD="${PG_DUMP_CMD:-${DOCKER_SUDO:-}docker compose$compose_f --env-file $HERE/.env exec -T postgres pg_dump -U crm -d crm}"
+BACKUP_DIR="$(backup_setting BACKUP_DIR "${BACKUP_DIR:-/var/backups/adh}")"
+KEEP_DAYS="$(backup_setting KEEP_DAYS "${KEEP_DAYS:-14}")"
+BACKUP_AGE_RECIPIENT="$(backup_setting BACKUP_AGE_RECIPIENT "${BACKUP_AGE_RECIPIENT:-}")"
+BACKUP_REMOTE_CMD="$(backup_setting BACKUP_REMOTE_CMD "${BACKUP_REMOTE_CMD:-}")"
+PG_DUMP_CMD="$(backup_setting PG_DUMP_CMD "${PG_DUMP_CMD:-}")"
+[[ -n "$BACKUP_DIR" && "$KEEP_DAYS" =~ ^[0-9]+$ ]] || broken_backup "BACKUP_DIR và KEEP_DAYS không hợp lệ."
+if [ -n "$PG_DUMP_CMD" ]; then
+    read -r -a dump <<<"$PG_DUMP_CMD"
+else
+    backup_compose
+    dump=("${postgres_compose[@]}" pg_dump -w -U crm -d crm)
+fi
 
 umask 077
 mkdir -p "$BACKUP_DIR"
 stamp="$(date +%Y%m%d-%H%M%S)"
-out="$BACKUP_DIR/adh-$stamp.sql.gz"
-tmp="$out.partial"
-trap 'rm -f "$tmp"' EXIT
+stage="$(mktemp -d "$BACKUP_DIR/.adh-$stamp-XXXXXXXX")"
+name="${stage##*/.}"
+bundle="$BACKUP_DIR/$name"
+out="$name.sql.gz"
+cleanup() {
+    if [ -d "$stage" ]; then
+        rm -f -- "$stage/$out" "$stage/$out.age" "$stage/SHA256"
+        rmdir -- "$stage"
+    fi
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # pipefail: nếu pg_dump lỗi thì cả lệnh lỗi, không để lại file giả.
-# shellcheck disable=SC2086
-$PG_DUMP_CMD | gzip -9 > "$tmp"
-gzip -t "$tmp"
-size="$(gzip -dc "$tmp" | wc -c)"
+"${dump[@]}" | gzip -9 >"$stage/$out"
+size="$(gzip -dc -- "$stage/$out" | wc -c)"
 if [ "$size" -lt 1000 ]; then
     echo "LỖI: bản sao lưu quá nhỏ ($size byte), có thể pg_dump không chạy đúng." >&2
     exit 1
 fi
 
-if [ -n "${BACKUP_AGE_RECIPIENT:-}" ]; then
-    age -r "$BACKUP_AGE_RECIPIENT" -o "$out.age" "$tmp"
-    rm -f "$tmp"
-    final="$out.age"
-else
-    mv "$tmp" "$out"
-    final="$out"
+archive="$out"
+if [ -n "$BACKUP_AGE_RECIPIENT" ]; then
+    age -r "$BACKUP_AGE_RECIPIENT" -o "$stage/$out.age" "$stage/$out"
+    [[ -s "$stage/$out.age" ]] || broken_backup "age không tạo dữ liệu."
+    rm -- "$stage/$out"
+    archive="$out.age"
 fi
-chmod 600 "$final"
+checksum="$(archive_sha256 "$stage/$archive")"
+printf '%s\n' "$checksum" >"$stage/SHA256"
+chmod 600 "$stage/$archive" "$stage/SHA256"
+mv -T -- "$stage" "$bundle"
+final="$bundle/$archive"
 
-# giữ lại KEEP_DAYS ngày gần nhất
-find "$BACKUP_DIR" -maxdepth 1 -name 'adh-*.sql.gz*' -mtime +"$KEEP_DAYS" -delete
+# Chỉ loại bỏ bản sao lưu đã hoàn tất. Mỗi thư mục có tên riêng, không đụng tệp đang ghi.
+while IFS= read -r -d '' old; do
+    old_name="${old##*/}"
+    if [[ -d "$old" && "$old_name" =~ $bundle_name_re ]]; then
+        rm -f -- "$old/$old_name.sql.gz" "$old/$old_name.sql.gz.age" "$old/SHA256"
+        if ! rmdir -- "$old" 2>/dev/null && [ -d "$old" ]; then
+            echo "Không xóa được thư mục sao lưu cũ: $old" >&2
+        fi
+    elif [[ -f "$old" && "$old_name" =~ $legacy_name_re ]]; then
+        rm -f -- "$old"
+    fi
+done < <(find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 \( -type d -o -type f \) -mtime +"$KEEP_DAYS" -print0)
 
-if [ -n "${BACKUP_REMOTE_CMD:-}" ]; then
-    # shellcheck disable=SC2086
-    $BACKUP_REMOTE_CMD "$final"
+if [ -n "$BACKUP_REMOTE_CMD" ]; then
+    read -r -a remote <<<"$BACKUP_REMOTE_CMD"
+    "${remote[@]}" "$final"
 fi
 echo "Đã sao lưu: $final ($size byte chưa nén)"

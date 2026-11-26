@@ -157,4 +157,12 @@ public class ContactController {
         redirect.addFlashAttribute("flash", "Đã ghi nhận yêu cầu \"" + kind.label() + "\".");
         return "redirect:/privacy";
     }
+
+    @PostMapping("/privacy/{id}/complete-access")
+    public String completeAccess(@PathVariable long id, RedirectAttributes redirect) {
+        boolean completed = privacy.completeAccess(id);
+        redirect.addFlashAttribute("flash", completed ? "Đã ghi nhận phản hồi yêu cầu xem dữ liệu."
+                : "Yêu cầu xem dữ liệu đã được xử lý trước đó.");
+        return "redirect:/privacy";
+    }
 }

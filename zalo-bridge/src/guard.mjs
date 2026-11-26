@@ -65,6 +65,8 @@ export class MessageLedger {
     this.secret = secret;
     this.times = [];
     this.sent = new Set();
+    this.inviteTimes = new Map();
+    this.lastInviteTrim = 0;
     this.corrupt = false;
     if (file && existsSync(file)) {
       try {
@@ -72,6 +74,9 @@ export class MessageLedger {
         if (!parsed || !Array.isArray(parsed.times) || !Array.isArray(parsed.sent)) throw new Error('sai dạng');
         this.times = parsed.times.filter((t) => Number.isFinite(t));
         this.sent = new Set(parsed.sent.filter((h) => typeof h === 'string'));
+        if (Array.isArray(parsed.inviteTimes)) {
+          this.inviteTimes = new Map(parsed.inviteTimes.filter((e) => Array.isArray(e) && this.sent.has(e[0]) && Number.isSafeInteger(e[1])));
+        }
       } catch {
         this.corrupt = true;
       }
@@ -84,6 +89,10 @@ export class MessageLedger {
 
   has(kind, uid) {
     return this.sent.has(this.mark(kind, uid));
+  }
+
+  inviteCovered(uid, since) {
+    return (this.inviteTimes.get(this.mark('INVITE', uid)) ?? -1) >= since;
   }
 
   countSince(sinceMs) {
@@ -102,15 +111,26 @@ export class MessageLedger {
   }
 
   /** Ghi đã gửi xong loại tin này cho người này. */
-  markSent(kind, uid) {
-    this.sent.add(this.mark(kind, uid));
+  markSent(kind, uid, at = null) {
+    const mark = this.mark(kind, uid);
+    this.sent.add(mark);
+    if (kind === 'INVITE' && Number.isSafeInteger(at)) {
+      const dayMs = 86400 * 1000;
+      if (at - this.lastInviteTrim >= dayMs) {
+        for (const [key, time] of this.inviteTimes) {
+          if (time < at - 90 * dayMs) this.inviteTimes.delete(key);
+        }
+        this.lastInviteTrim = at;
+      }
+      this.inviteTimes.set(mark, at);
+    }
     this.save();
   }
 
   save() {
     if (!this.file) return;
     const tmp = `${this.file}.tmp`;
-    writeFileSync(tmp, JSON.stringify({ times: this.times, sent: [...this.sent] }), { mode: 0o600 });
+    writeFileSync(tmp, JSON.stringify({ times: this.times, sent: [...this.sent], inviteTimes: [...this.inviteTimes] }), { mode: 0o600 });
     renameSync(tmp, this.file);
   }
 }

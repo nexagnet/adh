@@ -86,7 +86,8 @@ public class ImportController {
 
     @PostMapping("/{id}/commit")
     public String commit(@PathVariable long id, @RequestParam Map<String, String> form) {
-        imports.commit(id, toMapping(form));
+        String confirmation = "yes".equals(form.get("confirmStatus")) ? form.get("reviewToken") : null;
+        imports.commit(id, toMapping(form), confirmation);
         return "redirect:/imports/" + id;
     }
 

@@ -38,6 +38,11 @@ services:
       APP_ADMIN_USERNAME: ${APP_ADMIN_USERNAME:-admin}
       APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:?Hãy đặt APP_ADMIN_PASSWORD trong file .env}
       APP_PUBLIC_BASE_URL: https://${APP_DOMAIN:?Hãy đặt APP_DOMAIN trong file .env}
+      APP_ADH_STAGE2_ENABLED: ${APP_ADH_STAGE2_ENABLED:-false}
+      APP_TIKTOK_APP_KEY: ${APP_TIKTOK_APP_KEY:-}
+      APP_TIKTOK_APP_SECRET: ${APP_TIKTOK_APP_SECRET:-}
+      APP_TIKTOK_SHOP_CIPHER: ${APP_TIKTOK_SHOP_CIPHER:-}
+      APP_TIKTOK_ACCESS_TOKEN: ${APP_TIKTOK_ACCESS_TOKEN:-}
       APP_SHOP_NAME: ${APP_SHOP_NAME:-Cửa hàng}
       APP_SHOP_PHONE: ${APP_SHOP_PHONE:-}
       # Gửi thật qua dịch vụ ngoài mặc định TẮT. Chỉ đổi sau khi đã chọn nhà cung cấp và có xác nhận pháp lý.

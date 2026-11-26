@@ -82,5 +82,6 @@ jobs:
           shellcheck -S warning infra/*.sh
           bash infra/test-auto-deploy.sh
           bash infra/test-deploy.sh
+          bash infra/test-backup.sh
       - name: Validate GitHub Actions workflows
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -color

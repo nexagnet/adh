@@ -7,7 +7,7 @@
     <header class="page-head">
         <div class="titles">
             <h1>Yêu cầu của khách về dữ liệu</h1>
-            <p class="hint">Khi khách nhắn xin xóa, xuất dữ liệu hoặc ngừng liên hệ, hãy ghi nhận ngay để hệ thống đếm hạn phản hồi.</p>
+            <p class="hint">Ghi nhận yêu cầu xem, xuất, xóa dữ liệu hoặc ngừng liên hệ để theo dõi hạn phản hồi.</p>
         </div>
         <div class="actions"><a class="btn" href="#ghi-nhan">Ghi nhận yêu cầu mới</a></div>
     </header>
@@ -38,6 +38,13 @@
                     <span class="badge bad" th:if="${r.overdue}" th:text="'Quá hạn ' + ${-r.daysLeft} + ' ngày'">Quá hạn</span>
                     <span class="badge warn" th:if="${r.open() and !r.overdue}"
                           th:text="'Còn ' + ${r.daysLeft} + ' ngày'">Còn 5 ngày</span>
+                    <div th:if="${r.open() and r.kind.name() == 'ACCESS'}" class="stack">
+                        <a th:if="${r.activeCustomerId != null}" th:href="@{/customers/{id}(id=${r.activeCustomerId})}">Mở hồ sơ khách</a>
+                        <span th:if="${r.activeCustomerId == null}" class="muted">Hồ sơ khách không còn.</span>
+                        <form th:action="@{/privacy/{id}/complete-access(id=${r.id})}" method="post">
+                            <button type="submit" class="btn secondary">Đã phản hồi yêu cầu xem</button>
+                        </form>
+                    </div>
                 </td>
             </tr>
             <tr th:if="${requests.isEmpty()}"><td colspan="5" class="muted">Chưa có yêu cầu nào.</td></tr>

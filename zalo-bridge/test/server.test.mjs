@@ -213,6 +213,8 @@ test('GET /inbox: cần khóa; tắt mặc định thì báo enabled=false và r
   await on.c.bridge.sendMessage({ kind: 'INVITE', uid: '777', text: 'Chào' });
   on.c.adapter.emitMessage('777', 'không cần đâu');
   const r2 = await on.call('GET', '/inbox?after=0');
+  assert.equal(r2.json.lastSeq, r2.json.messages[0].seq);
+  assert.ok(Number.isFinite(Date.parse(r2.json.coverageSince)));
   assert.equal(r2.json.enabled, true);
   assert.equal(r2.json.messages.length, 1);
   assert.equal((await on.call('GET', '/inbox?after=' + r2.json.messages[0].seq)).json.messages.length, 0);

@@ -16,6 +16,8 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /** Màn hình bot: công tắc tắt/bật, chạy thử, bật theo nhóm, FAQ, thử bot và việc cần mẹ xử lý (mốc 1E). */
 @Controller
@@ -143,105 +145,158 @@ public class BotController {
 
     // ---------- việc cần mẹ xử lý ----------
 
+    private static final String ALL_WORK = "all";
+    private static final String GROUP_WORK = "group";
+    private static final List<WorkType> WORK_TYPES = List.of(
+            new WorkType(ALL_WORK, "Tất cả"),
+            new WorkType("refusals", "Nghi từ chối"),
+            new WorkType("warranty", "Bảo hành, khiếu nại"),
+            new WorkType("replies", "Cần trả lời"),
+            new WorkType("comebacks", "Khách quay lại"),
+            new WorkType(GROUP_WORK, "Việc trong nhóm"),
+            new WorkType("history", "Có thể hoàn tác"));
+
+    public record WorkType(String key, String label) {
+    }
+
     @GetMapping("/handoffs")
     public String handoffs(@RequestParam(defaultValue = "false") boolean all,
-                           @RequestParam(defaultValue = "false") boolean done, Model model) {
-        var everything = handoffs.list(false);
-        long doneCount = everything.stream().filter(r -> "RESOLVED".equals(r.status())).count();
-        model.addAttribute("rows", done ? everything.stream().filter(r -> "RESOLVED".equals(r.status())).toList()
-                : (all ? everything : everything.stream().filter(r -> !"RESOLVED".equals(r.status())).toList()));
-        model.addAttribute("all", all);
+                           @RequestParam(defaultValue = "false") boolean done,
+                           @RequestParam(required = false) String type, Model model) {
+        String selected = done ? GROUP_WORK : normalizedWorkType(type);
+        populateWork(model, selected, all, done);
+        model.addAttribute("workTypes", WORK_TYPES);
+        model.addAttribute("workType", selected);
         model.addAttribute("done", done);
-        model.addAttribute("doneCount", doneCount);
-        model.addAttribute("openCount", everything.size() - doneCount + (done ? 0 : replies.openCount() + warranty.openCount()));
+        model.addAttribute("doneCount", handoffs.resolvedCount());
+        model.addAttribute("groupOpenCount", handoffs.unresolvedCount());
         model.addAttribute("botEnabled", settings.botEnabled());
-        model.addAttribute("heldRefusals", done ? List.of() : refusals.held());
-        model.addAttribute("autoRefusals", done ? List.of() : refusals.recentAuto(14));
-        model.addAttribute("comebackTasks", done ? List.of() : comebacks.tasks());
-        model.addAttribute("comebackLifted", done ? List.of() : comebacks.recentLifted(14));
-        model.addAttribute("replyHandoffs", done ? List.of() : replies.handoffs());
-        model.addAttribute("warrantyCases", done ? List.of() : warranty.open());
+        model.addAttribute("accountLabels", accountLabels());
+        model.addAttribute("teamEnabled", handoffs.teamEnabled());
+        model.addAttribute("assignees", handoffs.teamEnabled() ? jdbc.sql("""
+                SELECT sg.group_id, s.username, s.display_name FROM staff_group sg
+                JOIN staff_member s ON s.username = sg.username WHERE s.active ORDER BY s.display_name
+                """).query().listOfRows().stream()
+                .collect(Collectors.groupingBy(row -> ((Number) row.get("group_id")).longValue())) : Map.of());
         return "handoffs";
     }
 
-    @PostMapping("/handoffs/{id}/ack")
-    public String ack(@PathVariable long id, RedirectAttributes redirect) {
-        handoffs.acknowledge(id);
-        redirect.addFlashAttribute("flash", "Đã nhận việc. Mẹ vào Zalo trả lời khách nhé.");
+    private void populateWork(Model model, String selected, boolean all, boolean done) {
+        model.addAttribute("rows", includes(selected, GROUP_WORK) ? groupWork(all, done) : List.of());
+        model.addAttribute("heldRefusals", includes(selected, "refusals") ? refusals.held() : List.of());
+        model.addAttribute("autoRefusals", includes(selected, "history") ? refusals.recentAuto(14) : List.of());
+        model.addAttribute("comebackTasks", includes(selected, "comebacks") ? comebacks.tasks() : List.of());
+        model.addAttribute("comebackLifted", includes(selected, "history") ? comebacks.recentLifted(14) : List.of());
+        model.addAttribute("replyHandoffs", includes(selected, "replies") ? replies.handoffs() : List.of());
+        model.addAttribute("warrantyCases", includes(selected, "warranty") ? warranty.open() : List.of());
+    }
+
+    private List<HandoffService.Row> groupWork(boolean all, boolean done) {
+        return done ? handoffs.resolved() : handoffs.list(!all);
+    }
+
+    private Map<Long, String> accountLabels() {
+        return jdbc.sql("SELECT id, label FROM zalo_account")
+                .query((rs, n) -> Map.entry(rs.getLong("id"), rs.getString("label"))).list()
+                .stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    private static boolean includes(String selection, String type) {
+        return ALL_WORK.equals(selection) || type.equals(selection);
+    }
+
+    private static String normalizedWorkType(String type) {
+        return WORK_TYPES.stream().map(WorkType::key).filter(k -> k.equals(type)).findFirst().orElse(ALL_WORK);
+    }
+
+    private static String returnToWork(String type, RedirectAttributes redirect) {
+        String selected = normalizedWorkType(type);
+        if (!ALL_WORK.equals(selected)) {
+            redirect.addAttribute("type", selected);
+        }
         return "redirect:/handoffs";
     }
 
+    @PostMapping("/handoffs/{id}/ack")
+    public String ack(@PathVariable long id, @RequestParam(required = false) String type, RedirectAttributes redirect) {
+        handoffs.acknowledge(id);
+        redirect.addFlashAttribute("flash", "Đã nhận việc. Mẹ vào Zalo trả lời khách nhé.");
+        return returnToWork(type, redirect);
+    }
+
     @PostMapping("/handoffs/{id}/resolve")
-    public String resolve(@PathVariable long id, RedirectAttributes redirect) {
+    public String resolve(@PathVariable long id, @RequestParam(required = false) String type, RedirectAttributes redirect) {
         handoffs.resolve(id);
         redirect.addFlashAttribute("flash", "Đã xử lý xong.");
-        return "redirect:/handoffs";
+        return returnToWork(type, redirect);
     }
 
     // ---------- tin riêng của khách: trợ lý AI nghi từ chối (D19) ----------
 
     @PostMapping("/handoffs/refusals/{id}/confirm")
-    public String confirmRefusal(@PathVariable long id, RedirectAttributes redirect) {
+    public String confirmRefusal(@PathVariable long id, @RequestParam(required = false) String type, RedirectAttributes redirect) {
         refusals.confirm(id);
         redirect.addFlashAttribute("flash", "Đã ghi sổ: khách từ chối, sẽ không nhắn lại.");
-        return "redirect:/handoffs";
+        return returnToWork(type, redirect);
     }
 
     @PostMapping("/handoffs/refusals/{id}/release")
-    public String releaseRefusal(@PathVariable long id, RedirectAttributes redirect) {
+    public String releaseRefusal(@PathVariable long id, @RequestParam(required = false) String type, RedirectAttributes redirect) {
         boolean restored = refusals.release(id);
         redirect.addFlashAttribute("flash", restored ? "Đã cho tiếp tục: khách này lại nằm trong luồng mời như trước."
                 : "Đã đóng việc này, nhưng lời mời của khách đã bị đổi ở chỗ khác nên không khôi phục.");
-        return "redirect:/handoffs";
+        return returnToWork(type, redirect);
     }
 
     @PostMapping("/handoffs/refusals/{id}/undo")
-    public String undoRefusal(@PathVariable long id, RedirectAttributes redirect) {
+    public String undoRefusal(@PathVariable long id, @RequestParam(required = false) String type, RedirectAttributes redirect) {
         boolean restored = refusals.undo(id);
         redirect.addFlashAttribute("flash", restored ? "Đã hoàn tác: khách không còn bị ghi từ chối, lời mời trở lại như trước."
                 : "Đã gỡ ghi từ chối, nhưng lời mời của khách đã bị đổi ở chỗ khác nên không khôi phục.");
-        return "redirect:/handoffs";
+        return returnToWork(type, redirect);
     }
 
     // ---------- trợ lý AI trả lời khách: việc chuyển người thật và nháp (D20) ----------
 
     @PostMapping("/handoffs/replies/{id}/done")
-    public String doneReply(@PathVariable long id, java.security.Principal user, RedirectAttributes redirect) {
+    public String doneReply(@PathVariable long id, java.security.Principal user,
+                            @RequestParam(required = false) String type, RedirectAttributes redirect) {
         replies.done(id, user == null ? "người thật" : user.getName());
         redirect.addFlashAttribute("flash", "Đã xử lý xong việc trả lời khách.");
-        return "redirect:/handoffs";
+        return returnToWork(type, redirect);
     }
 
     // ---------- bảo hành và khiếu nại: AI phân loại, người thật xử lý ----------
 
     @PostMapping("/handoffs/warranty/{id}/done")
-    public String doneWarranty(@PathVariable long id, java.security.Principal user, RedirectAttributes redirect) {
+    public String doneWarranty(@PathVariable long id, java.security.Principal user,
+                               @RequestParam(required = false) String type, RedirectAttributes redirect) {
         warranty.done(id, user == null ? "người thật" : user.getName());
         redirect.addFlashAttribute("flash", "Đã xử lý xong việc bảo hành hoặc khiếu nại.");
-        return "redirect:/handoffs";
+        return returnToWork(type, redirect);
     }
 
     // ---------- khách từng từ chối tự nhắn lại muốn mua (D19, docs/THIET-KE-KHACH-QUAY-LAI.md) ----------
 
     @PostMapping("/handoffs/comebacks/{id}/lift")
-    public String liftComeback(@PathVariable long id, RedirectAttributes redirect) {
+    public String liftComeback(@PathVariable long id, @RequestParam(required = false) String type, RedirectAttributes redirect) {
         comebacks.liftByHand(id);
         redirect.addFlashAttribute("flash", "Đã gỡ \"không nhắn nữa\": khách vào hàng chờ vào nhóm theo khu vực. Mẹ nhắn khách trên Zalo nhé. Số điện thoại vẫn được giữ như cũ.");
-        return "redirect:/handoffs";
+        return returnToWork(type, redirect);
     }
 
     @PostMapping("/handoffs/comebacks/{id}/keep")
-    public String keepComeback(@PathVariable long id, RedirectAttributes redirect) {
+    public String keepComeback(@PathVariable long id, @RequestParam(required = false) String type, RedirectAttributes redirect) {
         comebacks.dismiss(id);
         redirect.addFlashAttribute("flash", "Đã giữ nguyên: khách vẫn không được nhắn.");
-        return "redirect:/handoffs";
+        return returnToWork(type, redirect);
     }
 
     @PostMapping("/handoffs/comebacks/{id}/undo")
-    public String undoComeback(@PathVariable long id, RedirectAttributes redirect) {
+    public String undoComeback(@PathVariable long id, @RequestParam(required = false) String type, RedirectAttributes redirect) {
         boolean restored = comebacks.undo(id);
         redirect.addFlashAttribute("flash", restored ? "Đã hoàn tác: khách lại bị đánh dấu không nhắn nữa."
                 : "Đã đánh dấu khách lại không nhắn nữa. Khách đã được thêm vào nhóm (hoặc đang được thêm) nên hệ thống không đưa ra khỏi nhóm được; mẹ tự mời ra trên Zalo nếu cần.");
-        return "redirect:/handoffs";
+        return returnToWork(type, redirect);
     }
 }

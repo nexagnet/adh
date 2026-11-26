@@ -43,7 +43,7 @@ public class PrivacyService {
         }
     }
 
-    public record RequestRow(long id, Kind kind, String phoneTail, LocalDate receivedOn, LocalDate dueOn,
+    public record RequestRow(long id, Kind kind, Long activeCustomerId, String phoneTail, LocalDate receivedOn, LocalDate dueOn,
                              LocalDate doneOn, String note, boolean overdue, long daysLeft) {
         public boolean open() {
             return doneOn == null;
@@ -127,15 +127,17 @@ public class PrivacyService {
     public List<RequestRow> requests(boolean onlyOpen) {
         LocalDate today = LocalDate.now();
         return jdbc.sql("""
-                        SELECT id, kind, phone_tail, received_on, due_on, done_on, note FROM data_request
+                        SELECT r.id, r.kind, c.id AS active_customer_id, r.phone_tail, r.received_on, r.due_on, r.done_on, r.note
+                        FROM data_request r LEFT JOIN customer c ON c.id = r.customer_id
                         """ + (onlyOpen ? "WHERE done_on IS NULL " : "")
-                        + "ORDER BY (done_on IS NULL) DESC, due_on, id DESC")
+                        + "ORDER BY (r.done_on IS NULL) DESC, r.due_on, r.id DESC")
                 .query((rs, i) -> {
                     LocalDate due = rs.getObject("due_on", LocalDate.class);
                     LocalDate done = rs.getObject("done_on", LocalDate.class);
                     long left = java.time.temporal.ChronoUnit.DAYS.between(today, due);
                     return new RequestRow(rs.getLong("id"), Kind.valueOf(rs.getString("kind")),
-                            rs.getString("phone_tail"), rs.getObject("received_on", LocalDate.class), due, done,
+                            rs.getObject("active_customer_id", Long.class), rs.getString("phone_tail"),
+                            rs.getObject("received_on", LocalDate.class), due, done,
                             rs.getString("note"), done == null && left < 0, left);
                 }).list();
     }
@@ -147,6 +149,30 @@ public class PrivacyService {
     public long overdueCount() {
         return jdbc.sql("SELECT count(*) FROM data_request WHERE done_on IS NULL AND due_on < current_date")
                 .query(Long.class).single();
+    }
+
+    /** Ghi nhận chủ shop đã phản hồi đúng yêu cầu xem, kể cả khi hồ sơ khách đã bị xóa. */
+    @Transactional
+    public boolean completeAccess(long requestId) {
+        int completed = jdbc.sql("""
+                        WITH closed AS (
+                            UPDATE data_request SET done_on = current_date
+                            WHERE id = :id AND kind = 'ACCESS' AND done_on IS NULL
+                            RETURNING id, customer_id, phone_tail
+                        )
+                        INSERT INTO contact_event (customer_id, phone_tail, event, detail, recorded_by)
+                        SELECT customer_id, phone_tail, 'ACCESS_COMPLETED', 'Yêu cầu #' || id, :by FROM closed
+                        """).param("id", requestId).param("by", ContactService.actor()).update();
+        if (completed == 1) {
+            return true;
+        }
+        boolean alreadyDone = jdbc.sql("""
+                        SELECT EXISTS(SELECT 1 FROM data_request WHERE id = :id AND kind = 'ACCESS' AND done_on IS NOT NULL)
+                        """).param("id", requestId).query(Boolean.class).single();
+        if (!alreadyDone) {
+            throw new ImportException("Không tìm thấy yêu cầu xem dữ liệu.");
+        }
+        return false;
     }
 
     /** Đóng yêu cầu mở cùng loại của khách; nếu chưa ghi nhận trước thì tạo mới và đóng luôn. */

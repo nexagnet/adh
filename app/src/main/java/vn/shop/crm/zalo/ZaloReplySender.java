@@ -38,7 +38,6 @@ public class ZaloReplySender implements ZaloTickHook {
     public void tick() {
         try {
             replies.expireStale();
-            replies.purgeOld();
         } catch (RuntimeException e) {
             log.warn("Không dọn được việc trả lời: {}", e.getClass().getSimpleName());
         }
