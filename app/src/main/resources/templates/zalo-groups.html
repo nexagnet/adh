@@ -8,8 +8,9 @@
     <header class="page-head">
         <div class="titles">
             <h1>Nhóm Zalo của tài khoản phụ</h1>
+            <p><strong th:text="'Tài khoản phụ ' + ${account}">Tài khoản phụ 1</strong></p>
             <p class="hint">Danh sách các nhóm Zalo mà tài khoản phụ đang tham gia (chỉ đọc, hệ thống không đổi gì trên Zalo).
-                Chọn nhóm của Adh rồi bấm Gán để lưu mã nhóm. <a th:href="@{/groups}">Quay lại trang Nhóm Zalo</a> · <a th:href="@{/zalo}">Trang Zalo tài khoản phụ</a>.</p>
+                Chọn nhóm của Adh rồi bấm Gán để lưu mã nhóm. <a th:href="@{/groups}">Quay lại trang Nhóm Zalo</a> · <a th:href="@{/zalo(account=${account})}">Trang Zalo tài khoản phụ</a>.</p>
         </div>
     </header>
     <nav th:replace="~{fragments :: groupTabs('zalo-groups')}"></nav>
@@ -41,7 +42,7 @@
                         <span class="sub-line" th:if="${assigned.containsKey(z.id)}">Đã gán cho nhóm "<span th:text="${assigned.get(z.id)}">Nhóm 1</span>"</span>
                     </td>
                     <td>
-                        <form class="formrow" th:action="@{/zalo/groups/assign}" method="post">
+                        <form class="formrow" th:action="@{/zalo/groups/assign(account=${account})}" method="post">
                             <input type="hidden" name="zaloGroupId" th:value="${z.id}">
                             <select name="adhGroupId" aria-label="Nhóm của Adh" required>
                                 <option th:each="g : ${adhGroups}" th:value="${g.id}" th:text="${g.name}" th:selected="${g.zaloGroupId == z.id}">Nhóm 1</option>

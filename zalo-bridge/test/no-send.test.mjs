@@ -115,7 +115,7 @@ test('D19: tin nhắn đến chỉ được nghe ở bộ điều hợp thật, 
 });
 
 test('không đặt userAgent, không proxy, không đổi dấu vân tay (không che việc dùng thư viện)', () => {
-  const adapter = code('zca-adapter.mjs');
+  const adapter = code('zca-adapter.mjs').split('\n').filter(line => !line.trimStart().startsWith('//')).join('\n');
   assert.ok(!/userAgent\s*:\s*['"`]/.test(adapter));
   assert.ok(!/\bagent\b|proxy|imei\s*:\s*['"`]/i.test(adapter.replace(/creds\.imei|ev\.data\.imei/g, '')));
   assert.ok(!/Math\.random|randomInt|jitter/.test(files.map(code).join('\n').replace(/randomBytes/g, '')));

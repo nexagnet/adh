@@ -8,7 +8,7 @@
     <header class="page-head">
         <div class="titles">
             <h1>Zalo tài khoản phụ</h1>
-            <p class="hint">Một tài khoản Zalo phụ dùng chung cho mọi việc. Bị Zalo khóa thì mọi việc dừng cùng lúc, nên giữ các giới hạn chặt.</p>
+            <p class="hint">Mỗi tài khoản phụ có hạn mức riêng. Khi Zalo báo hạn chế, hệ thống dừng gửi trên mọi tài khoản.</p>
         </div>
     </header>
 
@@ -16,7 +16,7 @@
 
     <div class="safety-bar" th:if="${enabled}">
         <span>Tự gửi tin: <strong th:text="${msg.enabled ? 'đang bật' : 'đang tắt'}">đang tắt</strong></span>
-        <form th:action="@{/zalo/stop}" method="post" th:unless="${tripped}"><button type="submit" class="btn secondary danger sm">Dừng ngay</button></form>
+        <form th:action="@{/zalo/stop(account=${account})}" method="post" th:unless="${tripped}"><button type="submit" class="btn secondary danger sm" th:text="${multi} ? 'Dừng tài khoản này' : 'Dừng ngay'">Dừng ngay</button></form>
         <form th:action="@{/campaigns/pause-all}" method="post" th:unless="${send.paused}"><button type="submit" class="btn secondary danger sm">Tạm dừng tất cả chiến dịch</button></form>
         <form th:action="@{/campaigns/resume-all}" method="post" th:if="${send.paused}"><button type="submit" class="btn sm">Bỏ tạm dừng tất cả chiến dịch</button></form>
     </div>
@@ -29,19 +29,23 @@
            th:text="${a.label} + (${a.enabled} ? '' : ' (tạm ngưng)')" th:classappend="${a.id == account} ? 'active'"
            th:attr="aria-current=${a.id == account} ? 'page'">Tài khoản phụ 1</a>
     </nav>
-    <div class="notice info" th:if="${multi}">
+    <div class="notice info" th:if="${multi and tab != 'cau-hinh'}">
         Đang xem và chỉnh <strong th:text="${accountLabel}">Tài khoản phụ 1</strong>.
-        Mọi mục bên dưới (đăng nhập QR, giới hạn, cầu dao, phó nhóm, nhóm) chỉ áp dụng cho tài khoản này; mỗi khách gắn cố định một tài khoản từ lúc nhắn Tin 1.
+        Đăng nhập, hạn mức riêng, nhóm và phó nhóm áp dụng cho tài khoản đang xem. Mỗi khách gắn cố định một tài khoản từ lúc nhắn Tin 1.
         <span th:unless="${multiRunning}">Việc chạy nhiều tài khoản <strong>chưa bật</strong> ở cấu hình triển khai nên chỉ tài khoản 1 đang gửi tin.</span>
-        <form th:if="${account != 1}" th:action="@{/zalo/accounts/{id}/enabled(id=${account})}" method="post" class="formrow">
+        <form th:if="${account != 1}" th:action="@{/zalo/accounts/{id}/enabled(id=${account}, account=${account})}" method="post" class="formrow">
             <input type="hidden" name="on" th:value="${!accountEnabled}">
-            <button type="submit" class="btn secondary sm" th:text="${accountEnabled} ? 'Tạm ngưng tài khoản này' : 'Bật lại tài khoản này'">Tạm ngưng</button>
+            <button type="submit" class="btn secondary sm" th:text="${accountEnabled} ? 'Tạm ngưng tài khoản này' : 'Bật tài khoản này'">Tạm ngưng</button>
         </form>
     </div>
     <nav class="tabs" aria-label="Các phần của trang Zalo">
-        <a th:each="t : ${tabs}" th:href="@{/zalo(tab=${t.key})}" th:text="${t.label}"
+        <a th:each="t : ${tabs}" th:href="@{/zalo(tab=${t.key}, account=${account})}" th:text="${t.label}"
            th:classappend="${t.key == tab} ? 'active'" th:attr="aria-current=${t.key == tab} ? 'page'">Tình trạng</a>
     </nav>
+
+    <th:block th:if="${tab == 'cau-hinh'}">
+        <section th:replace="~{zalo-config :: accountConfig}"></section>
+    </th:block>
 
     <section th:if="${tab == 'thu'}" class="panel stack" id="che-do-thu">
         <h2>Chế độ thử: chỉ nhắn các số thử đã khai báo</h2>
@@ -69,7 +73,7 @@
                     <td th:text="${n.note}">Số của tôi</td>
                     <td th:text="${#temporals.format(n.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
                     <td th:text="${n.customer} ? 'Có' : 'Chưa'">Chưa</td>
-                    <td><form th:action="@{/zalo/test-numbers/remove}" method="post">
+                    <td><form th:action="@{/zalo/test-numbers/remove(account=${account})}" method="post">
                         <input type="hidden" name="phone" th:value="${n.phone}">
                         <button type="submit" class="btn secondary sm">Xóa khỏi danh sách</button></form></td>
                 </tr>
@@ -77,12 +81,12 @@
         </div>
         <p class="muted" th:if="${nums.isEmpty()}">Chưa có số thử nào: ở chế độ thử, hệ thống chưa được nhắn cho ai.</p>
         </th:block>
-        <form class="formrow" th:action="@{/zalo/test-numbers}" method="post">
+        <form class="formrow" th:action="@{/zalo/test-numbers(account=${account})}" method="post">
             <label class="field">Số điện thoại thử <input type="text" name="phone" inputmode="tel" maxlength="20" required placeholder="09xx xxx xxx"></label>
             <label class="field">Ghi chú (tùy chọn) <input type="text" name="note" maxlength="100" placeholder="Số của tôi / bạn A"></label>
             <button type="submit" class="btn">Thêm số thử</button>
         </form>
-        <form th:if="${@testMode.testOnly()}" th:action="@{/zalo/test-numbers/seed}" method="post" class="stack">
+        <form th:unless="${@testMode.deploymentLive()}" th:action="@{/zalo/test-numbers/seed(account=${account})}" method="post" class="stack">
             <p class="muted"><strong>Dựng khách thử tự động:</strong> mỗi số thử chưa là khách được một đơn J&amp;T giả (mã vận đơn bắt đầu bằng JTTEST, tên "Khách thử N", cùng tỉnh Cần Thơ),
                 đi qua đúng đường nhập đơn thật, nên không cần tự nhập đơn. Không xóa hay sửa khách nào đã có. Sau đó bật tự nhận khách mới ở trang chiến dịch để hệ thống tự mời.</p>
             <button type="submit" class="btn secondary">Dựng khách thử từ các số thử</button>
@@ -125,8 +129,12 @@
         <strong>Bộ nối Zalo đang dừng</strong>
         <span th:text="${@zaloLabels.reason(trippedReason)}">Có người bấm dừng</span>
         <span th:if="${trippedAt != null}">(từ <span th:text="${#temporals.format(trippedAt, 'dd/MM/yyyy HH:mm')}">22/11/2026 10:00</span>)</span>.
-        Bộ nối không tự chạy lại. Hãy đọc nhật ký ở tab "Thử và nhật ký" rồi bấm <em>Mở lại</em> khi đã hiểu vì sao dừng.
-        <form class="stack" th:action="@{/zalo/reopen}" method="post">
+        <p th:if="${sharedHaltSource != null and sharedHaltSource != account}">
+            Tất cả tài khoản đang dừng. Kiểm tra cảnh báo ở <a th:href="@{/zalo(account=${sharedHaltSource})}"
+                th:text="'tài khoản phụ ' + ${sharedHaltSource}">tài khoản báo lỗi</a> để mở lại.
+        </p>
+        <form class="stack" th:if="${sharedHaltSource == null or sharedHaltSource == account}" th:action="@{/zalo/reopen(account=${account})}" method="post">
+            <p>Hãy đọc nhật ký ở tab "Thử và nhật ký" rồi bấm <em>Mở lại</em> khi đã hiểu vì sao dừng.</p>
             <label class="field"><input type="checkbox" name="checked" value="true">
                 Tôi đã đọc nhật ký và đã kiểm tra nhóm trên Zalo bằng mắt (bắt buộc nếu bộ nối dừng vì Zalo cảnh báo, lỗi lạ hoặc không biết kết quả).</label>
             <div><button type="submit" class="btn sm">Mở lại</button></div>
@@ -153,9 +161,9 @@
             <strong>điện thoại của tài khoản phụ</strong> quét mã QR. Không cần mật khẩu hay mã OTP, hệ thống không hỏi những thứ đó.</p>
         <p th:unless="${bridge.state.name() == 'LOGIN_REQUIRED'}">Tài khoản phụ đang được nối. Chỉ cần quét lại khi hệ thống báo phiên hết hạn.</p>
         <div class="formrow">
-            <form th:action="@{/zalo/login/start}" method="post"><button type="submit" class="btn"
+            <form th:action="@{/zalo/login/start(account=${account})}" method="post"><button type="submit" class="btn"
                   th:classappend="${bridge.state.name() != 'LOGIN_REQUIRED'} ? 'secondary'">Quét mã QR</button></form>
-            <form th:action="@{/zalo/logout}" method="post"><button type="submit" class="btn secondary danger">Đăng xuất tài khoản phụ</button></form>
+            <form th:action="@{/zalo/logout(account=${account})}" method="post"><button type="submit" class="btn secondary danger">Đăng xuất tài khoản phụ</button></form>
         </div>
     </section>
 
@@ -163,12 +171,12 @@
         <h2>Nhóm Zalo của tài khoản phụ</h2>
         <p class="hint">Mỗi nhóm của Adh cần "mã nhóm Zalo" thì bộ nối mới thêm được khách vào. Xem các nhóm tài khoản phụ đang tham gia và chọn gán
             mã, không cần tự đi tìm mã. Tài khoản phụ phải đã ở trong nhóm.</p>
-        <div class="actions"><a class="btn secondary" th:href="@{/zalo/groups}">Xem nhóm Zalo và gán mã</a> <a class="btn secondary" th:href="@{/groups}">Quản lý nhóm của Adh</a></div>
+        <div class="actions"><a class="btn secondary" th:href="@{/zalo/groups(account=${account})}">Xem nhóm Zalo và gán mã</a> <a class="btn secondary" th:href="@{/groups}">Quản lý nhóm của Adh</a></div>
     </section>
 
     <section th:if="${tab == 'nhom'}" class="panel stack">
         <h2>Nấc hoạt động</h2>
-        <form class="stack" th:action="@{/zalo/mode}" method="post">
+        <form class="stack" th:action="@{/zalo/mode(account=${account})}" method="post">
             <label class="field" th:each="m : ${modes}">
                 <input type="radio" name="mode" th:value="${m.name()}" th:checked="${m == chosen}">
                 <span th:text="${m.label()}">Tắt</span>
@@ -187,7 +195,7 @@
         <h2>Hạn mức thêm người vào nhóm</h2>
         <p class="hint">Mục này chỉ giới hạn việc <strong>thêm khách vào nhóm</strong> (gửi tin có hạn mức riêng ở mục "Giới hạn gửi tin" bên dưới). Mọi lần gọi Zalo đều tính, kể cả lần lỗi. Trần cứng: <span th:text="${props.maxDaily}">100</span> người mỗi ngày,
             <span th:text="${props.maxHourly}">10</span> người mỗi giờ (đổi ở cấu hình triển khai). Không có cách nào làm cho giống người thật bấm.</p>
-        <form class="formrow" th:action="@{/zalo/limits}" method="post">
+        <form class="formrow" th:action="@{/zalo/limits(account=${account})}" method="post">
             <label class="field">Số người mỗi ngày <input type="number" name="daily" th:value="${quota.limits.daily}" min="1" th:max="${props.maxDaily}"></label>
             <label class="field">Số người mỗi giờ <input type="number" name="hourly" th:value="${quota.limits.hourly}" min="1" th:max="${props.maxHourly}"></label>
             <label class="field">Cách nhau tối thiểu (phút) <input type="number" name="gap" th:value="${quota.limits.gapMinutes}" min="1" max="240"></label>
@@ -217,10 +225,10 @@
         <div th:replace="~{fragments :: nextSend(${queue})}"></div>
         <script th:src="@{/countdown.js}" defer></script>
         <div class="actions">
-            <form th:action="@{/zalo/messages/switch}" method="post" th:unless="${msg.enabled}">
+            <form th:action="@{/zalo/messages/switch(account=${account})}" method="post" th:unless="${msg.enabled}">
                 <input type="hidden" name="on" value="true"><button type="submit" class="btn">Bật tự gửi tin</button>
             </form>
-            <form th:action="@{/zalo/messages/switch}" method="post" th:if="${msg.enabled}">
+            <form th:action="@{/zalo/messages/switch(account=${account})}" method="post" th:if="${msg.enabled}">
                 <input type="hidden" name="on" value="false"><button type="submit" class="btn danger">Tắt tự gửi tin</button>
             </form>
         </div>
@@ -228,7 +236,7 @@
 
     <section class="panel stack" th:if="${tab == 'gioi-han'}" id="gioi-han-tin">
         <h2>Giới hạn gửi tin</h2>
-        <form class="formrow" th:action="@{/zalo/messages/limits}" method="post">
+        <form class="formrow" th:action="@{/zalo/messages/limits(account=${account})}" method="post">
             <label class="field">Số khách được nhắn mỗi ngày (Tin 1) <input type="number" name="daily" th:value="${msg.limits.daily}" min="1" th:max="${msg.maxDaily}"></label>
             <label class="field">Nghỉ giữa hai tin (giây) <input type="number" name="gap" th:value="${msg.limits.gapSeconds}" th:min="${props.msgMinGapSeconds}" max="3600"></label>
             <button type="submit" class="btn">Lưu hạn mức tin</button>
@@ -236,7 +244,7 @@
         <p>Sau Tin 1, tài khoản phụ <strong>tự gửi lời mời kết bạn</strong> cho người đó (kèm một câu ngắn); ai đồng ý kết bạn thì hệ thống tự thêm vào nhóm.
             Lời mời có hạn mức riêng mỗi ngày, cùng khoảng nghỉ cố định, khung giờ và cầu dao với tin. Hôm nay đã mời kết bạn <strong th:text="${friendUsed}">0</strong>/<strong th:text="${friendDaily}">10</strong> người
             (trần cứng <span th:text="${friendMax}">50</span>). Đặt 0 để tắt.</p>
-        <form class="formrow" th:action="@{/zalo/messages/friend-limit}" method="post">
+        <form class="formrow" th:action="@{/zalo/messages/friend-limit(account=${account})}" method="post">
             <label class="field">Số lời mời kết bạn mỗi ngày <input type="number" name="daily" th:value="${friendDaily}" min="0" th:max="${friendMax}"></label>
             <button type="submit" class="btn">Lưu hạn mức lời mời</button>
         </form>
@@ -245,7 +253,7 @@
             <p>Mỗi tài khoản giữ hạn mức riêng ở trên; thêm trần chung cho số khách được nhắn mỗi ngày của TẤT CẢ tài khoản cộng lại.
                 Hôm nay đã nhắn <strong th:text="${totalUsed}">0</strong>/<strong th:text="${totalDaily}">50</strong> khách (trần cứng <span th:text="${totalMax}">200</span>).
                 Tài khoản mới thêm bắt đầu rất thấp (3 khách mỗi ngày): nâng dần khi thấy ổn.</p>
-            <form class="formrow" th:action="@{/zalo/messages/total-limit}" method="post">
+            <form class="formrow" th:action="@{/zalo/messages/total-limit(account=${account})}" method="post">
                 <label class="field">Tổng khách được nhắn mỗi ngày <input type="number" name="daily" th:value="${totalDaily}" min="1" th:max="${totalMax}"></label>
                 <button type="submit" class="btn">Lưu trần tổng</button>
             </form>
@@ -255,15 +263,15 @@
             hệ thống tự <strong>thu hồi</strong> lời mời quá số ngày bên dưới chưa ai đồng ý (không nhắn gì cho khách, không xóa khách hay số điện thoại), từng lời mời một,
             nghỉ cố định, tối đa <span th:text="${undoMax}">20</span> lời mỗi ngày (hôm nay đã thu hồi <span th:text="${undoUsed}">0</span>), chung cầu dao và khung giờ với tin.
             Đặt 0 để tắt. Hiện: <strong th:text="${friendWithdrawDays == 0 ? 'ĐANG TẮT' : 'sau ' + friendWithdrawDays + ' ngày'}">sau 7 ngày</strong>.</p>
-        <form class="formrow" th:action="@{/zalo/messages/friend-withdraw}" method="post">
+        <form class="formrow" th:action="@{/zalo/messages/friend-withdraw(account=${account})}" method="post">
             <label class="field">Thu hồi lời mời sau (ngày) <input type="number" name="days" th:value="${friendWithdrawDays}" min="0" max="90"></label>
             <button type="submit" class="btn">Lưu số ngày thu hồi</button>
         </form>
-        <form th:action="@{/zalo/messages/friend-resume}" method="post" th:if="${friendPausedUntil != null}">
+        <form th:action="@{/zalo/messages/friend-resume(account=${account})}" method="post" th:if="${friendPausedUntil != null}">
             <button type="submit" class="btn secondary">Gửi lại lời mời ngay</button>
         </form>
         <p class="hint">Chiến dịch chỉ được tự gửi sau khi bạn bấm <em>Duyệt cho hệ thống tự gửi</em> ở trang chi tiết chiến dịch (tự tạo, hoặc từ <a th:href="@{/advisor}">Đề xuất của AI</a>).
-            Chiến dịch gửi nhiều lần chỉ nhắc khi trợ lý AI đang đọc tin riêng để nghe được khách xin ngừng (mục "Nhận diện khách từ chối bằng AI" ở trang <a th:href="@{/zalo/reply(tab=bat-tat)}">Trợ lý AI trả lời khách</a>).
+            Chiến dịch gửi nhiều lần chỉ nhắc khi trợ lý AI đang đọc tin riêng để nghe được khách xin ngừng (mục "Nhận diện khách từ chối bằng AI" ở trang <a th:href="@{/zalo/reply(tab=bat-tat, account=${account})}">Trợ lý AI trả lời khách</a>).
             Muốn thử trước: khai báo số thử ở tab "Thử và nhật ký", rồi tạo chiến dịch thật (hệ thống chỉ nhắn các số thử đã khai báo). Kết quả từng đợt xem ở <a th:href="@{/performance}">Hiệu quả chiến dịch</a>.</p>
     </section>
 
@@ -289,7 +297,7 @@
                     <span class="sub-line" th:if="${deputyCurrent.source == 'SETTING' and !deputyCurrent.stale}">Đã xác nhận. Là phó nhóm của các nhóm tạo từ nay.</span>
                     <span class="sub-line" th:if="${deputyCurrent.source == 'ENV'}">Đang dùng ZALO_DEPUTY_ID. Nhập số điện thoại bên dưới để thấy tên và ảnh và đổi sang cách này.</span>
                 </div>
-                <form th:if="${deputyCurrent.source == 'SETTING'}" th:action="@{/zalo/deputy/clear}" method="post">
+                <form th:if="${deputyCurrent.source == 'SETTING'}" th:action="@{/zalo/deputy/clear(account=${account})}" method="post">
                     <button type="submit" class="btn secondary sm">Bỏ phó nhóm này</button></form>
             </div>
             <p class="muted" th:if="${deputyCurrent.person == null}">Chưa chọn mẹ làm phó nhóm: nhóm mới tạo sẽ chưa có phó nhóm.</p>
@@ -300,15 +308,15 @@
                     <strong th:text="${deputyCandidate.name}">Tên hiển thị</strong>
                     <span class="sub-line">Có đúng là mẹ không?</span>
                 </div>
-                <form th:action="@{/zalo/deputy/confirm}" method="post"><button type="submit" class="btn sm">Đúng, làm phó nhóm</button></form>
-                <form th:action="@{/zalo/deputy/cancel}" method="post"><button type="submit" class="btn secondary sm">Không phải</button></form>
+                <form th:action="@{/zalo/deputy/confirm(account=${account})}" method="post"><button type="submit" class="btn sm">Đúng, làm phó nhóm</button></form>
+                <form th:action="@{/zalo/deputy/cancel(account=${account})}" method="post"><button type="submit" class="btn secondary sm">Không phải</button></form>
             </div>
-            <form class="inline" th:action="@{/zalo/deputy/lookup}" method="post" autocomplete="off">
+            <form class="inline" th:action="@{/zalo/deputy/lookup(account=${account})}" method="post" autocomplete="off">
                 <input type="tel" name="phone" inputmode="tel" maxlength="20" placeholder="Số điện thoại của mẹ, ví dụ 0912 345 678" aria-label="Số điện thoại của mẹ" required>
                 <button type="submit" class="btn secondary">Tra tên và ảnh</button>
             </form>
         </div>
-        <form class="stack" th:action="@{/zalo/group-mode}" method="post">
+        <form class="stack" th:action="@{/zalo/group-mode(account=${account})}" method="post">
             <label class="field" th:each="m : ${groupModes}">
                 <input type="radio" name="mode" th:value="${m.name()}" th:checked="${m == groupChosen}">
                 <span th:text="${m.label()}">Tắt</span>
@@ -320,7 +328,7 @@
                 Tôi đã thử tay một nhóm thật (1 nhóm, 2 số của tôi) và thấy hoạt động đúng (bắt buộc để bật nấc tự động).</label>
             <div><button type="submit" class="btn">Lưu nấc tạo nhóm</button></div>
         </form>
-        <form class="formrow" th:action="@{/zalo/group-limits}" method="post">
+        <form class="formrow" th:action="@{/zalo/group-limits(account=${account})}" method="post">
             <label class="field">Khách chờ tối thiểu để tạo nhóm <input type="number" name="minCustomers" th:value="${groupMin}" min="2" th:max="${groupProps.maxMembers}"></label>
             <label class="field">Mục tiêu số khách mỗi nhóm mới <input type="number" name="targetCustomers" th:value="${groupTarget}" min="5" th:max="${groupProps.maxTargetCustomers}"></label>
             <label class="field">Trần mềm số khách mỗi nhóm <input type="number" name="softCap" th:value="${groupSoftCap}" min="5" max="50"></label>
@@ -329,7 +337,7 @@
             <label class="field">Chờ quá (ngày) thì báo mẹ <input type="number" name="alertDays" th:value="${groupAlertDays}" min="1" max="90"></label>
             <button type="submit" class="btn">Lưu</button>
         </form>
-        <form class="stack" th:action="@{/zalo/group-welcome}" method="post">
+        <form class="stack" th:action="@{/zalo/group-welcome(account=${account})}" method="post">
             <h4>Tin chào đầu nhóm</h4>
             <label class="field"><input type="checkbox" name="enabled" value="true" th:checked="${welcomeOn}">
                 Gửi một tin chào giới thiệu gian hàng ngay khi tạo nhóm mới (chỉ một lần mỗi nhóm; không bị khoảng nghỉ hay hạn mức tin riêng giới hạn).</label>
@@ -354,10 +362,10 @@
                         <span class="sub-line" th:if="${p.state == 'FAILED' or p.state == 'EXPIRED'}" th:text="${@zaloLabels.reason(p.resultCode)}"></span>
                         <span class="sub-line" th:if="${p.needsCheck}">Hãy mở Zalo xem nhóm đã được tạo chưa; hệ thống không tự thử lại.</span></td>
                     <td>
-                        <form class="inline" th:if="${p.awaitingApproval}" th:action="@{/zalo/group-proposals/{id}/approve(id=${p.id})}" method="post"><button type="submit" class="btn">Duyệt</button></form>
-                        <form class="inline" th:if="${p.state == 'PROPOSED' or p.state == 'APPROVED'}" th:action="@{/zalo/group-proposals/{id}/reject(id=${p.id})}" method="post"><button type="submit" class="btn secondary">Từ chối</button></form>
-                        <form class="inline" th:if="${p.canRetryDeputy}" th:action="@{/zalo/group-proposals/{id}/deputy-retry(id=${p.id})}" method="post"><button type="submit" class="btn secondary">Thử lại phó nhóm</button></form>
-                        <form class="inline" th:if="${p.needsCheck}" th:action="@{/zalo/group-proposals/{id}/checked(id=${p.id})}" method="post"><button type="submit" class="btn secondary">Đã kiểm tra trên Zalo</button></form>
+                        <form class="inline" th:if="${p.awaitingApproval}" th:action="@{/zalo/group-proposals/{id}/approve(id=${p.id}, account=${account})}" method="post"><button type="submit" class="btn">Duyệt</button></form>
+                        <form class="inline" th:if="${p.state == 'PROPOSED' or p.state == 'APPROVED'}" th:action="@{/zalo/group-proposals/{id}/reject(id=${p.id}, account=${account})}" method="post"><button type="submit" class="btn secondary">Từ chối</button></form>
+                        <form class="inline" th:if="${p.canRetryDeputy}" th:action="@{/zalo/group-proposals/{id}/deputy-retry(id=${p.id}, account=${account})}" method="post"><button type="submit" class="btn secondary">Thử lại phó nhóm</button></form>
+                        <form class="inline" th:if="${p.needsCheck}" th:action="@{/zalo/group-proposals/{id}/checked(id=${p.id}, account=${account})}" method="post"><button type="submit" class="btn secondary">Đã kiểm tra trên Zalo</button></form>
                     </td>
                 </tr>
                 <tr th:if="${proposals.isEmpty()}"><td colspan="5" class="muted">Chưa có đề xuất nào.</td></tr>
@@ -382,11 +390,11 @@
                         <span class="sub-line" th:if="${w.code != null}" th:text="${@zaloLabels.addCode(w.code)}">lỗi</span></td>
                     <td>
                         <div class="formrow">
-                        <form th:action="@{/zalo/invitations/{id}/approve(id=${w.invitationId})}" method="post" th:if="${w.mayApprove and w.groupReady}">
+                        <form th:action="@{/zalo/invitations/{id}/approve(id=${w.invitationId}, account=${account})}" method="post" th:if="${w.mayApprove and w.groupReady}">
                             <button type="submit" class="btn sm">Duyệt thêm vào nhóm</button></form>
-                        <form th:action="@{/zalo/invitations/{id}/retry(id=${w.invitationId})}" method="post" th:if="${w.state == 'FAILED'}">
+                        <form th:action="@{/zalo/invitations/{id}/retry(id=${w.invitationId}, account=${account})}" method="post" th:if="${w.state == 'FAILED'}">
                             <button type="submit" class="btn secondary sm">Cho thử lại</button></form>
-                        <form th:action="@{/zalo/invitations/{id}/release(id=${w.invitationId})}" method="post">
+                        <form th:action="@{/zalo/invitations/{id}/release(id=${w.invitationId}, account=${account})}" method="post">
                             <button type="submit" class="btn secondary sm">Mẹ tự thêm tay</button></form>
                         </div>
                     </td>
@@ -408,7 +416,7 @@
                     <td th:text="${e.uidTail}">…1234</td>
                     <td>
                         <div class="formrow">
-                        <form class="inline" th:action="@{/zalo/manual/{id}/resolve(id=${e.id})}" method="post">
+                        <form class="inline" th:action="@{/zalo/manual/{id}/resolve(id=${e.id}, account=${account})}" method="post">
                             <select name="invitationId" aria-label="Chọn khách" required>
                                 <option value="">Chọn khách…</option>
                                 <option th:each="c : ${candidates}" th:value="${c.invitationId}"
@@ -416,7 +424,7 @@
                             </select>
                             <button type="submit" class="btn sm">Ghép</button>
                         </form>
-                        <form class="inline" th:action="@{/zalo/manual/{id}/dismiss(id=${e.id})}" method="post">
+                        <form class="inline" th:action="@{/zalo/manual/{id}/dismiss(id=${e.id}, account=${account})}" method="post">
                             <button type="submit" class="btn secondary sm">Bỏ qua</button></form>
                         </div>
                     </td>

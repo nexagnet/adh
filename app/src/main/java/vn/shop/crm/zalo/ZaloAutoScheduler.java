@@ -7,6 +7,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 /** Nhịp định kỳ của bộ nối. Chỉ tồn tại khi bật {@code app.zalo.auto.enabled}; nấc OFF thì mỗi nhịp không làm gì. */
 @Component
 @ConditionalOnProperty(prefix = "app.zalo.auto", name = "enabled", havingValue = "true")
@@ -30,19 +32,41 @@ public class ZaloAutoScheduler {
     @Scheduled(initialDelayString = "${app.zalo.auto.initial-delay-millis:30000}",
             fixedDelayString = "${app.zalo.auto.tick-millis:30000}")
     void tick() {
-        // D23: mỗi nhịp chạy MỘT lần cho từng tài khoản đang chạy, lần lượt (không song song trong cùng nhịp), mỗi lần trong bối cảnh riêng của
-        // tài khoản đó; lỗi ở một tài khoản không làm tài khoản khác bỏ nhịp. Chưa bật nhiều tài khoản thì chỉ có tài khoản 1, y như trước.
-        for (long id : accounts.active()) {
-            try {
-                ZaloAccountContext.run(id, this::tickOne);
-            } catch (RuntimeException e) {
-                log.warn("Bộ nối Zalo tài khoản {} gặp lỗi ở nhịp này: {}", id, e.getClass().getSimpleName());
-            }
+        List<Long> active = accounts.active();
+        if (active.size() <= 1) {
+            active.forEach(id -> runTick(id, null));
+            return;
+        }
+        // Kiểm tra tất cả cầu nối trước khi tài khoản đầu tiên có thể ghi lên Zalo.
+        List<AccountStatus> observed = active.stream()
+                .map(id -> new AccountStatus(id, probe(id))).toList();
+        if (observed.stream().noneMatch(status -> status.bridge() == null)) {
+            observed.forEach(status -> runTick(status.account(), status.bridge()));
         }
     }
 
-    private void tickOne() {
-        service.tick(); // nghe kết bạn, thêm tối đa một người vào nhóm
+    private record AccountStatus(long account, ZaloGateway.Status bridge) {
+    }
+
+    private ZaloGateway.Status probe(long id) {
+        try {
+            return ZaloAccountContext.call(id, service::probeBeforeTick);
+        } catch (RuntimeException e) {
+            log.warn("Không kiểm tra được trạng thái Zalo của tài khoản {}: {}", id, e.getClass().getSimpleName());
+            return null;
+        }
+    }
+
+    private void runTick(long id, ZaloGateway.Status status) {
+        try {
+            ZaloAccountContext.run(id, () -> tickOne(status));
+        } catch (RuntimeException e) {
+            log.warn("Bộ nối Zalo tài khoản {} gặp lỗi ở nhịp này: {}", id, e.getClass().getSimpleName());
+        }
+    }
+
+    private void tickOne(ZaloGateway.Status status) {
+        service.tick(status); // nghe kết bạn, thêm tối đa một người vào nhóm
         try {
             sender.step(); // tự gửi tối đa một tin của chiến dịch thật (tắt thì không làm gì)
         } catch (RuntimeException e) {

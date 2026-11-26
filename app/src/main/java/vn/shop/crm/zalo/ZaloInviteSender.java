@@ -241,7 +241,8 @@ public class ZaloInviteSender {
 
     private Step sendNextInvite() {
         // D23: khách mới thuộc về tài khoản còn nhiều chỗ trống nhất; không phải lượt của tài khoản này thì để nhịp của tài khoản kia.
-        if (!balancer.mayTakeNewCustomer()) {
+        var allocation = balancer.newCustomerAllocation();
+        if (!allocation.testNumbers() && !allocation.ordinaryNumbers()) {
             return Step.NOTHING;
         }
         // Lịch và nhịp riêng của chiến dịch (D21 PR 4) chỉ để BỎ QUA chiến dịch chưa tới lượt, không bao giờ để gửi thêm; chiến dịch
@@ -262,8 +263,11 @@ public class ZaloInviteSender {
                         JOIN invitation_campaign k ON k.id = i.campaign_id
                         WHERE i.status = 'READY' AND k.auto_send_approved_at IS NOT NULL AND i.campaign_id IN (:open)
                           AND (k.hold_on_rain = false OR c.province IS NULL OR NOT (c.province = ANY(:rainy)))
-                        """ + testMode.onlyTestSql("c.phone") + " ORDER BY i.campaign_id, i.id LIMIT :n")
+                          AND (CASE WHEN EXISTS (SELECT 1 FROM zalo_test_number t WHERE t.phone = c.phone)
+                                    THEN :test_numbers ELSE :ordinary_numbers END)
+                        ORDER BY i.campaign_id, i.id LIMIT :n""")
                 .param("open", open).param("rainy", rainy).param("n", SCAN)
+                .param("test_numbers", allocation.testNumbers()).param("ordinary_numbers", allocation.ordinaryNumbers())
                 .query((rs, n) -> new Invite(rs.getLong("id"), rs.getLong("campaign_id"), rs.getLong("customer_id"),
                         rs.getString("phone"), rs.getString("name"), rs.getString("province"), rs.getString("token"),
                         rs.getObject("expires_at", OffsetDateTime.class), rs.getString("message_template"))).list();
@@ -384,8 +388,9 @@ public class ZaloInviteSender {
 
     private void revert(Invite c) {
         jdbc.sql("""
-                        UPDATE invitation SET status = 'READY', sent_at = NULL, sent_channel = NULL
-                        WHERE id = :id AND status = 'SENT' AND sent_channel = :ch""").param("id", c.id()).param("ch", CHANNEL).update();
+                        UPDATE invitation SET status = 'READY', sent_at = NULL, sent_channel = NULL, account_id = DEFAULT
+                        WHERE id = :id AND status = 'SENT' AND sent_channel = :ch AND account_id = :acct""")
+                .param("id", c.id()).param("ch", CHANNEL).param("acct", ZaloAccountContext.current()).update();
     }
 
     /**

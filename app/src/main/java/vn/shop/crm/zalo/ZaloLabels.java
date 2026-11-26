@@ -183,6 +183,7 @@ public class ZaloLabels {
         }
         return switch (code) {
             case "KHONG_DU_DIEU_KIEN" -> "Khách không còn đủ điều kiện";
+            case "NHOM_KHAC_TAI_KHOAN" -> "Nhóm đã gán thuộc tài khoản khác. Hãy kiểm tra trên Zalo trước khi xử lý tay.";
             case "DANG_GOI" -> "Đang gọi Zalo thì bị gián đoạn, chưa biết đã thêm chưa: hãy xem nhóm trên Zalo rồi chọn Mẹ tự thêm tay hoặc Cho thử lại";
             case "LOI_NGUOI" -> "Zalo không thêm được người này (đã trong nhóm, nhóm đầy hoặc chỉ quản trị viên được thêm)";
             default -> "Zalo báo lỗi, xem nhật ký";

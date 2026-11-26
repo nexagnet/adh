@@ -14,6 +14,7 @@
     <header class="page-head">
         <div class="titles">
             <h1>Quét mã QR để đăng nhập tài khoản phụ</h1>
+            <p><strong th:text="'Tài khoản phụ ' + ${account}">Tài khoản phụ 1</strong></p>
             <p class="hint">Trang này tự làm mới mỗi 3 giây. Không chia sẻ ảnh chụp màn hình mã QR cho ai: ai quét được là vào được tài khoản phụ.</p>
         </div>
     </header>
@@ -30,12 +31,17 @@
         <p th:if="${scannedId != null}">Mã Zalo của tài khoản vừa quét là <strong th:text="${scannedId}">123456789</strong>.
             Hệ thống đã đăng xuất tài khoản này và <strong>không lưu gì</strong>.</p>
         <ul class="choices">
-            <li><strong>Nếu đây đúng là tài khoản phụ</strong> và bạn chưa khai báo mã (hoặc khai báo sai): người cài đặt chép mã trên vào
-                <code>ZALO_ACCOUNT_ID</code> trong file <code>.env</code> của máy chủ rồi chạy lại dịch vụ <code>zalo-bridge</code>, sau đó quét lại.</li>
+            <li th:if="${account == 1}"><strong>Nếu đây đúng là tài khoản phụ 1</strong>, điền mã ở <code>ZALO_ACCOUNT_ID</code>
+                trong <code>.env</code> trên máy chính, chạy lại <code>zalo-bridge</code> rồi quét lại.</li>
+            <li th:if="${account == 2}"><strong>Nếu đây đúng là tài khoản phụ 2</strong>, điền mã ở <code>ZALO_ACCOUNT_ID</code>
+                trong <code>.env.bridge</code> trên máy hai rồi chạy lại bridge ở máy hai. Nếu hai bridge cùng máy, điền <code>ZALO_ACCOUNT_ID_2</code>
+                trong <code>.env</code> rồi chạy lại <code>zalo-bridge-2</code>. Sau đó quét lại.</li>
+            <li th:if="${account > 2}"><strong>Nếu đây đúng là tài khoản phụ đang chọn</strong>, điền mã ở <code>ZALO_ACCOUNT_ID</code>
+                trong cấu hình bridge của tài khoản đó rồi chạy lại bridge tương ứng và quét lại.</li>
             <li><strong>Nếu đây là tài khoản chính của mẹ hoặc tài khoản lạ</strong>: đừng làm gì thêm, hãy quét lại bằng điện thoại của tài khoản phụ.</li>
         </ul>
-        <p class="hint">Mã này chỉ để đối chiếu. Đừng chụp màn hình hay gửi cho ai ngoài người cài đặt. Cài lần đầu chưa biết mã: đặt tạm
-            <code>ZALO_ACCOUNT_ID=0</code>, quét QR bằng tài khoản phụ, chép mã hiện ở đây.</p>
+        <p class="hint">Mã này chỉ để đối chiếu. Đừng chụp màn hình hay gửi cho ai ngoài người cài đặt. Khi chưa biết mã, đặt tạm giá trị
+            <code>0</code> ở biến của đúng bridge đang cài, quét QR bằng tài khoản phụ rồi chép mã hiện ở đây.</p>
     </div>
 
     <div class="panel stack" th:if="${qr != null}">
@@ -43,8 +49,11 @@
     </div>
 
     <div class="formrow">
-        <form th:action="@{/zalo/login/start}" method="post" th:unless="${waiting}"><button type="submit" class="btn">Tạo mã QR mới</button></form>
-        <a class="btn secondary" th:href="@{/zalo}">Quay lại trang Zalo</a>
+        <form th:action="@{/zalo/login/start(account=${account})}" method="post" th:unless="${waiting}">
+            <input th:if="${returnToConfig}" type="hidden" name="tab" value="cau-hinh">
+            <button type="submit" class="btn">Tạo mã QR mới</button>
+        </form>
+        <a class="btn secondary" th:href="@{/zalo(tab='cau-hinh', account=${account})}">Về cấu hình tài khoản</a>
     </div>
 </main>
 </body>

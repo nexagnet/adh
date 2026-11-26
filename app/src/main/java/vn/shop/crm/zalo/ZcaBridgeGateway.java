@@ -18,6 +18,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 /**
@@ -38,16 +40,32 @@ public class ZcaBridgeGateway implements ZaloLink {
     private final HttpClient http;
     private final String base;
     private final String key;
+    private final Supplier<String> pinnedTag;
+    private final boolean requiresPin;
+    private final Supplier<String> primaryTag;
+    private final BooleanSupplier writesPaused;
 
     public ZcaBridgeGateway(String bridgeUrl, String bridgeKey) {
-        this(bridgeUrl, bridgeKey, HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5))
-                .version(HttpClient.Version.HTTP_1_1).build());
+        this(bridgeUrl, bridgeKey, () -> null, false);
     }
 
-    ZcaBridgeGateway(String bridgeUrl, String bridgeKey, HttpClient http) {
+    ZcaBridgeGateway(String bridgeUrl, String bridgeKey, Supplier<String> pinnedTag, boolean requiresPin) {
+        this(bridgeUrl, bridgeKey, pinnedTag, requiresPin, () -> null);
+    }
+
+    ZcaBridgeGateway(String bridgeUrl, String bridgeKey, Supplier<String> pinnedTag, boolean requiresPin, Supplier<String> primaryTag) {
+        this(bridgeUrl, bridgeKey, pinnedTag, requiresPin, primaryTag, () -> false);
+    }
+
+    ZcaBridgeGateway(String bridgeUrl, String bridgeKey, Supplier<String> pinnedTag, boolean requiresPin,
+                     Supplier<String> primaryTag, BooleanSupplier writesPaused) {
         this.base = bridgeUrl.endsWith("/") ? bridgeUrl.substring(0, bridgeUrl.length() - 1) : bridgeUrl;
         this.key = bridgeKey;
-        this.http = http;
+        this.pinnedTag = pinnedTag;
+        this.requiresPin = requiresPin;
+        this.primaryTag = primaryTag;
+        this.writesPaused = writesPaused;
+        this.http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).version(HttpClient.Version.HTTP_1_1).build();
     }
 
     // ---------- ZaloGateway: ba việc ----------
@@ -56,7 +74,12 @@ public class ZcaBridgeGateway implements ZaloLink {
     public Status status() {
         try {
             JsonNode n = call("GET", "/status", null, 10);
-            return new Status(state(n.path("state").asString("")), safeCode(text(n, "tripReason")),
+            String expected = pinnedTag.get();
+            String actual = text(n, "accountTag");
+            if (expected != null && !expected.equals(actual)) {
+                return new Status(State.LOGIN_REQUIRED, "ACCOUNT_MISMATCH", false, null, null, null, null);
+            }
+            return new Status(state(n.path("state").asString("")), safeTripReason(text(n, "tripReason")),
                     n.hasNonNull("accountOk") ? n.path("accountOk").asBoolean() : null,
                     instant(n, "lastEventAt"), instant(n, "sessionSince"), safeCode(text(n, "detail")), safeCode(text(n, "accountTag")));
         } catch (Unreachable e) {
@@ -295,14 +318,19 @@ public class ZcaBridgeGateway implements ZaloLink {
             String code = safeCode(text(n, "code"));
             boolean notSent = "RATE_LIMITED".equals(outcome) || (code != null && NOT_SENT_CODES.contains(code))
                     || "NOT_REACTABLE".equals(code) || "REACT_LIMIT".equals(code) || "WINDOW".equals(code);
-            return Reacted.failed(code == null ? (outcome.isBlank() ? "BAD_REPLY" : outcome) : code, notSent);
+            String tripReason = switch (outcome) {
+                case "RESTRICTED", "SYSTEM_ERROR" -> code == null ? outcome : outcome + ":" + code;
+                case "RATE_LIMITED", "PERSON_ERROR", "SESSION_LOST" -> null;
+                default -> "TIN_INTERRUPTED";
+            };
+            return new Reacted(false, code == null ? (outcome.isBlank() ? "BAD_REPLY" : outcome) : code, notSent, tripReason);
         } catch (Unreachable e) {
             return Reacted.failed("BRIDGE_DOWN", true);
         } catch (TimedOut e) {
-            return Reacted.failed("TIMEOUT", false);
+            return new Reacted(false, "TIMEOUT", false, "TIN_INTERRUPTED");
         } catch (Exception e) {
             log.warn("Lỗi khi thả tim qua cầu nối: {}", e.getClass().getSimpleName());
-            return Reacted.failed("BRIDGE_ERROR", false);
+            return new Reacted(false, "BRIDGE_ERROR", false, "TIN_INTERRUPTED");
         }
     }
 
@@ -577,8 +605,56 @@ public class ZcaBridgeGateway implements ZaloLink {
     }
 
     private JsonNode call(String method, String path, String body, int timeoutSeconds) throws IOException, InterruptedException {
+        if ("/status".equals(path)) {
+            return exchange(method, path, body, timeoutSeconds, null);
+        }
+        String expected = pinnedTag.get();
+        if (expected == null && requiresPin) {
+            if (!"/session/login".equals(path)) {
+                throw new Unreachable(new IOException("ACCOUNT_UNVERIFIED"));
+            }
+            expected = bootstrapTag();
+        } else if (expected != null) {
+            checkTag(expected);
+        }
+        if ("POST".equals(method) && !path.startsWith("/session/")
+                && !"/friends/check".equals(path) && !"/people/lookup".equals(path) && writesPaused.getAsBoolean()) {
+            throw new Unreachable(new IOException("HALTED"));
+        }
+        return exchange(method, path, body, timeoutSeconds, expected);
+    }
+
+    private String bootstrapTag() throws InterruptedException {
+        try {
+            String primary = primaryTag.get();
+            String actual = text(exchange("GET", "/status", null, 10, null), "accountTag");
+            if (primary == null || actual == null || primary.equals(actual)) {
+                throw new IOException("ACCOUNT_UNVERIFIED");
+            }
+            return actual;
+        } catch (IOException | TimedOut e) {
+            throw new Unreachable(e);
+        }
+    }
+
+    private void checkTag(String expected) throws InterruptedException {
+        try {
+            String actual = text(exchange("GET", "/status", null, 10, null), "accountTag");
+            if (!expected.equals(actual)) {
+                throw new IOException("ACCOUNT_MISMATCH");
+            }
+        } catch (IOException | TimedOut e) {
+            throw new Unreachable(e); // chưa gửi yêu cầu tác động tới cầu nối
+        }
+    }
+
+    private JsonNode exchange(String method, String path, String body, int timeoutSeconds, String expected)
+            throws IOException, InterruptedException {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(base + path)).timeout(Duration.ofSeconds(timeoutSeconds))
                 .header("X-Bridge-Key", key).header("Accept", "application/json");
+        if (expected != null) {
+            b.header("X-Bridge-Account-Tag", expected);
+        }
         if (body != null) {
             b.header("Content-Type", "application/json").method(method, HttpRequest.BodyPublishers.ofString(body));
         } else {
@@ -586,6 +662,9 @@ public class ZcaBridgeGateway implements ZaloLink {
         }
         try {
             HttpResponse<String> r = http.send(b.build(), HttpResponse.BodyHandlers.ofString());
+            if (expected != null && r.statusCode() == 409 && "account_mismatch".equals(text(JSON.readTree(r.body()), "error"))) {
+                throw new Unreachable(new IOException("ACCOUNT_MISMATCH"));
+            }
             if (r.statusCode() != 200) {
                 throw new IOException("HTTP " + r.statusCode());
             }
@@ -621,6 +700,17 @@ public class ZcaBridgeGateway implements ZaloLink {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private static String safeTripReason(String reason) {
+        if (reason == null) {
+            return null;
+        }
+        String[] parts = reason.split(":", 2);
+        if (!parts[0].matches("[A-Z][A-Z0-9_]{0,39}")) {
+            return null;
+        }
+        return parts.length == 2 && parts[1].matches("[A-Z0-9_-]{1,40}") ? reason : parts[0];
     }
 
     /** Mã lỗi chỉ gồm chữ, số, gạch: không để chuỗi lạ (có thể chứa dữ liệu khách) lọt vào nhật ký. */

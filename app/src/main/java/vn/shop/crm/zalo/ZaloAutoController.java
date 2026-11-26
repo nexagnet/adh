@@ -70,7 +70,8 @@ public class ZaloAutoController {
     }
 
     static final java.util.List<Tab> TABS = java.util.List.of(
-            new Tab("tinh-trang", "Tình trạng"), new Tab("gioi-han", "Giới hạn"), new Tab("nhom", "Nhóm"),
+            new Tab("tinh-trang", "Tình trạng"), new Tab("cau-hinh", "Cấu hình"),
+            new Tab("gioi-han", "Giới hạn"), new Tab("nhom", "Nhóm"),
             new Tab("thu", "Thử và nhật ký"));
 
     @GetMapping
@@ -98,6 +99,7 @@ public class ZaloAutoController {
         model.addAttribute("effective", cfg.effectiveMode());
         model.addAttribute("tripped", cfg.tripped());
         model.addAttribute("trippedReason", cfg.trippedReason());
+        model.addAttribute("sharedHaltSource", cfg.sharedHaltSource());
         model.addAttribute("trippedAt", cfg.trippedAt() == null ? null
                 : LocalDateTime.ofInstant(cfg.trippedAt(), cfg.clock().getZone()));
         model.addAttribute("props", cfg.props());
@@ -321,10 +323,12 @@ public class ZaloAutoController {
 
     /** Tạm ngưng hoặc bật lại một tài khoản thêm. Khách đã gắn tài khoản đó ở yên, không chuyển sang tài khoản khác. */
     @PostMapping("/accounts/{id}/enabled")
-    public String accountEnabled(@PathVariable long id, @RequestParam boolean on, RedirectAttributes redirect) {
+    public String accountEnabled(@PathVariable long id, @RequestParam boolean on,
+                                 @RequestParam(defaultValue = "tinh-trang") String tab, RedirectAttributes redirect) {
         accounts.setEnabled(id, on);
-        redirect.addFlashAttribute("flash", on ? "Đã bật lại tài khoản " + id + "." : "Đã tạm ngưng tài khoản " + id + ": không gửi, không đọc tin.");
-        return "redirect:/zalo?tab=tinh-trang";
+        redirect.addAttribute("account", id);
+        redirect.addFlashAttribute("flash", on ? "Đã bật tài khoản " + id + "." : "Đã tạm ngưng tài khoản " + id + ": không gửi, không đọc tin.");
+        return "cau-hinh".equals(tab) ? "redirect:/zalo?tab=cau-hinh" : "redirect:/zalo?tab=tinh-trang";
     }
 
     @PostMapping("/messages/friend-limit")
@@ -385,22 +389,25 @@ public class ZaloAutoController {
     // ---------- quét QR ----------
 
     @PostMapping("/login/start")
-    public String loginStart(Principal user) {
+    public String loginStart(@RequestParam(required = false) String tab, Principal user) {
         requireEnabled();
         service.startLogin(by(user));
-        return "redirect:/zalo/login";
+        return "cau-hinh".equals(tab) ? "redirect:/zalo/login?tab=cau-hinh" : "redirect:/zalo/login";
     }
 
     @GetMapping("/login")
-    public String login(Principal user, Model model, HttpServletResponse response, RedirectAttributes redirect) {
+    public String login(@RequestParam(required = false) String tab, Principal user, Model model, HttpServletResponse response,
+                        RedirectAttributes redirect) {
         response.setHeader("Cache-Control", "no-store");
         response.setHeader("Pragma", "no-cache");
         requireEnabled();
+        boolean returnToConfig = "cau-hinh".equals(tab);
         ZaloSession.Login l = service.loginStatus(by(user));
         if (l.state() == ZaloSession.LoginState.DONE) {
             redirect.addFlashAttribute("flash", "Đăng nhập tài khoản phụ xong.");
-            return "redirect:/zalo";
+            return returnToConfig ? "redirect:/zalo?tab=cau-hinh" : "redirect:/zalo";
         }
+        model.addAttribute("returnToConfig", returnToConfig);
         model.addAttribute("state", l.state().name());
         model.addAttribute("scannedId", l.scannedId());
         model.addAttribute("waiting", l.state() == ZaloSession.LoginState.WAITING_SCAN

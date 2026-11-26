@@ -75,6 +75,10 @@ export function createServer({ bridge, config, fake = null }) {
       const route = `${req.method} ${url.pathname}`;
       if (route === 'GET /healthz') return send(200, { ok: true });
       if (!sameKey(req.headers['x-bridge-key'], config.key)) return send(401, { error: 'unauthorized' });
+      const accountTag = req.headers['x-bridge-account-tag'];
+      if (accountTag !== undefined && accountTag !== bridge.status().accountTag) {
+        return send(409, { error: 'account_mismatch' });
+      }
 
       if (route === 'GET /status') return send(200, bridge.status());
       if (route === 'GET /events') {

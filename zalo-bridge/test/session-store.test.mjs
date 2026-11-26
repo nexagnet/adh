@@ -20,7 +20,9 @@ test('tệp phiên không chứa chuỗi dạng rõ nào của phiên, quyền 6
   for (const secret of ['IMEI-12345-SECRET', 'COOKIE-VALUE-SECRET', 'UA-SECRET', 'zpw_sek', 'cookie', 'imei']) {
     assert.ok(!text.includes(secret), `lộ ${secret}`);
   }
-  assert.equal(statSync(file).mode & 0o777, 0o600);
+  if (process.platform !== 'win32') {
+    assert.equal(statSync(file).mode & 0o777, 0o600);
+  }
   assert.deepEqual(new SessionStore(file, key).load().session, session);
 });
 

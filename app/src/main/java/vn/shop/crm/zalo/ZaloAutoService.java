@@ -22,6 +22,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -64,7 +65,8 @@ public class ZaloAutoService {
     private final TestMode testMode;
     private final ZaloGroupSettings groupSettings;
     /** Trạng thái cầu nối lần hỏi gần nhất (do bộ hẹn giờ cập nhật) để các trang không gọi cầu nối mỗi lần mở. */
-    private volatile ZaloGateway.Status lastStatus;
+    private final Map<Long, ZaloGateway.Status> bridgeStatuses = new ConcurrentHashMap<>();
+    private final Map<Long, FriendSync> friendSyncs = new ConcurrentHashMap<>();
 
     public ZaloAutoService(JdbcClient jdbc, ZaloGateway gateway, ZaloSession session, ZaloAutoSettings cfg,
                            InviteService invites, GroupService groups, ContactService contacts, TransactionTemplate tx,
@@ -91,13 +93,17 @@ public class ZaloAutoService {
 
     /** Trạng thái cầu nối lần hỏi gần nhất (null nếu chưa hỏi lần nào). Không gọi cầu nối. */
     public ZaloGateway.Status lastBridgeStatus() {
-        return lastStatus;
+        return bridgeStatuses.get(ZaloAccountContext.current());
     }
 
     /** Một nhịp của bộ hẹn giờ: nghe sự kiện rồi thêm tối đa một người. */
     public void tick() {
+        tick(null);
+    }
+
+    void tick(ZaloGateway.Status bridgeStatus) {
         try {
-            poll();
+            poll(bridgeStatus);
         } catch (RuntimeException e) {
             log.warn("Bộ nối Zalo gặp lỗi khi nghe sự kiện: {}", e.getClass().getSimpleName());
         }
@@ -115,13 +121,12 @@ public class ZaloAutoService {
 
     // ---------- đối chiếu danh sách bạn (24/11/2026, chủ dự án duyệt: CHỈ ĐỌC, chỉ đối chiếu, không lưu bạn ngoài hệ thống) ----------
 
-    private Instant lastFriendSync;
-    private Instant friendSyncSession;
+    private record FriendSync(Instant at, Instant sessionSince) {
+    }
 
     /** Cho test (bean dùng chung giữa các test, đồng hồ giả bị đặt lại): quên lần đối chiếu trước. */
     void resetFriendSync() {
-        lastFriendSync = null;
-        friendSyncSession = null;
+        friendSyncs.clear();
     }
 
     /**
@@ -135,22 +140,22 @@ public class ZaloAutoService {
         if (!cfg.effectiveMode().listens()) {
             return 0;
         }
-        ZaloGateway.Status st = lastStatus;
+        ZaloGateway.Status st = lastBridgeStatus();
         if (st == null || st.state() != ZaloGateway.State.LISTENING || !Boolean.TRUE.equals(st.accountOk())) {
             return 0;
         }
         Instant now = clock.instant();
-        boolean reconnected = !java.util.Objects.equals(st.sessionSince(), friendSyncSession);
-        if (!reconnected && lastFriendSync != null
-                && now.isBefore(lastFriendSync.plus(java.time.Duration.ofMinutes(cfg.props().friendSyncMinutes())))) {
+        long account = ZaloAccountContext.current();
+        FriendSync lastSync = friendSyncs.get(account);
+        if (lastSync != null && java.util.Objects.equals(st.sessionSince(), lastSync.sessionSince())
+                && now.isBefore(lastSync.at().plus(java.time.Duration.ofMinutes(cfg.props().friendSyncMinutes())))) {
             return 0;
         }
         List<Map<String, Object>> pending = jdbc.sql("""
                         SELECT i.id, i.zalo_target_uid FROM invitation i JOIN customer c ON c.id = i.customer_id
                         WHERE i.status IN ('SENT', 'CLICKED') AND i.zalo_uid IS NULL AND i.zalo_target_uid IS NOT NULL
                         """ + testMode.onlyTestSql("c.phone") + " AND " + ZaloAccountContext.sql("i.account_id") + " ORDER BY i.sent_at NULLS LAST, i.id LIMIT 500").query().listOfRows();
-        lastFriendSync = now;
-        friendSyncSession = st.sessionSince();
+        friendSyncs.put(account, new FriendSync(now, st.sessionSince()));
         List<String> uids = pending.stream().map(r -> String.valueOf(r.get("zalo_target_uid"))).filter(u -> u.matches("\\d{1,32}")).distinct().toList();
         if (uids.isEmpty()) {
             return 0;
@@ -158,8 +163,7 @@ public class ZaloAutoService {
         ZaloGateway.FriendCheck r = gateway.friendsAmong(uids);
         if (!r.ok()) {
             if (List.of("WINDOW", "BUSY", "NOT_ACTIVE", "BRIDGE_DOWN").contains(r.code())) {
-                lastFriendSync = null; // chưa hỏi được vì lý do tạm thời: thử lại ở nhịp sau
-                friendSyncSession = null;
+                friendSyncs.remove(account); // chưa hỏi được vì lý do tạm thời: thử lại ở nhịp sau
             }
             return 0;
         }
@@ -198,13 +202,16 @@ public class ZaloAutoService {
 
     /** Hỏi cầu nối, ghép từng sự kiện mới. Trả số sự kiện đã xử lý. Không làm gì khi nấc OFF hoặc cầu dao đang nhảy. */
     public int poll() {
+        return poll(null);
+    }
+
+    private int poll(ZaloGateway.Status observed) {
         if (!cfg.effectiveMode().listens()) {
             return 0;
         }
-        ZaloGateway.Status st = gateway.status();
-        lastStatus = st;
+        ZaloGateway.Status st = observed == null ? bridgeStatus() : observed;
         if (st.state() == ZaloGateway.State.TRIPPED) {
-            tripAndStop("BRIDGE_" + (st.tripReason() == null ? "TRIPPED" : st.tripReason()), false);
+            tripAndStop(bridgeTripReason(st), false);
             return 0;
         }
         if (Boolean.FALSE.equals(st.accountOk())) {
@@ -342,13 +349,15 @@ public class ZaloAutoService {
                         UPDATE invitation i SET zalo_uid = :u, zalo_add_code = NULL, zalo_add_at = NULL,
                                zalo_add_state = CASE WHEN i.group_link_sent_at IS NULL THEN CAST(:s AS TEXT) END
                         FROM invitation_campaign k
-                        WHERE k.id = i.campaign_id AND i.id = :id AND i.zalo_uid IS NULL
+                        WHERE k.id = i.campaign_id AND i.id = :id AND i.account_id = :acct AND i.zalo_uid IS NULL
+                          AND i.status IN ('SENT', 'CLICKED', 'FRIENDED')
                           AND NOT EXISTS (SELECT 1 FROM invitation o WHERE o.zalo_uid = :u AND o.account_id = i.account_id)""")
-                .param("u", uid).param("s", state).param("id", invitationId).update();
+                .param("u", uid).param("s", state).param("id", invitationId)
+                .param("acct", ZaloAccountContext.current()).update();
         if (n == 0) {
             return false;
         }
-        String status = jdbc.sql("SELECT status FROM invitation WHERE id = :id").param("id", invitationId)
+        String status = jdbc.sql("SELECT status FROM invitation WHERE id = :id AND " + ZaloAccountContext.sql()).param("id", invitationId)
                 .query(String.class).single();
         if (List.of("SENT", "CLICKED").contains(status)) {
             invites.markFriended(invitationId, via, false);
@@ -379,8 +388,9 @@ public class ZaloAutoService {
         return jdbc.sql("""
                         SELECT i.id, c.name, c.province, i.sent_at
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
-                        WHERE i.status IN ('SENT', 'CLICKED') AND i.zalo_uid IS NULL
+                        WHERE i.status IN ('SENT', 'CLICKED') AND i.zalo_uid IS NULL AND i.account_id = :acct
                         ORDER BY i.sent_at DESC NULLS LAST, i.id DESC LIMIT 200""")
+                .param("acct", ZaloAccountContext.current())
                 .query((rs, n) -> new Candidate(rs.getLong("id"), rs.getString("name"),
                         VnGeo.byCode(rs.getString("province")).map(p -> p.name()).orElse("Chưa rõ khu vực"),
                         local(rs.getObject("sent_at", OffsetDateTime.class)))).list();
@@ -389,12 +399,14 @@ public class ZaloAutoService {
     /** Người xử lý nói sự kiện không có số này là của khách nào. Vẫn qua cùng cổng điều kiện như ghép tự động. */
     public void resolve(long eventId, long invitationId, String by) {
         tx.executeWithoutResult(status -> {
-            String uid = jdbc.sql("SELECT uid FROM zalo_friend_event WHERE id = :id AND outcome = 'NO_PHONE'")
+            String uid = jdbc.sql("SELECT uid FROM zalo_friend_event WHERE id = :id AND outcome = 'NO_PHONE' AND "
+                            + ZaloAccountContext.sql() + " FOR UPDATE")
                     .param("id", eventId).query(String.class).optional()
                     .orElseThrow(() -> new ImportException("Dòng này đã được xử lý."));
             Match m = jdbc.sql("""
                             SELECT i.id, i.customer_id, i.status, i.zalo_uid IS NOT NULL AS has_uid
-                            FROM invitation i WHERE i.id = :id""").param("id", invitationId)
+                            FROM invitation i WHERE i.id = :id AND i.account_id = :acct""")
+                    .param("id", invitationId).param("acct", ZaloAccountContext.current())
                     .query((rs, n) -> new Match(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("status"),
                             rs.getBoolean("has_uid")))
                     .optional().orElseThrow(() -> new ImportException("Không tìm thấy lời mời."));
@@ -404,14 +416,16 @@ public class ZaloAutoService {
             if (!attach(invitationId, uid, "bộ nối Zalo, người ghép tay")) {
                 throw new ImportException("Mã Zalo này đã gắn với một khách khác.");
             }
-            jdbc.sql("UPDATE zalo_friend_event SET outcome = 'RESOLVED', uid = NULL, invitation_id = :i WHERE id = :id")
+            jdbc.sql("UPDATE zalo_friend_event SET outcome = 'RESOLVED', uid = NULL, invitation_id = :i WHERE id = :id AND "
+                            + ZaloAccountContext.sql())
                     .param("i", invitationId).param("id", eventId).update();
             cfg.log(ZaloAutoSettings.A_MATCH, invitationId, null, "GHEP_TAY", null, by);
         });
     }
 
     public void dismiss(long eventId, String by) {
-        int n = jdbc.sql("UPDATE zalo_friend_event SET outcome = 'DISMISSED', uid = NULL WHERE id = :id AND outcome = 'NO_PHONE'")
+        int n = jdbc.sql("UPDATE zalo_friend_event SET outcome = 'DISMISSED', uid = NULL WHERE id = :id AND outcome = 'NO_PHONE' AND "
+                        + ZaloAccountContext.sql())
                 .param("id", eventId).update();
         if (n == 0) {
             throw new ImportException("Dòng này đã được xử lý.");
@@ -428,8 +442,8 @@ public class ZaloAutoService {
         }
         int n = jdbc.sql("""
                         UPDATE invitation SET zalo_add_state = 'QUEUED', zalo_approved_by = :by
-                        WHERE id = :id AND zalo_add_state = 'WAITING_APPROVAL' AND status IN ('SENT', 'CLICKED', 'FRIENDED')""")
-                .param("by", by).param("id", invitationId).update();
+                        WHERE id = :id AND account_id = :acct AND zalo_add_state = 'WAITING_APPROVAL' AND status IN ('SENT', 'CLICKED', 'FRIENDED')""")
+                .param("by", by).param("id", invitationId).param("acct", ZaloAccountContext.current()).update();
         if (n == 0) {
             throw new ImportException("Khách này không ở trạng thái chờ duyệt.");
         }
@@ -440,8 +454,8 @@ public class ZaloAutoService {
     public void retry(long invitationId, String by) {
         int n = jdbc.sql("""
                         UPDATE invitation SET zalo_add_state = 'WAITING_APPROVAL', zalo_add_code = NULL
-                        WHERE id = :id AND zalo_add_state = 'FAILED' AND status IN ('SENT', 'CLICKED', 'FRIENDED')""")
-                .param("id", invitationId).update();
+                        WHERE id = :id AND account_id = :acct AND zalo_add_state = 'FAILED' AND status IN ('SENT', 'CLICKED', 'FRIENDED')""")
+                .param("id", invitationId).param("acct", ZaloAccountContext.current()).update();
         if (n == 0) {
             throw new ImportException("Khách này không ở trạng thái lỗi cần thử lại.");
         }
@@ -450,14 +464,17 @@ public class ZaloAutoService {
 
     /** Thôi không để bộ nối thêm khách này nữa (người sẽ thêm tay). */
     public void release(long invitationId, String by) {
-        jdbc.sql("""
+        int changed = jdbc.sql("""
                         UPDATE invitation SET zalo_add_state = NULL, zalo_add_code = NULL
-                        WHERE id = :id AND zalo_add_state IN ('WAITING_APPROVAL', 'QUEUED', 'FAILED')""")
-                .param("id", invitationId).update();
-        cfg.log(ZaloAutoSettings.A_APPROVE, invitationId, null, "TU_XU_LY", null, by);
+                        WHERE id = :id AND account_id = :acct AND zalo_add_state IN ('WAITING_APPROVAL', 'QUEUED', 'FAILED')""")
+                .param("id", invitationId).param("acct", ZaloAccountContext.current()).update();
+        if (changed > 0) {
+            cfg.log(ZaloAutoSettings.A_APPROVE, invitationId, null, "TU_XU_LY", null, by);
+        }
     }
 
-    private record Task(long invitationId, long customerId, String uid, String provinceCode, String prevState, Long heldGroupId, Instant friendedAt) {
+    private record Task(long invitationId, long customerId, String uid, String provinceCode, String prevState, Long heldGroupId,
+                        boolean foreignHeldGroup, Instant friendedAt) {
     }
 
     /**
@@ -483,7 +500,7 @@ public class ZaloAutoService {
             }
             ZaloGateway.Status st = gateway.status();
             if (st.state() == ZaloGateway.State.TRIPPED) {
-                tripAndStop("BRIDGE_" + (st.tripReason() == null ? "TRIPPED" : st.tripReason()), false);
+                tripAndStop(bridgeTripReason(st), false);
                 return Step.TRIPPED;
             }
             if (Boolean.FALSE.equals(st.accountOk())) {
@@ -509,6 +526,12 @@ public class ZaloAutoService {
             }
             int minToCreate = groupSettings.minCustomers();
             for (Task t : tasks) {
+                if (t.foreignHeldGroup()) {
+                    // Dữ liệu cũ có thể đã gửi khách vào nhóm của tài khoản khác; cần người kiểm tra trước khi chọn lại.
+                    fail(t.invitationId(), "NHOM_KHAC_TAI_KHOAN");
+                    cfg.log(ZaloAutoSettings.A_MATCH, t.invitationId(), t.heldGroupId(), "BO_QUA", "NHOM_KHAC_TAI_KHOAN", "system");
+                    continue;
+                }
                 if (!contacts.stillEligible(t.customerId())) {
                     fail(t.invitationId(), "KHONG_DU_DIEU_KIEN");
                     cfg.log(ZaloAutoSettings.A_MATCH, t.invitationId(), null, "BO_QUA", "KHONG_DU_DIEU_KIEN", "system"); // không phải lần gọi Zalo: không tính hạn mức
@@ -547,13 +570,16 @@ public class ZaloAutoService {
         String states = mode == ZaloMode.AUTO ? "('QUEUED', 'WAITING_APPROVAL')" : "('QUEUED')";
         return jdbc.sql("""
                         SELECT i.id, i.customer_id, i.zalo_uid, c.province, i.zalo_add_state,
-                               coalesce(i.group_id, CASE WHEN i.reserved_until > now() THEN i.reserved_group_id END) AS held_group, i.friended_at
+                               g.id AS held_group, (g.account_id <> i.account_id) AS foreign_held_group, i.friended_at
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
+                        LEFT JOIN zalo_group g ON g.id = coalesce(i.group_id,
+                            CASE WHEN i.reserved_until > now() THEN i.reserved_group_id END)
                         WHERE i.zalo_add_state IN %s AND i.zalo_uid IS NOT NULL AND i.status IN ('SENT', 'CLICKED', 'FRIENDED')
                           AND (i.tin1_blocked_at IS NULL OR i.tin1_resent_at IS NOT NULL)
                         """.formatted(states) + testMode.onlyTestSql("c.phone") + " AND " + ZaloAccountContext.sql("i.account_id") + " ORDER BY i.friended_at NULLS LAST, i.id LIMIT 500")
                 .query((rs, n) -> new Task(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("zalo_uid"),
-                        rs.getString("province"), rs.getString("zalo_add_state"), (Long) rs.getObject("held_group"),
+                         rs.getString("province"), rs.getString("zalo_add_state"), (Long) rs.getObject("held_group"),
+                         rs.getBoolean("foreign_held_group"),
                         rs.getTimestamp("friended_at") == null ? null : rs.getTimestamp("friended_at").toInstant())).list();
     }
 
@@ -662,7 +688,8 @@ public class ZaloAutoService {
     }
 
     private void fail(long invitationId, String code) {
-        jdbc.sql("UPDATE invitation SET zalo_add_state = 'FAILED', zalo_add_code = :c, zalo_add_at = :at WHERE id = :id")
+        jdbc.sql("UPDATE invitation SET zalo_add_state = 'FAILED', zalo_add_code = :c, zalo_add_at = :at WHERE id = :id AND "
+                        + ZaloAccountContext.sql())
                 .param("c", code).param("at", OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC))
                 .param("id", invitationId).update();
     }
@@ -687,8 +714,11 @@ public class ZaloAutoService {
 
     /** Lý do dừng mà người bấm "Mở lại" không cần xác nhận thêm: chính họ vừa dừng, đăng xuất, hoặc chỉ mất phiên (quét QR là xong). */
     private static boolean needsCheck(String reason) {
-        return !(reason == null || reason.isBlank() || reason.equals("DUNG_TAY") || reason.equals("DANG_XUAT")
-                || reason.startsWith("SESSION_LOST"));
+        if (reason == null || reason.isBlank()) {
+            return false;
+        }
+        String cause = ZaloAutoSettings.normalizedTrip(reason);
+        return !cause.equals("DUNG_TAY") && !cause.equals("DANG_XUAT") && !cause.startsWith("SESSION_LOST");
     }
 
     /**
@@ -696,13 +726,14 @@ public class ZaloAutoService {
      * biết kết quả...) bắt buộc tick xác nhận đã xem nhật ký và kiểm tra nhóm bằng mắt. Chỉ bỏ cầu dao khi cầu nối nghe lại được.
      */
     public boolean reopen(String by, boolean checked) {
+        String reviewedHalt = cfg.haltToReview();
         if (cfg.tripped() && !checked && needsCheck(cfg.trippedReason())) {
             throw new ImportException("Bộ nối dừng vì: " + new ZaloLabels().reason(cfg.trippedReason())
                     + ". Hãy đọc nhật ký, kiểm tra nhóm trên Zalo bằng mắt rồi tick ô xác nhận trước khi mở lại.");
         }
         boolean ok = session.resume();
         if (ok) {
-            cfg.reopen(by);
+            cfg.reopen(by, reviewedHalt);
         }
         return ok;
     }
@@ -714,12 +745,25 @@ public class ZaloAutoService {
 
     /** Gán mã nhóm Zalo (chọn từ danh sách) cho một nhóm của Adh; bộ nối chỉ thêm khách vào nhóm có mã. */
     public void assignZaloGroup(long adhGroupId, String zaloGroupId) {
-        groups.setZaloGroupId(adhGroupId, zaloGroupId);
+        long account = ZaloAccountContext.current();
+        groups.findOfAccount(adhGroupId, account)
+                .orElseThrow(() -> new ImportException("Không tìm thấy nhóm thuộc tài khoản này."));
+        String groupId = zaloGroupId == null ? "" : zaloGroupId.strip();
+        if (!groupId.isEmpty()) {
+            if (!groupId.matches("\\d{1,32}")) {
+                throw new ImportException("Mã nhóm Zalo chỉ gồm chữ số (không phải link nhóm).");
+            }
+            var list = session.listGroups();
+            if (!list.ok() || list.groups().stream().noneMatch(g -> g.id().equals(groupId))) {
+                throw new ImportException("Không tìm thấy mã nhóm trong danh sách nhóm Zalo của tài khoản này. Hãy tải lại danh sách.");
+            }
+        }
+        groups.setZaloGroupId(adhGroupId, groupId, account);
     }
 
     /** Các nhóm của Adh, để chọn gán mã. */
     public List<GroupService.Group> adhGroups() {
-        return groups.list();
+        return groups.listOfAccount(ZaloAccountContext.current());
     }
 
     public ZaloSession.Login startLogin(String by) {
@@ -734,7 +778,7 @@ public class ZaloAutoService {
             if (!cfg.lastLoginDone()) {
                 cfg.log(ZaloAutoSettings.A_LOGIN, null, null, "XONG", null, by);
             }
-            String reason = cfg.trippedReason();
+            String reason = ZaloAutoSettings.normalizedTrip(cfg.trippedReason());
             // người vừa quét QR đúng tài khoản: mở lại nếu cầu dao nhảy vì mất phiên hoặc vì chính người đó đăng xuất
             if (cfg.tripped() && (reason.startsWith("SESSION_LOST") || reason.equals("DANG_XUAT"))) {
                 cfg.reopen(by);
@@ -756,8 +800,23 @@ public class ZaloAutoService {
 
     public ZaloGateway.Status bridgeStatus() {
         ZaloGateway.Status st = gateway.status();
-        lastStatus = st;
+        bridgeStatuses.put(ZaloAccountContext.current(), st);
         return st;
+    }
+
+    ZaloGateway.Status probeBeforeTick() {
+        ZaloGateway.Status st = bridgeStatus();
+        if (st.state() == ZaloGateway.State.TRIPPED) {
+            String reason = bridgeTripReason(st);
+            if (ZaloAutoSettings.haltsAllAccounts(reason)) {
+                tripAndStop(reason, false);
+            }
+        }
+        return st;
+    }
+
+    static String bridgeTripReason(ZaloGateway.Status st) {
+        return "BRIDGE_" + (st.tripReason() == null ? "SYSTEM_ERROR:TRIPPED" : st.tripReason());
     }
 
     /** Một dòng cảnh báo cho trang Tổng quan và Lô nhắn hôm nay. */
@@ -775,7 +834,7 @@ public class ZaloAutoService {
         if (cfg.tripped()) {
             return java.util.Optional.of(new Alert("bad", "Bộ nối Zalo đã DỪNG"));
         }
-        ZaloGateway.Status st = lastStatus;
+        ZaloGateway.Status st = lastBridgeStatus();
         if (st != null && st.state() == ZaloGateway.State.LOGIN_REQUIRED) {
             return java.util.Optional.of(new Alert("bad", "Phiên Zalo của tài khoản phụ hết hạn, cần quét mã QR lại"));
         }
@@ -796,8 +855,9 @@ public class ZaloAutoService {
                         SELECT i.id, c.name, c.province, i.zalo_add_state, i.zalo_add_code, i.friended_at
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
                         WHERE i.zalo_add_state IN ('WAITING_APPROVAL', 'QUEUED', 'FAILED')
-                          AND i.status IN ('SENT', 'CLICKED', 'FRIENDED')
+                          AND i.status IN ('SENT', 'CLICKED', 'FRIENDED') AND i.account_id = :acct
                         ORDER BY i.friended_at NULLS LAST, i.id""")
+                .param("acct", ZaloAccountContext.current())
                 .query((rs, n) -> {
                     var province = VnGeo.byCode(rs.getString("province")).orElse(null);
                     var g = groups.pickGroup(usable, province).orElse(null);
@@ -818,9 +878,11 @@ public class ZaloAutoService {
                         SELECT count(*) FROM invitation i JOIN customer c ON c.id = i.customer_id
                         JOIN invitation_campaign k ON k.id = i.campaign_id
                         WHERE i.status = 'FRIENDED' AND i.zalo_uid IS NOT NULL AND i.group_id IS NULL AND i.group_link_sent_at IS NULL
+                          AND i.account_id = :acct
                           AND (i.zalo_add_state IS NULL OR i.zalo_add_state IN ('WAITING_APPROVAL', 'QUEUED'))
                           AND (i.friended_at < :before OR c.province IS NULL OR c.province = '')
                           AND (i.friended_at IS NULL OR i.friended_at < :unknownAfter)""")
+                .param("acct", ZaloAccountContext.current())
                 .param("before", OffsetDateTime.ofInstant(clock.instant().minusSeconds(days * 86400L), ZoneOffset.UTC))
                 .param("unknownAfter", OffsetDateTime.ofInstant(clock.instant().minusSeconds(2 * 86400L), ZoneOffset.UTC))
                 .query(Long.class).single();
@@ -830,7 +892,8 @@ public class ZaloAutoService {
     public long attentionCount() {
         long inv = jdbc.sql("""
                         SELECT count(*) FROM invitation WHERE zalo_add_state IN ('WAITING_APPROVAL', 'FAILED')
-                          AND status IN ('SENT', 'CLICKED', 'FRIENDED')""").query(Long.class).single();
+                          AND status IN ('SENT', 'CLICKED', 'FRIENDED') AND account_id = :acct""")
+                .param("acct", ZaloAccountContext.current()).query(Long.class).single();
         return inv + manualCount() + longWaitingCount(groupSettings.alertDays());
     }
 

@@ -601,7 +601,7 @@ public class ZaloMessageService {
             }
             ZaloGateway.Status st = link.status();
             if (st.state() == ZaloGateway.State.TRIPPED) {
-                tripAndStop("BRIDGE_" + (st.tripReason() == null ? "TRIPPED" : st.tripReason()));
+                tripAndStop(ZaloAutoService.bridgeTripReason(st));
                 return Delivery.blocked(Block.MODE_OFF);
             }
             if (Boolean.FALSE.equals(st.accountOk())) {
@@ -617,6 +617,10 @@ public class ZaloMessageService {
                             RETURNING id""")
                     .param("at", OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)).param("sc", scope)
                     .param("k", kind.name()).param("r", refId, java.sql.Types.BIGINT).param("acct", ZaloAccountContext.current()).query(Long.class).single();
+            if (cfg.tripped()) {
+                deleteUnsentAttempt(logId);
+                return Delivery.blocked(Block.MODE_OFF);
+            }
             Sent s;
             try {
                 s = call.get();
@@ -630,15 +634,22 @@ public class ZaloMessageService {
         }
     }
 
+    private void deleteUnsentAttempt(long logId) {
+        jdbc.sql("DELETE FROM zalo_msg_log WHERE id = :id").param("id", logId).update();
+    }
+
     private Delivery finish(long logId, Sent s) {
         try {
             if (s.result() == Result.OK) {
-                setOutcome(logId, "OK", null);
+                setOutcome(logId, "OK", s.code());
+                if ("PARTIAL".equals(s.code())) {
+                    observePartialDelivery();
+                }
                 return new Delivery(Status.SENT, null, s);
             }
             if (s.notSent()) {
                 // Cầu nối chắc chắn chưa chạm Zalo: không tính hạn mức.
-                jdbc.sql("DELETE FROM zalo_msg_log WHERE id = :id").param("id", logId).update();
+                deleteUnsentAttempt(logId);
                 return switch (s.result()) {
                     case RATE_LIMITED, UNREACHABLE -> new Delivery(Status.RETRY, null, s);
                     case PERSON_ERROR -> new Delivery(Status.PERSON_ERROR, null, s); // đầu vào sai, chưa chạm Zalo
@@ -669,6 +680,16 @@ public class ZaloMessageService {
             log.warn("Lỗi sau khi gửi tin: {}", e.getClass().getSimpleName());
             tripAndStop("TIN_INTERRUPTED");
             return new Delivery(Status.TRIPPED, null, Sent.of(Result.SYSTEM_ERROR, "INTERRUPTED", false));
+        }
+    }
+
+    /** Phần đầu đã được xác nhận. Cầu nối vẫn có thể đã dừng vì lỗi ở phần sau. */
+    private void observePartialDelivery() {
+        ZaloGateway.Status status = link.status();
+        if (status.state() == ZaloGateway.State.TRIPPED) {
+            cfg.trip(ZaloAutoService.bridgeTripReason(status), "system");
+        } else if (!status.listening()) {
+            cfg.trip("TIN_INTERRUPTED", "system");
         }
     }
 

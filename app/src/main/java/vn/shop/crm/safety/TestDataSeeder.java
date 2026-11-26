@@ -54,7 +54,7 @@ public class TestDataSeeder {
     }
 
     public Result seed() {
-        if (!mode.testOnly()) {
+        if (mode.deploymentLive()) {
             throw new ImportException("Chỉ dựng được khách thử khi đang ở chế độ thử (khi chạy thật thì không).");
         }
         List<String> phones = new ArrayList<>();

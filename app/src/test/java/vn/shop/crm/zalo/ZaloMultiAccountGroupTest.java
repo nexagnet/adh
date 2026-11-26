@@ -31,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "app.zalo.group.deputy-id=99887766",
         "app.zalo.multi.enabled=true",
         "app.zalo.accounts[0].id=2",
+        "app.zalo.accounts[0].live=true",
         "app.zalo.accounts[0].bridge-url=http://127.0.0.1:1",
         "app.zalo.accounts[0].bridge-key=k2"})
 class ZaloMultiAccountGroupTest extends AbstractPostgresTest {
@@ -44,6 +45,7 @@ class ZaloMultiAccountGroupTest extends AbstractPostgresTest {
     @Autowired InviteService invites;
     @Autowired ZaloGroupCreationService svc;
     @Autowired ZaloGroupSettings cfg;
+    @Autowired ZaloAutoSettings auto;
     @Autowired ZaloAccountRegistry registry;
     @Autowired ZaloDeputyService deputies;
     @Autowired FakeZaloGateway fake;
@@ -102,7 +104,7 @@ class ZaloMultiAccountGroupTest extends AbstractPostgresTest {
         friended(1, 4, 5, 6);
         assertThat(stepAs(2)).isEqualTo(Step.PROPOSED);
         long pid = jdbc.sql("SELECT id FROM zalo_group_proposal").query(Long.class).single();
-        svc.approve(pid, "mẹ");
+        ZaloAccountContext.run(2, () -> svc.approve(pid, "mẹ"));
         assertThat(stepAs(2)).isEqualTo(Step.CREATED);
         assertThat(fake.creates).singleElement().satisfies(c -> assertThat(c.members()).containsExactly("70000001", "70000002", "70000003"));
         assertThat(jdbc.sql("SELECT account_id FROM zalo_group").query(Long.class).single()).isEqualTo(2L);
@@ -117,6 +119,19 @@ class ZaloMultiAccountGroupTest extends AbstractPostgresTest {
         assertThat(stepAs(2)).isEqualTo(Step.CREATED);
         assertThat(ZaloAccountContext.call(2, svc::mayCreateNow)).isFalse(); // vừa tạo: đang nghỉ
         assertThat(ZaloAccountContext.call(1, svc::mayCreateNow)).isTrue();   // tài khoản 1 chưa tạo gì
+    }
+
+    @Test
+    void nhomTaoThanhCongVanDuocGhiKhiCauNoiSauDoBiHanChe() {
+        ZaloAccountContext.run(2, () -> cfg.setMode(ZaloGroupMode.AUTO, true, "mẹ"));
+        friended(2, 1, 2, 3);
+        fake.statusAfterCreate = new ZaloGateway.Status(ZaloGateway.State.TRIPPED, "RESTRICTED:Z999", true, null, null, null);
+
+        assertThat(stepAs(2)).isEqualTo(Step.TRIPPED);
+        assertThat(groups.listOfAccount(2)).hasSize(1);
+        assertThat(jdbc.sql("SELECT state FROM zalo_group_proposal").query(String.class).single()).isEqualTo("DONE");
+        assertThat(auto.tripped()).isTrue();
+        assertThat(auto.sharedHaltSource()).isEqualTo(2L);
     }
 
     @Test

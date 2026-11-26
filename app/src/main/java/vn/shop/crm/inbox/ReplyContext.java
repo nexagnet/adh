@@ -8,6 +8,7 @@ import vn.shop.crm.geo.Province;
 import vn.shop.crm.geo.VnGeo;
 import vn.shop.crm.invite.GroupService;
 import vn.shop.crm.shipping.CanonicalStatus;
+import vn.shop.crm.zalo.ZaloAccountContext;
 
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
@@ -192,8 +193,11 @@ public class ReplyContext {
         }
         Optional<Inv> inv = on.contains(Field.NHOM) || on.contains(Field.LICH_SU_MOI) ? invitation(customerId) : Optional.empty();
         if (on.contains(Field.NHOM)) {
-            String grp = inv.map(Inv::groupId).flatMap(groups::find).map(g -> "đã vào nhóm \"" + clean(g.name(), 80) + "\" (" + g.scopeLabel() + ")")
-                    .orElseGet(() -> groups.pickGroup(province).map(g -> "chưa xác nhận vào nhóm; nhóm gợi ý: \"" + clean(g.name(), 80) + "\"")
+            long account = ZaloAccountContext.current();
+            String grp = inv.map(Inv::groupId).flatMap(id -> groups.findOfAccount(id, account))
+                    .map(g -> "đã vào nhóm \"" + clean(g.name(), 80) + "\" (" + g.scopeLabel() + ")")
+                    .orElseGet(() -> groups.pickGroupOfAccount(province, account)
+                            .map(g -> "chưa xác nhận vào nhóm; nhóm gợi ý: \"" + clean(g.name(), 80) + "\"")
                             .orElse("chưa có nhóm phù hợp"));
             add(lines, used, Field.NHOM, "Nhóm Zalo: " + grp);
         }
@@ -259,8 +263,10 @@ public class ReplyContext {
     }
 
     private Optional<Inv> invitation(long customerId) {
-        return jdbc.sql("SELECT status, sent_at, friended_at, joined_at, group_id FROM invitation WHERE customer_id = :c ORDER BY id DESC LIMIT 1")
-                .param("c", customerId)
+        return jdbc.sql("""
+                        SELECT status, sent_at, friended_at, joined_at, group_id FROM invitation
+                        WHERE customer_id = :c AND account_id = :acct ORDER BY id DESC LIMIT 1""")
+                .param("c", customerId).param("acct", ZaloAccountContext.current())
                 .query((rs, n) -> new Inv(rs.getString("status"), rs.getObject("sent_at", OffsetDateTime.class),
                         rs.getObject("friended_at", OffsetDateTime.class), rs.getObject("joined_at", OffsetDateTime.class),
                         (Long) rs.getObject("group_id")))
@@ -273,9 +279,10 @@ public class ReplyContext {
         }
         List<Turn> rows = new ArrayList<>(jdbc.sql("""
                         SELECT inbound_text, reply_text FROM reply_draft
-                        WHERE customer_id = :c AND state = 'SENT' AND inbound_text IS NOT NULL AND reply_text IS NOT NULL
+                        WHERE customer_id = :c AND account_id = :acct AND state = 'SENT'
+                          AND inbound_text IS NOT NULL AND reply_text IS NOT NULL
                         ORDER BY id DESC LIMIT :n""")
-                .param("c", customerId).param("n", HISTORY_ITEMS)
+                .param("c", customerId).param("acct", ZaloAccountContext.current()).param("n", HISTORY_ITEMS)
                 .query((rs, n) -> new Turn(rs.getString("inbound_text"), rs.getString("reply_text"))).list());
         java.util.Collections.reverse(rows);
         List<String> out = new ArrayList<>();

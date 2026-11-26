@@ -71,6 +71,32 @@ class ZaloAccountScopeTest extends AbstractPostgresTest {
     }
 
     @Test
+    void bridgeAndDeputyWarningsStopAllButLocalBridgeLimitsDoNot() {
+        assertThat(ZaloAutoSettings.haltsAllAccounts("BRIDGE_RESTRICTED:Z999")).isTrue();
+        assertThat(ZaloAutoSettings.haltsAllAccounts("BRIDGE_SYSTEM_ERROR:NO_ACK")).isTrue();
+        assertThat(ZaloAutoSettings.haltsAllAccounts("TRA_SO_ME_RESTRICTED")).isTrue();
+        assertThat(ZaloAutoSettings.haltsAllAccounts("RESTRICTED:WINDOW")).isFalse();
+        assertThat(ZaloAutoSettings.haltsAllAccounts("RESTRICTED:MSG_LIMIT")).isFalse();
+        assertThat(ZaloAutoSettings.haltsAllAccounts("BRIDGE_STOP")).isFalse();
+    }
+
+    @Test
+    void reopeningOneSourceKeepsAnIndependentSharedHaltActive() {
+        secondAccount();
+        auto.trip("BRIDGE_RESTRICTED:Z999", "test");
+        ZaloAccountContext.run(2, () -> auto.trip("SYSTEM_ERROR:TIMEOUT", "test"));
+
+        auto.reopen("test");
+        assertThat(auto.tripped()).isTrue();
+        assertThat(auto.sharedHaltSource()).isEqualTo(2L);
+        assertThat(ZaloAccountContext.call(2, auto::trippedReason)).isEqualTo("SYSTEM_ERROR:TIMEOUT");
+
+        ZaloAccountContext.run(2, () -> auto.reopen("test"));
+        assertThat(auto.tripped()).isFalse();
+        assertThat(ZaloAccountContext.call(2, auto::tripped)).isFalse();
+    }
+
+    @Test
     void taiKhoanThemMoiBatDauHanMucThapVaTaiKhoanMotKhongDoi() {
         int one = messages.limits().daily();
         assertThat(one).isEqualTo(10);

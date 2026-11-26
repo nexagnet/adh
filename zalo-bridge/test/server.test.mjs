@@ -10,10 +10,14 @@ async function boot(opts) {
   const server = createServer({ bridge: c.bridge, config: c.config });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
-  const call = async (method, path, { body, key = c.config.key } = {}) => {
+  const call = async (method, path, { body, key = c.config.key, accountTag } = {}) => {
     const r = await fetch(base + path, {
       method,
-      headers: { ...(key ? { 'X-Bridge-Key': key } : {}), 'Content-Type': 'application/json' },
+      headers: {
+        ...(key ? { 'X-Bridge-Key': key } : {}),
+        ...(accountTag !== undefined ? { 'X-Bridge-Account-Tag': accountTag } : {}),
+        'Content-Type': 'application/json',
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     return { status: r.status, json: await r.json() };
@@ -29,6 +33,20 @@ test('/healthz không cần khóa và không lộ thông tin; mọi đường kh
     assert.equal((await s.call(m, p, { key: 'sai-khoa-sai-khoa' })).status, 401);
   }
   await s.close();
+});
+
+test('dấu tài khoản khác bị từ chối trước khi đổi phiên', async () => {
+  const s = await boot();
+  try {
+    const tag = (await s.call('GET', '/status')).json.accountTag;
+    assert.match(tag, /^[0-9a-f]{12}$/);
+    const wrong = await s.call('POST', '/session/stop', { accountTag: '000000000000' });
+    assert.deepEqual(wrong, { status: 409, json: { error: 'account_mismatch' } });
+    assert.equal((await s.call('GET', '/status')).json.state, 'LISTENING');
+    assert.equal((await s.call('POST', '/session/stop', { accountTag: tag })).json.ok, true);
+  } finally {
+    await s.close();
+  }
 });
 
 test('trạng thái, sự kiện và thêm người theo đúng hợp đồng', async () => {

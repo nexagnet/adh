@@ -241,7 +241,7 @@ class FollowupSendTest extends AbstractPostgresTest {
 
     @Test
     void loiMoiHetHanThiKhongNhac() {
-        stopsFor("UPDATE invitation SET expires_at = now() + interval '1 day' WHERE id = :id");
+        stopsFor("UPDATE invitation SET expires_at = sent_at + interval '1 day' WHERE id = :id");
     }
 
     @Test

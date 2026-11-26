@@ -82,11 +82,13 @@ public class ZaloGroupCreationService implements ZaloTickHook {
     private final TransactionTemplate tx;
     private final Clock clock;
     private final ZaloDeputyService deputies;
+    private final ZaloAccountRegistry accounts;
     private final ReentrantLock lock = new ReentrantLock();
 
     public ZaloGroupCreationService(JdbcClient jdbc, ZaloGroupMaker maker, ZaloGateway gateway, ZaloSession session,
                                     ZaloAutoSettings auto, ZaloGroupSettings cfg, GroupService groups, InviteService invites,
-                                    ContactService contacts, TransactionTemplate tx, Clock clock, ZaloDeputyService deputies) {
+                                    ContactService contacts, TransactionTemplate tx, Clock clock, ZaloDeputyService deputies,
+                                    ZaloAccountRegistry accounts) {
         this.jdbc = jdbc;
         this.maker = maker;
         this.gateway = gateway;
@@ -99,6 +101,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
         this.tx = tx;
         this.clock = clock;
         this.deputies = deputies;
+        this.accounts = accounts;
     }
 
     /** Trần mềm số khách mỗi nhóm (lưu ở GroupService vì chính nó chọn nhóm). */
@@ -140,7 +143,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
             return;
         }
         Optional<Long> next = jdbc.sql("""
-                        SELECT p.id FROM zalo_group_proposal p JOIN zalo_group g ON g.id = p.group_id
+                        SELECT p.id FROM zalo_group_proposal p JOIN zalo_group g ON g.id = p.group_id AND g.account_id = p.account_id
                         WHERE p.account_id = :acct AND p.state = 'DONE' AND p.deputy_state IN ('FAILED', 'NONE') AND p.deputy_tries < :max
                           AND g.zalo_group_id IS NOT NULL ORDER BY p.id LIMIT 1""")
                 .param("max", MAX_AUTO_DEPUTY_TRIES).param("acct", ZaloAccountContext.current()).query(Long.class).optional();
@@ -323,9 +326,9 @@ public class ZaloGroupCreationService implements ZaloTickHook {
     private void expireOld() {
         jdbc.sql("""
                         UPDATE zalo_group_proposal SET state = 'EXPIRED', result_code = 'QUA_HAN', finished_at = :now
-                        WHERE state IN ('PROPOSED', 'APPROVED') AND created_at < :before""")
+                        WHERE account_id = :acct AND state IN ('PROPOSED', 'APPROVED') AND created_at < :before""")
                 .param("before", OffsetDateTime.ofInstant(clock.instant().minusSeconds(cfg.props().proposalExpireHours() * 3600L),
-                        ZoneOffset.UTC)).param("now", now()).update();
+                        ZoneOffset.UTC)).param("now", now()).param("acct", ZaloAccountContext.current()).update();
     }
 
     // ---------- hành động của người ở trang quản trị ----------
@@ -337,7 +340,8 @@ public class ZaloGroupCreationService implements ZaloTickHook {
         }
         int n = jdbc.sql("""
                         UPDATE zalo_group_proposal SET state = 'APPROVED', decided_by = :by, decided_at = :now
-                        WHERE id = :id AND state = 'PROPOSED'""").param("by", by).param("id", id).param("now", now()).update();
+                        WHERE id = :id AND account_id = :acct AND state = 'PROPOSED'""")
+                .param("by", by).param("id", id).param("now", now()).param("acct", ZaloAccountContext.current()).update();
         if (n == 0) {
             throw new ImportException("Đề xuất này không còn ở trạng thái chờ duyệt.");
         }
@@ -347,7 +351,8 @@ public class ZaloGroupCreationService implements ZaloTickHook {
     public void reject(long id, String by) {
         int n = jdbc.sql("""
                         UPDATE zalo_group_proposal SET state = 'REJECTED', decided_by = :by, decided_at = :now, finished_at = :now
-                        WHERE id = :id AND state IN ('PROPOSED', 'APPROVED')""").param("by", by).param("id", id).param("now", now()).update();
+                        WHERE id = :id AND account_id = :acct AND state IN ('PROPOSED', 'APPROVED')""")
+                .param("by", by).param("id", id).param("now", now()).param("acct", ZaloAccountContext.current()).update();
         if (n == 0) {
             throw new ImportException("Đề xuất này không còn chờ xử lý.");
         }
@@ -358,7 +363,8 @@ public class ZaloGroupCreationService implements ZaloTickHook {
     public void acknowledge(long id, String by) {
         int n = jdbc.sql("""
                         UPDATE zalo_group_proposal SET state = 'FAILED', result_code = 'KIEM_TRA_TAY', finished_at = :now
-                        WHERE id = :id AND state = 'CREATING'""").param("id", id).param("now", now()).update();
+                        WHERE id = :id AND account_id = :acct AND state = 'CREATING'""")
+                .param("id", id).param("now", now()).param("acct", ZaloAccountContext.current()).update();
         if (n == 0) {
             throw new ImportException("Đề xuất này không ở trạng thái chờ kiểm tra.");
         }
@@ -371,9 +377,14 @@ public class ZaloGroupCreationService implements ZaloTickHook {
      * chế độ thử). Ghi mã lỗi thật vào nhật ký. Hạn chế hay mất phiên thì dừng cầu dao như các việc khác.
      */
     public ZaloGroupMaker.DeputyResult retryDeputy(long proposalId, String by) {
+        if (!accounts.active().contains(ZaloAccountContext.current())) {
+            throw new ImportException("Tài khoản Zalo này đang tạm ngưng.");
+        }
         Map<String, Object> row = jdbc.sql("""
                         SELECT p.state, p.deputy_state, p.deputy_tries, g.zalo_group_id FROM zalo_group_proposal p
-                        LEFT JOIN zalo_group g ON g.id = p.group_id WHERE p.id = :id""").param("id", proposalId)
+                        LEFT JOIN zalo_group g ON g.id = p.group_id AND g.account_id = p.account_id
+                        WHERE p.id = :id AND p.account_id = :acct""")
+                .param("id", proposalId).param("acct", ZaloAccountContext.current())
                 .query((rs, n) -> {
                     Map<String, Object> m = new java.util.HashMap<>();
                     m.put("state", rs.getString("state"));
@@ -409,22 +420,33 @@ public class ZaloGroupCreationService implements ZaloTickHook {
                 throw new ImportException("Cầu nối Zalo chưa sẵn sàng (đang ngắt, mất phiên hoặc chưa nối). Mở lại cầu nối rồi thử lại.");
             }
             // Ghi số lần TRƯỚC khi gọi Zalo: sập giữa chừng vẫn tính một lần.
-            jdbc.sql("UPDATE zalo_group_proposal SET deputy_tries = deputy_tries + 1 WHERE id = :id").param("id", proposalId).update();
+            int claimed = jdbc.sql("""
+                            UPDATE zalo_group_proposal SET deputy_tries = deputy_tries + 1
+                            WHERE id = :id AND account_id = :acct AND state = 'DONE'
+                              AND deputy_state IN ('FAILED', 'NONE') AND deputy_tries < :max""")
+                    .param("id", proposalId).param("acct", ZaloAccountContext.current()).param("max", MAX_DEPUTY_TRIES).update();
+            if (claimed == 0) {
+                throw new ImportException("Nhóm này không còn lượt thử lại phó nhóm.");
+            }
             ZaloGroupMaker.DeputyResult r = maker.setDeputy(zaloGroup, deputy);
             if (!r.ok() && notReachedZalo(r)) {
                 // chưa chạm Zalo: trả lại lần đã tính, giữ nguyên mã lỗi cũ, không dừng cầu dao
-                jdbc.sql("UPDATE zalo_group_proposal SET deputy_tries = greatest(deputy_tries - 1, 0) WHERE id = :id").param("id", proposalId).update();
+                jdbc.sql("UPDATE zalo_group_proposal SET deputy_tries = greatest(deputy_tries - 1, 0) WHERE id = :id AND "
+                                + ZaloAccountContext.sql()).param("id", proposalId).update();
                 auto.log(ZaloGroupSettings.A_GROUP, null, null, "PHO_NHOM_CHUA_GOI", r.code() == null ? "KHONG_RO" : r.code(), by);
                 return r;
             }
             if (r.ok()) {
-                jdbc.sql("UPDATE zalo_group_proposal SET deputy_state = 'OK', deputy_code = NULL WHERE id = :id").param("id", proposalId).update();
+                jdbc.sql("UPDATE zalo_group_proposal SET deputy_state = 'OK', deputy_code = NULL WHERE id = :id AND "
+                                + ZaloAccountContext.sql()).param("id", proposalId).update();
                 auto.log(ZaloGroupSettings.A_GROUP, null, null, "PHO_NHOM_OK", null, by);
             } else {
                 String code = r.code() == null ? "KHONG_RO" : r.code();
-                jdbc.sql("UPDATE zalo_group_proposal SET deputy_code = :c WHERE id = :id").param("c", code).param("id", proposalId).update();
+                jdbc.sql("UPDATE zalo_group_proposal SET deputy_code = :c WHERE id = :id AND " + ZaloAccountContext.sql())
+                        .param("c", code).param("id", proposalId).update();
                 auto.log(ZaloGroupSettings.A_GROUP, null, null, "PHO_NHOM_LOI", code, by);
-                if (r.outcome() == ZaloGroupMaker.GroupOutcome.RESTRICTED || r.outcome() == ZaloGroupMaker.GroupOutcome.SESSION_LOST) {
+                if (r.outcome() == ZaloGroupMaker.GroupOutcome.RESTRICTED || r.outcome() == ZaloGroupMaker.GroupOutcome.SESSION_LOST
+                        || r.outcome() == ZaloGroupMaker.GroupOutcome.SYSTEM_ERROR) {
                     tripAndStop(r.outcome().name() + ":" + code);
                 }
             }
@@ -450,7 +472,8 @@ public class ZaloGroupCreationService implements ZaloTickHook {
         if (blocked != null) {
             return blocked;
         }
-        Map<String, Object> row = jdbc.sql("SELECT scope, group_name FROM zalo_group_proposal WHERE id = :id AND state = 'APPROVED'")
+        Map<String, Object> row = jdbc.sql("SELECT scope, group_name FROM zalo_group_proposal WHERE id = :id AND state = 'APPROVED' AND "
+                        + ZaloAccountContext.sql())
                 .param("id", id).query((rs, n) -> Map.<String, Object>of("scope", rs.getString("scope"),
                         "name", rs.getString("group_name"))).optional().orElse(null);
         if (row == null) {
@@ -465,14 +488,20 @@ public class ZaloGroupCreationService implements ZaloTickHook {
         }
         String name = nextName(scope);
         // Ghi TRƯỚC khi gọi Zalo: sập giữa chừng thì dòng CREATING còn lại, lần sau dừng thay vì thử lại.
-        jdbc.sql("UPDATE zalo_group_proposal SET state = 'CREATING', started_at = :now, group_name = :n WHERE id = :id")
-                .param("n", name).param("id", id).param("now", now()).update();
+        int claimed = jdbc.sql("""
+                        UPDATE zalo_group_proposal SET state = 'CREATING', started_at = :now, group_name = :n
+                        WHERE id = :id AND account_id = :acct AND state = 'APPROVED'""")
+                .param("n", name).param("id", id).param("now", now()).param("acct", ZaloAccountContext.current()).update();
+        if (claimed == 0) {
+            return Step.NOTHING;
+        }
         String deputy = deputyUid(members);
         ZaloGroupMaker.Created r = maker.createGroup(name, members.stream().map(Member::uid).toList(), deputy, cfg.welcomeText());
         if (r.outcome() == ZaloGroupMaker.GroupOutcome.UNREACHABLE || r.outcome() == ZaloGroupMaker.GroupOutcome.RATE_LIMITED
                 || (r.notCreated() && r.outcome() == ZaloGroupMaker.GroupOutcome.SYSTEM_ERROR)) {
             // chắc chắn chưa tạo gì (chưa chạm Zalo hoặc cầu nối từ chối trước): trả về hàng đợi, không tính trần ngày, thử lại nhịp sau
-            jdbc.sql("UPDATE zalo_group_proposal SET state = 'APPROVED', started_at = NULL WHERE id = :id").param("id", id).update();
+            jdbc.sql("UPDATE zalo_group_proposal SET state = 'APPROVED', started_at = NULL WHERE id = :id AND "
+                            + ZaloAccountContext.sql()).param("id", id).update();
             return Step.UNREACHABLE;
         }
         try {
@@ -480,7 +509,8 @@ public class ZaloGroupCreationService implements ZaloTickHook {
                 case OK -> {
                     record(id, scope, name, members, r);
                     auto.log(ZaloGroupSettings.A_GROUP, null, null, "OK", null, "system");
-                    return Step.CREATED;
+                    // Cầu nối có thể tạo nhóm thành công rồi dừng khi bật link, đặt phó nhóm hoặc gửi tin chào bị hạn chế.
+                    return gatewayBlocker() == Step.TRIPPED ? Step.TRIPPED : Step.CREATED;
                 }
                 case PERSON_ERROR -> {
                     finish(id, "FAILED", r.code() == null ? "DAU_VAO_SAI" : r.code());
@@ -506,9 +536,12 @@ public class ZaloGroupCreationService implements ZaloTickHook {
 
     /** Cầu nối chưa sẵn sàng hoặc đã ngắt: trả bước phải dừng ở đó (đã ngắt cầu dao nếu cần); null = được phép gọi Zalo. */
     private Step gatewayBlocker() {
+        if (auto.tripped()) {
+            return Step.TRIPPED;
+        }
         ZaloGateway.Status st = gateway.status();
         if (st.state() == ZaloGateway.State.TRIPPED) {
-            tripAndStop("BRIDGE_" + (st.tripReason() == null ? "TRIPPED" : st.tripReason()));
+            tripAndStop(ZaloAutoService.bridgeTripReason(st));
             return Step.TRIPPED;
         }
         if (Boolean.FALSE.equals(st.accountOk())) {
@@ -528,11 +561,12 @@ public class ZaloGroupCreationService implements ZaloTickHook {
                         SELECT i.id, i.customer_id, i.zalo_uid FROM zalo_group_proposal_member m
                         JOIN invitation i ON i.id = m.invitation_id
                         JOIN invitation_campaign k ON k.id = i.campaign_id
-                        WHERE m.proposal_id = :p AND i.status = 'FRIENDED' AND i.zalo_uid IS NOT NULL AND i.group_id IS NULL
+                        WHERE m.proposal_id = :p AND i.account_id = :acct AND i.status = 'FRIENDED' AND i.zalo_uid IS NOT NULL AND i.group_id IS NULL
                           AND k.allow_group_creation
                           AND (i.zalo_add_state IS NULL OR i.zalo_add_state IN ('WAITING_APPROVAL', 'QUEUED'))
                         ORDER BY i.friended_at NULLS LAST, i.id""")
-                .param("p", proposalId).query((rs, n) -> new Member(rs.getLong(1), rs.getLong(2), rs.getString(3))).list()
+                .param("p", proposalId).param("acct", ZaloAccountContext.current())
+                .query((rs, n) -> new Member(rs.getLong(1), rs.getLong(2), rs.getString(3))).list()
                 .forEach(m -> {
                     if (contacts.mayContact(m.customerId())) {
                         out.add(m);
@@ -560,7 +594,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
             String link = safeLink(r.link());
             boolean linkOk = link != null;
             groupId = groups.create(name, link, cfg.targetCustomers(), scope.code(), ZaloAccountContext.current());
-            groups.setZaloGroupId(groupId, r.groupId());
+            groups.setZaloGroupId(groupId, r.groupId(), ZaloAccountContext.current());
             if (linkOk) {
                 groups.setStatus(groupId, GroupStatus.OPEN);
             } else {
@@ -584,8 +618,9 @@ public class ZaloGroupCreationService implements ZaloTickHook {
             }
             jdbc.sql("""
                             UPDATE zalo_group_proposal SET state = 'DONE', finished_at = :now, group_id = :g, added_count = :a,
-                                   link_ok = :l, deputy_state = :d, deputy_code = :dc WHERE id = :id""")
+                                   link_ok = :l, deputy_state = :d, deputy_code = :dc WHERE id = :id AND account_id = :acct""")
                     .param("now", now()).param("g", groupId).param("a", added).param("l", linkOk).param("d", r.deputy())
+                     .param("acct", ZaloAccountContext.current())
                     .param("dc", "FAILED".equals(r.deputy()) ? r.deputyCode() : null, java.sql.Types.VARCHAR).param("id", proposalId).update();
         });
         if ("OK".equals(r.welcome()) || "FAILED".equals(r.welcome()) || "SKIPPED".equals(r.welcome())) {
@@ -611,7 +646,8 @@ public class ZaloGroupCreationService implements ZaloTickHook {
     }
 
     private void finish(long id, String state, String code) {
-        jdbc.sql("UPDATE zalo_group_proposal SET state = :s, result_code = :c, finished_at = :now WHERE id = :id")
+        jdbc.sql("UPDATE zalo_group_proposal SET state = :s, result_code = :c, finished_at = :now WHERE id = :id AND "
+                        + ZaloAccountContext.sql())
                 .param("s", state).param("c", code).param("now", now()).param("id", id).update();
     }
 
@@ -634,7 +670,8 @@ public class ZaloGroupCreationService implements ZaloTickHook {
         Map<Long, Proposal> out = new LinkedHashMap<>();
         jdbc.sql("""
                         SELECT p.*, (SELECT count(*) FROM zalo_group_proposal_member m WHERE m.proposal_id = p.id) AS members
-                        FROM zalo_group_proposal p ORDER BY p.id DESC LIMIT :n""").param("n", limit)
+                        FROM zalo_group_proposal p WHERE p.account_id = :acct ORDER BY p.id DESC LIMIT :n""")
+                .param("n", limit).param("acct", ZaloAccountContext.current())
                 .query((rs, n) -> new Proposal(rs.getLong("id"), rs.getString("scope"),
                         GeoArea.parse(rs.getString("scope")).map(GeoArea::label).orElse("Khu vực lạ"), rs.getString("group_name"),
                         rs.getString("reason"), rs.getInt("waiting_count"), rs.getString("state"),

@@ -1,6 +1,5 @@
 package vn.shop.crm.zalo;
 
-import jakarta.servlet.http.HttpSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,7 +10,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import vn.shop.crm.AbstractPostgresTest;
-import vn.shop.crm.common.AppSettings;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -22,37 +20,64 @@ import static org.springframework.security.test.web.servlet.setup.SecurityMockMv
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** D23, PR 7: trang Zalo chọn tài khoản để xem và chỉnh; nút bấm áp dụng cho tài khoản đang chọn; trần tổng; tạm ngưng tài khoản thêm. */
-@Import(ZaloTestConfig.class)
+@Import(ZaloTwoBridgeSchedulerTest.Bridges.class)
 @TestPropertySource(properties = {
         "app.zalo.auto.enabled=true",
         "app.zalo.auto.bridge-key=test",
         "app.zalo.auto.initial-delay-millis=3600000",
         "app.zalo.auto.tick-millis=3600000",
         "app.zalo.multi.enabled=true",
+        "app.zalo.safety.live=true",
         "app.zalo.accounts[0].id=2",
         "app.zalo.accounts[0].bridge-url=http://127.0.0.1:1",
         "app.zalo.accounts[0].bridge-key=k2"})
 class ZaloMultiAccountPageTest extends AbstractPostgresTest {
 
     @Autowired WebApplicationContext context;
-    @Autowired FakeZaloGateway fake;
-    @Autowired AppSettings settings;
+    @Autowired ZaloTwoBridgeSchedulerTest.BridgePair bridges;
     @Autowired ZaloMessageService messages;
+    @Autowired ZaloAutoSettings auto;
     @Autowired ZaloAccountRegistry registry;
     MockMvc mvc;
 
     @BeforeEach
     void setUp() {
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
-        fake.reset();
-        registry.ensureRows();
+        bridges.reset();
+        registry.setEnabled(2, true);
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor owner() {
         return user("admin").roles("OWNER");
+    }
+
+    @Test
+    void cauHinhHienTrangThaiVaGiuTungTaiKhoanKhiThaoTac() throws Exception {
+        mvc.perform(get("/zalo?tab=cau-hinh&account=2").with(owner())).andExpect(status().isOk())
+                .andExpect(content().string(containsString("id=\"zalo-account-config\"")))
+                .andExpect(content().string(containsString("Cấu hình tài khoản Zalo")))
+                .andExpect(content().string(containsString("Chỉ dùng số thử")))
+                .andExpect(content().string(containsString("/zalo/login/start?account=2")))
+                .andExpect(content().string(containsString("/zalo/accounts/2/enabled?account=2")));
+
+        mvc.perform(post("/zalo/login/start?account=2").param("tab", "cau-hinh").with(owner()).with(csrf()))
+                .andExpect(redirectedUrl("/zalo/login?tab=cau-hinh&account=2"));
+        bridges.second().login = ZaloSession.Login.of(ZaloSession.LoginState.DONE);
+        mvc.perform(get("/zalo/login?tab=cau-hinh&account=2").with(owner()))
+                .andExpect(redirectedUrl("/zalo?tab=cau-hinh&account=2"));
+
+        mvc.perform(post("/zalo/accounts/2/enabled?account=2").param("on", "false").param("tab", "cau-hinh")
+                        .with(owner()).with(csrf()))
+                .andExpect(redirectedUrl("/zalo?tab=cau-hinh&account=2"));
+
+        mvc.perform(get("/zalo?tab=cau-hinh&account=1").with(owner())).andExpect(status().isOk())
+                .andExpect(content().string(containsString("id=\"zalo-account-config\"")))
+                .andExpect(content().string(containsString("Có thể gửi cho khách thật")))
+                .andExpect(content().string(not(containsString("/zalo/accounts/1/enabled"))));
     }
 
     @Test
@@ -71,28 +96,84 @@ class ZaloMultiAccountPageTest extends AbstractPostgresTest {
     }
 
     @Test
-    void nutBamApDungChoTaiKhoanDangChon() throws Exception {
+    void haiTabDungTaiKhoanTrongBieuMauVaTrongTrangChuyenHuong() throws Exception {
         MockHttpSession session = new MockHttpSession();
-        mvc.perform(get("/zalo?account=2").with(owner()).session(session)).andExpect(status().isOk());
-        mvc.perform(post("/zalo/messages/limits").with(owner()).with(csrf()).session(session).param("daily", "4").param("gap", "150"))
-                .andExpect(status().is3xxRedirection());
+        mvc.perform(get("/zalo?account=2&tab=gioi-han").with(owner()).session(session)).andExpect(status().isOk())
+                .andExpect(content().string(containsString("action=\"/zalo/messages/limits?account=2\"")));
+        mvc.perform(get("/zalo?account=1").with(owner()).session(session)).andExpect(status().isOk());
+        mvc.perform(post("/zalo/messages/limits?account=2").with(owner()).with(csrf()).session(session).param("daily", "4").param("gap", "150"))
+                .andExpect(redirectedUrl("/zalo?tab=gioi-han&account=2"));
         assertThat(jdbc.sql("SELECT value FROM app_setting WHERE key = 'acct2.zalo.msg.daily'").query(String.class).single()).isEqualTo("4");
         assertThat(jdbc.sql("SELECT count(*) FROM app_setting WHERE key = 'zalo.msg.daily'").query(Long.class).single()).isZero();
-        // trở về tài khoản 1: cùng nút, khóa cũ
-        mvc.perform(get("/zalo?account=1").with(owner()).session(session)).andExpect(status().isOk());
-        mvc.perform(post("/zalo/messages/limits").with(owner()).with(csrf()).session(session).param("daily", "9").param("gap", "150"))
-                .andExpect(status().is3xxRedirection());
+        mvc.perform(get("/zalo?account=2").with(owner()).session(session)).andExpect(status().isOk());
+        mvc.perform(post("/zalo/messages/limits?account=1").with(owner()).with(csrf()).session(session).param("daily", "9").param("gap", "150"))
+                .andExpect(redirectedUrl("/zalo?tab=gioi-han&account=1"));
         assertThat(jdbc.sql("SELECT value FROM app_setting WHERE key = 'zalo.msg.daily'").query(String.class).single()).isEqualTo("9");
     }
 
     @Test
-    void maTaiKhoanLaKhongLamHongVaKhongDoiSangTaiKhoanChuaKhaiBao() throws Exception {
+    void tuChoiBieuMauThieuSaiHoacCoHaiMaTaiKhoan() throws Exception {
         MockHttpSession session = new MockHttpSession();
         mvc.perform(get("/zalo?account=7").with(owner()).session(session)).andExpect(status().isOk());
         mvc.perform(get("/zalo?account=abc").with(owner()).session(session)).andExpect(status().isOk());
-        mvc.perform(post("/zalo/messages/limits").with(owner()).with(csrf()).session(session).param("daily", "5").param("gap", "150"))
-                .andExpect(status().is3xxRedirection());
-        assertThat(jdbc.sql("SELECT value FROM app_setting WHERE key = 'zalo.msg.daily'").query(String.class).single()).isEqualTo("5");
+        mvc.perform(get("/zalo?account=2").with(owner()).session(session)).andExpect(status().isOk());
+        for (String query : new String[]{"", "?account=7", "?account=abc", "?account=1&account=2"}) {
+            mvc.perform(post("/zalo/messages/limits" + query).with(owner()).with(csrf()).session(session)
+                            .param("daily", "5").param("gap", "150"))
+                    .andExpect(status().isBadRequest());
+        }
+        assertThat(jdbc.sql("SELECT count(*) FROM app_setting WHERE key IN ('zalo.msg.daily', 'acct2.zalo.msg.daily')")
+                .query(Long.class).single()).isZero();
+    }
+
+    @Test
+    void qrGiuTaiKhoanKhiTabKhacDoiLuaChon() throws Exception {
+        MockHttpSession session = new MockHttpSession();
+        bridges.first().login = new ZaloSession.Login(ZaloSession.LoginState.WAITING_SCAN, new byte[]{1, 2, 3});
+        bridges.second().login = new ZaloSession.Login(ZaloSession.LoginState.WAITING_SCAN, new byte[]{4, 5, 6});
+        mvc.perform(post("/zalo/login/start?account=2").with(owner()).with(csrf()).session(session))
+                .andExpect(redirectedUrl("/zalo/login?account=2"));
+        mvc.perform(get("/zalo?account=1").with(owner()).session(session)).andExpect(status().isOk());
+        mvc.perform(get("/zalo/login?account=2").with(owner()).session(session)).andExpect(status().isOk())
+                .andExpect(content().string(containsString("href=\"/zalo?tab=cau-hinh&amp;account=2\"")))
+                .andExpect(content().string(containsString("data:image/png;base64,BAUG")))
+                .andExpect(content().string(not(containsString("data:image/png;base64,AQID"))));
+        mvc.perform(get("/zalo/login").with(owner()).session(session)).andExpect(status().isBadRequest());
+        bridges.second().login = ZaloSession.Login.of(ZaloSession.LoginState.DONE);
+        mvc.perform(get("/zalo/login?account=2").with(owner()).session(session))
+                .andExpect(redirectedUrl("/zalo?account=2"));
+    }
+
+    @Test
+    void dangXuatChiGoiBridgeCuaTabDaGui() throws Exception {
+        MockHttpSession session = new MockHttpSession();
+        mvc.perform(get("/zalo?account=2").with(owner()).session(session)).andExpect(status().isOk())
+                .andExpect(content().string(containsString("action=\"/zalo/logout?account=2\"")));
+        mvc.perform(get("/zalo?account=1").with(owner()).session(session)).andExpect(status().isOk());
+        mvc.perform(post("/zalo/logout?account=2").with(owner()).with(csrf()).session(session))
+                .andExpect(redirectedUrl("/zalo?tab=tinh-trang&account=2"));
+        assertThat(bridges.second().logouts).isEqualTo(1);
+        assertThat(bridges.first().logouts).isZero();
+    }
+
+    @Test
+    void cauDaoChungChiHienNutMoLaiOTaiKhoanBaoLoi() throws Exception {
+        ZaloAccountContext.run(2, () -> auto.trip("RESTRICTED:VERIFY", "test"));
+        mvc.perform(get("/zalo?account=1").with(owner())).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Tất cả tài khoản đang dừng")))
+                .andExpect(content().string(containsString("href=\"/zalo?account=2\"")))
+                .andExpect(content().string(not(containsString("action=\"/zalo/reopen?account=1\""))));
+        mvc.perform(get("/zalo?account=2").with(owner())).andExpect(status().isOk())
+                .andExpect(content().string(containsString("action=\"/zalo/reopen?account=2\"")));
+    }
+
+    @Test
+    void taiKhoanThuKhongTaoDonGiaVaoDuLieuDungChungDangChayThat() throws Exception {
+        mvc.perform(get("/zalo?account=2&tab=thu").with(owner())).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Đang ở chế độ thử")))
+                .andExpect(content().string(not(containsString("/zalo/test-numbers/seed"))));
+        mvc.perform(post("/zalo/test-numbers/seed?account=2").with(owner()).with(csrf()))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

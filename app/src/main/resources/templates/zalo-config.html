@@ -1,0 +1,52 @@
+<section xmlns:th="http://www.thymeleaf.org" th:fragment="accountConfig" class="panel stack" id="zalo-account-config">
+    <h2>Cấu hình tài khoản Zalo</h2>
+    <p class="muted" th:text="${accountLabel}">Tài khoản phụ 1</p>
+
+    <div class="cards">
+        <div class="card">
+            <div class="label">Cầu nối</div>
+            <strong th:text="${enabled ? @zaloLabels.bridgeState(bridge.state.name()) : 'Đang tắt'}">Đang nghe</strong>
+        </div>
+        <div class="card">
+            <div class="label">Phạm vi gửi</div>
+            <strong th:text="${!enabled ? 'Cầu nối đang tắt' : (@testMode.testOnly() ? 'Chỉ dùng số thử' : 'Có thể gửi cho khách thật')}">Chỉ dùng số thử</strong>
+        </div>
+        <div class="card">
+            <div class="label">Chạy nhiều tài khoản</div>
+            <strong th:text="${multiRunning ? 'Đã bật trong cấu hình máy chủ' : 'Đang tắt trong cấu hình máy chủ'}">Đang tắt trong cấu hình máy chủ</strong>
+        </div>
+        <div class="card" th:if="${account != 1}">
+            <div class="label">Tài khoản đang xem</div>
+            <strong th:text="${accountEnabled ? 'Đã cho phép xếp lịch' : 'Chưa cho phép xếp lịch'}">Chưa cho phép xếp lịch</strong>
+        </div>
+    </div>
+
+    <p class="notice info" th:if="${enabled and account != 1 and !multiRunning}">
+        Bạn có thể đăng nhập và xác minh tài khoản này. Bộ hẹn giờ chờ <code>APP_ZALO_MULTI_ENABLED</code> trong cấu hình máy chủ.
+    </p>
+    <p class="muted" th:unless="${multi}">
+        Để hiện tài khoản thứ hai, khai báo cầu nối trong cấu hình triển khai rồi tải lại trang. Máy hai giữ khóa và phiên đăng nhập riêng.
+    </p>
+
+    <div class="formrow" th:if="${enabled}">
+        <form th:action="@{/zalo/login/start(account=${account})}" method="post">
+            <input type="hidden" name="tab" value="cau-hinh">
+            <button type="submit" class="btn">Đăng nhập bằng QR</button>
+        </form>
+        <form th:if="${account != 1}" th:action="@{/zalo/accounts/{id}/enabled(id=${account}, account=${account})}" method="post">
+            <input type="hidden" name="on" th:value="${!accountEnabled}">
+            <input type="hidden" name="tab" value="cau-hinh">
+            <button type="submit" class="btn secondary"
+                    th:disabled="${!accountEnabled and (!bridge.listening() or bridge.accountOk != true)}"
+                    th:text="${accountEnabled ? 'Tạm ngưng tài khoản này' : 'Xác minh và bật tài khoản này'}">Xác minh và bật tài khoản này</button>
+        </form>
+    </div>
+    <p class="muted" th:if="${enabled and account != 1 and !accountEnabled}">
+        Cần đăng nhập đúng tài khoản ở cả hai cầu nối để xác minh.
+    </p>
+    <div class="actions">
+        <a class="btn secondary" th:href="@{/zalo(tab='thu', account=${account})}">Danh sách số thử</a>
+        <a class="btn secondary" th:if="${enabled}" th:href="@{/zalo(tab='gioi-han', account=${account})}">Chỉnh giới hạn gửi</a>
+        <a class="btn secondary" th:if="${enabled}" th:href="@{/zalo(tab='nhom', account=${account})} + '#pho-nhom'">Cấu hình phó nhóm</a>
+    </div>
+</section>

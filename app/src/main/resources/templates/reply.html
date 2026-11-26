@@ -10,13 +10,13 @@
             <h1>Trợ lý AI trả lời khách</h1>
             <p class="hint">Khi khách <strong>tự nhắn riêng</strong> cho tài khoản Zalo phụ, trợ lý AI có thể trả lời trong phạm vi hẹp: <strong>mời vào nhóm</strong> và
                 <strong>ưu đãi khi vào nhóm</strong>. Mọi câu khác (giá, còn hàng, bảo hành, đổi trả, phàn nàn, muốn mua, muốn gặp người thật) được chuyển cho
-                <a th:href="@{/handoffs}">người thật ở trang Việc cần xử lý</a>. <a th:href="@{/zalo}">Về trang Zalo tài khoản phụ</a>.</p>
+                <a th:href="@{/handoffs}">người thật ở trang Việc cần xử lý</a>. <a th:href="@{/zalo(account=${account})}">Về trang Zalo tài khoản phụ</a>.</p>
         </div>
     </header>
 
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
     <nav class="tabs" aria-label="Các phần của trợ lý AI">
-        <a th:each="t : ${tabs}" th:href="@{/zalo/reply(tab=${t.key})}" th:text="${t.label}"
+        <a th:each="t : ${tabs}" th:href="@{/zalo/reply(tab=${t.key}, account=${account})}" th:text="${t.label}"
            th:classappend="${t.key == tab} ? 'active'" th:attr="aria-current=${t.key == tab} ? 'page'">Hôm nay</a>
     </nav>
 
@@ -52,7 +52,7 @@
             <strong th:text="${#numbers.formatDecimal(comebackThreshold, 1, 2)}">0,85</strong> thì hệ thống tự gỡ cờ (chỉ đánh dấu "đã gỡ" kèm giờ), đưa khách vào hàng chờ vào nhóm theo khu vực
             và gửi <strong>một</strong> tin mẫu cố định (không do AI viết). Mỗi khách tối đa một lần tự gỡ trong 30 ngày, luôn có nút Hoàn tác, dùng chung hạn mức và cầu dao.
             Hệ thống không bao giờ nhắn người chưa nhắn trước.</p>
-        <form class="stack" th:action="@{/zalo/comeback-mode}" method="post">
+        <form class="stack" th:action="@{/zalo/comeback-mode(account=${account})}" method="post">
             <label class="field" th:each="m : ${comebackModes}">
                 <input type="radio" name="mode" th:value="${m.name()}" th:checked="${m == comebackChosen}">
                 <span th:text="${m.label()}">Tắt</span>
@@ -77,7 +77,7 @@
             <li>Cần cùng điều kiện đọc tin riêng như bên trên (ba công tắc ở máy chủ); không cần bật nấc trả lời.</li>
         </ul>
         <p>Đang có <a th:href="@{/handoffs}"><strong th:text="${warrantyOpen}">0</strong> việc</a> chờ xử lý.</p>
-        <form class="stack" th:action="@{/zalo/reply/warranty}" method="post">
+        <form class="stack" th:action="@{/zalo/reply/warranty(account=${account})}" method="post">
             <label class="field"><input type="radio" name="enabled" value="false" th:checked="${!warrantyOn}"> <span>Tắt</span></label>
             <label class="field"><input type="radio" name="enabled" value="true" th:checked="${warrantyOn}"> <span>Bật phân loại bảo hành và khiếu nại</span></label>
             <div><button type="submit" class="btn">Lưu</button></div>
@@ -92,7 +92,7 @@
             <li>Mỗi tin một lần, không tính vào số khách được nhắn mỗi ngày. Khách đã từ chối không bao giờ được thả tim.</li>
             <li>Tắt thả tim thì tin cảm ơn lại được trả lời ngắn một câu như trước.</li>
         </ul>
-        <form class="stack" th:action="@{/zalo/reply/react}" method="post">
+        <form class="stack" th:action="@{/zalo/reply/react(account=${account})}" method="post">
             <label class="field"><input type="radio" name="enabled" value="true" th:checked="${reactOn}"> <span>Bật thả tim</span></label>
             <label class="field"><input type="radio" name="enabled" value="false" th:checked="${!reactOn}"> <span>Tắt</span></label>
             <div><button type="submit" class="btn">Lưu</button></div>
@@ -101,7 +101,7 @@
 
     <section class="panel stack" id="nac" th:if="${tab == 'bat-tat'}">
         <h2>Nấc</h2>
-        <form class="stack" th:action="@{/zalo/reply/mode}" method="post">
+        <form class="stack" th:action="@{/zalo/reply/mode(account=${account})}" method="post">
             <label class="field" th:each="m : ${modes}">
                 <input type="radio" name="mode" th:value="${m.name()}" th:checked="${m == chosen}">
                 <span th:text="${m.label()}">Tắt</span>
@@ -118,7 +118,7 @@
         <h2>Bảng thông tin cửa hàng</h2>
         <p class="hint">Đây là <strong>nguồn duy nhất</strong> AI được dùng để trả lời. Con số nào AI nói ra phải có trong bảng này (ví dụ "10%"), nếu không câu bị chặn.
             Để trống ô bảo hành thì AI không nói gì cụ thể về bảo hành. Đừng ghi chính sách đổi trả của nền tảng khác.</p>
-        <form class="stack" th:action="@{/zalo/reply/info}" method="post">
+        <form class="stack" th:action="@{/zalo/reply/info(account=${account})}" method="post">
             <label class="field" th:each="r : ${infoRows}">
                 <span th:text="${r.field.label}">Ưu đãi khi vào nhóm</span>
                 <textarea th:name="${r.field.key}" rows="3" maxlength="600" th:text="${r.value}"></textarea>
@@ -133,7 +133,7 @@
         <p class="hint">Khi soạn câu trả lời, AI nhận thêm hồ sơ của <strong>đúng khách đang nhắn</strong> (không bao giờ của khách khác) để trả lời đúng người: đúng nhóm theo khu vực,
             khách đã vào nhóm chưa, hàng khách đã mua. Chỉ các trường được tick dưới đây mới được gửi. Mọi chữ đều đã che số điện thoại. Bước phân loại phạm vi không nhận hồ sơ.
             <strong>Không có</strong> ô nào cho số điện thoại, địa chỉ, mã vận đơn, tiền và thanh toán, mã Zalo, tên khách hay link nhóm. Bỏ tick hết thì AI không nhận hồ sơ nào.</p>
-        <form class="stack" th:action="@{/zalo/reply/context}" method="post">
+        <form class="stack" th:action="@{/zalo/reply/context(account=${account})}" method="post">
             <label class="field" th:each="f : ${ctxFields}">
                 <input type="checkbox" name="field" th:value="${f.key()}" th:checked="${ctxOn.contains(f)}">
                 <span th:text="${f.label()}">Khu vực của khách</span>
@@ -149,7 +149,7 @@
         <h2>Thử một câu</h2>
         <p class="hint">Gõ một câu khách có thể nhắn để xem trợ lý sẽ làm gì. Không lưu, không gửi gì cho ai; chỉ tốn một vài lượt AI. Hãy thử vài chục câu (cả câu trong và ngoài phạm vi,
             câu cố lừa AI) trước khi bật.</p>
-        <form class="stack" th:action="@{/zalo/reply/preview}" method="post">
+        <form class="stack" th:action="@{/zalo/reply/preview(account=${account})}" method="post">
             <label class="field"><span>Câu khách nhắn</span>
                 <textarea name="text" rows="2" maxlength="500" th:text="${sample}"></textarea></label>
             <div><button type="submit" class="btn secondary">Thử</button></div>

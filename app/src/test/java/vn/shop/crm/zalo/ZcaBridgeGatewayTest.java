@@ -85,6 +85,51 @@ class ZcaBridgeGatewayTest {
     }
 
     @Test
+    void accountTagIsRequiredBeforeReadingOrActingOnAnAdditionalBridge() {
+        var pin = new AtomicReference<String>();
+        var guarded = new ZcaBridgeGateway("http://127.0.0.1:" + server.getAddress().getPort(), "khoa-chung", pin::get, true);
+        reply.set("{\"state\":\"LISTENING\",\"accountOk\":true,\"accountTag\":\"000000000002\"}");
+        assertThat(guarded.status().accountOk()).isTrue();
+        assertThat(guarded.logout()).isFalse();
+        assertThat(requests).containsExactly("GET /status");
+
+        pin.set("000000000001");
+        assertThat(guarded.status().accountOk()).isFalse();
+        assertThat(guarded.logout()).isFalse();
+        assertThat(requests).containsOnly("GET /status");
+
+        pin.set("000000000002");
+        guarded.logout();
+        assertThat(requests).endsWith("GET /status", "POST /session/logout");
+    }
+
+    @Test
+    void haltAfterIdentityPreflightBlocksWritesAndAllowsRecovery() {
+        var guarded = new ZcaBridgeGateway("http://127.0.0.1:" + server.getAddress().getPort(), "khoa-chung",
+                () -> "000000000002", true, () -> null, () -> !requests.isEmpty());
+        reply.set("{\"state\":\"LISTENING\",\"accountTag\":\"000000000002\",\"ok\":true}");
+
+        assertThat(guarded.sendByUid(ZaloMessenger.Kind.INVITE, "123", "Tin 1").notSent()).isTrue();
+        assertThat(requests).containsExactly("GET /status");
+        assertThat(guarded.resume()).isTrue();
+        assertThat(requests).endsWith("GET /status", "POST /session/resume");
+    }
+
+    @Test
+    void enrollmentRejectsThePrimaryBridgeBeforeStartingQr() {
+        String primary = "000000000001";
+        var guarded = new ZcaBridgeGateway("http://127.0.0.1:" + server.getAddress().getPort(), "khoa-chung",
+                () -> null, true, () -> primary);
+        reply.set("{\"state\":\"LISTENING\",\"accountTag\":\"000000000001\"}");
+        guarded.startLogin();
+        assertThat(requests).containsExactly("GET /status");
+
+        reply.set("{\"state\":\"LOGIN_REQUIRED\",\"accountTag\":\"000000000002\"}");
+        guarded.startLogin();
+        assertThat(requests).endsWith("GET /status", "POST /session/login");
+    }
+
+    @Test
     void trangThaiLaHoacKhongNoiDuocThiLaKhongGoiDuoc() {
         reply.set("{\"state\":\"SOMETHING_NEW\"}");
         assertThat(gateway.status().state()).isEqualTo(ZaloGateway.State.UNREACHABLE);
@@ -144,10 +189,13 @@ class ZcaBridgeGatewayTest {
         var r = gateway.addToGroup("1", "2");
         assertThat(r.outcome()).isEqualTo(ZaloGateway.Outcome.SYSTEM_ERROR);
         assertThat(r.code()).isEqualTo("BAD_REPLY");
-        reply.set("{\"state\":\"TRIPPED\",\"tripReason\":\"RESTRICTED:Z1 Nguyen Van A\",\"detail\":\"0912 345 678\"}");
+        reply.set("{\"state\":\"TRIPPED\",\"tripReason\":\"RESTRICTED:VERIFY\",\"detail\":\"0912 345 678\"}");
         var st = gateway.status();
-        assertThat(st.tripReason()).isEqualTo("RESTRICTED:Z1NguyenVanA".replace(":", ""));
+        assertThat(st.tripReason()).isEqualTo("RESTRICTED:VERIFY");
+        assertThat(ZaloAutoSettings.haltsAllAccounts(ZaloAutoService.bridgeTripReason(st))).isTrue();
         assertThat(st.detail()).isEqualTo("0912345678");
+        reply.set("{\"state\":\"TRIPPED\",\"tripReason\":\"RESTRICTED:Z1 Nguyen Van A\"}");
+        assertThat(gateway.status().tripReason()).isEqualTo("RESTRICTED");
     }
 
     @Test
