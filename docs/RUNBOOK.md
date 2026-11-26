@@ -177,6 +177,8 @@ Khi bật bộ nối Zalo, hệ thống tự theo dõi (mỗi phút) và hiện 
 - **Báo ra ngoài (tùy chọn):** đặt `APP_ALERT_WEBHOOK_URL=https://...` trong `infra/.env` (hệ thống POST một dòng văn bản thuần mỗi khi có cảnh báo mới hoặc nặng lên; ví dụ một chủ đề ntfy.sh bí mật, mở app ntfy trên điện thoại). Địa chỉ có thể chứa khóa nên chỉ đặt ở `.env`, không ghi vào repo. Tin báo không chứa số điện thoại, tên khách hay mã Zalo. Đổi `.env` rồi tạo lại container app.
 
 ### 6. Việc cần làm khi có sự cố
+
+Khi kiểm tra Tin 1, lọc log app theo `Tin 1 event=` rồi đối chiếu `account`, `campaign` và `invitation` với nhật ký gửi trong ADH. `claim_skipped` nghĩa là lời mời chưa được nhận để gửi, có thể do đã bỏ duyệt hoặc lời mời đổi trạng thái. `claimed` đánh dấu bắt đầu xử lý. `delivery` ghi kết quả của bước gửi, và `send_exception` ghi loại lỗi. Nếu chỉ thấy `claimed`, kiểm tra sổ gửi và cầu dao trước khi thử lại. Các dòng kỹ thuật này không ghi số điện thoại, mã Zalo, nội dung tin hay khóa.
 | Tình huống | Làm gì |
 |---|---|
 | Không vào được web | `docker compose -f docker-compose.prod.yml ps` và `logs --tail 100 app`. Kiểm tra tên miền, chứng chỉ (Caddy), đĩa còn chỗ |
