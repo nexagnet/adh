@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -49,6 +50,8 @@ class ZaloTwoBridgeSchedulerTest extends AbstractPostgresTest {
         Instant inboundAt;
         FriendRequestState friendRequestState = FriendRequestState.UNAVAILABLE;
         String friendReadReason;
+        Runnable beforeFriendRead = () -> {};
+        final List<String> friendReads = new ArrayList<>();
 
         @Override
         public FriendRequestState friendRequestState(String uid) {
@@ -57,6 +60,8 @@ class ZaloTwoBridgeSchedulerTest extends AbstractPostgresTest {
 
         @Override
         public FriendRequestObservation friendRequestObservation(String uid) {
+            beforeFriendRead.run();
+            friendReads.add(uid);
             return new FriendRequestObservation(friendRequestState, friendReadReason);
         }
 
@@ -85,11 +90,15 @@ class ZaloTwoBridgeSchedulerTest extends AbstractPostgresTest {
             first.inboundAt = null;
             first.friendRequestState = ZaloLink.FriendRequestState.UNAVAILABLE;
             first.friendReadReason = null;
+            first.beforeFriendRead = () -> {};
+            first.friendReads.clear();
             second.reset();
             second.beforeNextStatus = null;
             second.inboundAt = null;
             second.friendRequestState = ZaloLink.FriendRequestState.UNAVAILABLE;
             second.friendReadReason = null;
+            second.beforeFriendRead = () -> {};
+            second.friendReads.clear();
             first.status = listening(FIRST_TAG, FIRST_SESSION);
             second.status = listening(SECOND_TAG, SECOND_SESSION);
         }
@@ -322,6 +331,44 @@ class ZaloTwoBridgeSchedulerTest extends AbstractPostgresTest {
 
     @Autowired ZaloFriendReconciliation reconciliation;
     @Autowired ManualAttention attention;
+    @Autowired TestMode testMode;
+
+    @Test
+    void liveBridgeReconcilesOnlyNumbersInTheTestList() {
+        prepareCampaign("T2,DH2,05/01/2026 09:00:00,Khach 2,0900000002,1 Duong A Xa B Hà Nội,Giao thành công\n");
+        markInvited(1, "+84900000001", "60000001");
+        markInvited(1, "+84900000002", "60000002");
+        markFriendRequestsSent();
+        assertThat(ZaloAccountContext.call(1, testMode::live)).isTrue();
+
+        var reconcileTick = new ZaloFriendReconciliationScheduler(registry, reconciliation, Runnable::run);
+        reconcileTick.tick();
+        reconcileTick.tick();
+
+        assertThat(bridges.first().friendReads).containsExactly("60000001");
+        assertThat(jdbc.sql("SELECT count(*) FROM zalo_friend_observation").query(Long.class).single()).isEqualTo(1);
+    }
+
+    @Test
+    void removingNumberDuringReadDiscardsObservationAndHistory() {
+        prepareCampaign();
+        markInvited(1, "+84900000001", "60000001");
+        markFriendRequestsSent();
+        bridges.first().beforeFriendRead = () -> jdbc.sql("DELETE FROM zalo_test_number").update();
+
+        new ZaloFriendReconciliationScheduler(registry, reconciliation, Runnable::run).tick();
+
+        assertThat(bridges.first().friendReads).containsExactly("60000001");
+        assertThat(jdbc.sql("SELECT count(*) FROM zalo_friend_observation").query(Long.class).single()).isZero();
+        assertThat(jdbc.sql("SELECT count(*) FROM zalo_friend_observation_event").query(Long.class).single()).isZero();
+    }
+
+    private void markFriendRequestsSent() {
+        jdbc.sql("""
+                UPDATE invitation SET sent_channel = 'ZALO_AUTO', friend_request_outcome = 'SENT',
+                    friend_request_at = now() - interval '10 minutes', expires_at = now() + interval '1 day'
+                """).update();
+    }
 
     @Test
     void firstUnavailableReadShowsActionableProviderCode() {

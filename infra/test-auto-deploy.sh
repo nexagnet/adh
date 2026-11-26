@@ -73,6 +73,10 @@ reset; "$RUN" pause >/dev/null; "$RUN"; [ "$(deploy_calls)" = 0 ] && ok "không 
 
 echo "3. đã là bản mới nhất"
 reset; echo "$SHA2" >"$T/infra/.current-tag"; "$RUN"; [ "$(deploy_calls)" = 0 ] && ok "không gọi deploy.sh" || bad "đã gọi deploy.sh"
+reset
+if ADH_AUTO_EXPECTED_SHA="$SHA1" "$RUN"; then bad "chấp nhận SHA GitHub đã cũ"
+elif [ "$(deploy_calls)" = 0 ]; then ok "không triển khai khác SHA GitHub yêu cầu"
+else bad "triển khai khác SHA GitHub yêu cầu"; fi
 
 echo "4. CI chưa xong / đỏ / chưa có"
 reset; ci 1 in_progress null; "$RUN"; [ "$(deploy_calls)" = 0 ] && ok "CI đang chạy: chờ" || bad "triển khai khi CI chưa xong"

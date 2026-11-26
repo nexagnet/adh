@@ -1,0 +1,118 @@
+name: cd
+
+on:
+  workflow_run:
+    workflows: [ci, image]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: adh-production-cd
+  cancel-in-progress: false
+
+jobs:
+  eligibility:
+    if: >-
+      github.repository == 'nexagnet/adh' && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository &&
+        github.event.workflow_run.conclusion == 'success'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      sha: ${{ steps.release.outputs.sha }}
+    steps:
+      - name: Verify CI and images for current main
+        id: release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EXPECTED_SHA: ${{ github.sha }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          head="$(gh api "repos/$REPO/git/ref/heads/main" --jq '.object.sha')"
+          if [[ "$head" != "$EXPECTED_SHA" ]]; then
+            echo "main advanced after this workflow started; skip this release."
+            exit 0
+          fi
+          for workflow in ci.yml image.yml; do
+            runs="$(gh api "repos/$REPO/actions/workflows/$workflow/runs" --method GET \
+              -f branch=main -f event=push -f "head_sha=$EXPECTED_SHA" -F per_page=50)"
+            conclusion="$(jq -r --arg sha "$EXPECTED_SHA" --arg repo "$REPO" '
+              [.workflow_runs[] | select(.head_sha == $sha and .head_branch == "main" and
+                  .event == "push" and .head_repository.full_name == $repo)]
+              | max_by([.run_number, .run_attempt])
+              | if .status == "completed" then .conclusion else "pending" end
+            ' <<< "$runs")"
+            if [[ "$conclusion" != success ]]; then
+              echo "$workflow is $conclusion for $EXPECTED_SHA; wait for the next successful push run."
+              if [[ "$EVENT" == workflow_dispatch ]]; then exit 1; fi
+              exit 0
+            fi
+          done
+          printf 'sha=%s\n' "$EXPECTED_SHA" >> "$GITHUB_OUTPUT"
+
+  production:
+    needs: eligibility
+    if: needs.eligibility.outputs.sha != ''
+    environment: production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Deploy verified image SHA on the two ADH hosts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ needs.eligibility.outputs.sha }}
+          MAIN_HOST: ${{ vars.CD_MAIN_HOST }}
+          BRIDGE2_HOST: ${{ vars.CD_BRIDGE2_HOST }}
+          MAIN_KEY: ${{ secrets.CD_MAIN_SSH_KEY }}
+          BRIDGE2_KEY: ${{ secrets.CD_BRIDGE2_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.CD_KNOWN_HOSTS }}
+        run: |
+          destination='^[A-Za-z_][A-Za-z0-9_-]*@[A-Za-z0-9][A-Za-z0-9.-]*$'
+          if ! [[ "$SHA" =~ ^[0-9a-f]{40}$ && "$MAIN_HOST" =~ $destination &&
+                  "$BRIDGE2_HOST" =~ $destination && "$MAIN_HOST" != "$BRIDGE2_HOST" &&
+                  -n "$MAIN_KEY" && -n "$BRIDGE2_KEY" && -n "$KNOWN_HOSTS" ]]; then
+            echo "::error::Configure the production environment's two CD hosts, dedicated SSH keys and pinned host keys."
+            exit 1
+          fi
+
+          umask 077
+          keydir="$(mktemp -d)"
+          trap 'rm -rf -- "$keydir"' EXIT
+          printf '%s\n' "$MAIN_KEY" | tr -d '\r' > "$keydir/main"
+          printf '%s\n' "$BRIDGE2_KEY" | tr -d '\r' > "$keydir/bridge2"
+          printf '%s\n' "$KNOWN_HOSTS" | tr -d '\r' > "$keydir/known_hosts"
+          unset MAIN_KEY BRIDGE2_KEY KNOWN_HOSTS
+
+          deploy() {
+            local host="$1" key="$2" target="$3" head
+            head="$(gh api "repos/$REPO/git/ref/heads/main" --jq '.object.sha')"
+            if [[ "$head" != "$SHA" ]]; then
+              echo "::error::main changed while deployment was queued or running; wait for the new release."
+              return 1
+            fi
+            echo "Deploying $target at $SHA"
+            ssh -nT -F /dev/null -i "$key" \
+              -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+              -o "UserKnownHostsFile=$keydir/known_hosts" -o GlobalKnownHostsFile=/dev/null \
+              -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
+              -- "$host" "deploy $SHA"
+          }
+
+          deploy "$MAIN_HOST" "$keydir/main" 'main' || exit 1
+          deploy "$BRIDGE2_HOST" "$keydir/bridge2" 'bridge 2' || exit 1
+          printf 'ADH app and both bridges deployed at %s.\n' "$SHA" >> "$GITHUB_STEP_SUMMARY"

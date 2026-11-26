@@ -37,6 +37,8 @@ Chỉ có khi đặt `BRIDGE_INBOX_ENABLED=true` ở cầu nối; tắt thì c�
 
 ADH có thể quan sát một việc mỗi tài khoản trong từng nhịp với `APP_ZALO_RECONCILE_ENABLED=true`. Mặc định chạy cách nhau 30 phút để phù hợp với ngân sách đọc mặc định của cầu nối. Ảnh cầu nối cũ chưa có endpoint này sẽ chỉ cho kết quả không đọc được. Kiểm chứng chiều lời mời bằng tài khoản thử trước khi dùng làm điều kiện phục hồi.
 
+`APP_ZALO_RECONCILE_TEST_ONLY=true` là mặc định. Cờ này giới hạn lịch đối chiếu ở danh sách số thử, kể cả khi cả hai tài khoản vẫn gửi thật theo các chiến dịch đang chạy. Tắt giới hạn này là một bước vận hành riêng sau nghiệm thu. Chế độ gửi thử của từng tài khoản vẫn áp dụng cho cả việc đọc.
+
 Ở môi trường thử, đặt thêm `BRIDGE_FRIEND_RECONCILE_ENABLED=true` trên từng cầu nối cần giữ đối chiếu khi gặp `SYSTEM_ERROR:TIMEOUT` hoặc `SYSTEM_ERROR:NO_ACK`. Tệp Compose hai cầu nối dùng `BRIDGE_FRIEND_RECONCILE_ENABLED_2` cho cầu nối 2. Tất cả mặc định tắt. Cầu nối chỉ giữ hoặc khôi phục phiên đọc nếu đúng tài khoản, đã kết nối và không bị dừng cứng. ADH vẫn giữ cầu dao gửi chung, cần người xem trước khi mở lại. `/status` báo `friendReconcileAvailable`; có thể là false nếu cầu nối cũ, lệch tài khoản, mất phiên hay đang kết nối.
 
 ### `POST /groups/{zaloGroupId}/members`  body `{"uid": "123456789"}`
