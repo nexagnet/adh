@@ -98,32 +98,34 @@ class MapDataTest extends AbstractPostgresTest {
             return Optional.of(new WeatherClient.Result(new Forecast(20, 30, "rain", now, List.of()), now.plusHours(3)));
         });
         MockMvc api = standalone(weather);
-        try (var requests = Executors.newSingleThreadExecutor()) {
-            var submitted = requests.submit(() -> api.perform(post("/map/weather")).andReturn());
-            try {
-                assertThat(submitted.get(5, TimeUnit.SECONDS).getResponse().getRedirectedUrl()).isEqualTo("/map");
-                assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
-                api.perform(post("/map/weather")).andExpect(redirectedUrl("/map"));
-                api.perform(get("/map/weather/status")).andExpect(status().isOk())
-                        .andExpect(jsonPath("$.state").value("RUNNING"));
-                assertThat(weather.refresh(false)).isZero();
-                assertThat(calls).hasValue(1);
-            } finally {
-                release.countDown();
+        try {
+            try (var requests = Executors.newSingleThreadExecutor()) {
+                var submitted = requests.submit(() -> api.perform(post("/map/weather")).andReturn());
+                try {
+                    assertThat(submitted.get(5, TimeUnit.SECONDS).getResponse().getRedirectedUrl()).isEqualTo("/map");
+                    assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+                    api.perform(post("/map/weather")).andExpect(redirectedUrl("/map"));
+                    api.perform(get("/map/weather/status")).andExpect(status().isOk())
+                            .andExpect(header().string("Cache-Control", "no-store"))
+                            .andExpect(jsonPath("$.state").value("RUNNING"));
+                    assertThat(weather.refresh(false)).isZero();
+                    assertThat(calls).hasValue(1);
+                } finally {
+                    release.countDown();
+                }
             }
-        }
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
-        while (System.nanoTime() < deadline) {
-            String response = api.perform(get("/map/weather/status")).andReturn().getResponse().getContentAsString();
-            if ("COMPLETE".equals(JSON.readTree(response).path("state").asString())) {
-                break;
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (weather.refreshStatus().running() && System.nanoTime() < deadline) {
+                Thread.sleep(10);
             }
-            Thread.sleep(10);
+            api.perform(get("/map/weather/status")).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.state").value("COMPLETE"))
+                    .andExpect(jsonPath("$.updated").value(1));
+            assertThat(weather.forecast("can-tho")).isPresent();
+            assertThat(calls).hasValue(1);
+        } finally {
+            weather.stopManualRefresh();
         }
-        api.perform(get("/map/weather/status")).andExpect(status().isOk())
-                .andExpect(jsonPath("$.state").value("COMPLETE"))
-                .andExpect(jsonPath("$.updated").value(1));
-        assertThat(calls).hasValue(1);
     }
 
     @Test
