@@ -115,6 +115,37 @@ class ZcaBridgeGatewayTest {
     }
 
     @Test
+    void docLoiDoiChieuChiGiuMaDaBietVaKhongGiuDuLieuNguoiDung() {
+        for (String code : List.of("Z114", "NO_INVITE", "NOT_ACTIVE")) {
+            reply.set("{\"ok\":false,\"code\":\"" + code + "\"}");
+            var result = gateway.friendRequestObservation("501");
+            assertThat(result.state()).isEqualTo(ZaloLink.FriendRequestState.UNAVAILABLE);
+            assertThat(result.reasonCode()).isEqualTo(code);
+        }
+        for (String invalid : List.of("{}", "not-json", "{\"ok\":false,\"code\":\"NGUYEN_VAN_123456789\"}",
+                "{\"ok\":true,\"state\":\"OTHER\"}")) {
+            reply.set(invalid);
+            assertThat(gateway.friendRequestObservation("501").reasonCode()).as(invalid).isEqualTo("BAD_RESPONSE");
+        }
+        reply.set("{\"ok\":true,\"state\":\"NONE\",\"code\":\"Z114\"}");
+        assertThat(gateway.friendRequestObservation("501").reasonCode()).isNull();
+        httpStatus = 404;
+        assertThat(gateway.friendRequestObservation("501").reasonCode()).isEqualTo("UNSUPPORTED");
+        assertThat(gateway.friendRequestObservation("501&uid=502").reasonCode()).isEqualTo("BAD_INPUT");
+    }
+
+    @Test
+    void phanBietSaiTaiKhoanVoiCauNoiKhongTruyCapDuoc() {
+        var guarded = new ZcaBridgeGateway("http://127.0.0.1:" + server.getAddress().getPort(), "khoa-chung",
+                () -> "000000000002", true);
+        reply.set("{\"accountTag\":\"000000000099\"}");
+        assertThat(guarded.friendRequestObservation("501").reasonCode()).isEqualTo("ACCOUNT_MISMATCH");
+        assertThat(requests).containsExactly("GET /status");
+        server.stop(0);
+        assertThat(guarded.friendRequestObservation("501").reasonCode()).isEqualTo("BRIDGE_DOWN");
+    }
+
+    @Test
     void trangThaiDocDuocVaGuiKhoaChung() {
         reply.set("""
                 {"state":"LISTENING","tripReason":null,"accountOk":true,"lastEventAt":"2026-11-22T03:00:00Z",

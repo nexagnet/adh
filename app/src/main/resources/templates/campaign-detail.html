@@ -34,6 +34,8 @@
                     <div th:each="p : ${a.problems}" th:text="${p}">Tin 1 không gửi được</div>
                     <div th:if="${a.observation != null}" class="stack">
                         <strong th:text="${a.observation.stateLabel}">Trạng thái trên Zalo</strong>
+                        <span class="muted small" th:if="${a.observation.reasonCode != null}"
+                              th:text="${'Mã đọc trạng thái · ' + a.observation.reasonCode}">Mã đọc trạng thái</span>
                         <span class="muted small" th:text="${'Đã kiểm tra lúc ' + #temporals.format(a.observation.observedAt, 'dd/MM/yyyy HH:mm')}">Đã kiểm tra</span>
                         <span class="muted small" th:if="${a.observation.previousStateLabel != null and a.observation.previousObservedAt != null}"
                               th:text="${'Lần đọc thành công gần nhất lúc ' + #temporals.format(a.observation.previousObservedAt, 'dd/MM/yyyy HH:mm') + ' · ' + a.observation.previousStateLabel}">Lần đọc thành công gần nhất</span>

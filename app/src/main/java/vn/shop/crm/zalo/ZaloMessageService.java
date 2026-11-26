@@ -131,14 +131,17 @@ public class ZaloMessageService {
     private final ZaloAutoSettings cfg;
     private final ZaloLink link;
     private final Clock clock;
+    private final boolean reconciliationEnabled;
     private final ReentrantLock lock = new ReentrantLock();
 
-    public ZaloMessageService(JdbcClient jdbc, AppSettings settings, ZaloAutoSettings cfg, ZaloLink link, Clock clock) {
+    public ZaloMessageService(JdbcClient jdbc, AppSettings settings, ZaloAutoSettings cfg, ZaloLink link, Clock clock,
+                              @org.springframework.beans.factory.annotation.Value("${app.zalo.reconcile.enabled:false}") boolean reconciliationEnabled) {
         this.jdbc = jdbc;
         this.settings = settings;
         this.cfg = cfg;
         this.link = link;
         this.clock = clock;
+        this.reconciliationEnabled = reconciliationEnabled;
     }
 
     // ---------- công tắc và hạn mức ----------
@@ -598,7 +601,7 @@ public class ZaloMessageService {
         try {
             if (leftover()) {
                 // Một lần gọi trước đó không có kết quả (sập giữa chừng): không biết tin đã đi hay chưa, dừng, không tự gửi lại.
-                tripAndStop("TIN_INTERRUPTED");
+                tripAndStop("TIN_INTERRUPTED", reconciliationEnabled && onlyFriendLeftover());
                 return new Delivery(Status.TRIPPED, null, Sent.of(Result.SYSTEM_ERROR, "INTERRUPTED", true));
             }
             Optional<Block> block = blocker(scope, kind, refId, scopeDaily, scopeGap);
@@ -607,7 +610,8 @@ public class ZaloMessageService {
             }
             ZaloGateway.Status st = link.status();
             if (st.state() == ZaloGateway.State.TRIPPED) {
-                tripAndStop(ZaloAutoService.bridgeTripReason(st));
+                String reason = ZaloAutoService.bridgeTripReason(st);
+                tripAndStop(reason, kind == Kind.FRIEND && friendSoftTrip(reason));
                 return Delivery.blocked(Block.MODE_OFF);
             }
             if (Boolean.FALSE.equals(st.accountOk())) {
@@ -648,6 +652,7 @@ public class ZaloMessageService {
                     WHERE id = :r AND account_id = :acct AND status = 'SENT' AND sent_channel = 'ZALO_AUTO'
                       AND expires_at > :at AND friend_request_at IS NULL AND friend_accept_at IS NULL
                       AND friended_at IS NULL AND joined_at IS NULL AND inbound_at IS NULL
+                      AND (friend_transport_retry_after IS NULL OR friend_transport_retry_after <= :at)
                       AND EXISTS (SELECT 1 FROM invitation_campaign k WHERE k.id = invitation.campaign_id
                                   AND k.auto_send_approved_at IS NOT NULL)
                     RETURNING id
@@ -666,7 +671,7 @@ public class ZaloMessageService {
     private void deleteUnsentAttempt(long logId, Kind kind, String friendOutcome) {
         if (kind == Kind.FRIEND) {
             finishFriendAttempt("""
-                    DELETE FROM zalo_msg_log WHERE id = :id
+                    DELETE FROM zalo_msg_log WHERE id = :id AND outcome = 'DANG_GOI'
                     """, logId, null, null, friendOutcome);
         } else {
             jdbc.sql("DELETE FROM zalo_msg_log WHERE id = :id").param("id", logId).update();
@@ -676,7 +681,10 @@ public class ZaloMessageService {
     private Delivery finish(long logId, Kind kind, Sent s) {
         try {
             if (s.result() == Result.OK) {
-                setOutcome(logId, kind, "OK", s.code(), "SENT");
+                if (!setOutcome(logId, kind, "OK", s.code(), "SENT") && kind == Kind.FRIEND) {
+                    log.warn("Xác nhận kết bạn đến sau khi lượt đã đóng account={} attempt={}", ZaloAccountContext.current(), logId);
+                    return new Delivery(Status.TRIPPED, null, Sent.of(Result.SYSTEM_ERROR, "LATE_ACK", false));
+                }
                 if ("PARTIAL".equals(s.code())) {
                     observePartialDelivery();
                 }
@@ -684,6 +692,10 @@ public class ZaloMessageService {
             }
             if (s.notSent()) {
                 // Cầu nối chắc chắn chưa chạm Zalo: không tính hạn mức.
+                if (kind == Kind.FRIEND && friendTransportCode(s) != null) {
+                    retryFriendTransport(logId, friendTransportCode(s));
+                    return new Delivery(Status.RETRY, null, s);
+                }
                 String friendOutcome = s.result() == Result.PERSON_ERROR && !FRIEND_LIST_FULL.equals(s.code())
                         ? "FAILED" : null;
                 deleteUnsentAttempt(logId, kind, friendOutcome);
@@ -710,12 +722,13 @@ public class ZaloMessageService {
                 return new Delivery(Status.PERSON_ERROR, null, s);
             }
             // phiên mất, Zalo cảnh báo, lỗi lạ, hết giờ chờ, Zalo không xác nhận: dừng ngay
-            tripAndStop(s.result().name() + (s.code() == null ? "" : ":" + s.code()));
+            String reason = s.result().name() + (s.code() == null ? "" : ":" + s.code());
+            tripAndStop(reason, kind == Kind.FRIEND && friendSoftTrip(reason));
             return new Delivery(Status.TRIPPED, null, s);
         } catch (RuntimeException e) {
             // Đã gọi Zalo mà ghi kết quả lỗi (cơ sở dữ liệu chớp): dòng "đang gọi" còn đó, dừng.
             log.warn("Lỗi sau khi gửi tin: {}", e.getClass().getSimpleName());
-            tripAndStop("TIN_INTERRUPTED");
+            tripAndStop("TIN_INTERRUPTED", kind == Kind.FRIEND);
             return new Delivery(Status.TRIPPED, null, Sent.of(Result.SYSTEM_ERROR, "INTERRUPTED", false));
         }
     }
@@ -730,20 +743,50 @@ public class ZaloMessageService {
         }
     }
 
-    private static final String UPDATE_OUTCOME = "UPDATE zalo_msg_log SET outcome = :o, code = :c WHERE id = :id";
+    private static final String UPDATE_OUTCOME = "UPDATE zalo_msg_log SET outcome = :o, code = :c WHERE id = :id AND outcome = 'DANG_GOI'";
 
-    private void setOutcome(long logId, Kind kind, String outcome, String code, String friendOutcome) {
-        if (kind == Kind.FRIEND && friendOutcome != null) {
-            finishFriendAttempt(UPDATE_OUTCOME, logId, outcome, code, friendOutcome);
-            return;
+    private static String friendTransportCode(Sent sent) {
+        if (sent.result() == Result.UNREACHABLE && "BRIDGE_DOWN".equals(sent.code())) {
+            return "BRIDGE_DOWN";
         }
-        jdbc.sql(UPDATE_OUTCOME)
-                .param("o", outcome).param("c", code, java.sql.Types.VARCHAR).param("id", logId).update();
+        return sent.result() == Result.SYSTEM_ERROR && ("BUSY".equals(sent.code()) || "NOT_CONNECTED".equals(sent.code()))
+                ? sent.code() : null;
     }
 
-    private void finishFriendAttempt(String logChange, long logId, String outcome, String code, String friendOutcome) {
-        jdbc.sql("WITH attempt AS (" + logChange + " RETURNING ref_id, account_id, at) " + """
+    private void retryFriendTransport(long logId, String code) {
+        // Lần đầu, sau đó tối đa ba lần thử lại. Ghi lịch vào DB để khởi động lại không làm mất giới hạn.
+        jdbc.sql("""
+                WITH unsent AS (
+                    DELETE FROM zalo_msg_log WHERE id = :id AND outcome = 'DANG_GOI' RETURNING ref_id, account_id, at
+                )
+                UPDATE invitation i SET friend_transport_failures = i.friend_transport_failures + 1,
+                    friend_transport_code = :code,
+                    friend_transport_retry_after = CASE i.friend_transport_failures
+                        WHEN 0 THEN :now + interval '1 minute'
+                        WHEN 1 THEN :now + interval '5 minutes'
+                        WHEN 2 THEN :now + interval '15 minutes'
+                    END,
+                    friend_request_outcome = CASE WHEN i.friend_transport_failures = 3 THEN 'FAILED' END,
+                    friend_request_at = CASE WHEN i.friend_transport_failures = 3 THEN i.friend_request_at END
+                FROM unsent a
+                WHERE i.id = a.ref_id AND i.account_id = a.account_id
+                  AND i.friend_request_at = a.at AND i.friend_request_outcome = 'UNKNOWN'
+                """).param("id", logId).param("code", code).param("now", OffsetDateTime.now(clock)).update();
+        log.info("Lời mời kết bạn chưa gửi account={} attempt={} code={}", ZaloAccountContext.current(), logId, code);
+    }
+
+    private boolean setOutcome(long logId, Kind kind, String outcome, String code, String friendOutcome) {
+        if (kind == Kind.FRIEND && friendOutcome != null) {
+            return finishFriendAttempt(UPDATE_OUTCOME, logId, outcome, code, friendOutcome) == 1;
+        }
+        return jdbc.sql(UPDATE_OUTCOME)
+                .param("o", outcome).param("c", code, java.sql.Types.VARCHAR).param("id", logId).update() == 1;
+    }
+
+    private int finishFriendAttempt(String logChange, long logId, String outcome, String code, String friendOutcome) {
+        return jdbc.sql("WITH attempt AS (" + logChange + " RETURNING ref_id, account_id, at) " + """
                 UPDATE invitation i SET friend_request_outcome = :friend_outcome,
+                    friend_transport_retry_after = NULL,
                     friend_request_at = CASE WHEN :friend_outcome IS NULL THEN NULL ELSE i.friend_request_at END
                 FROM attempt a
                 WHERE i.id = a.ref_id AND i.account_id = a.account_id
@@ -754,6 +797,11 @@ public class ZaloMessageService {
 
     private boolean leftover() {
         return jdbc.sql("SELECT count(*) FROM zalo_msg_log WHERE " + ZaloAccountContext.sql() + " AND outcome = 'DANG_GOI'").query(Long.class).single() > 0;
+    }
+
+    private boolean onlyFriendLeftover() {
+        return jdbc.sql("SELECT NOT EXISTS (SELECT 1 FROM zalo_msg_log WHERE " + ZaloAccountContext.sql()
+                + " AND outcome = 'DANG_GOI' AND kind <> 'FRIEND')").query(Boolean.class).single();
     }
 
     /** Lỗi riêng người liên tiếp: nhiều khả năng cấu hình hoặc Zalo đang chặn, đừng đốt hạn mức. Trả lý do dừng, hoặc null. */
@@ -774,10 +822,27 @@ public class ZaloMessageService {
     }
 
     private void tripAndStop(String reason) {
+        tripAndStop(reason, false);
+    }
+
+    private static boolean friendSoftTrip(String reason) {
+        String normalized = reason == null ? "" : ZaloAutoSettings.normalizedTrip(reason);
+        return "SYSTEM_ERROR:TIMEOUT".equals(normalized) || "SYSTEM_ERROR:NO_ACK".equals(normalized);
+    }
+
+    private void tripAndStop(String reason, boolean mayReadFriends) {
+        boolean keepSession = false;
         try {
             cfg.trip(reason, "system");
+            if (reconciliationEnabled && mayReadFriends) {
+                var status = link.status();
+                keepSession = Boolean.TRUE.equals(status.accountOk()) && status.friendReconcileAvailable()
+                        && (status.listening() || (status.state() == ZaloGateway.State.TRIPPED && friendSoftTrip(status.tripReason())));
+            }
         } finally {
-            link.stop(); // đóng kết nối nghe, ngừng mọi thao tác phía cầu nối
+            if (!keepSession) {
+                link.stop(); // lỗi cứng, cầu nối cũ hoặc app chưa lưu được cầu dao
+            }
         }
     }
 }

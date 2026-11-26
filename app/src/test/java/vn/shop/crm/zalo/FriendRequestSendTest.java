@@ -239,6 +239,31 @@ class FriendRequestSendTest extends AbstractPostgresTest {
     }
 
     @Test
+    void dongLuotKetBanBiGianDoanSauKhiXemKhongMoCauDaoHayXepGuiLai() {
+        long invitation = inviteOne();
+        gap();
+        fake.afterFriendRequest = () -> { throw new AssertionError("test interrupt after dispatch"); };
+        try {
+            org.assertj.core.api.Assertions.assertThatThrownBy(sender::step).isInstanceOf(AssertionError.class);
+        } finally {
+            fake.afterFriendRequest = () -> {};
+        }
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> attention.markDone(campaign, invitation, "test"))
+                .isInstanceOf(vn.shop.crm.common.ImportException.class);
+        cfg.trip("TIN_INTERRUPTED", "test");
+        gap();
+        attention.markDone(campaign, invitation, "test");
+        attention.markDone(campaign, invitation, "test");
+        assertThat(cfg.tripped()).isTrue();
+        assertThat(outcome(invitation)).isEqualTo("UNKNOWN");
+        assertThat(count("SELECT count(*) FROM zalo_msg_log WHERE kind = 'FRIEND' AND outcome = 'KHONG_RO_DA_DONG'")).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM zalo_auto_log WHERE result LIKE 'DONG_LUOT_KET_BAN_CHUA_RO %'")).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> attention.resendFriend(campaign, invitation, "test"))
+                .isInstanceOf(vn.shop.crm.common.ImportException.class);
+        assertThat(fake.friendRequests).hasSize(1);
+    }
+
+    @Test
     void khongRoKetQuaThiDanhDauUnknownVaKhongBaoGioGuiLai() {
         long invitation = inviteOne();
         gap();
@@ -252,6 +277,29 @@ class FriendRequestSendTest extends AbstractPostgresTest {
         sender.step();
         assertThat(fake.friendRequests).hasSize(1);
         assertThat(outcome(invitation)).isEqualTo("UNKNOWN");
+    }
+
+    @Test
+    void loiKetNoiChacChanChuaGuiChiThuLaiBaLan() {
+        long invitation = inviteOne();
+        gap();
+        fake.defaultFriend = Sent.of(Result.UNREACHABLE, "BRIDGE_DOWN", true);
+        var delays = java.util.List.of(Duration.ofMinutes(1), Duration.ofMinutes(5), Duration.ofMinutes(15));
+        for (int attempt = 1; attempt <= 4; attempt++) {
+            sender.step();
+            assertThat(fake.friendRequests).hasSize(attempt);
+            if (attempt <= delays.size()) {
+                clock.advance(delays.get(attempt - 1).minusSeconds(1));
+                sender.step();
+                assertThat(fake.friendRequests).hasSize(attempt);
+                clock.advance(Duration.ofSeconds(1));
+            }
+        }
+        assertThat(outcome(invitation)).isEqualTo("FAILED");
+        assertThat(attention.rows(campaign)).singleElement().satisfies(row -> assertThat(row.canResendFriend()).isFalse());
+        sender.step();
+        assertThat(fake.friendRequests).hasSize(4);
+        assertThat(cfg.tripped()).isFalse();
     }
 
     @Test

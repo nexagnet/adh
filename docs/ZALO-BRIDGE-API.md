@@ -37,6 +37,8 @@ Chỉ có khi đặt `BRIDGE_INBOX_ENABLED=true` ở cầu nối; tắt thì c�
 
 ADH có thể quan sát một việc mỗi tài khoản trong từng nhịp với `APP_ZALO_RECONCILE_ENABLED=true`. Mặc định chạy cách nhau 30 phút để phù hợp với ngân sách đọc mặc định của cầu nối. Ảnh cầu nối cũ chưa có endpoint này sẽ chỉ cho kết quả không đọc được. Kiểm chứng chiều lời mời bằng tài khoản thử trước khi dùng làm điều kiện phục hồi.
 
+Ở môi trường thử, đặt thêm `BRIDGE_FRIEND_RECONCILE_ENABLED=true` trên từng cầu nối cần giữ đối chiếu khi gặp `SYSTEM_ERROR:TIMEOUT` hoặc `SYSTEM_ERROR:NO_ACK`. Tệp Compose hai cầu nối dùng `BRIDGE_FRIEND_RECONCILE_ENABLED_2` cho cầu nối 2. Tất cả mặc định tắt. Cầu nối chỉ giữ hoặc khôi phục phiên đọc nếu đúng tài khoản, đã kết nối và không bị dừng cứng. ADH vẫn giữ cầu dao gửi chung, cần người xem trước khi mở lại. `/status` báo `friendReconcileAvailable`; có thể là false nếu cầu nối cũ, lệch tài khoản, mất phiên hay đang kết nối.
+
 ### `POST /groups/{zaloGroupId}/members`  body `{"uid": "123456789"}`
 Kết quả có thể là `GROUP_ERROR` (24/11/2026): Zalo báo lỗi của CẢ NHÓM (nhóm không còn, không đủ quyền...). Chỉ khi mã lỗi nằm trong `BRIDGE_GROUP_ERROR_CODES` (mặc định rỗng, điền sau khi chạy thật); không làm cầu nối dừng, Adh tạm dừng đúng nhóm đó.
 Cả hai mã chỉ gồm chữ số (≤ 32). Trả:
@@ -109,7 +111,17 @@ Nhóm mà **tài khoản phụ đang tham gia**, để chọn "mã nhóm Zalo" c
 
 Riêng lời mời kết bạn, Adh ghi dấu trên lời mời và dòng `DANG_GOI` trong cùng một câu lệnh PostgreSQL trước khi gọi cầu nối. Nếu app dừng trước khi câu lệnh commit, lời mời vẫn trong hàng chờ và nhịp sau xét lại các điều kiện gửi. Nếu đã commit mà chưa có kết quả, lời mời vẫn ở `UNKNOWN` để kiểm tra. Khi cầu nối xác nhận gửi thành công hoặc xác nhận chưa gửi, Adh lưu kết quả trên lời mời cùng lần cập nhật nhật ký gửi.
 
-Trạng thái `NONE` chỉ cho biết hiện không có quan hệ bạn bè hoặc lời mời đang chờ. Không dùng trạng thái này để suy ra ai đã thu hồi hay từ chối. Lỗi đọc như `Z114`, quan sát lần đầu trên tài khoản thử đã kết bạn ở production ngày 26/11/2026, cũng không xác nhận trạng thái và không kích hoạt gửi lại.
+Trạng thái `NONE` chỉ cho biết hiện không có quan hệ bạn bè hoặc lời mời đang chờ. ADH lưu các thay đổi theo tài khoản, lời mời và mốc gửi, gồm mã lỗi đọc đã chuẩn hóa. Ca production ngày 26/11/2026 trả `Z114` cho mã Zalo lưu từ chiến dịch thử cũ. Mã tra lại từ cùng số khác mã cũ. Danh sách bạn bè xác nhận mã hiện tại đã kết bạn, còn endpoint đối chiếu trả `NO_INVITE` vì chưa có Tin 1 cho mã đó. `NONE`, `Z114` và `NO_INVITE` không kích hoạt gửi lại.
+
+Chỉ lỗi kết nối chắc chắn chưa gửi (`BRIDGE_DOWN`, `BUSY`, `NOT_CONNECTED`) mới tiêu ngân sách thử lại lời mời. Sau lần đầu, ADH thử lại tối đa ba lần, cách nhau ít nhất 1, 5 và 15 phút. PostgreSQL lưu lịch và số lần qua restart. Mỗi lượt vẫn qua khung giờ, hạn mức, phê duyệt chiến dịch, chế độ thử và đúng tài khoản. Sau lần thất bại thứ tư, tab **Cần xử lý tay** hiển thị mã kết nối cuối cùng.
+
+Khi còn một lượt gọi lời mời `DANG_GOI`, tab **Cần xử lý tay** chặn gửi lại. Sau ít nhất hai phút, người vận hành có thể kiểm tra Zalo rồi bấm **Đã xử lý**. ADH giữ kết quả `UNKNOWN`, đóng mục nhật ký và ghi ai đã đóng. Cầu dao vẫn cần mở riêng sau khi xem nhật ký.
+
+### Nghiệm thu E2E lời mời kết bạn
+
+1. Dùng mã khách thử đã được ghi sau Tin 1 trên đúng cầu nối. Đọc trạng thái bằng tài khoản gửi khi lời mời còn chờ.
+2. Một lượt để bên gửi thu hồi và một lượt riêng để bên nhận từ chối. Ghi trạng thái trước và sau trên tab **Cần xử lý tay**. Nếu hai lượt cùng trả `NONE`, tiếp tục chuyển xử lý tay cho cả hai.
+3. Với bridge giả hoặc staging cô lập, dừng app trước khi ghi xong dấu gửi và sau khi cầu nối nhận lệnh. Sau khởi động lại, lượt trước ghi được xét lại hàng chờ, lượt sau giữ `UNKNOWN`. Thử cho cầu nối trả hết giờ chờ, xác minh có thể đọc nhưng không gửi trên cả hai tài khoản. Thử thêm dừng tay và mất phiên để xác minh không giữ đường đọc.
 
 | Tình huống | Adh làm |
 |---|---|
