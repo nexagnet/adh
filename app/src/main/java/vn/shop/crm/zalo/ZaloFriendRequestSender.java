@@ -26,8 +26,8 @@ import java.util.Map;
  * <p>Chỉ gửi cho lời mời còn đúng trạng thái "đã gửi Tin 1": chưa kết bạn, chưa vào nhóm, chưa bị hủy hay tạm dừng (khách từ chối, AI nghi từ chối),
  * khách chưa nhắn riêng lại, chưa hết hạn, chiến dịch còn được duyệt tự gửi và còn trong lịch riêng, khách còn đủ điều kiện liên hệ, và
  * (chế độ thử) số nằm trong danh sách thử. Khách đã nhắn lại "dừng" hay từ chối thì không bao giờ nhận lời mời.
- * Ghi dấu {@code friend_request_at} TRƯỚC khi gọi (outcome UNKNOWN): sập giữa chừng, hết giờ chờ hay Zalo không xác nhận thì dòng ở lại UNKNOWN và
- * KHÔNG BAO GIỜ tự gửi lại. Chỉ khi chắc chắn chưa chạm Zalo mới trả chỗ để nhịp sau thử lại. Không có số ngẫu nhiên.
+ * Cổng gửi ghi dấu lời mời và nhật ký đang gọi cùng một câu lệnh. Nếu app dừng trước khi ghi thành công, lần sau vẫn thấy khách trong hàng chờ.
+ * Nếu đã ghi mà không có kết quả xác định, lời mời ở lại UNKNOWN và cần người kiểm tra.
  */
 @Service
 public class ZaloFriendRequestSender {
@@ -109,7 +109,7 @@ public class ZaloFriendRequestSender {
         return general.isPresent() ? Step.BLOCKED : Step.NOTHING;
     }
 
-    /** Một truy vấn gom mọi điều kiện dừng; giành chỗ ở {@link #send} kiểm lại trong chính câu lệnh. */
+    /** Một truy vấn gom mọi điều kiện dừng; cổng gửi kiểm lại trạng thái dòng khi giành chỗ. */
     private List<Task> due() {
         return jdbc.sql("""
                         SELECT i.id, i.campaign_id, i.customer_id, c.phone, i.zalo_target_uid, i.tin1_blocked_at IS NOT NULL AS blocked
@@ -128,25 +128,16 @@ public class ZaloFriendRequestSender {
 
     private Step send(Task t) {
         String text = t.blocked() ? blockedText() : text();
-        int claimed = jdbc.sql("""
-                        UPDATE invitation SET friend_request_at = :at, friend_request_outcome = 'UNKNOWN'
-                        WHERE id = :id AND friend_request_at IS NULL AND status = 'SENT' AND friended_at IS NULL AND joined_at IS NULL
-                          AND inbound_at IS NULL""")
-                .param("id", t.invitationId()).param("at", OffsetDateTime.now(clock)).update();
-        if (claimed == 0) {
-            return Step.NOTHING;
-        }
         Delivery d;
         try {
             d = messages.sendFriendRequest(ZaloMessageService.SCOPE_REAL, t.invitationId(), t.uid(), text);
         } catch (RuntimeException e) {
-            log.warn("Gửi lời mời kết bạn báo lỗi: {}", e.getClass().getSimpleName());
-            unknown(t, "LOI_HE_THONG");
+            log.warn("Lỗi xử lý lời mời kết bạn account={} invitation={} error={}",
+                    ZaloAccountContext.current(), t.invitationId(), e.getClass().getSimpleName());
             return Step.TRIPPED;
         }
         switch (d.status()) {
             case SENT -> {
-                setOutcome(t, "SENT");
                 sends.recordExternal(t.invitationId(), t.campaignId(), t.customerId(), t.phone(), ZaloInviteSender.CHANNEL, "SENT",
                         "Lời mời kết bạn tự gửi qua bộ nối Zalo", text);
                 contacts.event(t.customerId(), t.phone(), "INVITATION_FRIEND_REQUEST", "Lời mời kết bạn");
@@ -156,25 +147,20 @@ public class ZaloFriendRequestSender {
                 if (ZaloMessageService.FRIEND_LIST_FULL.equals(d.code())) {
                     // Zalo báo danh sách lời mời đã đầy (Z223): lời mời CHƯA đi, đây không phải lỗi của khách này. Trả chỗ để gửi sau,
                     // chỉ tạm dừng riêng phần lời mời kết bạn (không dừng cầu dao, Tin 1 và thêm nhóm vẫn chạy).
-                    release(t);
                     messages.pauseFriendRequests("system");
                     log.warn("Zalo báo danh sách lời mời kết bạn đã đầy (Z223): tạm dừng gửi lời mời kết bạn");
                     return Step.LIST_FULL;
                 }
-                String code = d.code() == null ? "LOI_NGUOI" : d.code();
-                setOutcome(t, "FAILED");
-                sends.recordExternal(t.invitationId(), t.campaignId(), t.customerId(), t.phone(), ZaloInviteSender.CHANNEL, "SKIPPED",
-                        "Lời mời kết bạn không gửi được (mã " + code + ")", text);
+                failed(t, d.code(), text);
                 return Step.FAILED_ONE;
             }
             case RETRY, BLOCKED -> {
-                release(t);
                 return Step.RETRY;
             }
             default -> {
-                if (d.certainlyNotSent()) {
-                    release(t);
-                } else {
+                if (d.sent() != null && d.sent().result() == ZaloMessenger.Result.PERSON_ERROR) {
+                    failed(t, d.code(), text);
+                } else if (!d.certainlyNotSent()) {
                     unknown(t, d.code());
                 }
                 return Step.TRIPPED;
@@ -194,13 +180,9 @@ public class ZaloFriendRequestSender {
                 "Không rõ lời mời kết bạn đã gửi chưa (" + (code == null ? "lỗi" : code) + "). Hãy kiểm tra trên Zalo", text());
     }
 
-    private void setOutcome(Task t, String outcome) {
-        jdbc.sql("UPDATE invitation SET friend_request_outcome = :o WHERE id = :id").param("o", outcome).param("id", t.invitationId()).update();
+    private void failed(Task t, String code, String text) {
+        sends.recordExternal(t.invitationId(), t.campaignId(), t.customerId(), t.phone(), ZaloInviteSender.CHANNEL, "SKIPPED",
+                "Lời mời kết bạn không gửi được (mã " + (code == null ? "LOI_NGUOI" : code) + ")", text);
     }
 
-    /** Chỉ dùng khi CHẮC CHẮN chưa chạm Zalo: trả chỗ để thử lại. */
-    private void release(Task t) {
-        jdbc.sql("UPDATE invitation SET friend_request_at = NULL, friend_request_outcome = NULL WHERE id = :id AND friend_request_outcome = 'UNKNOWN'")
-                .param("id", t.invitationId()).update();
-    }
 }

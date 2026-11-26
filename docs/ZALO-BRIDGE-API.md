@@ -106,6 +106,11 @@ Nhóm mà **tài khoản phụ đang tham gia**, để chọn "mã nhóm Zalo" c
 - Mật khẩu và OTP Zalo không bao giờ đi qua hợp đồng này.
 
 ## Cách Adh xử lý lỗi
+
+Riêng lời mời kết bạn, Adh ghi dấu trên lời mời và dòng `DANG_GOI` trong cùng một câu lệnh PostgreSQL trước khi gọi cầu nối. Nếu app dừng trước khi câu lệnh commit, lời mời vẫn trong hàng chờ và nhịp sau xét lại các điều kiện gửi. Nếu đã commit mà chưa có kết quả, lời mời vẫn ở `UNKNOWN` để kiểm tra. Khi cầu nối xác nhận gửi thành công hoặc xác nhận chưa gửi, Adh lưu kết quả trên lời mời cùng lần cập nhật nhật ký gửi.
+
+Trạng thái `NONE` chỉ cho biết hiện không có quan hệ bạn bè hoặc lời mời đang chờ. Không dùng trạng thái này để suy ra ai đã thu hồi hay từ chối. Lỗi đọc như `Z114`, quan sát lần đầu trên tài khoản thử đã kết bạn ở production ngày 26/11/2026, cũng không xác nhận trạng thái và không kích hoạt gửi lại.
+
 | Tình huống | Adh làm |
 |---|---|
 | Không nối được cầu nối (từ chối kết nối) | `UNREACHABLE`: chưa chạm Zalo, không tính hạn mức, không dừng, thử lại nhịp sau |
