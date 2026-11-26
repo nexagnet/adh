@@ -69,7 +69,7 @@ class StateFile {
 
 /** Lỗi thường (hạn mức, khung giờ, lỗi lạ): vẫn nhận tin được. Lỗi phiên, tài khoản, Zalo hạn chế, dừng tay hay sổ hỏng: đóng hẳn. */
 export function isSoftTrip(reason) {
-  return typeof reason === 'string' && reason !== '' && !/^(STOP|SESSION_LOST|RESTRICTED|DUPLICATE_CONNECTION|KICKED|RECONNECT_FAILED|LEDGER_CORRUPT|CRASH_LOOP|INTERRUPTED)(:|$)/.test(reason);
+  return typeof reason === 'string' && reason !== '' && !/^(STOP|SESSION_LOST|RESTRICTED|ACCOUNT_MISMATCH|DUPLICATE_CONNECTION|KICKED|RECONNECT_FAILED|LEDGER_CORRUPT|STATE_CORRUPT|CRASH_LOOP|INTERRUPTED)(:|$)/.test(reason);
 }
 
 export class Bridge {
@@ -111,6 +111,7 @@ export class Bridge {
     this.generation = 0; // tăng mỗi lần dừng/đổi phiên để bỏ qua sự kiện của kết nối cũ
     this.listenSeq = 0; // mã của lần đăng ký nghe; activeListen khác 0 nghĩa là đang NHẬN tin (nhận không phải gửi: cầu dao chỉ chặn gửi)
     this.activeListen = 0;
+    this.readOnlyConnected = false;
     this.rxAttempts = 0;
     this.rxBusy = false;
   }
@@ -312,7 +313,12 @@ export class Bridge {
     if (gen !== this.generation) {
       // Đang dừng gửi (cầu dao) mà đường NHẬN tin bị đứt: nối lại chỉ để nhận, không đổi trạng thái dừng.
       if (lg !== 0 && lg === this.activeListen && this.state === 'TRIPPED') {
+        if (code === CLOSE_DUPLICATE || code === CLOSE_KICK) {
+          this.trip(code === CLOSE_DUPLICATE ? 'DUPLICATE_CONNECTION' : 'KICKED');
+          return;
+        }
         this.activeListen = 0;
+        this.readOnlyConnected = false;
         this.log('mất kết nối nhận tin khi đang dừng gửi');
         this.startReceiveOnly();
       }
@@ -364,7 +370,21 @@ export class Bridge {
 
   stopListen() {
     this.activeListen = 0;
+    this.readOnlyConnected = false;
     this.adapter.stopListening();
+  }
+
+  canReconcileTrip(reason) {
+    return this.config.friendReconcileEnabled && /^SYSTEM_ERROR:(TIMEOUT|NO_ACK)$/.test(reason ?? '');
+  }
+
+  canKeepReceiving(reason) {
+    return (this.config.inboxEnabled && isSoftTrip(reason)) || this.canReconcileTrip(reason);
+  }
+
+  friendReconcileAvailable() {
+    return Boolean(this.config.friendReconcileEnabled && this.accountOk === true && this.activeListen !== 0
+      && (this.state === 'LISTENING' || (this.state === 'TRIPPED' && this.readOnlyConnected && this.canReconcileTrip(this.tripReason))));
   }
 
   /**
@@ -372,7 +392,7 @@ export class Bridge {
    * thái TRIPPED, không đọc sự kiện kết bạn. Cần cờ nghe tin riêng và phiên còn dùng được; đứt thì thử nối lại có backoff và giới hạn số lần.
    */
   async startReceiveOnly() {
-    if (this.rxBusy || !this.config.inboxEnabled || this.state !== 'TRIPPED' || !isSoftTrip(this.tripReason)) return;
+    if (this.rxBusy || this.state !== 'TRIPPED' || !this.canKeepReceiving(this.tripReason)) return;
     const gen = this.generation;
     if (this.rxAttempts >= this.config.reconnectMaxAttempts) {
       this.log('không nối lại được đường nhận tin khi đang dừng gửi');
@@ -401,16 +421,23 @@ export class Bridge {
         return;
       }
       if (this.config.mode === 'zca' && String(ownId) !== this.config.accountId) {
-        this.adapter.stopListening();
+        this.accountOk = false;
+        this.trip('ACCOUNT_MISMATCH');
         return; // sai tài khoản: không nghe (người dùng xử ở trang quản trị)
       }
+      this.accountOk = true;
       const lg = ++this.listenSeq;
       this.activeListen = lg;
       this.adapter.listen({
-        onConnected: () => { this.rxAttempts = 0; this.log('đang nhận tin khi dừng gửi'); },
+        onConnected: () => {
+          if (lg !== this.activeListen || this.state !== 'TRIPPED') return;
+          this.readOnlyConnected = true;
+          this.rxAttempts = 0;
+          this.log('đang nhận khi dừng gửi');
+        },
         onFriendAdd: () => {},
         onMessage: (uid, text) => this.onMessage(lg, uid, text),
-        onDisconnected: () => this.onDisconnected(-1, 0, lg), // -1 khác generation hiện tại: đi nhánh nối lại chỉ để nhận
+        onDisconnected: (code) => this.onDisconnected(-1, code, lg), // -1 khác generation hiện tại: nối lại chỉ để nhận
       });
     } finally {
       this.rxBusy = false;
@@ -422,7 +449,11 @@ export class Bridge {
     this.generation += 1;
     this.clearTimer();
     // Cầu dao chỉ chặn GỬI. Lỗi thường (hạn mức, khung giờ, lỗi lạ) thì giữ đường NHẬN tin riêng; lỗi liên quan phiên/tài khoản/Zalo hạn chế thì đóng hẳn.
-    if (!(this.activeListen !== 0 && this.config.inboxEnabled && isSoftTrip(reason))) this.stopListen();
+    if (this.activeListen !== 0 && this.canKeepReceiving(reason)) {
+      this.readOnlyConnected ||= this.state === 'LISTENING';
+    } else {
+      this.stopListen();
+    }
     this.tripReason = reason;
     this.state = reason === 'STOP' ? 'STOPPED' : 'TRIPPED';
     this.stateFile.write({ tripped: { reason, at: new Date(this.now()).toISOString() } });
@@ -1195,7 +1226,8 @@ export class Bridge {
       return { ok: false, code: 'NO_INVITE' };
     }
     const canRead = () => this.accountOk === true && this.activeListen !== 0
-      && (this.state === 'LISTENING' || (this.state === 'TRIPPED' && isSoftTrip(this.tripReason)));
+      && (this.state === 'LISTENING' || (this.state === 'TRIPPED' && this.readOnlyConnected
+        && (this.canReconcileTrip(this.tripReason) || (this.config.inboxEnabled && isSoftTrip(this.tripReason)))));
     if (!canRead()) return { ok: false, code: 'NOT_ACTIVE' };
     const at = this.now();
     if (!inWindow(at, this.config.windowStartMin, this.config.windowEndMin)) return { ok: false, code: 'WINDOW' };
@@ -1220,7 +1252,11 @@ export class Bridge {
       const state = ['FRIENDS', 'OUTGOING', 'INCOMING'][flags.indexOf(1)] ?? 'NONE';
       return { ok: true, state };
     } catch (e) {
-      const { code } = classifyError(e);
+      if (generation !== this.generation || !canRead()) return { ok: false, code: 'NOT_ACTIVE' };
+      const { code, outcome } = classifyError(e);
+      if (outcome === 'SESSION_LOST' || outcome === 'RESTRICTED') {
+        this.trip(code ? `${outcome}:${code}` : outcome);
+      }
       this.log(`đọc trạng thái lời mời: ${code}`);
       return { ok: false, code };
     } finally {
@@ -1308,6 +1344,7 @@ export class Bridge {
       state: this.state,
       tripReason: this.tripReason,
       accountOk: this.accountOk,
+      friendReconcileAvailable: this.friendReconcileAvailable(),
       // Dấu băm ngắn của tài khoản phụ (không đảo ngược được, không phải mã Zalo): để Adh biết mã của mẹ tra ra thuộc tài khoản nào.
       accountTag: this.config.accountId ? createHash('sha256').update(`adh-acct:${this.config.accountId}`).digest('hex').slice(0, 12) : null,
       lastEventAt: this.lastEventAt,

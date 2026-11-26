@@ -27,7 +27,8 @@ public class ManualAttention {
                       boolean canResendFriend, boolean canMarkDone) {
     }
 
-    public record Observation(String stateLabel, LocalDateTime observedAt, String previousStateLabel, LocalDateTime previousObservedAt) {
+    public record Observation(String stateLabel, LocalDateTime observedAt, String previousStateLabel, LocalDateTime previousObservedAt,
+                              String reasonCode) {
     }
 
     private final JdbcClient jdbc;
@@ -40,16 +41,26 @@ public class ManualAttention {
         this.clock = clock;
     }
 
+    private static final String PENDING_DISPATCH = """
+            EXISTS (SELECT 1 FROM zalo_msg_log pending
+                    WHERE pending.account_id = i.account_id AND pending.ref_id = i.id
+                      AND pending.kind = 'FRIEND' AND pending.outcome = 'DANG_GOI')
+            """;
+
     private static final String MANUAL_PROBLEM = """
             (
                 i.status = 'FAILED'
                 OR (i.friend_request_outcome = 'UNKNOWN' AND i.friended_at IS NULL AND i.joined_at IS NULL)
-                OR (i.friend_ask_outcome = 'UNKNOWN' AND i.friended_at IS NULL AND i.joined_at IS NULL))""";
+                OR (i.friend_request_outcome = 'FAILED' AND i.friend_transport_failures = 4
+                    AND i.friended_at IS NULL AND i.joined_at IS NULL)
+                OR (i.friend_ask_outcome = 'UNKNOWN' AND i.friended_at IS NULL AND i.joined_at IS NULL)
+                OR %s)""".formatted(PENDING_DISPATCH);
 
     private static final String OBSERVATION_JOIN = """
             LEFT JOIN zalo_friend_observation o ON o.invitation_id = i.id AND o.account_id = i.account_id AND o.needs_review
                 AND i.status IN ('SENT', 'CLICKED') AND i.friend_request_outcome IN ('SENT', 'UNKNOWN')
                 AND i.friended_at IS NULL AND i.joined_at IS NULL AND o.observed_at >= i.friend_request_at
+                AND (o.attempt_at IS NULL OR o.attempt_at = i.friend_request_at)
             """;
 
     private static final String WHERE = "i.campaign_id = :c AND i.attention_done_at IS NULL AND ("
@@ -59,13 +70,19 @@ public class ManualAttention {
             EXISTS (SELECT 1 FROM zalo_friend_observation confirmed
                     WHERE confirmed.account_id = i.account_id AND confirmed.invitation_id = i.id
                       AND confirmed.last_confirmed_at >= i.friend_request_at
+                      AND (confirmed.attempt_at IS NULL OR confirmed.attempt_at = i.friend_request_at)
                       AND confirmed.last_confirmed_state IN ('FRIENDS', 'OUTGOING', 'INCOMING'))
+            OR EXISTS (SELECT 1 FROM zalo_friend_observation_event evidence
+                       WHERE evidence.account_id = i.account_id AND evidence.invitation_id = i.id
+                         AND (evidence.attempt_at = i.friend_request_at
+                              OR (evidence.attempt_at IS NULL AND evidence.observed_at >= i.friend_request_at))
+                         AND evidence.state IN ('FRIENDS', 'OUTGOING', 'INCOMING'))
             """;
 
     private static final String INCOMPLETE_DISPATCH = """
             EXISTS (SELECT 1 FROM zalo_msg_log attempt
                     WHERE attempt.account_id = i.account_id AND attempt.ref_id = i.id
-                      AND attempt.kind = 'FRIEND' AND attempt.outcome = 'DANG_GOI')
+                      AND attempt.kind = 'FRIEND' AND attempt.outcome IN ('DANG_GOI', 'KHONG_RO_DA_DONG'))
             """;
 
     public long count(long campaignId) {
@@ -76,11 +93,11 @@ public class ManualAttention {
     public List<Row> rows(long campaignId) {
         return jdbc.sql("""
                         SELECT i.id, c.name, c.phone, i.status, i.last_error, i.friend_request_outcome, i.friend_request_retry_at, i.friend_ask_outcome,
-                               i.friended_at, i.joined_at, i.inbound_at, a.label AS account_label,
-                               o.state, o.observed_at, o.last_confirmed_state, o.last_confirmed_at,
-                               %s AS manual_problem, (%s OR %s) AS resend_blocked
+                               i.friended_at, i.joined_at, i.inbound_at, a.label AS account_label, i.friend_transport_failures,
+                               i.friend_transport_code, o.state, o.observed_at, o.last_confirmed_state, o.last_confirmed_at, o.reason_code,
+                               %s AS manual_problem, (%s OR %s) AS resend_blocked, %s AS pending_call
                         FROM invitation i JOIN customer c ON c.id = i.customer_id JOIN zalo_account a ON a.id = i.account_id
-                        """.formatted(MANUAL_PROBLEM, POSITIVE_EVIDENCE, INCOMPLETE_DISPATCH)
+                        """.formatted(MANUAL_PROBLEM, POSITIVE_EVIDENCE, INCOMPLETE_DISPATCH, PENDING_DISPATCH)
                 + OBSERVATION_JOIN + "WHERE " + WHERE + " ORDER BY i.id LIMIT :n")
                 .param("c", campaignId).param("n", LIMIT)
                 .query((rs, n) -> {
@@ -96,6 +113,13 @@ public class ManualAttention {
                         problems.add("Chưa rõ lời mời kết bạn đã gửi chưa. Hãy mở Zalo của tài khoản phụ kiểm tra"
                                 + (retried ? " (đã gửi lại một lần rồi, không gửi lại thêm được)." : "."));
                     }
+                    if (rs.getBoolean("pending_call")) {
+                        problems.add("Lượt gọi Zalo chưa có kết quả. Sau khi kiểm tra, bấm Đã xử lý để đóng lượt mà không gửi lại.");
+                    }
+                    if (waitingForFriend && "FAILED".equals(rs.getString("friend_request_outcome"))
+                            && rs.getInt("friend_transport_failures") == 4) {
+                        problems.add("Đã hết 3 lượt thử lại kết nối khi gửi lời mời (" + rs.getString("friend_transport_code") + ").");
+                    }
                     if (waitingForFriend && "UNKNOWN".equals(rs.getString("friend_ask_outcome"))) {
                         problems.add("Chưa rõ tin nhờ khách kết bạn lại đã gửi chưa. Hãy mở Zalo của tài khoản phụ kiểm tra.");
                     }
@@ -105,7 +129,8 @@ public class ManualAttention {
                     Observation observation = state == null ? null : new Observation(observationLabel(state),
                             localTime(rs.getObject("observed_at", OffsetDateTime.class)),
                             "UNAVAILABLE".equals(state) ? observationLabel(rs.getString("last_confirmed_state")) : null,
-                            "UNAVAILABLE".equals(state) ? localTime(rs.getObject("last_confirmed_at", OffsetDateTime.class)) : null);
+                            "UNAVAILABLE".equals(state) ? localTime(rs.getObject("last_confirmed_at", OffsetDateTime.class)) : null,
+                            rs.getString("reason_code"));
                     return new Row(rs.getLong("id"), who(rs.getString("name"), rs.getString("phone")),
                             rs.getString("account_label"), List.copyOf(problems), observation, can, rs.getBoolean("manual_problem"));
                 }).list();
@@ -148,7 +173,7 @@ public class ManualAttention {
                         UPDATE invitation i SET friend_request_at = NULL, friend_request_outcome = NULL, friend_request_retry_at = :now
                         WHERE id = :id AND campaign_id = :c AND status = 'SENT' AND friend_request_outcome = 'UNKNOWN' AND friend_request_retry_at IS NULL
                           AND friended_at IS NULL AND joined_at IS NULL AND inbound_at IS NULL
-                        """ + " AND NOT " + POSITIVE_EVIDENCE + " AND NOT " + INCOMPLETE_DISPATCH)
+                        """ + " AND NOT (" + POSITIVE_EVIDENCE + ") AND NOT " + INCOMPLETE_DISPATCH)
                 .param("id", invitationId).param("c", campaignId).param("now", OffsetDateTime.now(clock)).update();
         if (n == 0) {
             throw new ImportException("Không thể xếp gửi lại. Hãy kiểm tra trạng thái lời mời và kết quả đối chiếu mới nhất.");
@@ -156,13 +181,38 @@ public class ManualAttention {
         messages.audit("GUI_LAI_KET_BAN", invitationId, by);
     }
 
-    /** Ẩn khách khỏi tab (người đã xem và tự xử lý). Không đổi trạng thái lời mời. */
+    /** Đóng lượt gửi đã gián đoạn sau khi kiểm tra, rồi ẩn khách khỏi tab. */
+    @org.springframework.transaction.annotation.Transactional
     public void markDone(long campaignId, long invitationId, String by) {
-        int n = jdbc.sql("UPDATE invitation SET attention_done_at = :now WHERE id = :id AND campaign_id = :c AND attention_done_at IS NULL")
-                .param("id", invitationId).param("c", campaignId).param("now", OffsetDateTime.now(clock)).update();
-        if (n == 0) {
-            throw new ImportException("Không tìm thấy khách cần xử lý này (có thể đã được đánh dấu rồi).");
+        long account = jdbc.sql("SELECT account_id FROM invitation WHERE id = :id AND campaign_id = :c")
+                .param("id", invitationId).param("c", campaignId).query(Long.class).optional()
+                .orElseThrow(() -> new ImportException("Không tìm thấy khách cần xử lý này."));
+        ZaloAccountContext.run(account, () -> closeInterrupted(invitationId, account, by));
+        int n = jdbc.sql("""
+                UPDATE invitation i SET attention_done_at = :now
+                WHERE id = :id AND campaign_id = :c AND account_id = :account AND attention_done_at IS NULL
+                """).param("id", invitationId).param("c", campaignId).param("account", account).param("now", OffsetDateTime.now(clock)).update();
+        if (n == 1) {
+            ZaloAccountContext.run(account, () -> messages.audit("DA_XU_LY_TAY", invitationId, by));
         }
-        messages.audit("DA_XU_LY_TAY", invitationId, by);
+    }
+
+    private void closeInterrupted(long invitationId, long account, String by) {
+        var attempts = jdbc.sql("""
+                SELECT at FROM zalo_msg_log
+                WHERE account_id = :account AND ref_id = :id AND kind = 'FRIEND' AND outcome = 'DANG_GOI' ORDER BY id FOR UPDATE
+                """).param("account", account).param("id", invitationId).query(OffsetDateTime.class).list();
+        if (attempts.isEmpty()) {
+            return;
+        }
+        var staleBefore = OffsetDateTime.now(clock).minusMinutes(2);
+        if (attempts.stream().anyMatch(at -> at.isAfter(staleBefore))) {
+            throw new ImportException("Lượt gọi Zalo có thể vẫn đang xử lý. Hãy đợi ít nhất hai phút trước khi đóng.");
+        }
+        jdbc.sql("""
+                UPDATE zalo_msg_log SET outcome = 'KHONG_RO_DA_DONG'
+                WHERE account_id = :account AND ref_id = :id AND kind = 'FRIEND' AND outcome = 'DANG_GOI' AND at <= :at
+                """).param("account", account).param("id", invitationId).param("at", staleBefore).update();
+        messages.audit("DONG_LUOT_KET_BAN_CHUA_RO", invitationId, by);
     }
 }

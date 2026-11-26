@@ -41,8 +41,8 @@ class ZaloFriendReconciliation {
             return;
         }
         var target = candidate.get();
-        var state = bridge.friendRequestState(target.uid());
-        transaction.executeWithoutResult(status -> record(account, target, state));
+        var observation = bridge.friendRequestObservation(target.uid());
+        transaction.executeWithoutResult(status -> record(account, target, observation));
     }
 
     private Optional<Candidate> next(long account) {
@@ -60,9 +60,10 @@ class ZaloFriendReconciliation {
                         rs.getObject("started_at", OffsetDateTime.class))).optional();
     }
 
-    private record Previous(String state, boolean review) {}
+    private record Previous(String state, String reason, boolean review) {}
 
-    private void record(long account, Candidate target, ZaloLink.FriendRequestState state) {
+    private void record(long account, Candidate target, ZaloLink.FriendRequestObservation observation) {
+        var state = observation.state();
         boolean current = jdbc.sql("""
                 SELECT i.id FROM invitation i
                 WHERE i.id = :id AND i.account_id = :account AND i.zalo_target_uid = :uid
@@ -74,38 +75,47 @@ class ZaloFriendReconciliation {
         }
 
         var previous = jdbc.sql("""
-                SELECT state, needs_review FROM zalo_friend_observation WHERE account_id = :account AND invitation_id = :id
-                """).param("account", account).param("id", target.id())
-                .query((rs, n) -> new Previous(rs.getString("state"), rs.getBoolean("needs_review"))).optional();
+                SELECT state, reason_code, needs_review FROM zalo_friend_observation
+                WHERE account_id = :account AND invitation_id = :id
+                  AND (attempt_at = :attempt OR (attempt_at IS NULL AND observed_at >= :attempt))
+                """).param("account", account).param("id", target.id()).param("attempt", target.attemptAt())
+                .query((rs, n) -> new Previous(rs.getString("state"), rs.getString("reason_code"), rs.getBoolean("needs_review"))).optional();
         boolean confirmed = state != ZaloLink.FriendRequestState.UNAVAILABLE;
         boolean review = confirmed ? state != ZaloLink.FriendRequestState.OUTGOING || "UNKNOWN".equals(target.expected())
                 : previous.map(Previous::review).orElse(false);
         int stored = jdbc.sql("""
                 INSERT INTO zalo_friend_observation AS o
-                    (account_id, invitation_id, state, observed_at, last_confirmed_state, last_confirmed_at, needs_review)
+                    (account_id, invitation_id, state, observed_at, last_confirmed_state, last_confirmed_at, needs_review, reason_code, attempt_at)
                 VALUES (:account, :id, :state, :at, CASE WHEN :confirmed THEN :state END,
-                        CASE WHEN :confirmed THEN :at END, :review)
+                        CASE WHEN :confirmed THEN :at END, :review, :reason, :attempt)
                 ON CONFLICT (account_id, invitation_id) DO UPDATE SET state = EXCLUDED.state,
                     observed_at = EXCLUDED.observed_at,
-                    last_confirmed_state = COALESCE(EXCLUDED.last_confirmed_state, o.last_confirmed_state),
-                    last_confirmed_at = COALESCE(EXCLUDED.last_confirmed_at, o.last_confirmed_at),
+                    last_confirmed_state = COALESCE(EXCLUDED.last_confirmed_state,
+                        CASE WHEN o.attempt_at = EXCLUDED.attempt_at OR (o.attempt_at IS NULL AND o.last_confirmed_at >= EXCLUDED.attempt_at)
+                            THEN o.last_confirmed_state END),
+                    last_confirmed_at = COALESCE(EXCLUDED.last_confirmed_at,
+                        CASE WHEN o.attempt_at = EXCLUDED.attempt_at OR (o.attempt_at IS NULL AND o.last_confirmed_at >= EXCLUDED.attempt_at)
+                            THEN o.last_confirmed_at END),
+                    reason_code = EXCLUDED.reason_code, attempt_at = EXCLUDED.attempt_at,
                     needs_review = EXCLUDED.needs_review
                 WHERE o.observed_at < EXCLUDED.observed_at
                 """).param("account", account).param("id", target.id()).param("state", state.name())
-                .param("at", target.startedAt()).param("confirmed", confirmed).param("review", review).update();
-        if (stored == 1 && !previous.equals(Optional.of(new Previous(state.name(), review)))) {
-            recordTransition(account, target, state, review);
+                .param("at", target.startedAt()).param("confirmed", confirmed).param("review", review)
+                .param("reason", observation.reasonCode(), java.sql.Types.VARCHAR).param("attempt", target.attemptAt()).update();
+        if (stored == 1 && !previous.equals(Optional.of(new Previous(state.name(), observation.reasonCode(), review)))) {
+            recordTransition(account, target, observation, review);
         }
     }
 
-    private void recordTransition(long account, Candidate target, ZaloLink.FriendRequestState state, boolean review) {
+    private void recordTransition(long account, Candidate target, ZaloLink.FriendRequestObservation observation, boolean review) {
         jdbc.sql("""
                 INSERT INTO zalo_friend_observation_event
-                    (account_id, invitation_id, state, observed_at, expected_outcome, needs_review)
-                VALUES (:account, :id, :state, :at, :expected, :review)
-                """).param("account", account).param("id", target.id()).param("state", state.name())
-                .param("at", target.startedAt()).param("expected", target.expected()).param("review", review).update();
-        log.info("Đối chiếu kết bạn account={} invitation={} expected={} observed={} review={}",
-                account, target.id(), target.expected(), state, review);
+                    (account_id, invitation_id, state, observed_at, expected_outcome, needs_review, reason_code, attempt_at)
+                VALUES (:account, :id, :state, :at, :expected, :review, :reason, :attempt)
+                """).param("account", account).param("id", target.id()).param("state", observation.state().name())
+                .param("at", target.startedAt()).param("expected", target.expected()).param("review", review)
+                .param("reason", observation.reasonCode(), java.sql.Types.VARCHAR).param("attempt", target.attemptAt()).update();
+        log.info("Đối chiếu kết bạn account={} invitation={} expected={} observed={} reason={} review={}",
+                account, target.id(), target.expected(), observation.state(), observation.reasonCode(), review);
     }
 }

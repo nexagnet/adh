@@ -81,7 +81,8 @@ public class ZcaBridgeGateway implements ZaloLink {
             }
             return new Status(state(n.path("state").asString("")), safeTripReason(text(n, "tripReason")),
                     n.hasNonNull("accountOk") ? n.path("accountOk").asBoolean() : null,
-                    instant(n, "lastEventAt"), instant(n, "sessionSince"), safeCode(text(n, "detail")), safeCode(text(n, "accountTag")));
+                    instant(n, "lastEventAt"), instant(n, "sessionSince"), safeCode(text(n, "detail")), safeCode(text(n, "accountTag")),
+                    n.path("friendReconcileAvailable").isBoolean() && n.path("friendReconcileAvailable").asBoolean());
         } catch (Unreachable e) {
             return Status.of(State.UNREACHABLE);
         } catch (Exception e) {
@@ -166,8 +167,17 @@ public class ZcaBridgeGateway implements ZaloLink {
 
     @Override
     public FriendRequestState friendRequestState(String uid) {
+        return friendRequestObservation(uid).state();
+    }
+
+    private static final java.util.Set<String> FRIEND_READ_CODES = java.util.Set.of(
+            "BAD_INPUT", "NO_INVITE", "NOT_ACTIVE", "WINDOW", "LIMIT", "GAP", "BUSY", "BAD_RESPONSE",
+            "TIMEOUT", "SESSION", "RESTRICTED", "UNKNOWN");
+
+    @Override
+    public FriendRequestObservation friendRequestObservation(String uid) {
         if (uid == null || !ZALO_ID.matcher(uid).matches()) {
-            return FriendRequestState.UNAVAILABLE;
+            return friendReadFailed("BAD_INPUT");
         }
         try {
             JsonNode n = call("GET", "/friend-requests/status?uid=" + uid, null, 10);
@@ -175,19 +185,35 @@ public class ZcaBridgeGateway implements ZaloLink {
             JsonNode state = n.path("state");
             if (ok.isBoolean() && ok.asBoolean() && state.isString()) {
                 return switch (state.asString()) {
-                    case "FRIENDS" -> FriendRequestState.FRIENDS;
-                    case "OUTGOING" -> FriendRequestState.OUTGOING;
-                    case "INCOMING" -> FriendRequestState.INCOMING;
-                    case "NONE" -> FriendRequestState.NONE;
-                    default -> FriendRequestState.UNAVAILABLE;
+                    case "FRIENDS" -> new FriendRequestObservation(FriendRequestState.FRIENDS, null);
+                    case "OUTGOING" -> new FriendRequestObservation(FriendRequestState.OUTGOING, null);
+                    case "INCOMING" -> new FriendRequestObservation(FriendRequestState.INCOMING, null);
+                    case "NONE" -> new FriendRequestObservation(FriendRequestState.NONE, null);
+                    default -> friendReadFailed("BAD_RESPONSE");
                 };
             }
+            String code = n.path("code").asText("");
+            return friendReadFailed(ok.isBoolean() && !ok.asBoolean()
+                    && (FRIEND_READ_CODES.contains(code) || code.matches("Z[0-9]{1,5}")) ? code : "BAD_RESPONSE");
+        } catch (Unreachable e) {
+            String reason = e.getCause() == null ? null : e.getCause().getMessage();
+            if ("ACCOUNT_MISMATCH".equals(reason) || "ACCOUNT_UNVERIFIED".equals(reason)) {
+                return friendReadFailed(reason);
+            }
+            return friendReadFailed("BRIDGE_DOWN");
+        } catch (TimedOut e) {
+            return friendReadFailed("TIMEOUT");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            return friendReadFailed("INTERRUPTED");
         } catch (IOException | RuntimeException e) {
             log.debug("Không đọc được trạng thái lời mời qua cầu nối: {}", e.getClass().getSimpleName());
+            return friendReadFailed("HTTP 404".equals(e.getMessage()) ? "UNSUPPORTED" : "BAD_RESPONSE");
         }
-        return FriendRequestState.UNAVAILABLE;
+    }
+
+    private static FriendRequestObservation friendReadFailed(String code) {
+        return new FriendRequestObservation(FriendRequestState.UNAVAILABLE, code);
     }
 
     @Override
@@ -334,7 +360,9 @@ public class ZcaBridgeGateway implements ZaloLink {
         } catch (ReplyNoLongerEligible e) {
             return ZaloMessenger.replyNoLongerEligible();
         } catch (Unreachable e) {
-            return Sent.of(Result.UNREACHABLE, "BRIDGE_DOWN", true);
+            String reason = e.getCause() == null ? null : e.getCause().getMessage();
+            return Sent.of(Result.UNREACHABLE, "HALTED".equals(reason) || "ACCOUNT_UNVERIFIED".equals(reason)
+                    || "ACCOUNT_MISMATCH".equals(reason) ? reason : "BRIDGE_DOWN", true);
         } catch (TimedOut e) {
             return Sent.of(Result.SYSTEM_ERROR, "TIMEOUT", false); // không biết đã gửi hay chưa
         } catch (Exception e) {

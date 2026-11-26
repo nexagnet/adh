@@ -5,6 +5,13 @@ public interface ZaloLink extends ZaloGateway, ZaloSession, ZaloMessenger, ZaloG
 
     enum FriendRequestState { FRIENDS, OUTGOING, INCOMING, NONE, UNAVAILABLE }
 
+    record FriendRequestObservation(FriendRequestState state, String reasonCode) {}
+
+    default FriendRequestObservation friendRequestObservation(String uid) {
+        var state = friendRequestState(uid);
+        return new FriendRequestObservation(state, state == FriendRequestState.UNAVAILABLE ? "UNAVAILABLE" : null);
+    }
+
     /** Đọc trạng thái quan hệ với đúng một mã Zalo. UNAVAILABLE nghĩa là chưa có quan sát dùng được. */
     default FriendRequestState friendRequestState(String uid) {
         return FriendRequestState.UNAVAILABLE;

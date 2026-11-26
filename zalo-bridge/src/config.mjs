@@ -95,6 +95,7 @@ export function loadConfig(env = process.env) {
     // Đọc tin nhắn RIÊNG gửi tới tài khoản (chỉ từ người đã nhận Tin 1 hoặc Tin 2 của hệ thống) để Adh nhận ra khách từ chối. TẮT mặc định:
     // tắt thì bộ nối không đăng ký nghe tin nhắn. Tin giữ trong bộ nhớ, không ghi đĩa, không ghi log.
     inboxEnabled: ['1', 'true'].includes(String(env.BRIDGE_INBOX_ENABLED ?? '').toLowerCase()),
+    friendReconcileEnabled: ['1', 'true'].includes(String(env.BRIDGE_FRIEND_RECONCILE_ENABLED ?? '').toLowerCase()),
     // Thả tim tin khách (24/11/2026, chủ shop duyệt): trần mỗi ngày và khoảng nghỉ CỐ ĐỊNH giữa hai lần thả tim; chỉ có tác dụng khi đã bật đọc tin riêng.
     reactDaily: int(env, 'BRIDGE_REACT_DAILY', 300, 1, 2000),
     reactGapMs: int(env, 'BRIDGE_REACT_GAP_SEC', 3, 2, 3600) * 1000,
