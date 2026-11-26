@@ -221,10 +221,12 @@ public class FakeZaloGateway implements ZaloLink {
 
     public final List<FriendReq> friendRequests = new ArrayList<>();
     public Sent defaultFriend;
+    Runnable afterFriendRequest = () -> {};
 
     @Override
     public Sent sendFriendRequest(String uid, String text) {
         friendRequests.add(new FriendReq(uid, text));
+        afterFriendRequest.run();
         if (!messageResults.isEmpty()) {
             return messageResults.poll();
         }
