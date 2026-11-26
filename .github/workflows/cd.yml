@@ -115,4 +115,4 @@ jobs:
 
           deploy "$MAIN_HOST" "$keydir/main" 'main' || exit 1
           deploy "$BRIDGE2_HOST" "$keydir/bridge2" 'bridge 2' || exit 1
-          printf 'ADH app and both bridges deployed at `%s`.\n' "$SHA" >> "$GITHUB_STEP_SUMMARY"
+          printf 'ADH app and both bridges deployed at %s.\n' "$SHA" >> "$GITHUB_STEP_SUMMARY"
