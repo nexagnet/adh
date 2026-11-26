@@ -312,24 +312,33 @@ public class ZaloInviteSender {
 
     private Step sendInvite(Invite c) {
         String text = inviteText(c);
-        // khóa lời mời trước khi gọi: hai nhịp chồng nhau không thể gửi trùng một khách
+        long account = ZaloAccountContext.current();
+        // Khóa lời mời và kiểm lại duyệt vì chủ shop có thể bỏ duyệt sau khi đã chọn khách.
         int claimed = jdbc.sql("""
                         UPDATE invitation SET status = 'SENT', sent_at = :at, sent_channel = :ch, account_id = :acct
-                        WHERE id = :id AND status = 'READY'""")
+                        WHERE id = :id AND status = 'READY'
+                          AND EXISTS (SELECT 1 FROM invitation_campaign k
+                                      WHERE k.id = invitation.campaign_id AND k.auto_send_approved_at IS NOT NULL)""")
                 .param("at", OffsetDateTime.now(clock)).param("ch", CHANNEL).param("id", c.id())
-                .param("acct", ZaloAccountContext.current()).update();
+                .param("acct", account).update();
         if (claimed == 0) {
+            log.info("Tin 1 event=claim_skipped account={} campaign={} invitation={}", account, c.campaignId(), c.id());
             return Step.NOTHING;
         }
+        log.info("Tin 1 event=claimed account={} campaign={} invitation={}", account, c.campaignId(), c.id());
         String digits = c.phone().replaceAll("\\D", "");
         Delivery d;
         try {
             d = messages.sendByPhone(ZaloMessageService.SCOPE_REAL, Kind.INVITE, c.id(), digits, text, null, null);
         } catch (RuntimeException e) {
-            log.warn("Gửi Tin 1 báo lỗi: {}", e.getClass().getSimpleName());
+            log.warn("Tin 1 event=send_exception account={} campaign={} invitation={} error={}",
+                    account, c.campaignId(), c.id(), e.getClass().getSimpleName());
             failUnknown(c, "LOI_HE_THONG");
             return Step.TRIPPED;
         }
+        log.info("Tin 1 event=delivery account={} campaign={} invitation={} status={} block={} bridge_result={} not_sent={}",
+                account, c.campaignId(), c.id(), d.status(), d.block(),
+                d.sent() == null ? null : d.sent().result(), d.certainlyNotSent());
         switch (d.status()) {
             case SENT -> {
                 if (d.uid() != null) {

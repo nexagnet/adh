@@ -2,9 +2,13 @@ package vn.shop.crm.zalo;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import vn.shop.crm.AbstractPostgresTest;
 import vn.shop.crm.common.AppSettings;
 import vn.shop.crm.common.ImportException;
@@ -27,6 +31,8 @@ import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
 
 /**
  * D18: hệ thống TỰ gửi Tin 1 cho khách của chiến dịch thật qua bộ nối giả. Khóa các chốt chặn: tắt mặc định, phải duyệt chiến dịch,
@@ -44,7 +50,7 @@ class ZaloAutoSendTest extends AbstractPostgresTest {
             "Mã vận đơn,Mã đơn hàng,Ngày tạo,Tên người nhận,SĐT người nhận,Địa chỉ người nhận,Trạng thái\n";
 
     @Autowired ImportService imports;
-    @Autowired ContactService contacts;
+    @MockitoSpyBean ContactService contacts;
     @Autowired GroupService groups;
     @Autowired InviteService invites;
     @Autowired ZaloAutoService zalo;
@@ -140,6 +146,25 @@ class ZaloAutoSendTest extends AbstractPostgresTest {
         after(120);
         assertThat(sender.step()).isEqualTo(Step.NOTHING);
         assertThat(fake.messages).hasSize(1);
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void boDuyetSauKhiChonKhachThiKhongNhanLoiMoiDeGui(CapturedOutput output) {
+        ready(ZaloMode.CONFIRM);
+        int candidate = first();
+        long invitation = inv(candidate);
+        doAnswer(call -> {
+            boolean eligible = (boolean) call.callRealMethod();
+            sender.revokeCampaign(campaign, "mẹ");
+            return eligible;
+        }).when(contacts).stillEligible(anyLong());
+
+        assertThat(sender.step()).isEqualTo(Step.NOTHING);
+        assertThat(fake.messages).isEmpty();
+        assertThat(col("status", candidate)).isEqualTo("READY");
+        assertThat(count("SELECT count(*) FROM zalo_msg_log")).isZero();
+        assertThat(output).contains("Tin 1 event=claim_skipped account=1 campaign=" + campaign + " invitation=" + invitation);
     }
 
     @Test
