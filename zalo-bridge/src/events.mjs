@@ -43,14 +43,22 @@ export class InboxBuffer {
     this.now = now;
     this.file = file && key ? file : null;
     this.key = key;
+    this.durable = false;
+    this.lossAt = 0;
+    this.coverageFloor = 0;
+    this.acknowledged = 0;
     if (this.file && existsSync(this.file)) {
       try {
         const o = decryptJson(this.key, readFileSync(this.file, 'utf8'));
-        if (Array.isArray(o?.items)) this.items = o.items.filter((e) => Number.isFinite(e?.seq) && typeof e.uid === 'string' && typeof e.text === 'string' && typeof e.at === 'string');
+        if (!Array.isArray(o?.items)) throw new Error('INVALID_INBOX');
+        this.items = o.items.filter((e) => Number.isSafeInteger(e?.seq) && typeof e.uid === 'string' && typeof e.text === 'string' && Number.isFinite(Date.parse(e.at)));
+        if (this.items.length !== o.items.length) this.lossAt = this.now();
         this.last = Math.max(0, ...this.items.map((e) => e.seq), Number.isFinite(o?.last) ? o.last : 0);
+        this.lossAt = Math.max(this.lossAt, Number.isSafeInteger(o.lossAt) ? o.lossAt : 0);
+        this.acknowledged = Number.isSafeInteger(o.acknowledged) ? o.acknowledged : 0;
       } catch {
-        // tệp hỏng hay sai khóa: bắt đầu trống (Adh vẫn còn con trỏ riêng, tin mới vẫn vào)
         this.items = [];
+        this.lossAt = this.now();
       }
     }
   }
@@ -59,10 +67,14 @@ export class InboxBuffer {
     if (!this.file) return;
     try {
       const tmp = `${this.file}.tmp`;
-      writeFileSync(tmp, encryptJson(this.key, { last: this.last, items: this.items }), { mode: 0o600 });
+      writeFileSync(tmp, encryptJson(this.key, {
+        last: this.last, items: this.items, lossAt: this.lossAt, acknowledged: this.acknowledged,
+      }), { mode: 0o600 });
       renameSync(tmp, this.file);
+      this.durable = true;
     } catch {
-      // không ghi được thì vẫn giữ trong bộ nhớ
+      this.markLoss();
+      this.durable = false;
     }
   }
 
@@ -70,7 +82,10 @@ export class InboxBuffer {
     const t = this.now();
     this.last = Math.max(this.last + 1, t);
     this.items.push({ seq: this.last, uid, text: String(text).slice(0, INBOX_TEXT_MAX), at: new Date(t).toISOString() });
-    if (this.items.length > this.max) this.items.splice(0, this.items.length - this.max);
+    if (this.items.length > this.max) {
+      this.items.splice(0, this.items.length - this.max);
+      this.markLoss();
+    }
     this.save();
     return this.last;
   }
@@ -78,11 +93,29 @@ export class InboxBuffer {
   /** Tin có seq > after. Tin đã được xác nhận (seq <= after) và quá hạn bị bỏ ngay. */
   after(after) {
     const cutoff = this.now() - this.ttlMs;
-    const kept = this.items.filter((e) => e.seq > after && Date.parse(e.at) >= cutoff);
-    if (kept.length !== this.items.length) {
+    const priorAck = this.acknowledged;
+    if (after < priorAck) {
+      this.markLoss(); // DB Adh đã lùi về con trỏ trước những tin bridge đã xóa.
+      this.acknowledged = after;
+    }
+    for (const item of this.items) {
+      if (item.seq <= after) this.acknowledged = Math.max(this.acknowledged, item.seq);
+    }
+    const pending = this.items.filter((e) => e.seq > after);
+    const kept = pending.filter((e) => Date.parse(e.at) >= cutoff);
+    if (kept.length !== pending.length) this.markLoss();
+    if (kept.length !== this.items.length || this.acknowledged !== priorAck || !this.durable) {
       this.items = kept;
       this.save();
     }
     return this.items.slice();
+  }
+
+  caughtUp() {
+    return this.durable && this.items.length === 0;
+  }
+
+  markLoss() {
+    this.lossAt = Math.max(this.lossAt + 1, this.now(), this.coverageFloor + 1);
   }
 }

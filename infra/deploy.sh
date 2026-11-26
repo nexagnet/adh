@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Triển khai adh lên máy chủ DÙNG CHUNG (không đụng Caddy/cổng 80-443 của dự án khác).
-#   ./deploy.sh deploy [thẻ]   kéo ảnh ghcr.io/nexagnet/adh-app:<thẻ> (mặc định: commit mới nhất của main) và chạy; tự lùi lại nếu không khỏe
+#   ./deploy.sh deploy [SHA]   kéo ảnh ghcr.io/nexagnet/adh-app:<SHA> (mặc định: commit mới nhất của main) và chạy; tự lùi khi schema còn tương thích
 #   ./deploy.sh rollback       quay về thẻ trước đó
 #   ./deploy.sh status         trạng thái container, thẻ đang chạy, RAM còn trống
 #   ./deploy.sh logs [dịch vụ] xem log (mặc định app)
@@ -14,6 +14,8 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$HERE"
 [ -f .env ] || { echo "LỖI: thiếu $HERE/.env (cp .env.example .env rồi sửa, chmod 600)" >&2; exit 1; }
+# shellcheck source=infra/deploy-readiness.sh
+source "$HERE/deploy-readiness.sh"
 
 # Đọc một biến từ .env từng dòng (KHÔNG nạp file như mã); lấy dòng cuối, bỏ dấu nháy và ký tự xuống dòng kiểu Windows.
 env_get() { # $1 tên, $2 mặc định
@@ -48,24 +50,36 @@ check_compose_files() {
 }
 check_compose_files || exit 1
 
+check_multi_route() {
+    [ "$(env_get APP_ZALO_MULTI_ENABLED false)" = true ] || return 0
+    if [[ ":$COMPOSE_FILE:" != *":docker-compose.zalo-2.yml:"* ]]; then
+        echo "LỖI: APP_ZALO_MULTI_ENABLED=true cần thêm docker-compose.zalo-2.yml vào COMPOSE_FILE." >&2
+        return 1
+    fi
+    if [[ ",$COMPOSE_PROFILES," != *",zalo-bridge-2,"* ]] && [ -z "$(env_get ZALO_BRIDGE_2_URL '')" ]; then
+        echo "LỖI: cần ZALO_BRIDGE_2_URL nếu cầu nối tài khoản 2 chạy ở máy khác." >&2
+        return 1
+    fi
+}
+
 if docker info >/dev/null 2>&1; then SUDO=""; else SUDO="sudo "; fi
 export DOCKER_SUDO="$SUDO"
 # sudo xóa biến môi trường, nên truyền ADH_TAG qua env để thẻ ảnh không bị mất. Tệp và profile đi bằng cờ -f / --profile (sudo-an toàn);
 # hai biến COMPOSE_* được đặt rỗng để biến của môi trường không chen vào.
-dc() { $SUDO env "ADH_TAG=${ADH_TAG:-}" COMPOSE_FILE= COMPOSE_PROFILES= docker compose "${compose_args[@]}" --env-file .env "$@"; }
+dc() { $SUDO env "ADH_TAG=${ADH_TAG:-}" "ADH_HOST_PORT=$HOST_PORT" COMPOSE_FILE= COMPOSE_PROFILES= docker compose "${compose_args[@]}" --env-file .env "$@"; }
 
-HOST_PORT="$(grep -E '^ADH_HOST_PORT=' .env | cut -d= -f2- || true)"; HOST_PORT="${HOST_PORT:-8081}"
+HOST_PORT="$(env_get ADH_HOST_PORT 8081)"
 MIN_FREE_MB="${MIN_FREE_MB:-250}"
-CUR=.current-tag; PREV=.previous-tag
-
-healthy() {
-    # Ứng dụng không có điểm kiểm tra riêng: coi là khỏe nếu trả mã HTTP dưới 500 (trang đăng nhập/chuyển hướng cũng được).
-    local code; code="$(curl -s -o /dev/null -m 5 -w '%{http_code}' "http://127.0.0.1:$HOST_PORT/" || true)"
-    [[ "$code" =~ ^[1-4][0-9][0-9]$ ]]
-}
+CUR=.current-tag; PREV=.previous-tag; PREV_SCHEMA=.previous-schema
+APP_IMAGE=ghcr.io/nexagnet/adh-app
 
 wait_healthy() {
-    for _ in $(seq 1 36); do healthy && return 0; sleep 5; done
+    local deadline=$((SECONDS + 175))
+    for _ in $(seq 1 36); do
+        [ "$SECONDS" -lt "$deadline" ] || break
+        adh_ready_at "$HOST_PORT" "$1" && return 0
+        [ "$SECONDS" -lt "$deadline" ] && sleep 5
+    done
     return 1
 }
 
@@ -73,14 +87,36 @@ has_service() { # dịch vụ có trong cấu hình đang dùng (đã tính tệ
     dc config --services 2>/dev/null | grep -qx "$1"
 }
 
-up_with() { # $1 = thẻ. Chỉ kéo ảnh và tạo lại dịch vụ của dự án compose "adh"; không bao giờ down/rm/--remove-orphans.
-    ADH_TAG="$1" dc pull app
+prepare_images() { # $1 = thẻ. Xác minh metadata có từ lúc dựng ảnh, trước khi tạo lại bất kỳ dịch vụ nào.
+    adh_revision "$1" || return 1
+    ADH_TAG="$1" dc pull app || return 1
+    local labels s
+    labels="$($SUDO docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}} {{index .Config.Labels "vn.shop.crm.readiness"}}' "$APP_IMAGE:$1")" || return 1
+    if [ "$labels" != "$1 1" ]; then
+        echo "LỖI: ảnh app $1 không có đúng SHA và hợp đồng readiness. Giữ cấu hình hiện tại." >&2
+        return 1
+    fi
     # Cầu nối Zalo (D16) và cầu nối tài khoản thứ hai (D23) chỉ được kéo khi profile của chúng đang bật trong .env.
-    local s
     for s in zalo-bridge zalo-bridge-2; do
-        if has_service "$s"; then ADH_TAG="$1" dc pull "$s"; fi
+        if has_service "$s"; then ADH_TAG="$1" dc pull "$s" || return 1; fi
     done
+}
+
+up_with() { # Chỉ tạo lại dịch vụ dự án adh, giữ volume và không dừng dịch vụ dự án khác.
     ADH_TAG="$1" dc up -d
+}
+
+schema_fingerprint() {
+    local value
+    value="$(dc exec -T postgres psql -X -v ON_ERROR_STOP=1 -U crm -d crm -Atq -c \
+        "SELECT md5(COALESCE(jsonb_agg(jsonb_build_array(installed_rank, version, type, script, checksum, success) ORDER BY installed_rank)::text, '[]')) FROM public.flyway_schema_history" 2>/dev/null)" || return 1
+    [[ "$value" =~ ^[0-9a-f]{32}$ ]] || return 1
+    printf '%s' "$value"
+}
+
+schema_unchanged() {
+    local actual
+    [[ "$1" =~ ^[0-9a-f]{32}$ ]] && actual="$(schema_fingerprint)" && [ "$actual" = "$1" ]
 }
 
 latest_main_tag() {
@@ -90,8 +126,9 @@ latest_main_tag() {
 cmd="${1:-status}"; shift || true
 case "$cmd" in
 deploy)
+    check_multi_route || exit 1
     tag="${1:-$(latest_main_tag)}"
-    [ -n "$tag" ] || { echo "LỖI: không lấy được thẻ; truyền thẻ làm tham số" >&2; exit 1; }
+    adh_revision "$tag" || { echo "LỖI: cần SHA commit đầy đủ 40 ký tự làm thẻ ảnh" >&2; exit 1; }
     free="$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo)"
     echo "RAM còn trống: ${free} MB (cần tối thiểu ${MIN_FREE_MB} MB; đặt MIN_FREE_MB để đổi)"
     if [ "$free" -lt "$MIN_FREE_MB" ]; then
@@ -100,36 +137,61 @@ deploy)
     echo "Cấu hình compose: COMPOSE_FILE=$COMPOSE_FILE COMPOSE_PROFILES=${COMPOSE_PROFILES:-(không)}"
     # Kiểm cấu hình TRƯỚC khi sao lưu hay đổi gì (thiếu khóa bắt buộc, tệp YAML hỏng...): lỗi thì dừng, container giữ nguyên.
     ADH_TAG="$tag" dc config -q || { echo "LỖI: cấu hình compose không hợp lệ (xem thông báo trên). Không có gì bị đổi." >&2; exit 1; }
-    prev=""; [ -f "$CUR" ] && prev="$(cat "$CUR")"
+    prev="$(cat "$CUR" 2>/dev/null || true)"
+    prepare_images "$tag" || exit 1
+    previous_schema=""
     if [ -n "$($SUDO docker ps -q --filter label=com.docker.compose.project=adh --filter label=com.docker.compose.service=postgres)" ]; then
+        previous_schema="$(schema_fingerprint || true)"
         echo "Sao lưu trước khi cập nhật..."; ./backup.sh
     fi
     echo "Triển khai thẻ $tag"
-    up_with "$tag"
-    if wait_healthy; then
-        [ -n "$prev" ] && [ "$prev" != "$tag" ] && echo "$prev" > "$PREV"
+    if up_with "$tag" && wait_healthy "$tag"; then
+        if adh_revision "$prev" && [ "$prev" != "$tag" ]; then
+            printf '%s %s\n' "$prev" "$previous_schema" > "$PREV_SCHEMA"
+            echo "$prev" > "$PREV"
+        fi
         echo "$tag" > "$CUR"
         echo "XONG: adh chạy thẻ $tag tại 127.0.0.1:$HOST_PORT"
     else
-        echo "LỖI: ứng dụng không khỏe sau 3 phút." >&2
+        echo "LỖI: ứng dụng không khỏe hoặc readiness không trả đúng SHA $tag." >&2
         dc logs --tail 40 app >&2 || true
-        if [ -n "$prev" ] && [ "$prev" != "$tag" ]; then
-            echo "Lùi về $prev..." >&2; up_with "$prev"
-            wait_healthy && echo "Đã lùi về $prev" >&2 || echo "CẢNH BÁO: lùi về $prev cũng chưa khỏe, kiểm tra thủ công" >&2
+        if adh_revision "$prev" && [ "$prev" != "$tag" ]; then
+            if schema_unchanged "$previous_schema" && prepare_images "$prev" && schema_unchanged "$previous_schema"; then
+                echo "Lùi về $prev..." >&2
+                if up_with "$prev" && wait_healthy "$prev"; then
+                    echo "Đã lùi về $prev" >&2
+                else
+                    echo "CẢNH BÁO: lùi về $prev cũng chưa khỏe, kiểm tra thủ công." >&2
+                fi
+            else
+                echo "LỖI: chưa xác minh ảnh hoặc schema lùi. Giữ bản sao lưu, xử lý theo runbook." >&2
+            fi
         fi
         exit 1
     fi ;;
 rollback)
     [ -f "$PREV" ] || { echo "LỖI: chưa có thẻ trước đó" >&2; exit 1; }
     tag="$(cat "$PREV")"; cur="$(cat "$CUR" 2>/dev/null || true)"
-    up_with "$tag"
-    wait_healthy || { echo "LỖI: thẻ $tag không khỏe" >&2; exit 1; }
-    echo "$tag" > "$CUR"; [ -n "$cur" ] && echo "$cur" > "$PREV"
+    saved_tag="" saved_schema=""
+    if [ -f "$PREV_SCHEMA" ]; then read -r saved_tag saved_schema < "$PREV_SCHEMA" || exit 1; fi
+    if [ "$saved_tag" != "$tag" ] || ! schema_unchanged "$saved_schema"; then
+        echo "LỖI: schema không khớp bản trước hoặc chưa được xác minh. Khôi phục theo runbook trước khi lùi ảnh." >&2
+        exit 1
+    fi
+    prepare_images "$tag" && schema_unchanged "$saved_schema" && up_with "$tag" || exit 1
+    wait_healthy "$tag" || { echo "LỖI: thẻ $tag không khỏe" >&2; exit 1; }
+    echo "$tag" > "$CUR"
+    if adh_revision "$cur"; then
+        printf '%s %s\n' "$cur" "$saved_schema" > "$PREV_SCHEMA"
+        echo "$cur" > "$PREV"
+    fi
     echo "Đã quay về $tag" ;;
 status)
     echo "Thẻ đang chạy: $(cat "$CUR" 2>/dev/null || echo 'chưa có')   thẻ trước: $(cat "$PREV" 2>/dev/null || echo 'chưa có')"
     ADH_TAG="$(cat "$CUR" 2>/dev/null || echo none)" dc ps
-    healthy && echo "HTTP 127.0.0.1:$HOST_PORT: khỏe" || echo "HTTP 127.0.0.1:$HOST_PORT: không phản hồi"
+    adh_ready_at "$HOST_PORT" "$(cat "$CUR" 2>/dev/null || true)" \
+        && echo "Readiness 127.0.0.1:$HOST_PORT: khỏe, đúng SHA" \
+        || echo "Readiness 127.0.0.1:$HOST_PORT: chưa khỏe hoặc chưa xác minh được SHA"
     free -m | sed -n '1,3p' ;;
 logs)
     ADH_TAG="$(cat "$CUR" 2>/dev/null || echo none)" dc logs --tail 200 -f "${1:-app}" ;;

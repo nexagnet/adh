@@ -91,6 +91,7 @@ public class StatusMappingService {
         if (key.isEmpty()) {
             throw new ImportException("Trạng thái không được để trống.");
         }
+        ShipmentWriteLock.acquire(jdbc);
         if (status == CanonicalStatus.UNKNOWN) {
             jdbc.sql("DELETE FROM status_mapping WHERE carrier = :c AND status_key = :k")
                     .param("c", carrier.name()).param("k", key).update();

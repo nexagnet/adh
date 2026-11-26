@@ -129,7 +129,7 @@ public class ReplyService {
     }
 
     public record Row(long id, long customerId, String customerName, String state, Reason reason, String detail, String inbound, String reply,
-                      LocalDateTime createdAt, LocalDateTime sentAt, List<String> contextLabels) {
+                      LocalDateTime createdAt, LocalDateTime sentAt, List<String> contextLabels, long accountId) {
     }
 
     public record Ready(long id, String uid, String text) {
@@ -519,7 +519,8 @@ public class ReplyService {
     // ---------- cho trang quản trị ----------
 
     private static final String SELECT = """
-            SELECT d.id, d.customer_id, c.name, d.state, d.reason, d.detail, d.inbound_text, d.reply_text, d.created_at, d.sent_at, d.context_fields
+            SELECT d.id, d.customer_id, c.name, d.state, d.reason, d.detail, d.inbound_text, d.reply_text,
+                   d.created_at, d.sent_at, d.context_fields, d.account_id
             FROM reply_draft d JOIN customer c ON c.id = d.customer_id
             """;
 
@@ -529,7 +530,8 @@ public class ReplyService {
         return new Row(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("name"), rs.getString("state"),
                 r == null ? null : Reason.valueOf(r), rs.getString("detail"), rs.getString("inbound_text"), rs.getString("reply_text"),
                 rs.getTimestamp("created_at").toInstant().atZone(VN).toLocalDateTime(),
-                sent == null ? null : sent.toInstant().atZone(VN).toLocalDateTime(), ReplyContext.labelsOf(rs.getString("context_fields")));
+                sent == null ? null : sent.toInstant().atZone(VN).toLocalDateTime(), ReplyContext.labelsOf(rs.getString("context_fields")),
+                rs.getLong("account_id"));
     }
 
     /** Việc chờ người thật (hàng đợi chung). */

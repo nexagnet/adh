@@ -78,6 +78,20 @@ class SettlementImportTest extends AbstractPostgresTest {
     }
 
     @Test
+    void donNhapSauDoiSoatVanNhanBangChungGiaoThanhCong() {
+        String tracking = "861000000007";
+        importFiles(file("a.csv", period("KH0001-20261021-1022", "300000", "280000",
+                row(tracking, "DH-7", "0912345607", "2026-10-22 10:00:00", "300000", "20000", "0", "280000"))));
+
+        order(tracking, "Kết thúc", "0912345607");
+
+        assertThat(canonical(tracking)).isEqualTo("DELIVERED");
+        assertThat(jdbc.sql("SELECT order_ref FROM shipment").query(String.class).single()).isEqualTo("DH-7");
+        assertThat(jdbc.sql("SELECT canonical_status FROM shipment_status_history ORDER BY id").query(String.class).list())
+                .containsExactly("UNKNOWN", "DELIVERED");
+    }
+
+    @Test
     void docDungKyDoiSoatVaChiBoSungMaDonVaNgayKyNhanChoDonGiaoThanhCong() {
         order("861000000001", "Giao thành công", "0912345601");
         order("861000000002", "Kết thúc", "0912345602"); // trạng thái chưa rõ nghĩa
@@ -172,7 +186,7 @@ class SettlementImportTest extends AbstractPostgresTest {
                     .param("ret", new BigDecimal(l[2])).update();
         }
         String sql = new String(getClass().getResourceAsStream("/db/migration/V24__jt_gan_nghia_va_doi_soat.sql")
-                .readAllBytes(), StandardCharsets.UTF_8);
+                .readAllBytes(), StandardCharsets.UTF_8).replace("\r\n", "\n");
         jdbc.sql(sql.substring(sql.indexOf("UPDATE shipment s\nSET"))).update(); // phần 3 của migration
 
         assertThat(canonical("861000000031")).isEqualTo("DELIVERED");

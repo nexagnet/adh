@@ -98,7 +98,8 @@ class PagesSmokeTest extends AbstractPostgresTest {
                 .andExpect(content().string(not(containsString("Kết nối (chọn một cách trước)"))))
                 .andExpect(content().string(not(containsString("Bot trợ lý"))));
         mvc.perform(get("/handoffs").with(owner)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("Việc chỉ hiện ở trang này và trên Tổng quan")));
+                .andExpect(content().string(containsString("Loại việc")))
+                .andExpect(content().string(not(containsString("Nhân viên và phân quyền nhóm"))));
     }
 
     @Test

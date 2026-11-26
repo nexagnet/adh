@@ -45,6 +45,7 @@ jobs:
           context: ${{ matrix.context }}
           platforms: linux/amd64
           push: true
+          build-args: ${{ matrix.name == 'adh-app' && format('BUILD_REVISION={0}', github.sha) || '' }}
           # Gắn thẻ theo mã commit đầy đủ (deploy.sh dùng đúng thẻ này) và "latest" để tiện xem.
           tags: |
             ghcr.io/nexagnet/${{ matrix.name }}:${{ github.sha }}

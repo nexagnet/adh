@@ -129,7 +129,7 @@ public class ComebackService {
     }
 
     public record Row(long id, long customerId, String customerName, String state, Reason reason, String label, Double confidence,
-                      String excerpt, LocalDateTime createdAt, String liftedBy, String welcomeState, List<String> orders) {
+                      String excerpt, LocalDateTime createdAt, String liftedBy, String welcomeState, List<String> orders, long accountId) {
     }
 
     public record Welcome(long id, String uid) {
@@ -450,8 +450,10 @@ public class ComebackService {
     // ---------- xem ----------
 
     private static final String SELECT = """
-            SELECT k.id, k.customer_id, c.name, c.phone, k.state, k.reason, k.label, k.confidence, k.excerpt, k.created_at, k.lifted_by, k.welcome_state
+            SELECT k.id, k.customer_id, c.name, c.phone, k.state, k.reason, k.label, k.confidence, k.excerpt, k.created_at,
+                   k.lifted_by, k.welcome_state, i.account_id
             FROM comeback k JOIN customer c ON c.id = k.customer_id
+            JOIN invitation i ON i.id = k.invitation_id
             """;
 
     private Row row(java.sql.ResultSet rs) throws java.sql.SQLException {
@@ -459,7 +461,7 @@ public class ComebackService {
         return new Row(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("name"), rs.getString("state"),
                 Reason.valueOf(rs.getString("reason")), rs.getString("label"), cf == null ? null : cf.doubleValue(), rs.getString("excerpt"),
                 rs.getObject("created_at", OffsetDateTime.class).atZoneSameInstant(VN).toLocalDateTime(), rs.getString("lifted_by"),
-                rs.getString("welcome_state"), orders(rs.getString("phone")));
+                rs.getString("welcome_state"), orders(rs.getString("phone")), rs.getLong("account_id"));
     }
 
     /** Tối đa 3 đơn gần nhất của khách: ngày, hàng hóa, trạng thái. Chỉ để mẹ xem, không đưa cho AI. */

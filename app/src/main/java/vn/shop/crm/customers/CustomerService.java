@@ -111,11 +111,15 @@ public class CustomerService {
                 distinct.add(phone);
             }
         }
-        distinct.forEach(this::recalculateOne);
+        if (!distinct.isEmpty()) {
+            vn.shop.crm.shipping.ShipmentWriteLock.acquire(jdbc);
+            distinct.forEach(this::recalculateOne);
+        }
     }
 
     @Transactional
     public int recalculateAll() {
+        vn.shop.crm.shipping.ShipmentWriteLock.acquire(jdbc);
         List<String> phones = jdbc.sql("SELECT DISTINCT receiver_phone FROM shipment")
                 .query(String.class).list();
         recalculate(phones);

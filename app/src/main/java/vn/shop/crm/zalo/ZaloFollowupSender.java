@@ -15,7 +15,9 @@ import vn.shop.crm.zalo.ZaloMessageService.Delivery;
 import vn.shop.crm.zalo.ZaloMessenger.Kind;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -89,7 +91,11 @@ public class ZaloFollowupSender {
         if (messages.blocker(ZaloMessageService.SCOPE_REAL, Kind.FOLLOWUP2, null, null).isPresent()) {
             return Step.BLOCKED;
         }
-        List<Task> due = due();
+        var coverage = inbox.catchUpForFollowup();
+        if (coverage.isEmpty()) {
+            return Step.BLOCKED;
+        }
+        List<Task> due = due(coverage.get());
         if (due.isEmpty()) {
             return Step.NOTHING;
         }
@@ -108,7 +114,7 @@ public class ZaloFollowupSender {
                 log.warn("Chiến dịch {} có tin nhắc còn chỗ điền chưa thay được; bỏ qua, không gửi", t.campaignId());
                 continue;
             }
-            return send(t);
+            return send(t, coverage.get());
         }
         return Step.NOTHING;
     }
@@ -117,7 +123,7 @@ public class ZaloFollowupSender {
      * Các tin nhắc đã đến hạn. Một truy vấn duy nhất gom mọi điều kiện dừng, nên đây cũng chính là lần kiểm lại ngay trước khi gửi
      * (nhịp gọi {@link #send} ngay sau đó, và việc giành chỗ ở {@code invitation_touch} chặn hai nhịp chồng nhau).
      */
-    private List<Task> due() {
+    private List<Task> due(Instant coverageSince) {
         return jdbc.sql("""
                         SELECT i.id, i.campaign_id, i.customer_id, c.phone, i.zalo_target_uid, c.name, c.province, i.token,
                                s.step_no, s.template
@@ -130,6 +136,7 @@ public class ZaloFollowupSender {
                           AND i.friended_at IS NULL AND i.joined_at IS NULL AND i.inbound_at IS NULL
                           AND i.tin1_blocked_at IS NULL
                           AND i.expires_at > :now
+                          AND i.sent_at > :coverage
                           AND k.auto_send_approved_at IS NOT NULL
                           AND (k.hold_on_rain = false OR c.province IS NULL OR NOT (c.province = ANY(:rainy)))
                           AND NOT EXISTS (SELECT 1 FROM invitation_touch t WHERE t.invitation_id = i.id AND t.step_no = s.step_no)
@@ -137,6 +144,7 @@ public class ZaloFollowupSender {
                             OR (s.step_no = 3 AND prev.outcome = 'SENT' AND prev.sent_at <= :now - s.gap_days * interval '1 day'))
                         """ + testMode.onlyTestSql("c.phone") + " AND " + ZaloAccountContext.sql("i.account_id") + " ORDER BY i.sent_at, s.step_no, i.id LIMIT :n")
                 .param("ch", ZaloInviteSender.CHANNEL).param("now", OffsetDateTime.now(clock)).param("n", SCAN)
+                .param("coverage", coverageSince.atOffset(ZoneOffset.UTC))
                 .param("rainy", rain.rainyProvinces().toArray(new String[0]))
                 .query((rs, n) -> new Task(rs.getLong("id"), rs.getLong("campaign_id"), rs.getLong("customer_id"), rs.getString("phone"),
                         rs.getString("zalo_target_uid"), rs.getString("name"), rs.getString("province"), rs.getString("token"),
@@ -144,7 +152,7 @@ public class ZaloFollowupSender {
                 .list();
     }
 
-    private Step send(Task t) {
+    private Step send(Task t, Instant coverageSince) {
         String text = invites.render(t.template(), t.name(), invites.linkFor(t.token()), VnGeo.byCode(t.province()).orElse(null));
         if (!text.contains(CampaignSteps.STOP_FOOTER)) {
             text = text + "\n" + CampaignSteps.STOP_FOOTER;
@@ -157,14 +165,16 @@ public class ZaloFollowupSender {
                         INSERT INTO invitation_touch (invitation_id, step_no, sent_at, outcome)
                         SELECT i.id, :no, :at, 'UNKNOWN' FROM invitation i
                         WHERE i.id = :id AND i.status = 'SENT' AND i.friended_at IS NULL AND i.joined_at IS NULL AND i.inbound_at IS NULL
+                          AND i.sent_at > :coverage AND i.expires_at > :at
                         ON CONFLICT DO NOTHING""")
-                .param("id", t.invitationId()).param("no", t.stepNo()).param("at", OffsetDateTime.now(clock)).update();
+                .param("id", t.invitationId()).param("no", t.stepNo()).param("at", OffsetDateTime.now(clock))
+                .param("coverage", coverageSince.atOffset(ZoneOffset.UTC)).update();
         if (claimed == 0) {
             return Step.NOTHING;
         }
         Delivery d;
         try {
-            d = messages.sendByUid(ZaloMessageService.SCOPE_REAL, kind, t.invitationId(), t.uid(), text, null, null);
+            d = messages.sendFollowup(kind, t.invitationId(), t.uid(), text, coverageSince);
         } catch (RuntimeException e) {
             log.warn("Gửi tin nhắc báo lỗi: {}", e.getClass().getSimpleName());
             unknown(t, text, "LOI_HE_THONG");

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Đơn nháp từ TikTok Shop')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main class="stack">
+    <header>
+        <a th:href="@{/handoffs(type='group')}">Về việc trong nhóm</a>
+        <h1>Đơn nháp từ TikTok Shop</h1>
+        <p th:text="${group}">Nhóm Zalo</p>
+    </header>
+    <div class="notice ok" th:if="${flash}" th:text="${flash}"></div>
+    <p class="notice warn" th:unless="${configured}">Chưa kết nối quyền đọc danh mục TikTok Shop.</p>
+    <form class="actions" th:if="${configured}" th:action="@{/handoffs/{id}/order-draft(id=${handoffId})}" method="get">
+        <label>Mã SKU <input name="sku" th:value="${sku}" maxlength="100" required></label>
+        <button type="submit" class="btn">Tra cứu</button>
+    </form>
+    <p class="muted" th:if="${!sku.isBlank() and items.isEmpty()}">Không tìm thấy SKU đang bán.</p>
+    <article class="job" th:each="item : ${items}">
+        <h2 th:text="${item.name}"></h2>
+        <p th:text="|${item.sellerSku} · ${item.price ?: 'Chưa có giá'} ${item.currency} · Tồn ${item.stock != null ? item.stock : 'chưa rõ'}|"></p>
+        <form th:if="${item.price != null and item.stock != null and item.stock > 0}"
+              th:action="@{/handoffs/{id}/order-draft(id=${handoffId})}" method="post" class="actions">
+            <input type="hidden" name="sku" th:value="${item.sellerSku}">
+            <input type="hidden" name="skuId" th:value="${item.skuId}">
+            <input type="hidden" name="token" th:value="${token}">
+            <label>Số lượng <input type="number" name="quantity" min="1" max="100" value="1" required></label>
+            <button type="submit" class="btn">Lưu đơn nháp</button>
+        </form>
+    </article>
+    <section th:if="${!drafts.isEmpty()}">
+        <h2>Nháp đã lưu</h2>
+        <ul><li th:each="d : ${drafts}" th:text="|${d.seller_sku} · ${d.product_name} · SL ${d.quantity} · ${d.observed_unit_price} ${d.currency}|"></li></ul>
+    </section>
+</main>
+</body>
+</html>

@@ -28,6 +28,8 @@ public enum FieldKey {
             List.of("ngay tao", "ngay gui", "thoi gian tao", "created", "create time")),
     DELIVERED_ON("Ngày giao", false,
             List.of("ngay giao", "ngay phat", "thoi gian giao", "delivered", "delivery time")),
+    STATUS_UPDATED_ON("Thời gian cập nhật trạng thái", false,
+            List.of("thoi gian cap nhat trang thai", "ngay cap nhat trang thai", "status update time", "status updated at")),
     GOODS("Nội dung hàng hóa (đơn này mua gì)", false,
             List.of("noi dung hang hoa", "ten hang hoa", "noi dung hang", "ten hang", "mo ta hang hoa", "ten san pham",
                     "goods name", "goods", "product name", "item name"));

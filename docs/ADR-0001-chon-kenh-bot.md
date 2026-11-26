@@ -5,6 +5,12 @@
 
 ## Đã có trong code (không phụ thuộc kênh)
 
+Giai đoạn 2 dùng Hàng việc và tài khoản nhân viên trong ADH. Chỉ nhóm đã cấp quyền hiện trong danh sách nhân viên. Tin thông báo Zalo dành cho nhóm nội bộ sẽ chứa liên kết về ADH, không đưa nội dung khách ra ngoài. Luồng nhóm hiện giữ ở chế độ mô phỏng cho đến khi có nhóm thử và xác nhận quyền của kênh.
+
+ADH nhận sự kiện nội bộ đã xác thực theo cặp tài khoản và mã nhóm, lọc nhóm chưa bật và chống xử lý lặp. Tạo mới một việc trong nhóm đồng thời ghi đúng một mục thông báo. Khi kênh chưa được cấu hình, mục chờ và Hàng việc vẫn lưu độc lập. Nếu lần gửi có kết quả không rõ, mục cần người đối chiếu trước khi gửi lại.
+
+Danh mục sử dụng API Search Products của TikTok Shop với quyền `seller.product.basic`. SKU, giá và tồn được đọc khi tra cứu và kiểm lại lúc lưu nháp. Nháp lưu dấu vết việc và nhóm gốc. Chủ shop tra cứu từ trang Đơn nháp trong Hàng việc. Cấu hình khóa, shop cipher và token ở kho bí mật của môi trường thử. [TikTok Shop Search Products](https://partner.tiktokshop.com/docv2/page/6503081a56e2bb0289dd6d7d)
+
 Lõi bot nằm ở `app/src/main/java/vn/shop/crm/bot`:
 
 - `BotEngine.handle(IncomingMessage)`: nhận tin nhóm do **adapter kênh** chuyển tới, quyết định trả lời FAQ, chuyển người thật,

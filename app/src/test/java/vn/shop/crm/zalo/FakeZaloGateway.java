@@ -75,6 +75,7 @@ public class FakeZaloGateway implements ZaloLink {
         inboxItems.clear();
         inboxSeq = 0;
         inboxCalls = 0;
+        inboxCoverageSince = Instant.EPOCH;
     }
 
     // ---------- tin riêng của khách (D19) ----------
@@ -82,6 +83,7 @@ public class FakeZaloGateway implements ZaloLink {
     private final List<Inbound> inboxItems = new ArrayList<>();
     public int inboxCalls;
     private long inboxSeq;
+    public Instant inboxCoverageSince = Instant.EPOCH;
 
     public void pushInbound(String uid, String text) {
         inboxItems.add(new Inbound(++inboxSeq, uid, text, Instant.parse("2026-11-22T03:00:00Z")));
@@ -91,6 +93,16 @@ public class FakeZaloGateway implements ZaloLink {
     public List<Inbound> inbound(long afterSeq) {
         inboxCalls++;
         return inboxItems.stream().filter(m -> m.seq() > afterSeq).toList();
+    }
+
+    @Override
+    public Snapshot snapshot(long afterSeq) {
+        return new Snapshot(inbound(afterSeq), inboxSeq, inboxCoverageSince);
+    }
+
+    @Override
+    public Sent sendFollowup(Kind kind, String uid, String text, Instant coverageSince) {
+        return sendByUid(kind, uid, text);
     }
 
     // ---------- tạo nhóm (D19) ----------

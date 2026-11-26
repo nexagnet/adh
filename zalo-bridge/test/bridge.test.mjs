@@ -1330,13 +1330,16 @@ test('FOLLOWUP: mỗi lần nhắc một lần cho một người, lần ba cầ
   const c = await ready({ BRIDGE_INBOX_ENABLED: 'true' });
   assert.equal((await c.bridge.sendMessage({ kind: 'INVITE', phone: '84900000001', text: 'Mời' })).outcome, 'OK');
   c.clock.t += GAP;
+  const inboxSince = Date.parse(c.bridge.inboxSnapshot(0).coverageSince);
+  assert.deepEqual(await c.bridge.sendMessage({ kind: 'FOLLOWUP2', uid: '501', text: 'Nhắc 2' }),
+    { outcome: 'RATE_LIMITED', code: 'INBOX_BEHIND', retryAfterSec: 60 });
   assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP3', uid: '501', text: 'Nhắc 3' })).code, 'NO_PREVIOUS'); // chưa có lần hai
-  assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP2', uid: '501', text: 'Nhắc 2' })).outcome, 'OK');
+  assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP2', uid: '501', text: 'Nhắc 2', inboxSince })).outcome, 'OK');
   assert.deepEqual(c.adapter.sent.at(-1), { uid: '501', text: 'Nhắc 2' });
   assert.deepEqual(await c.bridge.sendMessage({ kind: 'FOLLOWUP3', uid: '501', text: 'Nhắc 3' }), { outcome: 'RATE_LIMITED', retryAfterSec: 90 }); // chưa đủ nghỉ
   c.clock.t += GAP;
   assert.deepEqual(await c.bridge.sendMessage({ kind: 'FOLLOWUP2', uid: '501', text: 'Nhắc 2' }), { outcome: 'PERSON_ERROR', code: 'DUPLICATE' });
-  assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP3', uid: '501', text: 'Nhắc 3' })).outcome, 'OK');
+  assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP3', uid: '501', text: 'Nhắc 3', inboxSince })).outcome, 'OK');
   c.clock.t += GAP;
   assert.deepEqual(await c.bridge.sendMessage({ kind: 'FOLLOWUP3', uid: '501', text: 'Nhắc 3' }), { outcome: 'PERSON_ERROR', code: 'DUPLICATE' });
   assert.equal((await c.bridge.sendMessage({ kind: 'LINK', uid: '501', text: 'Link' })).outcome, 'OK'); // Tin 2 vẫn gửi được
@@ -1344,18 +1347,23 @@ test('FOLLOWUP: mỗi lần nhắc một lần cho một người, lần ba cầ
   c.cleanup();
 });
 
-test('FOLLOWUP: không nhắc người vừa tự nhắn tới trong 24 giờ, qua 24 giờ thì bộ nối không chặn nữa và phía Adh tự kiểm điều kiện dừng', async () => {
+test('FOLLOWUP: không nhắc sau khi một tin chưa được xác nhận hết hạn', async () => {
   const c = setup({ env: { BRIDGE_INBOX_ENABLED: 'true' } });
   await c.bridge.start();
   await loginAndListen(c);
   await c.bridge.sendMessage({ kind: 'INVITE', uid: '777', text: 'Mời' });
+  const inboxSince = Date.parse(c.bridge.inboxSnapshot(0).coverageSince);
   c.adapter.emitMessage('777', 'Cho em hỏi');
   c.clock.t += 120000;
   const before = c.adapter.sent.length;
   assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP2', uid: '777', text: 'Nhắc' })).code, 'CUSTOMER_REPLIED');
   assert.equal(c.adapter.sent.length, before);
   c.clock.t += 25 * 3600 * 1000;
-  assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP2', uid: '777', text: 'Nhắc' })).outcome, 'OK'); // tin của khách đã quá 24 giờ: bộ nối không còn căn cứ chặn (Adh tự kiểm điều kiện dừng)
+  assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP2', uid: '777', text: 'Nhắc', inboxSince })).code, 'INBOX_BEHIND');
+  const newCoverage = Date.parse(c.bridge.inboxSnapshot(0).coverageSince);
+  assert.ok(newCoverage > inboxSince);
+  assert.equal((await c.bridge.sendMessage({ kind: 'FOLLOWUP2', uid: '777', text: 'Nhắc', inboxSince: newCoverage })).code, 'INBOX_GAP');
+  assert.equal(c.adapter.sent.length, before);
   c.cleanup();
 });
 

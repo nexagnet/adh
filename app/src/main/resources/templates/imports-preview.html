@@ -74,10 +74,24 @@
         <p class="hint small">Chỉ hiện tối đa 50 dòng lỗi đầu tiên.</p>
     </section>
 
+    <div class="notice warn" th:if="${report.olderRows > 0 or report.reviewRows > 0}">
+        <p th:if="${report.olderRows > 0}" th:text="|${report.olderRows} dòng cũ hơn dữ liệu đang lưu sẽ được bỏ qua.|"></p>
+        <p th:if="${report.reviewRows > 0}" th:text="|${report.reviewRows} dòng có thể làm lùi trạng thái đơn. Mặc định giữ trạng thái hiện tại.|"></p>
+        <ul>
+            <li th:each="warning : ${report.statusWarnings}"
+                th:text="|${warning.trackingNo}: ${warning.current} → ${warning.incoming}|"></li>
+        </ul>
+    </div>
+
     <form th:action="@{/imports/{id}/commit(id=${batch.id})}" method="post">
         <input type="hidden" name="headerRow" th:value="${headerRow}">
         <input type="hidden" th:each="f : ${fields}" th:if="${selected.get(f) != null}"
                th:name="${'col_' + f.name()}" th:value="${selected.get(f)}">
+        <label th:if="${report.reviewRows > 0}">
+            <input type="hidden" name="reviewToken" th:value="${report.reviewToken}">
+            <input type="checkbox" name="confirmStatus" value="yes">
+            Tôi đã kiểm tra và muốn áp dụng các thay đổi trạng thái cần xác nhận.
+        </label>
         <div class="actions">
             <button type="submit" class="btn" th:disabled="${report.validRows == 0}">Xác nhận nhập</button>
             <a class="btn secondary" th:href="@{/imports/{id}/mapping(id=${batch.id})}">Quay lại chọn cột</a>

@@ -93,16 +93,6 @@ public class ZaloInboxService implements ZaloTickHook {
 
     @Override
     public void tick() {
-        try {
-            reviews.purgeOld();
-            comebacks.purgeOld();
-            if (warranty != null) {
-                warranty.purgeOld();
-            }
-            // việc trả lời khách do ZaloReplySender dọn; ở đây chỉ nhận tin
-        } catch (RuntimeException e) {
-            log.warn("Không dọn được trích đoạn cũ: {}", e.getClass().getSimpleName());
-        }
         poll();
     }
 
@@ -115,22 +105,35 @@ public class ZaloInboxService implements ZaloTickHook {
     }
 
     /** Trả số tin đã xử lý. Cầu dao chỉ chặn việc GỬI; việc nhận tin vẫn chạy (trừ khi người bấm Dừng ngay hay mất phiên). */
-    public int poll() {
+    public synchronized int poll() {
+        return poll(false).handled();
+    }
+
+    private record PollResult(int handled, java.time.Instant coverageSince) {
+    }
+
+    /** Đọc tới đầu hàng và xác nhận con trỏ đã ghi trước khi nhắc. */
+    public synchronized Optional<java.time.Instant> catchUpForFollowup() {
+        return Optional.ofNullable(poll(true).coverageSince());
+    }
+
+    private PollResult poll(boolean followup) {
         if (!running() || !cfg.props().enabled() || !cfg.chosenMode().listens()) {
-            return 0;
+            return new PollResult(0, null);
         }
         if (cfg.tripped() && hardTrip(cfg.trippedReason())) {
-            return 0;
+            return new PollResult(0, null);
         }
         ZaloGateway.Status st = gateway.status();
         boolean listening = st.state() == ZaloGateway.State.LISTENING && Boolean.TRUE.equals(st.accountOk());
         boolean receiveOnly = st.state() == ZaloGateway.State.TRIPPED && !hardTrip(st.tripReason()) && !Boolean.FALSE.equals(st.accountOk());
         if (!listening && !receiveOnly) {
-            return 0;
+            return new PollResult(0, null);
         }
         long cursor = cursor();
         int handled = 0;
-        for (ZaloInboxReader.Inbound m : reader.inbound(cursor)) {
+        ZaloInboxReader.Snapshot snapshot = reader.snapshot(cursor);
+        for (ZaloInboxReader.Inbound m : snapshot.messages()) {
             if (m.seq() <= cursor) {
                 continue;
             }
@@ -140,15 +143,21 @@ public class ZaloInboxService implements ZaloTickHook {
             try {
                 process(m);
             } catch (RuntimeException e) {
-                // Chưa ghi nhận được: giữ nguyên con trỏ để nhịp sau thử lại (cầu nối giữ tin tối đa 6 giờ).
+                // Chưa ghi nhận được: giữ con trỏ và để nhịp sau thử lại. Bridge giữ tối đa 24 giờ và 300 tin.
                 log.warn("Không xử lý được một tin riêng: {}", e.getClass().getSimpleName());
-                break;
+                return new PollResult(handled, null);
             }
             cursor = m.seq();
             settings.set(CURSOR, Long.toString(cursor), "system");
             handled++;
         }
-        return handled;
+        if (!followup || !listening || snapshot.coverageSince() == null || snapshot.lastSeq() < 0 || snapshot.lastSeq() > cursor) {
+            return new PollResult(handled, null);
+        }
+        ZaloInboxReader.Snapshot confirmed = snapshot.messages().isEmpty() ? snapshot : reader.snapshot(cursor);
+        return new PollResult(handled, confirmed.lastSeq() >= 0 && confirmed.lastSeq() <= cursor
+                && confirmed.messages().isEmpty() && snapshot.coverageSince().equals(confirmed.coverageSince())
+                ? confirmed.coverageSince() : null);
     }
 
     private long cursor() {

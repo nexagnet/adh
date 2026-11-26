@@ -281,7 +281,8 @@ public class ZaloHealthService implements ZaloTickHook {
     }
 
     public long openCriticalCount() {
-        return jdbc.sql("SELECT count(*) FROM zalo_health_alert WHERE resolved_at IS NULL AND severity = 'CRITICAL'")
+        return jdbc.sql("SELECT count(*) FROM zalo_health_alert WHERE " + ZaloAccountContext.sql()
+                        + " AND resolved_at IS NULL AND severity = 'CRITICAL'")
                 .query(Long.class).single();
     }
 

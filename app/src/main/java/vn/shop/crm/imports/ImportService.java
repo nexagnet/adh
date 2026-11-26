@@ -12,6 +12,7 @@ import vn.shop.crm.shipping.CanonicalStatus;
 import vn.shop.crm.shipping.Carrier;
 import vn.shop.crm.shipping.StatusKey;
 import vn.shop.crm.shipping.StatusMappingService;
+import vn.shop.crm.shipping.ShipmentWriteLock;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -67,22 +68,40 @@ public class ImportService {
 
     public record Report(int totalRows, int validRows, int errorRows, int duplicatesInFile, int newShipments,
                          int existingShipments, int unchangedShipments, int statusChanges,
-                         Map<String, Long> unmappedStatuses, List<RowError> sampleErrors, int fileLimit) {
+                         Map<String, Long> unmappedStatuses, List<RowError> sampleErrors, int fileLimit,
+                         int olderRows, int reviewRows, List<StatusWarning> statusWarnings, String reviewToken) {
         /** File có đúng bằng hạn mức xuất của hãng (J&T: 500): nhiều khả năng cổng đã cắt bớt đơn. */
         public boolean atFileLimit() {
             return fileLimit > 0 && totalRows == fileLimit;
         }
     }
 
+    public record StatusWarning(String trackingNo, String current, String incoming, boolean older) {
+    }
+
     private record ParsedRow(int rowNumber, String trackingNo, String orderRef, String phoneRaw, String phone,
                              String name, String address, LocalDateTime createdOn, LocalDateTime deliveredOn,
-                             String rawStatus, String goods, Map<String, String> payload) {
+                             LocalDateTime statusUpdatedOn, String rawStatus, String goods, Map<String, String> payload) {
     }
 
     private record ParseResult(List<ParsedRow> rows, List<RowError> errors, int totalRows, int duplicatesInFile) {
     }
 
-    private record Existing(long id, String statusKey, String phone) {
+    private record Existing(long id, String statusKey, String phone, String rawStatus,
+                            CanonicalStatus canonical, boolean settledDelivered, LocalDateTime deliveredOn,
+                            LocalDateTime sourceAt, LocalDateTime watermark) {
+    }
+
+    private record PlannedRow(ParsedRow row, Existing old, String key, CanonicalStatus canonical,
+                              boolean settledDelivered, StatusImportPolicy.Decision decision) {
+        boolean changed() {
+            return old != null && (!old.statusKey().equals(key) || old.canonical() != canonical);
+        }
+
+        boolean ignored(boolean confirmed) {
+            return decision == StatusImportPolicy.Decision.OLDER
+                    || (decision == StatusImportPolicy.Decision.REVIEW && !confirmed);
+        }
     }
 
     private record BatchData(long id, Carrier carrier, String filename, String status, byte[] content) {
@@ -111,15 +130,18 @@ public class ImportService {
     private final JdbcClient jdbc;
     private final StatusMappingService statuses;
     private final CustomerService customers;
+    private final SettlementImportService settlements;
     private final int maxRows;
     private final long maxUncompressedBytes;
 
     public ImportService(JdbcClient jdbc, StatusMappingService statuses, CustomerService customers,
+                         SettlementImportService settlements,
                          @Value("${app.imports.max-rows:50000}") int maxRows,
                          @Value("${app.imports.max-uncompressed-bytes:104857600}") long maxUncompressedBytes) {
         this.jdbc = jdbc;
         this.statuses = statuses;
         this.customers = customers;
+        this.settlements = settlements;
         this.maxRows = maxRows;
         this.maxUncompressedBytes = maxUncompressedBytes;
     }
@@ -295,48 +317,60 @@ public class ImportService {
     public Report preview(long batchId, Mapping mapping) {
         BatchData batch = loadBatch(batchId);
         ParseResult parsed = parse(batch, mapping);
-        Map<String, Existing> existing = loadExisting(batch.carrier(), parsed.rows());
-        return buildReport(batch.carrier(), parsed, existing);
+        Map<String, CanonicalStatus> statusMap = statuses.mappingsFor(batch.carrier());
+        List<PlannedRow> rows = plannedRows(batch.carrier(), parsed, statusMap);
+        return buildReport(batch, parsed, rows, statusMap, false, false);
     }
 
     @Transactional
     public Report commit(long batchId, Mapping mapping) {
-        BatchData batch = loadBatch(batchId);
+        return commit(batchId, mapping, null);
+    }
+
+    @Transactional
+    public Report commit(long batchId, Mapping mapping, String confirmation) {
+        BatchData batch = loadBatch(batchId, true);
         if ("COMMITTED".equals(batch.status())) {
             throw new ImportException("Lô nhập này đã được xác nhận trước đó. Hãy tải file lên lại nếu muốn nhập tiếp.");
         }
+        ShipmentWriteLock.acquire(jdbc);
         ParseResult parsed = parse(batch, mapping);
-        Map<String, Existing> existing = loadExisting(batch.carrier(), parsed.rows());
-        Report report = buildReport(batch.carrier(), parsed, existing);
         Map<String, CanonicalStatus> statusMap = statuses.mappingsFor(batch.carrier());
+        List<PlannedRow> rows = plannedRows(batch.carrier(), parsed, statusMap);
+        boolean confirmed = confirmation != null;
+        if (confirmed && !confirmation.equals(reviewToken(batchId, rows))) {
+            throw new ImportException("Trạng thái vận đơn đã thay đổi. Hãy xem trước lại trước khi xác nhận ghi đè.");
+        }
+        Report report = buildReport(batch, parsed, rows, statusMap, confirmed, true);
 
         Set<String> touchedPhones = new HashSet<>();
+        List<String> newTrackings = new ArrayList<>();
         for (RowError error : parsed.errors()) {
-            jdbc.sql("""
-                            INSERT INTO import_error (batch_id, row_number, code, message, raw_row)
-                            VALUES (:batch, :row, :code, :message, :raw)""")
-                    .param("batch", batchId).param("row", error.rowNumber()).param("code", error.code())
-                    .param("message", error.message()).param("raw", clean(error.rawRow(), 2000))
-                    .update();
+            storeError(batchId, error);
         }
-        for (ParsedRow row : parsed.rows()) {
-            String statusKey = StatusKey.of(row.rawStatus());
-            CanonicalStatus canonical = statusMap.getOrDefault(statusKey, CanonicalStatus.UNKNOWN);
-            Existing old = existing.get(row.trackingNo());
-            Map<String, Object> p = params(row, batch, statusKey, canonical);
+        for (PlannedRow planned : rows) {
+            ParsedRow row = planned.row();
+            if (planned.ignored(confirmed)) {
+                storeError(batchId, ignoredRow(planned));
+                continue;
+            }
+            Existing old = planned.old();
+            Map<String, Object> p = params(planned, batch);
             long shipmentId;
             boolean writeHistory;
             if (old == null) {
                 shipmentId = jdbc.sql("""
                                 INSERT INTO shipment (carrier, tracking_no, order_ref, receiver_phone_raw, receiver_phone,
                                     receiver_name, receiver_address, created_on, delivered_on, raw_status, status_key,
-                                    canonical_status, goods, raw_payload, first_batch_id, last_batch_id)
+                                    canonical_status, goods, raw_payload, first_batch_id, last_batch_id,
+                                    status_source_at, status_watermark_at)
                                 VALUES (:carrier, :tracking, :orderRef, :phoneRaw, :phone, :name, :address, :createdOn,
                                     :deliveredOn, :rawStatus, :statusKey, :canonical, :goods, CAST(:payload AS jsonb),
-                                    :batch, :batch)
+                                    :batch, :batch, :statusAt, :statusAt)
                                 RETURNING id""")
                         .paramSource(p).query(Long.class).single();
                 writeHistory = true;
+                newTrackings.add(row.trackingNo());
             } else {
                 p.put("id", old.id());
                 jdbc.sql("""
@@ -349,17 +383,15 @@ public class ImportService {
                                     delivered_on = COALESCE(:deliveredOn, delivered_on),
                                     goods = COALESCE(:goods, goods),
                                     raw_status = :rawStatus, status_key = :statusKey,
-                                    -- đơn đã được file đối soát J&T chứng minh giao thành công thì giữ nguyên, trừ khi hãng báo hủy/hoàn
-                                    canonical_status = CASE WHEN settled_delivered
-                                        AND :canonical NOT IN ('CANCELLED', 'RETURNING', 'RETURNED')
-                                        THEN 'DELIVERED' ELSE :canonical END,
-                                    settled_delivered = settled_delivered
-                                        AND :canonical NOT IN ('CANCELLED', 'RETURNING', 'RETURNED'),
+                                    canonical_status = :canonical, settled_delivered = :settledDelivered,
+                                    status_source_at = CASE WHEN CAST(:statusAt AS timestamp) IS NOT NULL
+                                        OR status_key <> :statusKey THEN CAST(:statusAt AS timestamp) ELSE status_source_at END,
+                                    status_watermark_at = GREATEST(status_watermark_at, CAST(:statusAt AS timestamp)),
                                     raw_payload = CAST(:payload AS jsonb), last_batch_id = :batch, updated_at = now()
                                 WHERE id = :id""")
                         .paramSource(p).update();
                 shipmentId = old.id();
-                writeHistory = !old.statusKey().equals(statusKey);
+                writeHistory = planned.changed();
                 touchedPhones.add(old.phone());
             }
             if (writeHistory) {
@@ -367,10 +399,13 @@ public class ImportService {
                                 INSERT INTO shipment_status_history (shipment_id, batch_id, raw_status, canonical_status)
                                 VALUES (:shipment, :batch, :rawStatus, :canonical)""")
                         .param("shipment", shipmentId).param("batch", batchId)
-                        .param("rawStatus", clean(row.rawStatus(), 200)).param("canonical", canonical.name())
+                        .param("rawStatus", clean(row.rawStatus(), 200)).param("canonical", planned.canonical().name())
                         .update();
             }
             touchedPhones.add(row.phone());
+        }
+        if (batch.carrier() == Carrier.JT_EXPRESS) {
+            settlements.reconcileNewShipments(batchId, newTrackings);
         }
 
         saveMapping(batch.carrier(), mapping);
@@ -401,6 +436,14 @@ public class ImportService {
         jdbc.sql("UPDATE import_batch SET segment_changes = :n WHERE id = :id")
                 .param("n", segmentChanges).param("id", batchId).update();
         return report;
+    }
+
+    private void storeError(long batchId, RowError error) {
+        jdbc.sql("""
+                        INSERT INTO import_error (batch_id, row_number, code, message, raw_row)
+                        VALUES (:batch, :row, :code, :message, :raw)""")
+                .param("batch", batchId).param("row", error.rowNumber()).param("code", error.code())
+                .param("message", error.message()).param("raw", clean(error.rawRow(), 2000)).update();
     }
 
     private static boolean isBuyer(String segment) {
@@ -563,45 +606,113 @@ public class ImportService {
                     blankToNull(joinAddress(cell(row, index, FieldKey.RECEIVER_ADDRESS),
                             cell(row, index, FieldKey.ADMIN_AREA))),
                     parseDate(cell(row, index, FieldKey.CREATED_ON)),
-                    parseDate(cell(row, index, FieldKey.DELIVERED_ON)), clean(rawStatus, 200),
+                    parseDate(cell(row, index, FieldKey.DELIVERED_ON)),
+                    parseDate(cell(row, index, FieldKey.STATUS_UPDATED_ON)), clean(rawStatus, 200),
                     blankToNull(clean(cell(row, index, FieldKey.GOODS), 500)), payload);
-            if (byTracking.put(tracking, parsed) != null) {
+            ParsedRow previous = byTracking.get(tracking);
+            if (previous != null) {
                 duplicates++;
+            }
+            if (previous == null || previous.statusUpdatedOn() == null || parsed.statusUpdatedOn() == null
+                    || !parsed.statusUpdatedOn().isBefore(previous.statusUpdatedOn())) {
+                byTracking.put(tracking, parsed);
             }
         }
         return new ParseResult(new ArrayList<>(byTracking.values()), errors, total, duplicates);
     }
 
-    private Report buildReport(Carrier carrier, ParseResult parsed, Map<String, Existing> existing) {
-        Map<String, CanonicalStatus> statusMap = statuses.mappingsFor(carrier);
+    private List<PlannedRow> plannedRows(Carrier carrier, ParseResult parsed, Map<String, CanonicalStatus> statusMap) {
+        Map<String, Existing> existing = loadExisting(carrier, parsed.rows());
+        return parsed.rows().stream().map(row -> {
+            Existing old = existing.get(row.trackingNo());
+            String key = StatusKey.of(row.rawStatus());
+            CanonicalStatus mapped = statusMap.getOrDefault(key, CanonicalStatus.UNKNOWN);
+            boolean settled = old != null && old.settledDelivered() && mapped != CanonicalStatus.CANCELLED
+                    && mapped != CanonicalStatus.RETURNING && mapped != CanonicalStatus.RETURNED;
+            CanonicalStatus canonical = settled ? CanonicalStatus.DELIVERED : mapped;
+            StatusImportPolicy.Decision decision = old == null ? StatusImportPolicy.Decision.APPLY
+                    : StatusImportPolicy.decide(old.canonical(), canonical, old.statusKey(), key,
+                            old.sourceAt(), old.watermark(), old.deliveredOn(), row.statusUpdatedOn());
+            return new PlannedRow(row, old, key, canonical, settled, decision);
+        }).toList();
+    }
+
+    private Report buildReport(BatchData batch, ParseResult parsed, List<PlannedRow> rows,
+                               Map<String, CanonicalStatus> statusMap, boolean confirmed, boolean committing) {
         int newCount = 0;
         int changes = 0;
         int existingCount = 0;
+        int skipped = 0;
+        int older = 0;
+        int review = 0;
+        List<StatusWarning> warnings = new ArrayList<>();
+        List<RowError> sample = new ArrayList<>(parsed.errors().stream().limit(SAMPLE_ERRORS).toList());
         Map<String, Long> unmappedByKey = new LinkedHashMap<>();
         Map<String, String> sampleByKey = new HashMap<>();
-        for (ParsedRow row : parsed.rows()) {
-            String key = StatusKey.of(row.rawStatus());
-            Existing old = existing.get(row.trackingNo());
-            if (old == null) {
+        for (PlannedRow planned : rows) {
+            ParsedRow row = planned.row();
+            if (planned.old() == null) {
                 newCount++;
             } else {
                 existingCount++;
-                if (!old.statusKey().equals(key)) {
-                    changes++;
+            }
+            if (planned.decision() != StatusImportPolicy.Decision.APPLY) {
+                boolean isOlder = planned.decision() == StatusImportPolicy.Decision.OLDER;
+                older += isOlder ? 1 : 0;
+                review += isOlder ? 0 : 1;
+                if (!isOlder || warnings.size() < SAMPLE_ERRORS) {
+                    warnings.add(new StatusWarning(row.trackingNo(), planned.old().rawStatus(), row.rawStatus(), isOlder));
                 }
             }
-            if (!statusMap.containsKey(key)) {
-                unmappedByKey.merge(key, 1L, Long::sum);
-                sampleByKey.putIfAbsent(key, row.rawStatus());
+            if (planned.ignored(confirmed)) {
+                skipped++;
+                if (committing && sample.size() < SAMPLE_ERRORS) {
+                    sample.add(ignoredRow(planned));
+                }
+                continue;
+            }
+            if (planned.changed()) {
+                changes++;
+            }
+            if (!statusMap.containsKey(planned.key())) {
+                unmappedByKey.merge(planned.key(), 1L, Long::sum);
+                sampleByKey.putIfAbsent(planned.key(), row.rawStatus());
             }
         }
         Map<String, Long> unmapped = new LinkedHashMap<>();
         unmappedByKey.forEach((key, count) -> unmapped.put(sampleByKey.get(key), count));
-        List<RowError> sample = parsed.errors().size() > SAMPLE_ERRORS
-                ? parsed.errors().subList(0, SAMPLE_ERRORS) : parsed.errors();
-        return new Report(parsed.totalRows(), parsed.rows().size(), parsed.errors().size(),
-                parsed.duplicatesInFile(), newCount, existingCount, existingCount - changes, changes,
-                unmapped, List.copyOf(sample), ExportWindowService.fileLimit(carrier));
+        int unread = committing ? skipped : 0;
+        return new Report(parsed.totalRows(), rows.size() - unread, parsed.errors().size() + unread,
+                parsed.duplicatesInFile(), newCount, existingCount, existingCount - changes - skipped, changes,
+                unmapped, List.copyOf(sample), ExportWindowService.fileLimit(batch.carrier()),
+                older, review, List.copyOf(warnings), reviewToken(batch.id(), rows));
+    }
+
+    private static RowError ignoredRow(PlannedRow planned) {
+        boolean older = planned.decision() == StatusImportPolicy.Decision.OLDER;
+        String reason = older ? "Bỏ qua dòng cũ hơn dữ liệu đang lưu."
+                : "Giữ dữ liệu đang lưu vì chưa xác nhận thay đổi trạng thái.";
+        return new RowError(planned.row().rowNumber(), older ? "OLDER_STATUS" : "STATUS_REVIEW_REQUIRED", reason,
+                planned.row().trackingNo() + " | " + planned.old().rawStatus() + " → " + planned.row().rawStatus());
+    }
+
+    private static String reviewToken(long batchId, List<PlannedRow> rows) {
+        List<PlannedRow> conflicts = rows.stream()
+                .filter(row -> row.decision() == StatusImportPolicy.Decision.REVIEW).toList();
+        if (conflicts.isEmpty()) {
+            return null;
+        }
+        StringBuilder evidence = new StringBuilder().append(batchId).append('\n');
+        for (PlannedRow conflict : conflicts) {
+            Existing old = conflict.old();
+            ParsedRow incoming = conflict.row();
+            for (String value : List.of(incoming.trackingNo(), old.rawStatus(), old.canonical().name(),
+                    String.valueOf(old.sourceAt()), String.valueOf(old.watermark()), String.valueOf(old.deliveredOn()),
+                    incoming.rawStatus(), conflict.canonical().name(), String.valueOf(incoming.statusUpdatedOn()))) {
+                evidence.append(value.length()).append(':').append(value);
+            }
+        }
+        return sha256(evidence.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     private Map<String, Existing> loadExisting(Carrier carrier, Collection<ParsedRow> rows) {
@@ -609,19 +720,25 @@ public class ImportService {
         Map<String, Existing> result = new HashMap<>();
         for (int from = 0; from < trackings.size(); from += CHUNK) {
             List<String> chunk = trackings.subList(from, Math.min(from + CHUNK, trackings.size()));
-            jdbc.sql("SELECT id, tracking_no, status_key, receiver_phone FROM shipment "
-                            + "WHERE carrier = :carrier AND tracking_no IN (:list)")
+            jdbc.sql("""
+                            SELECT id, tracking_no, status_key, receiver_phone, raw_status, canonical_status,
+                                   settled_delivered, delivered_on, status_source_at, status_watermark_at
+                            FROM shipment WHERE carrier = :carrier AND tracking_no IN (:list)""")
                     .param("carrier", carrier.name()).param("list", chunk)
                     .query((rs, i) -> Map.entry(rs.getString("tracking_no"),
                             new Existing(rs.getLong("id"), rs.getString("status_key"),
-                                    rs.getString("receiver_phone"))))
+                                    rs.getString("receiver_phone"), rs.getString("raw_status"),
+                                    CanonicalStatus.valueOf(rs.getString("canonical_status")), rs.getBoolean("settled_delivered"),
+                                    rs.getObject("delivered_on", LocalDateTime.class),
+                                    rs.getObject("status_source_at", LocalDateTime.class),
+                                    rs.getObject("status_watermark_at", LocalDateTime.class))))
                     .list().forEach(e -> result.put(e.getKey(), e.getValue()));
         }
         return result;
     }
 
-    private static Map<String, Object> params(ParsedRow row, BatchData batch, String statusKey,
-                                              CanonicalStatus canonical) {
+    private static Map<String, Object> params(PlannedRow planned, BatchData batch) {
+        ParsedRow row = planned.row();
         Map<String, Object> p = new HashMap<>();
         p.put("carrier", batch.carrier().name());
         p.put("tracking", row.trackingNo());
@@ -634,8 +751,10 @@ public class ImportService {
         p.put("deliveredOn", row.deliveredOn() == null ? null : Timestamp.valueOf(row.deliveredOn()));
         p.put("rawStatus", row.rawStatus());
         p.put("goods", row.goods());
-        p.put("statusKey", statusKey);
-        p.put("canonical", canonical.name());
+        p.put("statusKey", planned.key());
+        p.put("canonical", planned.canonical().name());
+        p.put("settledDelivered", planned.settledDelivered());
+        p.put("statusAt", row.statusUpdatedOn() == null ? null : Timestamp.valueOf(row.statusUpdatedOn()));
         p.put("payload", toJson(row.payload()));
         p.put("batch", batch.id());
         return p;
@@ -677,7 +796,12 @@ public class ImportService {
     }
 
     private BatchData loadBatch(long id) {
-        return jdbc.sql("SELECT id, carrier, filename, status, file_content FROM import_batch WHERE id = :id AND kind = 'SHIPMENTS'")
+        return loadBatch(id, false);
+    }
+
+    private BatchData loadBatch(long id, boolean lock) {
+        return jdbc.sql("SELECT id, carrier, filename, status, file_content FROM import_batch "
+                        + "WHERE id = :id AND kind = 'SHIPMENTS'" + (lock ? " FOR UPDATE" : ""))
                 .param("id", id)
                 .query((rs, i) -> new BatchData(rs.getLong("id"), Carrier.valueOf(rs.getString("carrier")),
                         rs.getString("filename"), rs.getString("status"), rs.getBytes("file_content")))

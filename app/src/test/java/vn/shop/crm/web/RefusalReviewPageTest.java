@@ -61,7 +61,7 @@ class RefusalReviewPageTest extends AbstractPostgresTest {
     void hienViecTamDungVaViecAiDaGhiVoiNutDungVaDemTrenMenu() throws Exception {
         reviews.hold(target("7001"), RefusalReviewService.Reason.AI_KHONG_CHAC, "TU_CHOI", 0.6, "thôi phiền quá");
         reviews.autoRecord(target("7002"), "TU_CHOI", 0.95);
-        mvc.perform(get("/handoffs").with(user("me").roles("STAFF"))).andExpect(status().isOk())
+        mvc.perform(get("/handoffs").with(user("me").roles("OWNER"))).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Khách nhắn riêng, cần người thật xem")))
                 .andExpect(content().string(containsString("thôi phiền quá")))
                 .andExpect(content().string(containsString("Chi Lan")))
@@ -70,7 +70,7 @@ class RefusalReviewPageTest extends AbstractPostgresTest {
                 .andExpect(content().string(containsString("Trợ lý AI đã ghi khách từ chối")))
                 .andExpect(content().string(containsString("Anh Hung")))
                 .andExpect(content().string(containsString("Hoàn tác")));
-        mvc.perform(get("/").with(user("me").roles("STAFF"))).andExpect(status().isOk())
+        mvc.perform(get("/").with(user("me").roles("OWNER"))).andExpect(status().isOk())
                 .andExpect(content().string(containsString("khách nhắn riêng cần người thật xem")));
     }
 
@@ -80,13 +80,13 @@ class RefusalReviewPageTest extends AbstractPostgresTest {
         reviews.autoRecord(target("7002"), "TU_CHOI", 0.95);
         long held = reviews.held().get(0).id();
         long auto = reviews.recentAuto(14).get(0).id();
-        mvc.perform(post("/handoffs/refusals/" + held + "/release").with(user("me").roles("STAFF")).with(csrf()))
+        mvc.perform(post("/handoffs/refusals/" + held + "/release").with(user("me").roles("OWNER")).with(csrf()))
                 .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/handoffs"));
-        mvc.perform(post("/handoffs/refusals/" + auto + "/undo").with(user("me").roles("STAFF")).with(csrf()))
+        mvc.perform(post("/handoffs/refusals/" + auto + "/undo").with(user("me").roles("OWNER")).with(csrf()))
                 .andExpect(status().is3xxRedirection());
         assertThat(jdbc.sql("SELECT string_agg(status, ',' ORDER BY id) FROM invitation").query(String.class).single()).isEqualTo("SENT,SENT");
         assertThat(contacts.isSuppressed("+84900000002")).isFalse();
-        mvc.perform(get("/handoffs").with(user("me").roles("STAFF")))
+        mvc.perform(get("/handoffs").with(user("me").roles("OWNER")))
                 .andExpect(content().string(not(containsString("Khách nhắn riêng, cần người thật xem"))))
                 .andExpect(content().string(not(containsString("Trợ lý AI đã ghi khách từ chối"))));
     }
@@ -99,7 +99,7 @@ class RefusalReviewPageTest extends AbstractPostgresTest {
 
     @Test
     void viecDaXuLyThiBaoLoiTiengViet() throws Exception {
-        mvc.perform(post("/handoffs/refusals/999/confirm").with(user("me").roles("STAFF")).with(csrf()))
+        mvc.perform(post("/handoffs/refusals/999/confirm").with(user("me").roles("OWNER")).with(csrf()))
                 .andExpect(status().is4xxClientError())
                 .andExpect(content().string(containsString("Việc này đã được xử lý")));
     }
@@ -117,26 +117,26 @@ class RefusalReviewPageTest extends AbstractPostgresTest {
                     VALUES (:c, (SELECT id FROM invitation WHERE customer_id = :c), 'TASK', 'CHI_TAO_VIEC', 'cho hỏi mua pin')""")
                     .param("c", c).update();
         }
-        mvc.perform(get("/handoffs").with(user("me").roles("STAFF"))).andExpect(status().isOk())
+        mvc.perform(get("/handoffs").with(user("me").roles("OWNER"))).andExpect(status().isOk())
                 .andExpect(content().string(containsString("Khách từng từ chối nay nhắn lại")))
                 .andExpect(content().string(containsString("cho hỏi mua pin")))
                 .andExpect(content().string(containsString("Gỡ không nhắn nữa, cho vào nhóm")));
         long first = comebacks.tasks().get(0).id();
         long second = comebacks.tasks().get(1).id();
-        mvc.perform(post("/handoffs/comebacks/" + first + "/keep").with(user("me").roles("STAFF")).with(csrf()))
+        mvc.perform(post("/handoffs/comebacks/" + first + "/keep").with(user("me").roles("OWNER")).with(csrf()))
                 .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/handoffs"));
-        mvc.perform(post("/handoffs/comebacks/" + second + "/lift").with(user("me").roles("STAFF")).with(csrf()))
+        mvc.perform(post("/handoffs/comebacks/" + second + "/lift").with(user("me").roles("OWNER")).with(csrf()))
                 .andExpect(status().is3xxRedirection());
         assertThat(jdbc.sql("SELECT count(*) FROM customer").query(Long.class).single()).isEqualTo(2L);
         assertThat(jdbc.sql("SELECT count(*) FROM suppression").query(Long.class).single()).isEqualTo(2L);
-        mvc.perform(get("/handoffs").with(user("me").roles("STAFF")))
+        mvc.perform(get("/handoffs").with(user("me").roles("OWNER")))
                 .andExpect(content().string(containsString("Khách quay lại đã gỡ cờ")))
                 .andExpect(content().string(containsString("Hoàn tác")));
         long lifted = comebacks.recentLifted(14).get(0).id();
-        mvc.perform(post("/handoffs/comebacks/" + lifted + "/undo").with(user("me").roles("STAFF")).with(csrf()))
+        mvc.perform(post("/handoffs/comebacks/" + lifted + "/undo").with(user("me").roles("OWNER")).with(csrf()))
                 .andExpect(status().is3xxRedirection());
         assertThat(jdbc.sql("SELECT count(*) FROM suppression WHERE lifted_at IS NULL").query(Long.class).single()).isEqualTo(2L);
-        mvc.perform(post("/handoffs/comebacks/" + first + "/lift").with(user("me").roles("STAFF")).with(csrf()))
+        mvc.perform(post("/handoffs/comebacks/" + first + "/lift").with(user("me").roles("OWNER")).with(csrf()))
                 .andExpect(status().is4xxClientError()).andExpect(content().string(containsString("Việc này đã được xử lý")));
         mvc.perform(post("/handoffs/comebacks/1/undo")).andExpect(status().isForbidden());
     }

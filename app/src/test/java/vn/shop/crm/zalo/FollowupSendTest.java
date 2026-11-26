@@ -245,6 +245,34 @@ class FollowupSendTest extends AbstractPostgresTest {
     }
 
     @Test
+    void inboxCuHoacMatDoanThiKhongNhacLoiMoiDaGui() {
+        long invitation = inviteOne();
+        days(5);
+        fake.inboxCoverageSince = null; // bridge cũ hoặc lỗi ghi tệp
+        assertThat(followups.step()).isEqualTo(Step.BLOCKED);
+        fake.inboxCoverageSince = clock.instant(); // vừa nối lại, lời mời thuộc khoảng nhận cũ
+        assertThat(followups.step()).isEqualTo(Step.NOTHING);
+        assertThat(touch(invitation, 2)).isNull();
+        assertThat(followupsSent()).isEmpty();
+    }
+
+    @Test
+    void choXuLyHetInboxVaNhanBietTinXinNgungTruocKhiNhac() {
+        long invitation = inviteOne();
+        var uid = jdbc.sql("SELECT zalo_target_uid FROM invitation WHERE id = :id")
+                .param("id", invitation).query(String.class).single();
+        for (int i = 0; i < ZaloInboxService.PER_TICK; i++) {
+            fake.pushInbound("12345", "Chào");
+        }
+        fake.pushInbound(uid, "Xin đừng liên hệ nữa");
+        days(5);
+        assertThat(followups.step()).isEqualTo(Step.BLOCKED);
+        assertThat(followups.step()).isEqualTo(Step.NOTHING);
+        assertThat(touch(invitation, 2)).isNull();
+        assertThat(followupsSent()).isEmpty();
+    }
+
+    @Test
     void khachNhanRiengBatCuDieuGiThiKhongBaoGioNhacDuAIGanNhanGi() {
         long invitation = inviteOne();
         reviews.noteInbound(invitation); // process() gọi cho MỌI tin riêng của người có lời mời, trước khi nhờ AI

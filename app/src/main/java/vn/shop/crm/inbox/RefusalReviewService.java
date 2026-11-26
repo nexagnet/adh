@@ -60,7 +60,7 @@ public class RefusalReviewService {
     }
 
     public record Row(long id, long customerId, String customerName, String state, Reason reason, String label, Double confidence,
-                      String excerpt, LocalDateTime createdAt, String resolvedBy) {
+                      String excerpt, LocalDateTime createdAt, String resolvedBy, long accountId) {
     }
 
     private final JdbcClient jdbc;
@@ -184,8 +184,10 @@ public class RefusalReviewService {
     // ---------- xem ----------
 
     private static final String SELECT = """
-            SELECT r.id, r.customer_id, c.name, r.state, r.reason, r.label, r.confidence, r.excerpt, r.created_at, r.resolved_by
+            SELECT r.id, r.customer_id, c.name, r.state, r.reason, r.label, r.confidence, r.excerpt, r.created_at,
+                   r.resolved_by, i.account_id
             FROM refusal_review r JOIN customer c ON c.id = r.customer_id
+            JOIN invitation i ON i.id = r.invitation_id
             """;
 
     private Optional<Row> find(long id) {
@@ -196,7 +198,8 @@ public class RefusalReviewService {
         BigDecimal cf = rs.getBigDecimal("confidence");
         return new Row(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("name"), rs.getString("state"),
                 Reason.valueOf(rs.getString("reason")), rs.getString("label"), cf == null ? null : cf.doubleValue(), rs.getString("excerpt"),
-                rs.getObject("created_at", OffsetDateTime.class).atZoneSameInstant(VN).toLocalDateTime(), rs.getString("resolved_by"));
+                rs.getObject("created_at", OffsetDateTime.class).atZoneSameInstant(VN).toLocalDateTime(), rs.getString("resolved_by"),
+                rs.getLong("account_id"));
     }
 
     /** Việc đang tạm dừng, chờ mẹ. */

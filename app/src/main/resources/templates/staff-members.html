@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Nhân viên và phân quyền nhóm')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main class="stack">
+    <header><h1>Nhân viên và phân quyền nhóm</h1></header>
+    <form class="job stack" th:action="@{/staff/members}" method="post">
+        <h2>Thêm nhân viên</h2>
+        <label>Tên đăng nhập <input name="username" required pattern="[a-z][a-z0-9._-]{2,39}" autocomplete="off"></label>
+        <label>Tên hiển thị <input name="name" required maxlength="100"></label>
+        <label>Mật khẩu <input type="password" name="password" minlength="12" maxlength="72" required autocomplete="new-password"></label>
+        <button class="btn" type="submit">Tạo tài khoản</button>
+    </form>
+    <article class="job stack" th:each="m : ${members}">
+        <h2 th:text="|${m.displayName} (${m.username})|">Nhân viên</h2>
+        <ul><li th:each="g : ${grants}" th:if="${g.username == m.username}" th:text="${g.name}"></li></ul>
+        <form th:action="@{/staff/members/{username}/active(username=${m.username})}" method="post">
+            <button type="submit" class="btn secondary" name="active" th:value="${!m.active}" th:text="${m.active ? 'Thu hồi tài khoản' : 'Kích hoạt lại'}"></button>
+        </form>
+        <form th:action="@{/staff/members/{username}/groups(username=${m.username})}" th:if="${m.active and !groups.isEmpty()}" method="post">
+            <select name="groupId" aria-label="Nhóm Zalo" required>
+                <option th:each="g : ${groups}" th:value="${g.id}" th:text="${g.name}"></option>
+            </select>
+            <button type="submit" class="btn secondary" name="allowed" value="true">Cấp quyền</button>
+            <button type="submit" class="btn secondary" name="allowed" value="false">Gỡ quyền</button>
+        </form>
+    </article>
+    <section th:if="${!workSummary.isEmpty()}">
+        <h2>Kết quả xử lý việc nhóm</h2>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Nhân viên</th><th>Đang xử lý</th><th>Đã xử lý</th><th>Phút trung bình</th></tr></thead>
+                <tbody><tr th:each="s : ${workSummary}">
+                    <td th:text="${s.username}"></td><td th:text="${s.open}"></td>
+                    <td th:text="${s.resolved}"></td><td th:text="${s.minutes ?: '—'}"></td>
+                </tr></tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>

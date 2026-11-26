@@ -10,6 +10,7 @@ import vn.shop.crm.common.PhoneNormalizer;
 import vn.shop.crm.customers.CustomerService;
 import vn.shop.crm.shipping.CanonicalStatus;
 import vn.shop.crm.shipping.Carrier;
+import vn.shop.crm.shipping.ShipmentWriteLock;
 import vn.shop.crm.shipping.StatusKey;
 
 import java.math.BigDecimal;
@@ -39,10 +40,8 @@ import java.util.regex.Pattern;
  * "Tổng". File có tên, SĐT và địa chỉ khách, nhưng hệ thống chỉ giữ mã vận đơn, mã đơn khách hàng, thời gian ký nhận
  * và các khoản tiền.
  *
- * <p>Quy tắc an toàn: file này KHÔNG tạo đơn hay khách mới (không có trạng thái đơn) và KHÔNG đổi trạng thái đơn.
- * Chỉ bổ sung hai thông tin còn thiếu cho đơn đã có: "Mã đơn KH" (nếu đơn chưa có mã đơn) và "Thời gian ký nhận"
- * (chỉ cho đơn mà trạng thái đã là Giao thành công). Đơn có ký nhận nhưng chưa được tính Giao thành công chỉ được báo ra
- * để chủ shop tự quyết nghĩa trạng thái. Nhập lại cùng một kỳ thì thay thế kỳ cũ.
+ * <p>File đối soát bổ sung thông tin cho vận đơn đã có. Có ký nhận và COD thực thu, không có phí hoàn
+ * thì có thể xác nhận giao thành công cho đơn đang mở. Nhập lại cùng một kỳ thì thay thế kỳ cũ.
  */
 @Service
 public class SettlementImportService {
@@ -193,6 +192,7 @@ public class SettlementImportService {
         if ("COMMITTED".equals(staged.status())) {
             throw new ImportException("Lô này đã được xác nhận trước đó.");
         }
+        ShipmentWriteLock.acquire(jdbc);
         Parsed parsed = parse(staged.content());
         return buildReport(parsed, loadShipments(parsed.lines()), 0, existingPeriodCodes());
     }
@@ -252,41 +252,11 @@ public class SettlementImportService {
                     .param("net", l.net()).param("adjAt", ts(l.adjustedAt())).param("note", l.note()).update();
         }
 
-        // 2) bổ sung cho đơn đã có: mã đơn khách hàng và thời gian ký nhận (không đụng tới trạng thái đơn)
+        // 2) Bổ sung thông tin và bằng chứng giao thành công cho đơn đã có.
         Set<String> touchedPhones = new HashSet<>();
         for (Map.Entry<String, Merged> e : mergeByTracking(parsed.lines()).entrySet()) {
             ShipmentRow s = shipments.get(e.getKey());
-            if (s == null) {
-                continue;
-            }
-            Merged m = e.getValue();
-            boolean changed = false;
-            if (m.orderRef() != null && s.orderRef() == null) {
-                changed |= jdbc.sql("UPDATE shipment SET order_ref = :r, updated_at = now() "
-                                + "WHERE id = :id AND order_ref IS NULL")
-                        .param("r", m.orderRef()).param("id", s.id()).update() > 0;
-            }
-            if (upgradable(s, m)) {
-                // đối chiếu chính xác: J&T đã thu COD sau khi ký nhận và không có phí hoàn => đây là một lần mua thành công
-                int n = jdbc.sql("""
-                                UPDATE shipment SET canonical_status = 'DELIVERED', settled_delivered = TRUE,
-                                    delivered_on = COALESCE(delivered_on, :t), updated_at = now()
-                                WHERE id = :id AND canonical_status IN ('UNKNOWN', 'CREATED', 'IN_TRANSIT')""")
-                        .param("t", ts(m.signedAt())).param("id", s.id()).update();
-                if (n > 0) {
-                    jdbc.sql("""
-                                    INSERT INTO shipment_status_history (shipment_id, batch_id, raw_status, canonical_status)
-                                    VALUES (:s, :batch, :raw, 'DELIVERED')""")
-                            .param("s", s.id()).param("batch", batchId)
-                            .param("raw", ImportService.clean(s.rawStatus() + " (đối soát J&T)", 200)).update();
-                    changed = true;
-                }
-            } else if (m.signedAt() != null && s.deliveredOn() == null && isDelivered(s)) {
-                changed |= jdbc.sql("UPDATE shipment SET delivered_on = :t, updated_at = now() "
-                                + "WHERE id = :id AND delivered_on IS NULL AND canonical_status = 'DELIVERED'")
-                        .param("t", ts(m.signedAt())).param("id", s.id()).update() > 0;
-            }
-            if (changed) {
+            if (s != null && applyProof(batchId, s, e.getValue())) {
                 touchedPhones.add(s.phone());
             }
         }
@@ -302,6 +272,54 @@ public class SettlementImportService {
                 .param("errors", report.errorRows()).param("dups", report.duplicatesInFile()).param("id", batchId)
                 .update();
         return report;
+    }
+
+    /** Lô vận đơn có thể đến sau lô đối soát. Lúc đó dùng bằng chứng đã lưu trước khi tính phân khúc. */
+    void reconcileNewShipments(long batchId, List<String> trackings) {
+        Map<String, ShipmentRow> shipments = loadShipmentsByTracking(trackings);
+        for (int from = 0; from < trackings.size(); from += CHUNK) {
+            List<String> chunk = trackings.subList(from, Math.min(from + CHUNK, trackings.size()));
+            jdbc.sql("""
+                            SELECT l.tracking_no,
+                                   (array_agg(l.order_ref ORDER BY p.period_to DESC NULLS LAST, p.period_code DESC)
+                                       FILTER (WHERE l.order_ref IS NOT NULL))[1] AS order_ref,
+                                   (array_agg(l.signed_at ORDER BY p.period_to DESC NULLS LAST, p.period_code DESC)
+                                       FILTER (WHERE l.signed_at IS NOT NULL))[1] AS signed_at,
+                                   bool_or(l.signed_at IS NOT NULL AND l.cod_collected > 0 AND l.return_fee = 0)
+                                       AND NOT bool_or(l.return_fee > 0) AS proven
+                            FROM settlement_line l JOIN settlement_period p ON l.period_id = p.id
+                            WHERE p.carrier = :carrier AND l.tracking_no IN (:list)
+                            GROUP BY l.tracking_no""")
+                    .param("carrier", CARRIER.name()).param("list", chunk)
+                    .query((rs, i) -> Map.entry(rs.getString("tracking_no"), new Merged(rs.getString("order_ref"),
+                            rs.getObject("signed_at", LocalDateTime.class), rs.getBoolean("proven"))))
+                    .list().forEach(entry -> applyProof(batchId, shipments.get(entry.getKey()), entry.getValue()));
+        }
+    }
+
+    private boolean applyProof(long batchId, ShipmentRow shipment, Merged proof) {
+        boolean upgraded = upgradable(shipment, proof);
+        boolean fillRef = shipment.orderRef() == null && proof.orderRef() != null;
+        boolean fillTime = shipment.deliveredOn() == null && proof.signedAt() != null
+                && (upgraded || isDelivered(shipment));
+        if (!upgraded && !fillRef && !fillTime) {
+            return false;
+        }
+        jdbc.sql("""
+                        UPDATE shipment SET order_ref = COALESCE(order_ref, :ref),
+                            delivered_on = COALESCE(delivered_on, CAST(:signed AS timestamp)),
+                            canonical_status = CASE WHEN :upgrade THEN 'DELIVERED' ELSE canonical_status END,
+                            settled_delivered = settled_delivered OR :upgrade, updated_at = now() WHERE id = :id""")
+                .param("ref", proof.orderRef()).param("signed", fillTime ? ts(proof.signedAt()) : null)
+                .param("upgrade", upgraded).param("id", shipment.id()).update();
+        if (upgraded) {
+            jdbc.sql("""
+                            INSERT INTO shipment_status_history (shipment_id, batch_id, raw_status, canonical_status)
+                            VALUES (:s, :batch, :raw, 'DELIVERED')""")
+                    .param("s", shipment.id()).param("batch", batchId)
+                    .param("raw", ImportService.clean(shipment.rawStatus() + " (đối soát J&T)", 200)).update();
+        }
+        return true;
     }
 
     // ================= danh sách kỳ đã nhập =================
@@ -631,7 +649,10 @@ public class SettlementImportService {
     }
 
     private Map<String, ShipmentRow> loadShipments(Collection<Line> lines) {
-        List<String> trackings = lines.stream().map(Line::trackingNo).distinct().toList();
+        return loadShipmentsByTracking(lines.stream().map(Line::trackingNo).distinct().toList());
+    }
+
+    private Map<String, ShipmentRow> loadShipmentsByTracking(List<String> trackings) {
         Map<String, ShipmentRow> result = new HashMap<>();
         for (int from = 0; from < trackings.size(); from += CHUNK) {
             List<String> chunk = trackings.subList(from, Math.min(from + CHUNK, trackings.size()));

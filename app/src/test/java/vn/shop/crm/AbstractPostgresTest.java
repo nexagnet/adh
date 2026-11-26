@@ -45,7 +45,7 @@ public abstract class AbstractPostgresTest {
                 TRUNCATE shipment_status_history, shipment, customer, import_error, import_batch,
                          column_mapping, import_setting, contact_basis, customer_note, suppression, contact_event,
                          data_request, invitation, invitation_campaign, open_entry, zalo_group, app_setting, send_log, faq_entry, bot_event, handoff, weather_forecast, zalo_friend_event, zalo_auto_log, zalo_msg_log, zalo_health_alert, ai_usage, zalo_group_proposal, zalo_group_proposal_member, refusal_review, comeback, reply_draft, zalo_test_number, warranty_case, advisor_run, campaign_proposal, advisor_note, campaign_step, invitation_touch, template_backup, campaign_template
-                         RESTART IDENTITY CASCADE""").update();
+                         , staff_member RESTART IDENTITY CASCADE""").update();
         jdbc.sql("DELETE FROM zalo_account WHERE id <> 1").update(); // D23: dòng tài khoản 1 do migration tạo, giữ lại
         jdbc.sql("UPDATE zalo_account SET account_tag = NULL WHERE id = 1 AND account_tag IS NOT NULL").update();
         jdbc.sql("DELETE FROM status_mapping WHERE carrier <> 'VIETTEL_POST'").update();

@@ -113,27 +113,34 @@ public class ZcaBridgeGateway implements ZaloLink {
 
     @Override
     public List<Inbound> inbound(long afterSeq) {
+        return snapshot(afterSeq).messages();
+    }
+
+    @Override
+    public Snapshot snapshot(long afterSeq) {
         try {
             JsonNode n = call("GET", "/inbox?after=" + Math.max(0, afterSeq), null, 10);
             if (!n.path("enabled").asBoolean(false)) {
-                return List.of();
+                return new Snapshot(List.of(), -1, null);
             }
             List<Inbound> out = new ArrayList<>();
+            Instant coverage = instant(n, "coverageSince");
             for (JsonNode e : n.path("messages")) {
                 String uid = e.path("uid").asString("");
                 String text = e.path("text").asString("");
                 long seq = e.path("seq").asLong(-1);
                 if (seq < 0 || !ZALO_ID.matcher(uid).matches() || text.isBlank()) {
+                    coverage = null;
                     continue; // tin hỏng: bỏ qua, không đoán
                 }
                 Instant at = instant(e, "at");
                 out.add(new Inbound(seq, uid, text.length() > 500 ? text.substring(0, 500) : text, at == null ? Instant.now() : at));
             }
             out.sort(java.util.Comparator.comparingLong(Inbound::seq));
-            return out;
+            return new Snapshot(List.copyOf(out), n.path("lastSeq").asLong(-1), coverage);
         } catch (Exception e) {
             log.warn("Không đọc được tin riêng từ cầu nối: {}", e.getClass().getSimpleName());
-            return List.of();
+            return new Snapshot(List.of(), -1, null);
         }
     }
 
@@ -196,9 +203,9 @@ public class ZcaBridgeGateway implements ZaloLink {
     // ---------- ZaloMessenger: việc thứ tư (D18), gửi MỘT tin cho MỘT người ----------
 
     /** Mã không gửi được vì chính cầu nối từ chối TRƯỚC khi chạm Zalo (xem bridge.mjs): chắc chắn chưa có tin nào đi. */
-    private static final java.util.Set<String> NOT_SENT_CODES = java.util.Set.of("BUSY", "NOT_CONNECTED", "NOT_ACTIVE", "WINDOW",
+    private static final java.util.Set<String> NOT_SENT_CODES = java.util.Set.of("BUSY", "NOT_CONNECTED", "INBOX_BEHIND", "NOT_ACTIVE", "WINDOW",
             "MSG_LIMIT", "FRIEND_LIMIT", "LOGIN_REQUIRED", "BAD_INPUT", "BAD_PHONE", "BAD_ID", "NOT_REPLYABLE",
-            "NO_INVITE", "NO_PREVIOUS", "CUSTOMER_REPLIED", "FRIEND_REQUESTED", "NOT_REQUESTED", ZaloMessageService.FRIEND_LIST_FULL);
+            "NO_INVITE", "NO_PREVIOUS", "CUSTOMER_REPLIED", "INBOX_GAP", "FRIEND_REQUESTED", "NOT_REQUESTED", ZaloMessageService.FRIEND_LIST_FULL);
 
     @Override
     public Sent sendByPhone(Kind kind, String phoneDigits, String text) {
@@ -217,6 +224,15 @@ public class ZcaBridgeGateway implements ZaloLink {
             return Sent.of(Result.PERSON_ERROR, "BAD_ID", true);
         }
         return message(java.util.Map.of("kind", kind.name(), "uid", uid, "text", String.valueOf(text)));
+    }
+
+    @Override
+    public Sent sendFollowup(Kind kind, String uid, String text, Instant coverageSince) {
+        if (!kind.followup() || coverageSince == null || uid == null || !ZALO_ID.matcher(uid).matches()) {
+            return Sent.of(Result.PERSON_ERROR, "BAD_INPUT", true);
+        }
+        return message(java.util.Map.of("kind", kind.name(), "uid", uid, "text", String.valueOf(text),
+                "inboxSince", coverageSince.toEpochMilli()));
     }
 
     /** Lời mời kết bạn: chỉ theo mã Zalo của người đã nhận Tin 1 (cầu nối kiểm lại), câu tối đa 150 ký tự. */
@@ -267,11 +283,11 @@ public class ZcaBridgeGateway implements ZaloLink {
         }
     }
 
-    private Sent message(java.util.Map<String, String> body) {
+    private Sent message(java.util.Map<String, ?> body) {
         return message("/messages", body);
     }
 
-    private Sent message(String path, java.util.Map<String, String> body) {
+    private Sent message(String path, java.util.Map<String, ?> body) {
         try {
             JsonNode n = call("POST", path, JSON.writeValueAsString(body), 90);
             Result result;

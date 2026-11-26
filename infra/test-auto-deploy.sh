@@ -5,7 +5,7 @@ set -uo pipefail
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/bin" "$T/infra"
-cp "$SRC/auto-deploy.sh" "$T/infra/"
+cp "$SRC/auto-deploy.sh" "$SRC/deploy-readiness.sh" "$T/infra/"
 touch "$T/infra/.env"
 export FAKE="$T/fake"; mkdir -p "$FAKE"
 SHA1=1111111111111111111111111111111111111111
@@ -21,7 +21,7 @@ cat >"$T/bin/curl" <<'EOF'
 #!/usr/bin/env bash
 args="$*"
 case "$args" in
-  *127.0.0.1*) cat "$FAKE/health" 2>/dev/null || printf 200 ;;
+  *127.0.0.1*) printf '%s\n%s' "$(cat "$FAKE/revision" 2>/dev/null)" "$(cat "$FAKE/health" 2>/dev/null || printf 200)" ;;
   *actions/runs*) [ -f "$FAKE/ci.json" ] || exit 22; cat "$FAKE/ci.json" ;;
   *) exit 1 ;;
 esac
@@ -43,7 +43,7 @@ cat >"$T/infra/deploy.sh" <<'EOF'
 echo "deploy.sh $*" >>"$FAKE/deploy.calls"
 case "$(cat "$FAKE/mode")" in
   ok) echo "Đã sao lưu: /var/backups/adh/adh-1.sql.gz (2000 byte chưa nén)"; echo "Triển khai thẻ $2"
-      cat .current-tag >.previous-tag; echo "$2" >.current-tag; echo "XONG" ;;
+      cat .current-tag >.previous-tag; echo "$2" >.current-tag; echo "$2" >"$FAKE/revision"; echo "XONG" ;;
   unhealthy) echo "Đã sao lưu: /var/backups/adh/adh-2.sql.gz (2000 byte chưa nén)"; echo "Triển khai thẻ $2"
       echo "LỖI: ứng dụng không khỏe sau 3 phút." >&2; exit 1 ;;
   transient) echo "Đã sao lưu: /var/backups/adh/adh-3.sql.gz (2000 byte chưa nén)"; echo "Triển khai thẻ $2"
@@ -61,7 +61,7 @@ bad() { echo "  LỖI: $1"; fails=$((fails + 1)); }
 expect_log() { grep -q -- "$1" "$T/infra/auto-deploy.log" 2>/dev/null && ok "$2" || { bad "$2 (không thấy '$1' trong log)"; tail -n 5 "$T/infra/auto-deploy.log" 2>/dev/null; }; }
 deploy_calls() { if [ -f "$FAKE/deploy.calls" ]; then wc -l <"$FAKE/deploy.calls" | tr -d " "; else echo 0; fi; }
 ci() { printf '{"workflow_runs":[{"path":".github/workflows/ci.yml","event":"push","head_branch":"main","run_number":%s,"run_attempt":1,"status":"%s","conclusion":%s}]}' "$1" "$2" "$3" >"$FAKE/ci.json"; }
-reset() { rm -f "$T/infra/".auto-* "$T/infra/auto-deploy.log" "$FAKE"/*; echo "$SHA1" >"$T/infra/.current-tag"; echo "$SHA2" >"$FAKE/head"; echo ok >"$FAKE/mode"; ci 1 completed '"success"'; }
+reset() { rm -f "$T/infra/".auto-* "$T/infra/auto-deploy.log" "$FAKE"/*; echo "$SHA1" >"$T/infra/.current-tag"; echo "$SHA1" >"$FAKE/revision"; echo "$SHA2" >"$FAKE/head"; echo ok >"$FAKE/mode"; ci 1 completed '"success"'; }
 
 echo "1. chưa có .current-tag: không tự chạy lần đầu"
 reset; rm "$T/infra/.current-tag"; "$RUN"; [ "$(deploy_calls)" = 0 ] && ok "không gọi deploy.sh" || bad "đã gọi deploy.sh"
@@ -92,6 +92,10 @@ reset; touch "$FAKE/no-image"; "$RUN"; [ "$(deploy_calls)" = 0 ] && ok "chờ �
 echo "6. thiếu RAM / ứng dụng đang hỏng"
 reset; ADH_AUTO_MIN_FREE_MB=99999999 "$RUN"; [ "$(deploy_calls)" = 0 ] && ok "hoãn khi thiếu RAM" || bad "triển khai khi thiếu RAM"
 reset; printf 502 >"$FAKE/health"; "$RUN"; [ "$(deploy_calls)" = 0 ] && ok "không chồng lên app đang hỏng" || bad "triển khai khi app đang hỏng"
+reset; printf 302 >"$FAKE/health"; "$RUN"; [ "$(deploy_calls)" = 0 ] && ok "không chấp nhận redirect" || bad "triển khai sau redirect"
+reset; printf 404 >"$FAKE/health"; "$RUN"; [ "$(deploy_calls)" = 0 ] && ok "không chấp nhận 404" || bad "triển khai sau 404"
+reset; : >"$FAKE/revision"; "$RUN"; [ "$(deploy_calls)" = 0 ] && ok "không chấp nhận HTTP 200 thiếu SHA" || bad "triển khai dù thiếu SHA"
+reset; printf '%s' "$SHA2" >"$FAKE/revision"; "$RUN"; [ "$(deploy_calls)" = 0 ] && ok "không chấp nhận HTTP 200 sai SHA" || bad "triển khai dù sai SHA"
 
 echo "7. khóa chống chạy chồng"
 reset; ( exec 8>"$T/infra/.auto-deploy.lock"; flock -n 8; "$RUN"; [ "$(deploy_calls)" = 0 ] ) && ok "lượt đang chạy thì lượt sau thoát" || bad "chạy chồng"

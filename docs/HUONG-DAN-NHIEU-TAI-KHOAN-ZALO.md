@@ -36,11 +36,13 @@ Rồi chạy lại các container: `./deploy.sh deploy` (hoặc `docker compose 
 
 ## 4. Cách B: tài khoản thứ hai ở MÁY CHỦ KHÁC
 
-Máy thứ hai chỉ chạy cầu nối (`infra/docker-compose.bridge-only.yml`). Volume của cầu nối giữ phiên và hàng tin riêng đã mã hóa, cùng sổ hạn mức. PostgreSQL và ứng dụng vẫn ở máy chính. Ứng dụng gọi cầu nối qua **đường hầm riêng** (WireGuard hoặc Tailscale), giữ cổng 3100 trong mạng riêng vì cầu nối dùng HTTP với khóa chung.
+Phần ADH cho tài khoản 2 trên máy thứ hai chạy riêng trong dự án Docker Compose `adh-zalo-bridge-2` (`infra/docker-compose.bridge-only.yml`). Volume của cầu nối giữ phiên và hàng tin riêng đã mã hóa, cùng sổ hạn mức. App và PostgreSQL phục vụ cấu hình hai tài khoản vẫn ở máy chính. App gọi cầu nối qua **đường hầm riêng** (WireGuard hoặc Tailscale), giữ cổng 3100 trong mạng riêng vì cầu nối dùng HTTP với khóa chung.
 
 1. Máy thứ hai: tạo `.env.bridge` có `ADH_TAG` trùng thẻ máy chính, `APP_ZALO_BRIDGE_KEY`, `ZALO_SESSION_KEY`, `BRIDGE_BIND` là địa chỉ đường hầm của máy này và `ZALO_ACCOUNT_ID=0` nếu chưa biết mã. Chạy `docker compose -f docker-compose.bridge-only.yml --env-file .env.bridge up -d`. Đặt `BRIDGE_INBOX_ENABLED=true` ở đây nếu cần đọc tin riêng qua cầu nối 2.
 2. Máy chính, trong `infra/.env`: đặt `COMPOSE_FILE=docker-compose.shared.yml:docker-compose.zalo-2.yml`, `COMPOSE_PROFILES=zalo-auto`, `ZALO_BRIDGE_2_URL=http://<địa-chỉ-đường-hầm-máy-hai>:3100`, `APP_ZALO_BRIDGE_KEY_2=<khóa chung của cầu nối đó>` và `APP_ZALO_LIVE_2=false`. Tạo lại container app. Máy hai tiếp tục dùng Compose riêng.
 3. Khi cập nhật bản chạy, đối chiếu `ADH_TAG` trên hai máy. Trình tự triển khai trên máy chính chỉ cập nhật các dịch vụ của máy chính. Chỉnh `ADH_TAG` trong `.env.bridge` trên máy hai, kéo ảnh với `docker compose -f docker-compose.bridge-only.yml --env-file .env.bridge pull`, rồi tạo lại cầu nối bằng `up -d`. Giữ volume và khóa phiên hiện có.
+
+Cờ multi được truyền vào container app từ `docker-compose.zalo-2.yml`. Khi kiểm tra, đối chiếu cả danh sách tệp Compose của container và giá trị cờ trong container. Chỉ kết luận hai tài khoản đã sẵn sàng khi app gọi được bridge 2 qua mạng riêng, dấu hai tài khoản khác nhau và UI phản ánh đúng phạm vi thử trước khi gửi.
 
 ## 5. Bật chạy thật (theo thứ tự, đừng nhảy cóc)
 
@@ -53,6 +55,8 @@ Máy thứ hai chỉ chạy cầu nối (`infra/docker-compose.bridge-only.yml`)
 7. Tạm ngưng tài khoản thêm bằng nút **Tạm ngưng tài khoản này**. Khách đã gắn tài khoản đó chờ ngày bật lại.
 
 Khi cầu dao chung dừng các tài khoản, hãy xem cảnh báo và chọn **Mở lại** ở tài khoản đã báo lỗi. Nếu bridge nguồn đang ngoại tuyến hoặc đã gỡ khỏi cấu hình, khôi phục kết nối hoặc tuyến tới đúng bridge đó trước khi xác nhận. Các tài khoản tiếp tục dừng trong lúc chưa thể xác nhận trên bridge nguồn.
+
+Tin nhắc 2/3 yêu cầu cả app lẫn bridge hỗ trợ trạng thái inbox. Bridge mất kết nối, khởi động lại, không ghi được inbox, hoặc bỏ sót tin quá hạn sẽ bắt đầu một khoảng nhận mới. Các lời mời đã gửi trước khoảng mới được giữ khỏi luồng nhắc. Lời mời mới chỉ được nhắc sau khi app xử lý hết tin của tài khoản và bridge xác nhận lại trước khi gửi. Giữ tin nhắc tắt nếu cần lùi sang ảnh cũ.
 
 Trong lần cập nhật sang bản có `APP_ZALO_LIVE_2`, giữ `APP_ZALO_MULTI_ENABLED=false` trong `infra/.env` đến khi đã xác nhận bản mới hoạt động. Tạm dừng cron bằng `./auto-deploy.sh pause` nếu thẻ trước còn là bản cũ. Nếu cần `./deploy.sh rollback` về bản cũ, tắt `APP_ZALO_MULTI_ENABLED` trong `.env` trước khi chạy. Cả lùi tự động lẫn lùi tay dùng lại `.env`, còn bản cũ chỉ đọc `APP_ZALO_LIVE` chung. Chỉ bật lại cron sau khi hai thẻ dùng để triển khai và lùi đều hiểu cấu hình chạy thử riêng.
 

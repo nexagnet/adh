@@ -85,7 +85,7 @@ class ReplyPageTest extends AbstractPostgresTest {
         jdbc.sql("""
                 INSERT INTO reply_draft (customer_id, zalo_uid, state, reason, inbound_text, inbound_at)
                 VALUES (:c, '8001', 'HANDOFF', 'NGOAI_PHAM_VI', 'Pin 48V giá bao nhiêu', now())""").param("c", c).update();
-        mvc.perform(get("/handoffs").with(user("me").roles("STAFF")))
+        mvc.perform(get("/handoffs").with(user("me").roles("OWNER")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Khách nhắn riêng, cần người thật trả lời")))
                 .andExpect(content().string(containsString("Pin 48V giá bao nhiêu")))
@@ -94,7 +94,7 @@ class ReplyPageTest extends AbstractPostgresTest {
         mvc.perform(get("/").with(user("admin").roles("OWNER")))
                 .andExpect(content().string(containsString("việc trợ lý AI chuyển cho người thật")));
         long id = replies.handoffs().get(0).id();
-        mvc.perform(post("/handoffs/replies/{id}/done", id).with(user("me").roles("STAFF")).with(csrf()))
+        mvc.perform(post("/handoffs/replies/{id}/done", id).with(user("me").roles("OWNER")).with(csrf()))
                 .andExpect(redirectedUrl("/handoffs"));
         assertThat(replies.openCount()).isZero();
     }

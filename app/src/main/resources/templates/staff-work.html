@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Việc của tôi')}"></head>
+<body>
+<main>
+    <header class="page-head">
+        <h1>Việc của tôi</h1>
+        <form th:action="@{/logout}" method="post"><button type="submit" class="btn secondary">Đăng xuất</button></form>
+    </header>
+    <p class="muted" th:if="${jobs.isEmpty()}">Hiện chưa có việc trong các nhóm được giao.</p>
+    <section class="stack" aria-label="Việc theo nhóm">
+        <article class="job" th:each="job : ${jobs}">
+            <h2 th:text="${job.groupName}">Nhóm</h2>
+            <p class="what" th:text="${job.excerpt}"></p>
+            <form th:if="${job.status == 'OPEN'}" th:action="@{/staff/work/{id}/claim(id=${job.id})}" method="post">
+                <button type="submit" class="btn">Nhận việc</button>
+            </form>
+            <form th:if="${job.status == 'ACKNOWLEDGED'}" th:action="@{/staff/work/{id}/resolve(id=${job.id})}" method="post">
+                <button type="submit" class="btn">Đã xử lý</button>
+            </form>
+        </article>
+    </section>
+</main>
+</body>
+</html>

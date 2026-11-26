@@ -85,6 +85,8 @@ export class Bridge {
     this.groupLedger = groupLedger ?? new AddLedger(null);
     this.events = events;
     this.inbox = inbox ?? new InboxBuffer({ now: () => this.now() });
+    this.inboxListeningSince = null;
+    this.lastInboxStart = 0;
     this.lastFriend = null; // { uid, at } của lời mời kết bạn gần nhất
     this.lastInvite = null; // { uid, at } của Tin 1 gần nhất (chỉ trong bộ nối)
     this.replyable = new Map(); // mã Zalo -> giờ tin riêng gần nhất (chỉ trong bộ nhớ); căn cứ duy nhất cho phép trả lời (WELCOME, REPLY)
@@ -213,7 +215,10 @@ export class Bridge {
     this.activeListen = lg;
     this.rxAttempts = 0;
     const handlers = {
-      onConnected: () => this.onConnected(gen),
+      onConnected: () => {
+        if (lg === this.activeListen && this.config.inboxEnabled) this.startInboxCoverage();
+        this.onConnected(gen);
+      },
       onFriendAdd: (uid) => this.onFriendAdd(gen, uid),
       onFriendRequest: (uid) => this.onFriendRequest(gen, uid),
       onDisconnected: (code) => this.onDisconnected(gen, code, lg),
@@ -311,6 +316,7 @@ export class Bridge {
       // Đang dừng gửi (cầu dao) mà đường NHẬN tin bị đứt: nối lại chỉ để nhận, không đổi trạng thái dừng.
       if (lg !== 0 && lg === this.activeListen && this.state === 'TRIPPED') {
         this.activeListen = 0;
+        this.inboxListeningSince = null;
         this.log('mất kết nối nhận tin khi đang dừng gửi');
         this.startReceiveOnly();
       }
@@ -362,7 +368,16 @@ export class Bridge {
 
   stopListen() {
     this.activeListen = 0;
+    this.inboxListeningSince = null;
     this.adapter.stopListening();
+  }
+
+  startInboxCoverage() {
+    if (this.inboxListeningSince !== null) return;
+    this.lastInboxStart = Math.max(this.now(), this.lastInboxStart + 1, this.inbox.lossAt + 1);
+    this.inboxListeningSince = this.lastInboxStart;
+    this.inbox.coverageFloor = this.lastInboxStart;
+    this.inbox.save();
   }
 
   /**
@@ -405,7 +420,11 @@ export class Bridge {
       const lg = ++this.listenSeq;
       this.activeListen = lg;
       this.adapter.listen({
-        onConnected: () => { this.rxAttempts = 0; this.log('đang nhận tin khi dừng gửi'); },
+        onConnected: () => {
+          if (lg === this.activeListen) this.startInboxCoverage();
+          this.rxAttempts = 0;
+          this.log('đang nhận tin khi dừng gửi');
+        },
         onFriendAdd: () => {},
         onMessage: (uid, text) => this.onMessage(lg, uid, text),
         onDisconnected: () => this.onDisconnected(-1, 0, lg), // -1 khác generation hiện tại: đi nhánh nối lại chỉ để nhận
@@ -577,6 +596,13 @@ export class Bridge {
       if (kind === 'FOLLOWUP3' && !this.msgLedger.has('FOLLOWUP2', uidIn)) return { outcome: 'PERSON_ERROR', code: 'NO_PREVIOUS' };
       const said = this.replyable.get(uidIn);
       if (said !== undefined && t - said <= REPLY_WINDOW_MS) return { outcome: 'PERSON_ERROR', code: 'CUSTOMER_REPLIED' };
+      if (m.inboxSince !== this.inboxCoverageSince() || !Number.isSafeInteger(m.inboxSince) || !this.inbox.caughtUp()) {
+        // App cũ đã hiểu RATE_LIMITED là chưa gửi, kể cả khi chưa biết mã lý do mới.
+        return { outcome: 'RATE_LIMITED', code: 'INBOX_BEHIND', retryAfterSec: 60 };
+      }
+      if (!this.msgLedger.inviteCovered(uidIn, m.inboxSince)) {
+        return { outcome: 'PERSON_ERROR', code: 'INBOX_GAP' };
+      }
     }
     if (isAsk) {
       // chỉ nhờ người đã nhận Tin 1 từ chính cầu nối này; đã được gửi lời mời kết bạn thì không nhờ nữa (lời nói sẽ sai); người đang nhắn tới thì để người thật xem
@@ -617,7 +643,7 @@ export class Bridge {
           // Zalo không xác nhận có tin: không biết đã gửi hay chưa, dừng thay vì đoán
           c = { outcome: 'SYSTEM_ERROR', code: 'NO_ACK' };
         } else {
-          if (!isReply) this.msgLedger.markSent(kind, uid); // WELCOME và REPLY có thể lặp ở lần nhắn sau (Adh giữ quy tắc 30 ngày)
+          if (!isReply) this.msgLedger.markSent(kind, uid, t); // Mốc Tin 1 cùng đồng hồ với dấu inbox của bridge.
           c = { outcome: 'OK' };
           // Phần đầu đã tới tay khách và đã ghi sổ: các phần sau lỗi thì dừng cầu dao nhưng KHÔNG báo lỗi gửi (không bao giờ gửi lại phần đầu).
           for (let i = 1; i < parts.length; i++) {
@@ -1277,6 +1303,18 @@ export class Bridge {
   inboxMessages(after) {
     if (!this.config.inboxEnabled) return [];
     return this.inbox.after(Number.isFinite(after) && after > 0 ? after : 0);
+  }
+
+  inboxSnapshot(after) {
+    const messages = this.inboxMessages(after);
+    const since = this.inboxCoverageSince();
+    const coverageSince = since === null ? null : new Date(since).toISOString();
+    return { enabled: this.config.inboxEnabled, messages, lastSeq: messages.at(-1)?.seq ?? 0, coverageSince };
+  }
+
+  inboxCoverageSince() {
+    return this.inboxListeningSince !== null && this.inbox.durable
+      ? Math.max(this.inboxListeningSince, this.inbox.lossAt) : null;
   }
 
   friendEvents(after) {

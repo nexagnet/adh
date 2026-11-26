@@ -74,6 +74,11 @@ public interface ZaloMessenger {
     /** Tin 2: gửi cho mã Zalo đã biết. */
     Sent sendByUid(Kind kind, String uid, String text);
 
+    /** Dấu khoảng nhận liên tục lấy từ chính bridge trước lần gửi nhắc này. */
+    default Sent sendFollowup(Kind kind, String uid, String text, java.time.Instant coverageSince) {
+        return Sent.of(Result.SYSTEM_ERROR, "INBOX_BEHIND", true);
+    }
+
     /** Lời mời kết bạn kèm câu ngắn (tối đa 150 ký tự) cho MỘT người đã nhận Tin 1 (theo mã Zalo). */
     Sent sendFriendRequest(String uid, String text);
 

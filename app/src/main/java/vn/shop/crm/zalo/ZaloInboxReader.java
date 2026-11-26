@@ -19,4 +19,12 @@ public interface ZaloInboxReader {
 
     /** Tin mới có số thứ tự lớn hơn {@code afterSeq}, tăng dần. Rỗng nếu tắt, không có hoặc không gọi được. Không bao giờ ném lỗi. */
     List<Inbound> inbound(long afterSeq);
+
+    /** coverageSince rỗng nếu bộ nối chưa chứng minh được khoảng nhận liên tục. */
+    record Snapshot(List<Inbound> messages, long lastSeq, Instant coverageSince) {
+    }
+
+    default Snapshot snapshot(long afterSeq) {
+        return new Snapshot(inbound(afterSeq), -1, null);
+    }
 }

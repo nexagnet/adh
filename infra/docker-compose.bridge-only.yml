@@ -3,6 +3,8 @@
 # Chạy: docker compose -f docker-compose.bridge-only.yml --env-file .env.bridge up -d
 # CỔNG CẦU NỐI KHÔNG ĐƯỢC MỞ RA INTERNET: chỉ gắn vào địa chỉ riêng của đường hầm giữa hai máy (WireGuard hoặc Tailscale), đặt ở BRIDGE_BIND.
 # Cố ý KHÔNG đặt proxy, IP, dấu vân tay hay userAgent riêng (luật D23: không làm gì để Zalo không liên kết các tài khoản). Tách máy chủ chỉ vì đủ RAM.
+name: adh-zalo-bridge-2
+
 services:
   zalo-bridge:
     image: ghcr.io/nexagnet/adh-zalo-bridge:${ADH_TAG:?Hãy đặt ADH_TAG (thẻ ảnh trùng với máy chủ chính)}

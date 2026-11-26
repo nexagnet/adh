@@ -11,9 +11,12 @@ import vn.shop.crm.imports.ImportService;
 import vn.shop.crm.shipping.Carrier;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
@@ -36,6 +39,8 @@ class ContactWebTest extends AbstractPostgresTest {
     WebApplicationContext context;
     @Autowired
     ImportService imports;
+    @Autowired
+    PrivacyService privacy;
     MockMvc mvc;
 
     @BeforeEach
@@ -143,5 +148,67 @@ class ContactWebTest extends AbstractPostgresTest {
         mvc.perform(get("/").with(owner)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("yêu cầu của khách đang chờ xử lý")))
                 .andExpect(content().string(containsString("đang chờ bạn duyệt để được mời vào nhóm")));
+    }
+
+    @Test
+    void hoanTatDungMotYeuCauXemVaChiGhiNhatKyMotLan() throws Exception {
+        long customer = seedAndGetFirstCustomerId();
+        var overdue = LocalDate.now().minusWeeks(1);
+        long access = privacy.openRequest(customer, PrivacyService.Kind.ACCESS, overdue, null);
+        long otherAccess = privacy.openRequest(customer, PrivacyService.Kind.ACCESS, LocalDate.now(), null);
+        long export = privacy.openRequest(customer, PrivacyService.Kind.EXPORT, LocalDate.now(), null);
+        String path = "/privacy/" + access + "/complete-access";
+        var owner = user("chu-shop").roles("OWNER");
+
+        mvc.perform(get("/privacy").with(owner)).andExpect(status().isOk())
+                .andExpect(content().string(containsString(path)))
+                .andExpect(content().string(not(containsString("/privacy/" + export + "/complete-access"))));
+        mvc.perform(post(path).with(owner)).andExpect(status().isForbidden());
+        mvc.perform(post(path).with(user("nhan-vien").roles("STAFF")).with(csrf()))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/privacy/" + export + "/complete-access").with(owner).with(csrf()))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/privacy/99999/complete-access").with(owner).with(csrf()))
+                .andExpect(status().isBadRequest());
+        assertThat(privacy.openCount()).isEqualTo(3);
+        assertThat(privacy.overdueCount()).isEqualTo(1);
+
+        mvc.perform(post(path).with(owner).with(csrf()))
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/privacy"));
+        var timestamp = accessCompletionTime();
+        mvc.perform(post(path).with(user("chu-shop-khac").roles("OWNER")).with(csrf()))
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/privacy"));
+
+        assertThat(privacy.requests(true)).extracting(PrivacyService.RequestRow::id)
+                .containsExactlyInAnyOrder(otherAccess, export);
+        assertThat(privacy.overdueCount()).isZero();
+        assertThat(accessCompletionTime()).isEqualTo(timestamp);
+        assertThat(jdbc.sql("SELECT recorded_by FROM contact_event WHERE event = 'ACCESS_COMPLETED'")
+                .query(String.class).single()).isEqualTo("chu-shop");
+        mvc.perform(get("/privacy?tab=done").with(owner)).andExpect(status().isOk())
+                .andExpect(content().string(not(containsString(path))));
+    }
+
+    @Test
+    void ghiNhanDaPhanHoiYeuCauXemSauKhiHoSoDaXoa() throws Exception {
+        long customer = seedAndGetFirstCustomerId();
+        long request = privacy.openRequest(customer, PrivacyService.Kind.ACCESS, LocalDate.now(), null);
+        privacy.erase(customer, LocalDate.now(), null);
+        var owner = user("chu-shop").roles("OWNER");
+
+        mvc.perform(get("/privacy").with(owner)).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Hồ sơ khách không còn")))
+                .andExpect(content().string(not(containsString("href=\"/customers/" + customer + "\""))));
+        mvc.perform(post("/privacy/" + request + "/complete-access").with(owner).with(csrf()))
+                .andExpect(status().is3xxRedirection());
+
+        assertThat(privacy.openCount()).isZero();
+        assertThat(jdbc.sql("SELECT phone_tail FROM contact_event WHERE event = 'ACCESS_COMPLETED'")
+                .query(String.class).single()).isEqualTo("***678");
+    }
+
+    private OffsetDateTime accessCompletionTime() {
+        return jdbc.sql("SELECT recorded_at FROM contact_event WHERE event = 'ACCESS_COMPLETED'")
+                .query(OffsetDateTime.class).single();
     }
 }

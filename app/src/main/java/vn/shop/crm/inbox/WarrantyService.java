@@ -67,7 +67,7 @@ public class WarrantyService {
     }
 
     public record Row(long id, long customerId, String customerName, Category category, Urgency urgency, boolean needsPhoto, String summary, String draft,
-                      String inbound, int messageCount, LocalDateTime createdAt, LocalDateTime updatedAt, List<Order> orders) {
+                      String inbound, int messageCount, LocalDateTime createdAt, LocalDateTime updatedAt, List<Order> orders, long accountId) {
     }
 
     private final JdbcClient jdbc;
@@ -255,14 +255,14 @@ public class WarrantyService {
         return new Row(rs.getLong("id"), customerId, rs.getString("name"), Category.valueOf(rs.getString("category")), Urgency.valueOf(rs.getString("urgency")),
                 rs.getBoolean("needs_photo"), rs.getString("summary"), rs.getString("draft_text"), rs.getString("inbound_text"), rs.getInt("message_count"),
                 rs.getTimestamp("created_at").toInstant().atZone(VN).toLocalDateTime(), rs.getTimestamp("updated_at").toInstant().atZone(VN).toLocalDateTime(),
-                ordersOf(customerId));
+                ordersOf(customerId), rs.getLong("account_id"));
     }
 
     /** Việc đang mở: gấp trước (CAO, rồi chưa rõ, thường, không gấp), cùng mức thì mới nhất trước. */
     public List<Row> open() {
         return jdbc.sql("""
                         SELECT w.id, w.customer_id, c.name, w.category, w.urgency, w.needs_photo, w.summary, w.draft_text, w.inbound_text, w.message_count,
-                               w.created_at, w.updated_at
+                               w.created_at, w.updated_at, w.account_id
                         FROM warranty_case w JOIN customer c ON c.id = w.customer_id
                         WHERE w.state = 'OPEN'
                         ORDER BY CASE w.urgency WHEN 'CAO' THEN 0 WHEN 'CHUA_RO' THEN 1 WHEN 'THUONG' THEN 2 ELSE 3 END, w.updated_at DESC
