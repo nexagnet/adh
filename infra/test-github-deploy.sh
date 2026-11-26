@@ -38,6 +38,22 @@ esac
 EOF
 cat >"$fixture/bin/curl" <<'EOF'
 #!/usr/bin/env bash
+if [[ "$*" == *api.github.com* ]]; then
+    python3 -c '
+import json, os
+
+result = []
+for workflow in ("ci", "image"):
+    result.append({
+        "head_sha": os.environ["TEST_MAIN"], "head_repository": {"full_name": "nexagnet/adh"},
+        "event": "push", "head_branch": "main", "path": ".github/workflows/" + workflow + ".yml",
+        "run_number": 1, "run_attempt": 1, "status": "completed",
+        "conclusion": "failure" if workflow == os.environ.get("TEST_FAILED_WORKFLOW") else "success",
+    })
+print(json.dumps({"workflow_runs": result}))
+'
+    exit
+fi
 echo '{"ok":true}'
 EOF
 chmod +x "$fixture/bin/"*
@@ -48,6 +64,12 @@ for request in 'status' "deploy $TEST_MAIN --force" "deploy $old"; do
         exit 1
     fi
 done
+[[ ! -e "$fixture/calls" ]]
+
+if TEST_FAILED_WORKFLOW=ci SSH_ORIGINAL_COMMAND="deploy $TEST_MAIN" bash "$fixture/github-deploy.sh" bridge2; then
+    echo 'Accepted a SHA with red CI.' >&2
+    exit 1
+fi
 [[ ! -e "$fixture/calls" ]]
 
 if TEST_UP_FAIL="$TEST_MAIN" SSH_ORIGINAL_COMMAND="deploy $TEST_MAIN" bash "$fixture/github-deploy.sh" bridge2; then

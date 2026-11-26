@@ -146,6 +146,10 @@ cur="$(cat "$CUR")"
 head="$(timeout 30 git ls-remote "https://github.com/$REPO.git" "refs/heads/$BRANCH" 2>/dev/null | cut -f1)"
 [[ "$head" =~ ^[0-9a-f]{40}$ ]] || { note info "Không hỏi được commit mới nhất của $BRANCH (mạng hoặc GitHub); thử lại lượt sau."; exit 0; }
 short="${head:0:9}"
+if [ -n "${ADH_AUTO_EXPECTED_SHA:-}" ] && [ "$head" != "$ADH_AUTO_EXPECTED_SHA" ]; then
+    log "Commit main đã đổi, không triển khai thay cho SHA được GitHub yêu cầu."
+    exit 1
+fi
 
 [ "$head" = "$cur" ] && { note info "Đã là bản mới nhất ($short)."; exit 0; }
 [ "$head" = "$(cat "$FAILED" 2>/dev/null || true)" ] && { note info "Bản $short đã lỗi khi triển khai trước đó nên không thử lại; chờ commit mới (hoặc ./auto-deploy.sh unblock)."; exit 0; }

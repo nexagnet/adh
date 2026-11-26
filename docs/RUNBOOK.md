@@ -197,7 +197,7 @@ Chưa có kênh Zalo nào được cài. Xem `docs/ADR-0001-chon-kenh-bot.md` đ
 
 ### 9. Triển khai ứng dụng và hai cầu nối từ GitHub Actions
 
-Workflow **cd** chỉ xử lý commit hiện tại của `main` khi cả **ci** và **image** đều đạt trên cùng SHA. Môi trường GitHub `production` chỉ nhận nhánh `main`. Mỗi máy có một khóa SSH riêng với lệnh bắt buộc `deploy <sha>`, dùng host key đã xác minh. Khóa triển khai không mở shell, chuyển tiếp cổng hoặc đăng nhập máy khác.
+Workflow **cd** chỉ xử lý commit hiện tại của `main` khi cả **ci** và **image** đều đạt trên cùng SHA. Hai máy xác minh lại điều kiện này tại lệnh SSH trước khi đổi container. Môi trường GitHub `production` chỉ nhận nhánh `main`. Mỗi máy có một khóa SSH riêng với lệnh bắt buộc `deploy <sha>`, dùng host key đã xác minh. Khóa triển khai không mở shell, chuyển tiếp cổng hoặc đăng nhập máy khác.
 
 - Máy chính gọi đường triển khai hiện có, giữ sao lưu và cơ chế quay lui của `auto-deploy.sh` và `deploy.sh`. Workflow xác minh ảnh app và cầu nối 1 đúng SHA, trang đăng nhập trả HTTP 200, PostgreSQL sẵn sàng và cầu nối đáp ứng kiểm tra sức khỏe. Cron vẫn là đường dự phòng và dùng chung khóa triển khai.
 - Máy hai chỉ cập nhật dịch vụ `zalo-bridge` của project Compose `adh-zalo-bridge-2` trong `/home/deploy/adh-bridge2`. Giữ lại volume và phiên. Nếu ảnh mới không khỏe, script khởi chạy lại ảnh trước và workflow báo lỗi.

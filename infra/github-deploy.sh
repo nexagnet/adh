@@ -16,13 +16,31 @@ fi
 sha="${BASH_REMATCH[1]}"
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-main="$(timeout 30 git ls-remote https://github.com/nexagnet/adh.git refs/heads/main | cut -f1)"
-if [[ "$sha" != "$main" ]]; then
-    echo 'The requested release is no longer main.' >&2
-    exit 1
-fi
+verify_release() {
+    local main
+    main="$(timeout 30 git ls-remote https://github.com/nexagnet/adh.git refs/heads/main | cut -f1)"
+    if [[ "$sha" != "$main" ]]; then
+        echo 'The requested release is no longer main.' >&2
+        return 1
+    fi
+    curl -fsS -m 20 "https://api.github.com/repos/nexagnet/adh/actions/runs?head_sha=$sha&event=push&branch=main&per_page=50" |
+        python3 -c '
+import json, sys
+
+workflows = (".github/workflows/ci.yml", ".github/workflows/image.yml")
+runs = json.load(sys.stdin)["workflow_runs"]
+for workflow in workflows:
+    candidates = [r for r in runs if r["head_sha"] == sys.argv[1] and r["path"] == workflow
+                  and r["event"] == "push" and r["head_branch"] == "main"
+                  and r.get("head_repository", {}).get("full_name") == "nexagnet/adh"]
+    latest = max(candidates, key=lambda r: (r["run_number"], r["run_attempt"]), default={})
+    if latest.get("status") != "completed" or latest.get("conclusion") != "success":
+        sys.exit("CI or image is not successful: " + workflow)
+' "$sha"
+}
 
 if [[ "$role" == main ]]; then
+    verify_release
     main_ready() {
         [[ "$(cat .current-tag 2>/dev/null || true)" == "$sha" ]] &&
             [[ "$(docker inspect --format '{{.Config.Image}} {{.State.Status}}' adh-app-1)" == "ghcr.io/nexagnet/adh-app:$sha running" ]] &&
@@ -33,7 +51,7 @@ if [[ "$role" == main ]]; then
     }
     # The existing path verifies main CI, checks resources, backs up the DB and
     # rolls the app back on failed readiness. Cron and CD share its lock.
-    bash ./auto-deploy.sh
+    ADH_AUTO_EXPECTED_SHA="$sha" bash ./auto-deploy.sh
     for _ in {1..120}; do
         if main_ready; then
             echo "ADH main is running $sha"
@@ -55,6 +73,7 @@ fi
 
 exec 9>.github-deploy.lock
 flock -w 120 9
+verify_release
 image=ghcr.io/nexagnet/adh-zalo-bridge
 service=zalo-bridge
 project=adh-zalo-bridge-2
@@ -85,8 +104,7 @@ trap 'rm -f "$tmp"' EXIT
 sed "s/^ADH_TAG=$previous$/ADH_TAG=$sha/" .env >"$tmp"
 if compose "$sha" up -d --no-deps "$service"; then
     for _ in {1..24}; do
-        if ready "$sha"; then
-            mv -f "$tmp" .env
+        if ready "$sha" && mv -f "$tmp" .env; then
             echo "ADH bridge 2 is running $sha"
             exit 0
         fi
