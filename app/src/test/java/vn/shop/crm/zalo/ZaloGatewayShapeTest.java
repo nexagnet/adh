@@ -45,7 +45,8 @@ class ZaloGatewayShapeTest {
 
     @Test
     void messengerChiCoGuiTheoSoHoacTheoMa() {
-        assertThat(names(ZaloMessenger.class)).containsExactly("acceptFriendRequest", "sendByPhone", "sendByUid", "sendFriendRequest", "undoFriendRequest");
+        assertThat(names(ZaloMessenger.class)).containsExactly("acceptFriendRequest", "replyNoLongerEligible",
+                "sendByPhone", "sendByUid", "sendFriendRequest", "sendReply", "undoFriendRequest");
     }
 
     /** 24/11/2026: lời mời kết bạn (Kind.FRIEND) chỉ có MỘT nơi gửi, chỉ theo mã Zalo của người đã nhận Tin 1, qua cổng gửi chung. */
@@ -178,19 +179,25 @@ class ZaloGatewayShapeTest {
     /** D20: tin trả lời của trợ lý AI (REPLY) chỉ có MỘT nơi gửi, chỉ theo mã Zalo, chỉ ở nấc tự động; phần soạn câu không có đường gửi nào. */
     @Test
     void tinTraLoiChiGuiTuMotNoiVaChiTheoMaZalo() throws IOException {
-        List<Path> offenders = new java.util.ArrayList<>();
+        var replyPath = java.util.Set.of("ZaloReplySender.java", "ZaloMessageService.java",
+                "ZaloMessenger.java", "SafeZaloLink.java", "ZcaBridgeGateway.java");
+        List<String> callers = new java.util.ArrayList<>();
         try (Stream<Path> all = Files.walk(Path.of("src/main/java"))) {
             for (Path f : all.filter(x -> x.toString().endsWith(".java")).toList()) {
                 String name = f.getFileName().toString();
-                if (Files.readString(f).contains("Kind.REPLY") && !name.equals("ZaloReplySender.java")) {
-                    offenders.add(f);
+                String source = Files.readString(f);
+                if (source.contains("Kind.REPLY") || source.contains("sendReply(")) {
+                    assertThat(replyPath).contains(name);
+                }
+                if (source.contains("messages.sendReply(")) {
+                    callers.add(name);
                 }
             }
         }
-        assertThat(offenders).isEmpty();
+        assertThat(callers).containsExactly("ZaloReplySender.java");
         String sender = Files.readString(Path.of("src/main/java/vn/shop/crm/zalo/ZaloReplySender.java"));
-        assertThat(sender).contains("Kind.REPLY", "sendByUid", "Mode.AUTO")
-                .doesNotContain("sendByPhone", "addToGroup", "createGroup", "findByPhone", "while", "for (");
+        assertThat(sender).contains("Kind.REPLY", "messages.sendReply", "confirmedForSend", "Mode.AUTO")
+                .doesNotContain("sendByUid", "sendByPhone", "addToGroup", "createGroup", "findByPhone", "while", "for (");
         for (String f : List.of("ReplyService", "ReplyAssistant", "ReplyValidator", "ReplyInfo")) {
             assertThat(Files.readString(Path.of("src/main/java/vn/shop/crm/inbox/" + f + ".java"))).as(f)
                     .doesNotContain("ZaloMessageService", "ZaloMessenger", "sendByUid", "sendByPhone");

@@ -639,12 +639,12 @@ public class ZcaBridgeGateway implements ZaloLink {
         } else if (expected != null) {
             checkTag(expected);
         }
+        if (!stillEligible.getAsBoolean()) {
+            throw new ReplyNoLongerEligible();
+        }
         if ("POST".equals(method) && !path.startsWith("/session/")
                 && !"/friends/check".equals(path) && !"/people/lookup".equals(path) && writesPaused.getAsBoolean()) {
             throw new Unreachable(new IOException("HALTED"));
-        }
-        if (!stillEligible.getAsBoolean()) {
-            throw new ReplyNoLongerEligible();
         }
         return exchange(method, path, body, timeoutSeconds, expected);
     }

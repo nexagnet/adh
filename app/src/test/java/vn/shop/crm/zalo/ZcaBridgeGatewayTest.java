@@ -117,13 +117,21 @@ class ZcaBridgeGatewayTest {
 
     @Test
     void replyRechecksEligibilityAfterAccountTagPreflight() {
+        var halted = new java.util.concurrent.atomic.AtomicBoolean();
         var guarded = new ZcaBridgeGateway("http://127.0.0.1:" + server.getAddress().getPort(), "khoa-chung",
-                () -> "000000000002", true);
+                () -> "000000000002", true, () -> null, halted::get);
         reply.set("{\"state\":\"LISTENING\",\"accountTag\":\"000000000002\",\"outcome\":\"OK\"}");
 
         var blocked = guarded.sendReply("123", "Dạ vâng", requests::isEmpty);
         assertThat(blocked).isEqualTo(ZaloMessenger.replyNoLongerEligible());
         assertThat(requests).containsExactly("GET /status");
+        var stopped = guarded.sendReply("123", "Dạ vâng", () -> {
+            halted.set(true);
+            return true;
+        });
+        assertThat(stopped.notSent()).isTrue();
+        assertThat(requests).containsExactly("GET /status", "GET /status");
+        halted.set(false);
         assertThat(guarded.sendReply("123", "Dạ vâng", () -> true).result()).isEqualTo(ZaloMessenger.Result.OK);
         assertThat(requests).endsWith("GET /status", "POST /messages");
     }
