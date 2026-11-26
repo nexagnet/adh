@@ -80,6 +80,15 @@ public final class SafeZaloLink implements ZaloLink {
     }
 
     @Override
+    public Sent sendReply(String uid, String text, java.util.function.BooleanSupplier stillEligible) {
+        if (!mode.uidAllowed(uid)) {
+            mode.noteBlocked("GUI_TIN_" + Kind.REPLY);
+            return Sent.of(Result.UNREACHABLE, CODE, true);
+        }
+        return inner.sendReply(uid, text, stillEligible);
+    }
+
+    @Override
     public Sent sendFriendRequest(String uid, String text) {
         if (!mode.uidAllowed(uid)) {
             mode.noteBlocked("KET_BAN");

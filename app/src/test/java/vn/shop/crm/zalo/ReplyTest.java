@@ -424,6 +424,49 @@ class ReplyTest extends AbstractPostgresTest {
     }
 
     @Test
+    void huyCauTraLoiDangChoKhiKhachXinDung() {
+        autoOn();
+        says("Vào nhóm có mất phí không");
+        freshInbound();
+        assertThat(one("state")).isEqualTo("READY");
+        label.set(aiLabel("TU_CHOI", 0.99));
+        says("Dừng nhắn cho tôi");
+        assertThat(contacts.hasActiveOptOut("+84900000001")).isTrue();
+        sender.tick();
+        assertThat(fake.messages).isEmpty();
+        assertThat(one("state")).isEqualTo("SUPERSEDED");
+        assertThat(one("reply_text")).isNull();
+    }
+
+    @Test
+    void huyCauTraLoiDangChoKhiTinMoiCanNguoiDuyet() {
+        autoOn();
+        says("Vào nhóm có mất phí không");
+        freshInbound();
+        label.set(aiLabel("TU_CHOI", 0.5));
+        says("Dừng nhắn cho tôi");
+        assertThat(count("SELECT count(*) FROM refusal_review WHERE state = 'HELD'")).isEqualTo(1);
+
+        sender.tick();
+        assertThat(fake.messages).isEmpty();
+        assertThat(one("state")).isEqualTo("SUPERSEDED");
+    }
+
+    @Test
+    void chuyenNguoiThatKhiLuotGuiBiGianDoan() {
+        autoOn();
+        says("Vào nhóm có mất phí không");
+        freshInbound();
+        assertThat(replies.claim(replies.nextReady().orElseThrow().id())).isTrue();
+        jdbc.sql("UPDATE reply_draft SET updated_at = now() - interval '6 minutes'").update();
+        sender.tick();
+        says("Vào nhóm có mất phí không");
+        assertThat(one("state")).isEqualTo("HANDOFF");
+        assertThat(one("detail")).isEqualTo("INTERRUPTED");
+        assertThat(fake.messages).isEmpty();
+    }
+
+    @Test
     void quaHan23GioThiChuyenNguoiThatKhongGui() {
         autoOn();
         says("Vào nhóm có mất phí không");

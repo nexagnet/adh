@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.annotation.Order;
 import vn.shop.crm.common.AppSettings;
 import vn.shop.crm.inbox.ComebackService;
 import vn.shop.crm.inbox.RefusalClassifier;
@@ -30,6 +31,7 @@ import java.util.Optional;
  * khoản. Nội dung tin, mã Zalo và số điện thoại không vào log.
  */
 @Service
+@Order(0) // Đọc tin xin dừng trước khi các tác vụ gửi lấy việc đang chờ.
 public class ZaloInboxService implements ZaloTickHook {
 
     private static final Logger log = LoggerFactory.getLogger(ZaloInboxService.class);

@@ -37,6 +37,7 @@ public class ZaloReplySender implements ZaloTickHook {
     @Override
     public void tick() {
         try {
+            replies.discardBlockedReplies();
             replies.expireStale();
             replies.purgeOld();
         } catch (RuntimeException e) {
@@ -60,7 +61,7 @@ public class ZaloReplySender implements ZaloTickHook {
         ReplyService.Ready r = next.get();
         Delivery d;
         try {
-            d = messages.sendByUid(ZaloMessageService.SCOPE_REAL, Kind.REPLY, r.id(), r.uid(), r.text(), null, null);
+            d = messages.sendReply(r.id(), r.uid(), r.text(), () -> replies.confirmedForSend(r.id()));
         } catch (RuntimeException e) {
             log.warn("Gửi tin trả lời báo lỗi: {}", e.getClass().getSimpleName());
             replies.failed(r.id(), "LOI_HE_THONG"); // không biết đã gửi chưa: không tự gửi lại

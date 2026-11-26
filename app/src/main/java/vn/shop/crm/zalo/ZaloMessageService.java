@@ -564,6 +564,10 @@ public class ZaloMessageService {
         return deliver(scope, kind, refId, scopeDaily, scopeGap, () -> link.sendByUid(kind, uid, text));
     }
 
+    Delivery sendReply(long draftId, String uid, String text, java.util.function.BooleanSupplier stillEligible) {
+        return deliver(SCOPE_REAL, Kind.REPLY, draftId, null, null, () -> link.sendReply(uid, text, stillEligible));
+    }
+
     /** Lời mời kết bạn cho người đã nhận Tin 1 (theo mã Zalo): cùng chốt chặn như tin, thêm trần lời mời mỗi ngày. */
     public Delivery sendFriendRequest(String scope, Long refId, String uid, String text) {
         return deliver(scope, Kind.FRIEND, refId, null, null, () -> link.sendFriendRequest(uid, text));

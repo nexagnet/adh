@@ -74,6 +74,15 @@ public interface ZaloMessenger {
     /** Tin 2: gửi cho mã Zalo đã biết. */
     Sent sendByUid(Kind kind, String uid, String text);
 
+    /** Trả lời sau lần kiểm cuối cùng tại biên gửi. */
+    default Sent sendReply(String uid, String text, java.util.function.BooleanSupplier stillEligible) {
+        return stillEligible.getAsBoolean() ? sendByUid(Kind.REPLY, uid, text) : replyNoLongerEligible();
+    }
+
+    static Sent replyNoLongerEligible() {
+        return Sent.of(Result.PERSON_ERROR, "REPLY_NO_LONGER_ELIGIBLE", true);
+    }
+
     /** Lời mời kết bạn kèm câu ngắn (tối đa 150 ký tự) cho MỘT người đã nhận Tin 1 (theo mã Zalo). */
     Sent sendFriendRequest(String uid, String text);
 

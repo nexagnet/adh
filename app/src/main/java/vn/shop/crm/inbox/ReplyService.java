@@ -56,6 +56,7 @@ public class ReplyService {
     static final int TEXT_MAX = 500;
     /** Cầu nối chỉ cho trả lời người vừa nhắn trong 24 giờ; nhỏ hơn một chút để không chạm biên. */
     public static final int REPLY_WINDOW_HOURS = 23;
+    private static final int SENDING_TIMEOUT_MINUTES = 5;
     private static final ZoneId VN = ZoneId.of("Asia/Ho_Chi_Minh");
 
     public enum Mode {
@@ -469,21 +470,57 @@ public class ReplyService {
 
     // ---------- gửi ----------
 
+    private static final String BLOCKED_REPLY = """
+            (
+                EXISTS (SELECT 1 FROM customer c JOIN suppression s
+                            ON s.phone_hash = encode(sha256(convert_to(c.phone, 'UTF8')), 'hex')
+                        WHERE c.id = d.customer_id AND s.lifted_at IS NULL)
+                OR EXISTS (SELECT 1 FROM contact_basis b WHERE b.customer_id = d.customer_id AND b.status = 'BLOCKED')
+                OR EXISTS (SELECT 1 FROM refusal_review r WHERE r.customer_id = d.customer_id AND r.state = 'HELD')
+                OR EXISTS (SELECT 1 FROM warranty_case w
+                           WHERE w.account_id = d.account_id AND w.zalo_uid = d.zalo_uid AND w.state = 'OPEN')
+            )
+            """;
+
+    /** Hủy câu cũ khi khách đã từ chối hoặc việc đã chuyển sang người xử lý. */
+    public void discardBlockedReplies() {
+        jdbc.sql("""
+                        UPDATE reply_draft d SET state = 'SUPERSEDED', reply_text = NULL, updated_at = now()
+                        WHERE d.account_id = :acct AND d.state IN ('DRAFT', 'READY') AND
+                        """ + BLOCKED_REPLY)
+                .param("acct", ZaloAccountContext.current()).update();
+    }
+
     /** Việc sẵn sàng gửi lâu nhất còn trong khung {@value #REPLY_WINDOW_HOURS} giờ. */
     public Optional<Ready> nextReady() {
         return jdbc.sql("""
                         SELECT d.id, d.zalo_uid, d.reply_text FROM reply_draft d
                         WHERE d.state = 'READY' AND d.reply_text IS NOT NULL AND d.inbound_at > now() - make_interval(hours => :h)
                           AND d.account_id = :acct
-                        """ + contacts.onlyTestCustomerSql("d.customer_id") + " ORDER BY d.id LIMIT 1")
+                        """ + " AND NOT " + BLOCKED_REPLY + contacts.onlyTestCustomerSql("d.customer_id") + " ORDER BY d.id LIMIT 1")
                 .param("h", REPLY_WINDOW_HOURS).param("acct", ZaloAccountContext.current())
                 .query((rs, n) -> new Ready(rs.getLong("id"), rs.getString("zalo_uid"), rs.getString("reply_text"))).optional();
     }
 
     /** Khóa việc trước khi gọi bộ nối để không bao giờ gửi trùng. */
     public boolean claim(long id) {
-        return jdbc.sql("UPDATE reply_draft SET state = 'SENDING', updated_at = now() WHERE id = :id AND state = 'READY' AND account_id = :acct")
-                .param("id", id).param("acct", ZaloAccountContext.current()).update() == 1;
+        return jdbc.sql("""
+                        UPDATE reply_draft d SET state = 'SENDING', updated_at = now()
+                        WHERE d.id = :id AND d.account_id = :acct AND d.state = 'READY'
+                          AND d.inbound_at > now() - make_interval(hours => :h) AND NOT
+                        """ + BLOCKED_REPLY + contacts.onlyTestCustomerSql("d.customer_id"))
+                .param("id", id).param("acct", ZaloAccountContext.current()).param("h", REPLY_WINDOW_HOURS).update() == 1;
+    }
+
+    /** Kiểm lại ngay trước khi chạm cầu nối, sau khi đã hỏi tình trạng phiên. */
+    public boolean confirmedForSend(long id) {
+        return mode() == Mode.AUTO && !settings.paused() && jdbc.sql("""
+                        SELECT EXISTS (SELECT 1 FROM reply_draft d
+                        WHERE d.id = :id AND d.account_id = :acct AND d.state = 'SENDING'
+                          AND d.inbound_at > now() - make_interval(hours => :h) AND NOT
+                        """ + BLOCKED_REPLY + contacts.onlyTestCustomerSql("d.customer_id") + ")")
+                .param("id", id).param("acct", ZaloAccountContext.current()).param("h", REPLY_WINDOW_HOURS)
+                .query(Boolean.class).single();
     }
 
     /** Chưa chạm Zalo: trả về hàng chờ để thử lại nhịp sau. */
@@ -508,12 +545,19 @@ public class ReplyService {
                 .param("acct", ZaloAccountContext.current()).update();
     }
 
-    /** Hàng chờ quá hạn (cầu nối chỉ cho trả lời trong 24 giờ): chuyển người thật. */
+    /** Chuyển hàng chờ quá hạn và lần gửi bị gián đoạn cho người thật xử lý. */
     public int expireStale() {
-        return jdbc.sql("""
+        int expired = jdbc.sql("""
                         UPDATE reply_draft SET state = 'HANDOFF', reason = :r, reply_text = NULL, updated_at = now()
                         WHERE account_id = :acct AND state = 'READY' AND inbound_at <= now() - make_interval(hours => :h)""")
                 .param("r", Reason.QUA_HAN.name()).param("h", REPLY_WINDOW_HOURS).param("acct", ZaloAccountContext.current()).update();
+        return expired + jdbc.sql("""
+                        UPDATE reply_draft SET state = 'HANDOFF', reason = :r, detail = 'INTERRUPTED',
+                            updated_at = now()
+                        WHERE account_id = :acct AND state = 'SENDING'
+                          AND updated_at <= now() - make_interval(mins => :m)""")
+                .param("r", Reason.GUI_LOI.name()).param("m", SENDING_TIMEOUT_MINUTES)
+                .param("acct", ZaloAccountContext.current()).update();
     }
 
     // ---------- cho trang quản trị ----------
