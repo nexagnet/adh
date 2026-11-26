@@ -85,8 +85,13 @@
             <p class="hint">Ngưỡng nhắc việc (chỉnh trong cấu hình): lạnh bất thường khi thấp nhất ≤ <span th:text="${coldBac}">13</span>°C ở miền Bắc,
                 ≤ <span th:text="${coldTrung}">16</span>°C ở miền Trung, ≤ <span th:text="${coldNam}">22</span>°C ở miền Nam;
                 nóng bất thường khi cao nhất ≥ <span th:text="${hot}">37</span>°C; chỉ nhắc ở tỉnh có từ <span th:text="${minCustomers}">10</span> khách trở lên.</p>
+            <p class="notice" role="status" th:if="${weatherRefresh.state().name() != 'IDLE'}"
+               th:classappend="${weatherRefresh.state().name() == 'FAILED'} ? 'warn' : ''"
+               th:attr="data-weather-status=@{/map/weather/status}"
+               th:text="${weatherRefresh.message()}"></p>
             <form th:action="@{/map/weather}" method="post">
-                <button type="submit" class="btn secondary">Cập nhật thời tiết ngay</button>
+                <input th:if="${selected != null}" type="hidden" name="province" th:value="${selected.code}">
+                <button type="submit" class="btn secondary" th:disabled="${weatherRefresh.running()}">Cập nhật thời tiết ngay</button>
             </form>
             <p class="small muted">Dữ liệu thời tiết:
                 <a href="https://api.met.no/doc/License" rel="noopener noreferrer" target="_blank">MET Norway</a>, giấy phép CC BY 4.0.
@@ -120,5 +125,6 @@
 </main>
 <script th:src="@{/vendor/leaflet/leaflet.js}"></script>
 <script th:src="@{/map.js}"></script>
+<script th:if="${weatherRefresh.running()}" th:src="@{/map-weather.js}" defer></script>
 </body>
 </html>

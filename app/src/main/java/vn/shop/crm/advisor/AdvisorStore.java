@@ -2,12 +2,11 @@ package vn.shop.crm.advisor;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
-import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import java.util.Optional;
 
 /** Ghi nhật ký mỗi lần nhờ AI đề xuất và các đề xuất đạt kiểm cứng (V36). Không có dữ liệu cá nhân. */
 @Component
@@ -23,16 +22,51 @@ class AdvisorStore {
         this.jdbc = jdbc;
     }
 
+    record Submission(long id, boolean started) {}
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    Submission reserve(String by) {
+        jdbc.sql("LOCK TABLE advisor_run IN SHARE ROW EXCLUSIVE MODE").update();
+        Optional<Long> active = active();
+        if (active.isPresent()) {
+            return new Submission(active.get(), false);
+        }
+        long id = jdbc.sql("""
+                        INSERT INTO advisor_run (created_by, status, snapshot_json)
+                        VALUES (:by, 'RUNNING', '{}') RETURNING id""")
+                .param("by", by).query(Long.class).single();
+        return new Submission(id, true);
+    }
+
+    Optional<Long> active() {
+        expire();
+        return jdbc.sql("SELECT id FROM advisor_run WHERE status = 'RUNNING'").query(Long.class).optional();
+    }
+
+    Optional<Long> latest() {
+        return jdbc.sql("SELECT id FROM advisor_run ORDER BY id DESC LIMIT 1").query(Long.class).optional();
+    }
+
+    void expire() {
+        jdbc.sql("""
+                UPDATE advisor_run SET status = 'UNAVAILABLE', detail = 'Lượt đề xuất quá thời gian xử lý. Vui lòng thử lại.'
+                WHERE status = 'RUNNING' AND created_at <= now() - interval '5 minutes'""").update();
+    }
+
     @Transactional
-    long save(String by, String snapshotJson, CampaignAdvisor.Result r) {
+    void complete(long runId, String snapshot, CampaignAdvisor.Result r) {
         String out = r.rawOutput() == null ? null : r.rawOutput().length() <= MAX_OUTPUT ? r.rawOutput() : r.rawOutput().substring(0, MAX_OUTPUT);
-        long runId = jdbc.sql("""
-                        INSERT INTO advisor_run (created_by, status, snapshot_json, ai_output, skip_reason, detail, rejected)
-                        VALUES (:by, :status, :snap, :out, :skip, :detail, CAST(:rej AS jsonb)) RETURNING id""")
-                .param("by", by).param("status", r.status().name()).param("snap", snapshotJson)
+        int updated = jdbc.sql("""
+                        UPDATE advisor_run SET status = :status, ai_output = :out, skip_reason = :skip,
+                            detail = :detail, rejected = CAST(:rej AS jsonb), snapshot_json = :snapshot
+                        WHERE id = :id AND status = 'RUNNING'""")
+                .param("id", runId).param("status", r.status().name()).param("snapshot", snapshot)
                 .param("out", out, java.sql.Types.VARCHAR).param("skip", r.skipReason(), java.sql.Types.VARCHAR)
                 .param("detail", r.detail(), java.sql.Types.VARCHAR).param("rej", JSON.writeValueAsString(r.rejected()))
-                .query(Long.class).single();
+                .update();
+        if (updated == 0) {
+            return;
+        }
         for (AdvisorProposal p : r.proposals()) {
             jdbc.sql("""
                             INSERT INTO campaign_proposal (run_id, title, area, batch_size, start_on, end_on, window_from, window_to,
@@ -50,11 +84,6 @@ class AdvisorStore {
                     .param("minDays", p.minDays(), java.sql.Types.INTEGER).param("maxDays", p.maxDays(), java.sql.Types.INTEGER).param("product", p.productGroup(), java.sql.Types.VARCHAR)
                     .param("filter", p.filter().any() ? p.filter().toJson() : null, java.sql.Types.VARCHAR).update();
         }
-        return runId;
     }
 
-    int runsSince(Instant since) {
-        return jdbc.sql("SELECT count(*) FROM advisor_run WHERE created_at >= :s")
-                .param("s", OffsetDateTime.ofInstant(since, ZoneOffset.UTC)).query(Integer.class).single();
-    }
 }

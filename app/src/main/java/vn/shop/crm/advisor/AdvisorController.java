@@ -1,6 +1,10 @@
 package vn.shop.crm.advisor;
 
 import org.springframework.stereotype.Controller;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.task.TaskExecutor;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,19 +25,26 @@ class AdvisorController {
     private final ProposalService proposals;
     private final AdvisorNotes notes;
     private final ShopProfile shop;
+    private final AdvisorStore store;
+    private final TaskExecutor executor;
 
-    AdvisorController(AdvisorService advisor, ProposalService proposals, AdvisorNotes notes, ShopProfile shop) {
+    AdvisorController(AdvisorService advisor, ProposalService proposals, AdvisorNotes notes, ShopProfile shop,
+                      AdvisorStore store, @Qualifier("applicationTaskExecutor") TaskExecutor executor) {
         this.shop = shop;
         this.advisor = advisor;
         this.proposals = proposals;
         this.notes = notes;
+        this.store = store;
+        this.executor = executor;
     }
 
     @GetMapping("/advisor")
-    String page(Model model) {
+    String page(@RequestParam(required = false) Long job, Model model) {
         model.addAttribute("enabled", advisor.enabled());
-        model.addAttribute("runsToday", advisor.runsToday());
-        model.addAttribute("maxRuns", advisor.maxRunsPerDay());
+        var active = store.active();
+        model.addAttribute("activeJob", active.orElse(null));
+        java.util.Optional.ofNullable(job).or(store::latest)
+                .flatMap(proposals::run).ifPresent(detail -> model.addAttribute("job", detail.run()));
         model.addAttribute("open", proposals.open());
         model.addAttribute("decided", proposals.decided());
         model.addAttribute("runs", proposals.runs());
@@ -59,21 +70,25 @@ class AdvisorController {
     @PostMapping("/advisor/run")
     String ask(RedirectAttributes redirect) {
         try {
-            var view = advisor.run(ContactService.actor());
-            var r = view.result();
-            switch (r.status()) {
-                case OK -> redirect.addFlashAttribute("flash", "AI đã đề xuất " + r.proposals().size()
-                        + " chiến dịch. Chưa có chiến dịch nào được tạo và chưa gửi gì: bạn đọc lý do rồi mới quyết định."
-                        + (r.rejected().isEmpty() ? "" : " Có " + r.rejected().size() + " đề xuất bị mã bỏ vì không đạt kiểm tra (xem ở lượt nhờ AI)."));
-                case SKIPPED -> redirect.addFlashAttribute("flash", "AI không đề xuất gì lần này"
-                        + (r.skipReason() == null ? "." : ": " + r.skipReason()));
-                default -> redirect.addFlashAttribute("flashBad", "Chưa có đề xuất dùng được"
-                        + (r.detail() == null ? "." : ": " + r.detail()));
+            var job = advisor.reserve(ContactService.actor());
+            if (job.started()) {
+                try {
+                    executor.execute(() -> advisor.process(job.id()));
+                } catch (org.springframework.core.task.TaskRejectedException e) {
+                    advisor.fail(job.id(), "{}");
+                }
             }
+            redirect.addAttribute("job", job.id());
         } catch (ImportException e) {
             redirect.addFlashAttribute("flashBad", e.getMessage());
         }
         return "redirect:/advisor";
+    }
+
+    @GetMapping("/advisor/status/{id}")
+    ResponseEntity<java.util.Map<String, Boolean>> processing(@PathVariable long id) {
+        boolean running = store.active().filter(active -> active == id).isPresent();
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(java.util.Map.of("running", running));
     }
 
     /** Chủ shop khai hồ sơ cửa hàng (ô để trống là xóa ô đó). Chỉ lưu chữ; không gọi AI, không gửi gì. */

@@ -119,6 +119,23 @@ class AdvisorWebTest extends AbstractPostgresTest {
     }
 
     @Test
+    void trangVaTrangThaiTheoDoiLuotDangChayRoiBaoLoiHetGio() throws Exception {
+        long id = jdbc.sql("""
+                INSERT INTO advisor_run (status, created_by, snapshot_json)
+                VALUES ('RUNNING', 'admin', '{}') RETURNING id
+                """).query(Long.class).single();
+        mvc.perform(get("/advisor").param("job", Long.toString(id)).with(user("admin")))
+                .andExpect(status().isOk()).andExpect(content().string(containsString("AI đang xử lý")));
+        mvc.perform(get("/advisor/status/" + id).with(user("admin")))
+                .andExpect(status().isOk()).andExpect(content().json("{\"running\":true}"));
+        jdbc.sql("UPDATE advisor_run SET created_at = now() - interval '6 minutes' WHERE id = :id").param("id", id).update();
+        mvc.perform(get("/advisor/status/" + id).with(user("admin")))
+                .andExpect(status().isOk()).andExpect(content().json("{\"running\":false}"));
+        mvc.perform(get("/advisor").param("job", Long.toString(id)).with(user("admin")))
+                .andExpect(status().isOk()).andExpect(content().string(containsString("quá thời gian xử lý")));
+    }
+
+    @Test
     void duyetDatHanLoiMoiToiSauNgayKetThucVaBatHoanKhiMua() throws Exception {
         long id = proposal("Đợt xa", "R:NAM", 5, today().plusDays(25));
         mvc.perform(post("/advisor/proposals/" + id + "/approve").with(user("admin")).with(csrf()))

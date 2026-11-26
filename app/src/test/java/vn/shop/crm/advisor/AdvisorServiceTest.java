@@ -30,7 +30,7 @@ class AdvisorServiceTest extends AbstractPostgresTest {
     @Autowired AdvisorStore store;
     @Autowired AiUsage usage;
     @Autowired ContactService contacts;
-    @Autowired Clock clock;
+
     @Autowired ProposalService proposals;
 
     final AtomicReference<String> reply = new AtomicReference<>();
@@ -58,7 +58,7 @@ class AdvisorServiceTest extends AbstractPostgresTest {
         }
     }
 
-    private AdvisorService service(boolean advisorOn, boolean aiOn, int maxRuns) {
+    private AdvisorService service(boolean advisorOn, boolean aiOn) {
         AiClient client = new AiClient() {
             @Override
             public String complete(String system, String user, boolean json) {
@@ -77,7 +77,7 @@ class AdvisorServiceTest extends AbstractPostgresTest {
             }
         };
         AiGate gate = new AiGate(client, new AiProperties(aiOn, "khoa", "m", "https://api.deepseek.com", 100, 10, 300), usage, Clock.systemUTC());
-        return new AdvisorService(snapshots, new CampaignAdvisor(gate, "", true), store, clock, contacts, advisorOn, maxRuns);
+        return new AdvisorService(snapshots, new CampaignAdvisor(gate, "", true), store, contacts, advisorOn);
     }
 
     private String proposal(String extra) {
@@ -96,7 +96,7 @@ class AdvisorServiceTest extends AbstractPostgresTest {
     @Test
     void deXuatDuocLuuVaKhongTaoChienDichHayGuiTin() {
         reply.set(proposal(""));
-        var view = service(true, true, 5).run("admin");
+        var view = service(true, true).run("admin");
 
         assertThat(view.result().status()).isEqualTo(CampaignAdvisor.Status.OK);
         assertThat(view.result().proposals()).hasSize(1);
@@ -121,7 +121,7 @@ class AdvisorServiceTest extends AbstractPostgresTest {
     @Test
     void chiGuiSoLieuAnDanhChoAiVaLuuDungBanDaGui() {
         reply.set(proposal(""));
-        service(true, true, 5).run("admin");
+        service(true, true).run("admin");
 
         assertThat(prompts).hasSize(1);
         String prompt = prompts.getFirst();
@@ -135,30 +135,49 @@ class AdvisorServiceTest extends AbstractPostgresTest {
     @Test
     void tatMacDinhVaKhongGoiAiKhiTat() {
         reply.set(proposal(""));
-        assertThatThrownBy(() -> service(false, true, 5).run("admin")).isInstanceOf(ImportException.class).hasMessageContaining("đang tắt");
-        assertThatThrownBy(() -> service(true, false, 5).run("admin")).isInstanceOf(ImportException.class).hasMessageContaining("AI đang tắt");
+        assertThatThrownBy(() -> service(false, true).run("admin")).isInstanceOf(ImportException.class).hasMessageContaining("đang tắt");
+        assertThatThrownBy(() -> service(true, false).run("admin")).isInstanceOf(ImportException.class).hasMessageContaining("AI đang tắt");
         assertThat(calls).hasValue(0);
         assertThat(count("advisor_run")).isZero();
-        assertThat(service(true, true, 5).enabled()).isTrue();
-        assertThat(service(false, true, 5).enabled()).isFalse();
-        assertThat(service(true, false, 5).enabled()).isFalse();
+        assertThat(service(true, true).enabled()).isTrue();
+        assertThat(service(false, true).enabled()).isFalse();
+        assertThat(service(true, false).enabled()).isFalse();
     }
 
     @Test
-    void tranSoLanMoiNgay() {
+    void choNhieuHonNamLuotMoiNgay() {
         reply.set(proposal(""));
-        AdvisorService s = service(true, true, 2);
-        s.run("admin");
-        s.run("admin");
-        assertThat(s.runsToday()).isEqualTo(2);
-        assertThatThrownBy(() -> s.run("admin")).isInstanceOf(ImportException.class).hasMessageContaining("2 lần");
-        assertThat(calls).hasValue(2);
+        AdvisorService s = service(true, true);
+        for (int i = 0; i < 6; i++) {
+            assertThat(s.run("admin").result().status()).isEqualTo(CampaignAdvisor.Status.OK);
+        }
+        assertThat(calls).hasValue(6);
     }
 
+    @Test
+    void bamTrungDungCungMotLuotVaQuaHanThiCoTheThuLai() throws Exception {
+        AdvisorService s = service(true, true);
+        long firstId;
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> s.reserve("admin"));
+            var second = executor.submit(() -> s.reserve("other"));
+            var a = first.get(10, java.util.concurrent.TimeUnit.SECONDS);
+            var b = second.get(10, java.util.concurrent.TimeUnit.SECONDS);
+            assertThat(a.id()).isEqualTo(b.id());
+            assertThat(a.started()).isNotEqualTo(b.started());
+            firstId = a.id();
+        }
+        jdbc.sql("UPDATE advisor_run SET created_at = now() - interval '6 minutes'").update();
+        var retry = s.reserve("admin");
+        assertThat(retry.started()).isTrue();
+        assertThat(retry.id()).isNotEqualTo(firstId);
+        assertThat(jdbc.sql("SELECT status FROM advisor_run WHERE id = :id").param("id", firstId)
+                .query(String.class).single()).isEqualTo("UNAVAILABLE");
+    }
     @Test
     void aiHongThiGhiNhatKyVaKhongCoDeXuat() {
         aiDown = true;
-        var view = service(true, true, 5).run("admin");
+        var view = service(true, true).run("admin");
         assertThat(view.result().status()).isEqualTo(CampaignAdvisor.Status.UNAVAILABLE);
         assertThat(count("campaign_proposal")).isZero();
         assertThat(jdbc.sql("SELECT status FROM advisor_run").query(String.class).single()).isEqualTo("UNAVAILABLE");
@@ -168,10 +187,10 @@ class AdvisorServiceTest extends AbstractPostgresTest {
     @Test
     void dauRaSaiHoacCoLinkThiBoVaGhiLyDo() {
         reply.set("không phải JSON");
-        assertThat(service(true, true, 5).run("admin").result().status()).isEqualTo(CampaignAdvisor.Status.INVALID);
+        assertThat(service(true, true).run("admin").result().status()).isEqualTo(CampaignAdvisor.Status.INVALID);
 
         reply.set(proposal("").replace("Hướng dẫn sử dụng", "Vào http://khuyen-mai.example.com ngay"));
-        var view = service(true, true, 5).run("admin");
+        var view = service(true, true).run("admin");
         assertThat(view.result().status()).isEqualTo(CampaignAdvisor.Status.INVALID);
         assertThat(view.result().rejected()).singleElement().asString().contains("đường dẫn");
         assertThat(count("campaign_proposal")).isZero();
@@ -181,7 +200,7 @@ class AdvisorServiceTest extends AbstractPostgresTest {
     @Test
     void khongDeXuatGiKemLyDoThiTrangThaiBoQua() {
         reply.set("{\"proposals\":[],\"skip_reason\":\"Chưa đủ dữ liệu để đề xuất\"}");
-        var view = service(true, true, 5).run("admin");
+        var view = service(true, true).run("admin");
         assertThat(view.result().status()).isEqualTo(CampaignAdvisor.Status.SKIPPED);
         assertThat(jdbc.sql("SELECT skip_reason FROM advisor_run").query(String.class).single()).contains("Chưa đủ dữ liệu");
     }
@@ -190,7 +209,7 @@ class AdvisorServiceTest extends AbstractPostgresTest {
     void deXuatVuotGioiHanBiBoDuAiNoiGi() {
         // AI "bị lừa" đề xuất vượt hạn mức và khung giờ: mã bỏ hết
         reply.set(proposal("").replace("\"daily_cap\":5", "\"daily_cap\":500").replace("\"window_to\":\"11:00\"", "\"window_to\":\"23:00\""));
-        var view = service(true, true, 5).run("admin");
+        var view = service(true, true).run("admin");
         assertThat(view.result().proposals()).isEmpty();
         assertThat(view.result().rejected()).singleElement().asString().contains("daily_cap");
     }
@@ -206,7 +225,7 @@ class AdvisorServiceTest extends AbstractPostgresTest {
     void boLocKhopThiLuuNguyenVanVaDuyetTaoChienDichDungBoLoc() {
         makeRepeatBuyers();
         reply.set(proposal(",\"filter\":{\"purchases_min\":2,\"purchases_max\":3}").replace("\"batch_size\":8", "\"batch_size\":3"));
-        var view = service(true, true, 5).run("admin");
+        var view = service(true, true).run("admin");
 
         assertThat(view.result().proposals()).hasSize(1);
         assertThat(view.result().proposals().getFirst().filter().multi()).isTrue();
@@ -228,7 +247,7 @@ class AdvisorServiceTest extends AbstractPostgresTest {
     void boLocKhongKhopAiThiBoDeXuatVaGhiLyDo() {
         makeRepeatBuyers();
         reply.set(proposal(",\"filter\":{\"purchases_min\":5,\"purchases_max\":6}"));
-        var view = service(true, true, 5).run("admin");
+        var view = service(true, true).run("admin");
 
         assertThat(view.result().proposals()).isEmpty();
         assertThat(view.result().rejected()).singleElement().asString().contains("không khớp khách nào");
@@ -239,7 +258,7 @@ class AdvisorServiceTest extends AbstractPostgresTest {
     void boLocKhopItHonLoThiKepLoVaGhiRuiRo() {
         makeRepeatBuyers();
         reply.set(proposal(",\"filter\":{\"purchases_min\":2,\"purchases_max\":3}")); // lô 8, chỉ 3 khách khớp
-        var view = service(true, true, 5).run("admin");
+        var view = service(true, true).run("admin");
 
         var p = view.result().proposals().getFirst();
         assertThat(p.batchSize()).isEqualTo(3);
@@ -250,7 +269,7 @@ class AdvisorServiceTest extends AbstractPostgresTest {
     @Test
     void boLocSaiKhuonCuaAiBiBoVaKhongDungDenKhach() {
         reply.set(proposal(",\"filter\":{\"so_dien_thoai\":\"0900001001\"}"));
-        var view = service(true, true, 5).run("admin");
+        var view = service(true, true).run("admin");
 
         assertThat(view.result().proposals()).isEmpty();
         assertThat(view.result().rejected()).singleElement().asString().contains("filter");

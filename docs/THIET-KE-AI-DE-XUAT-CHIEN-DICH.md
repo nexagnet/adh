@@ -1,5 +1,7 @@
 # Thiết kế: AI đề xuất chiến dịch và thời điểm gửi (D21, chủ dự án chốt hướng 23/11/2026)
 
+**Cập nhật vận hành 26/11/2026:** nút trên web tạo lượt chạy nền và trả trang ngay. ADH theo dõi kết quả theo mã lượt, chỉ cho một lượt đang chạy và không còn trần 5 lượt đề xuất mỗi ngày. Hạn mức dùng AI chung vẫn áp dụng. Lượt chưa kết thúc sau 5 phút báo quá hạn và có thể thử lại.
+
 **Trạng thái:** chủ dự án đã chốt làm theo toàn bộ thiết kế này, gồm mục 5 (gom nghiệp vụ nhắn tin vào chiến dịch, nhiều lần gửi, các núm cấu hình ở 5.3a, dữ liệu cho AI ở 5.3b). Mục 7 còn ba câu hỏi mở chưa chặn việc làm. Thứ tự PR ở mục 6. PR 1 (số liệu ẩn danh, #76) và PR 2 (AI đề xuất, kiểm cứng, nhật ký) đã có mã; PR 2 chưa có giao diện nên chưa dùng được từ web.
 
 **Yêu cầu của chủ dự án (23/11/2026):** lấy thời tiết, khách, khu vực... đưa cho AI (DeepSeek) **đề xuất chiến dịch và thời gian áp dụng, kèm lý do**. Chiến dịch hiện nay (tên, một khu vực, số khách, số ngày link, nội dung tin) quá đơn giản; cấu hình chưa đủ để phát huy hệ thống và AI.

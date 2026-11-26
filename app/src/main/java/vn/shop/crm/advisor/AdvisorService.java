@@ -5,11 +5,8 @@ import org.springframework.stereotype.Service;
 import vn.shop.crm.common.ImportException;
 import vn.shop.crm.contact.ContactService;
 
-import java.time.Clock;
-import java.time.LocalDate;
-
 /**
- * Điểm vào duy nhất để nhờ AI đề xuất chiến dịch (D21): kiểm công tắc và trần số lần mỗi ngày, dựng số liệu ẩn danh, gọi AI, kiểm cứng, ghi nhật ký.
+ * Điểm vào để nhờ AI đề xuất chiến dịch (D21): giữ một lượt đang chạy, dựng số liệu ẩn danh, gọi AI, kiểm cứng, ghi nhật ký.
  * MẶC ĐỊNH TẮT ({@code app.ai.advisor-enabled}, cần cả {@code app.ai.enabled}). Không tạo chiến dịch, không gửi gì.
  */
 @Service
@@ -21,59 +18,71 @@ public class AdvisorService {
     private final AdvisorSnapshotService snapshots;
     private final CampaignAdvisor advisor;
     private final AdvisorStore store;
-    private final Clock clock;
     private final ContactService contacts;
     private final boolean enabled;
-    private final int maxRunsPerDay;
 
-    public AdvisorService(AdvisorSnapshotService snapshots, CampaignAdvisor advisor, AdvisorStore store, Clock clock, ContactService contacts,
-                          @Value("${app.ai.advisor-enabled:false}") boolean enabled,
-                          @Value("${app.ai.advisor-max-runs-per-day:5}") int maxRunsPerDay) {
+    public AdvisorService(AdvisorSnapshotService snapshots, CampaignAdvisor advisor, AdvisorStore store, ContactService contacts,
+                          @Value("${app.ai.advisor-enabled:false}") boolean enabled) {
         this.snapshots = snapshots;
         this.advisor = advisor;
         this.store = store;
-        this.clock = clock;
         this.contacts = contacts;
         this.enabled = enabled;
-        this.maxRunsPerDay = Math.max(1, Math.min(maxRunsPerDay, 20));
     }
 
     public boolean enabled() {
         return enabled && advisor.aiEnabled();
     }
 
-    public int maxRunsPerDay() {
-        return maxRunsPerDay;
-    }
-
-    public int runsToday() {
-        LocalDate today = clock.instant().atZone(AdvisorSnapshotService.ZONE).toLocalDate();
-        return store.runsSince(today.atStartOfDay(AdvisorSnapshotService.ZONE).toInstant());
-    }
-
-    /** Nhờ AI đề xuất một lần. Báo lỗi dễ hiểu nếu tính năng tắt hoặc đã hết số lần hôm nay. */
-    public RunView run(String by) {
+    AdvisorStore.Submission reserve(String by) {
         if (!enabled) {
             throw new ImportException("Tính năng AI đề xuất chiến dịch đang tắt (APP_AI_ADVISOR_ENABLED).");
         }
         if (!advisor.aiEnabled()) {
             throw new ImportException("AI đang tắt (APP_AI_ENABLED), nên chưa thể đề xuất chiến dịch.");
         }
-        if (runsToday() >= maxRunsPerDay) {
-            throw new ImportException("Hôm nay đã nhờ AI đề xuất " + maxRunsPerDay + " lần, hãy thử lại vào ngày mai.");
+        return store.reserve(by);
+    }
+
+    RunView run(String by) {
+        var submission = reserve(by);
+        if (!submission.started()) {
+            throw new ImportException("Đang xử lý một lượt đề xuất.");
         }
-        AdvisorSnapshot snapshot = snapshots.build();
-        CampaignAdvisor.Result result = checkMatches(advisor.advise(snapshot));
-        long id = store.save(by, snapshot.toJson(), result);
+        return process(submission.id());
+    }
+
+    RunView process(long id) {
+        String snapshotJson = "{}";
+        try {
+            if (store.active().filter(active -> active == id).isEmpty()) {
+                return fail(id, snapshotJson);
+            }
+            AdvisorSnapshot snapshot = snapshots.build();
+            snapshotJson = snapshot.toJson();
+            var result = checkMatches(advisor.advise(snapshot));
+            store.complete(id, snapshotJson, result);
+            return new RunView(id, result);
+        } catch (RuntimeException e) {
+            LOG.warn("Lượt đề xuất AI {} gặp lỗi {}", id, e.getClass().getSimpleName());
+            return fail(id, snapshotJson);
+        }
+    }
+
+    RunView fail(long id, String snapshotJson) {
+        var result = new CampaignAdvisor.Result(CampaignAdvisor.Status.UNAVAILABLE, java.util.List.of(),
+                java.util.List.of(), null, "Không thể xử lý lượt đề xuất. Vui lòng thử lại.", null);
+        store.complete(id, snapshotJson, result);
         return new RunView(id, result);
     }
 
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(AdvisorService.class);
+
     /**
-     * Đối chiếu từng đề xuất có bộ lọc với số khách khớp THẬT (không tin số AI nghĩ): không khớp ai thì bỏ đề xuất và ghi lý do; khớp ít hơn lô thì kẹp lô
-     * xuống bằng số khớp (và nói rõ ở phần rủi ro). Chỉ đếm, không ghi gì. Đề xuất không có bộ lọc mới (chỉ các núm cũ) giữ nguyên như trước.
+     * Đối chiếu mọi đề xuất với số khách đủ điều kiện hiện tại. Bỏ đề xuất không còn khách và giảm lô nếu số khách ít hơn đề xuất.
      */
     CampaignAdvisor.Result checkMatches(CampaignAdvisor.Result r) {
-        if (r.proposals().stream().noneMatch(p -> p.filter().any())) {
+        if (r.proposals().isEmpty()) {
             return r;
         }
         java.util.List<AdvisorProposal> kept = new java.util.ArrayList<>();
@@ -81,10 +90,6 @@ public class AdvisorService {
         int i = 0;
         for (AdvisorProposal p : r.proposals()) {
             i++;
-            if (!p.filter().any()) {
-                kept.add(p);
-                continue;
-            }
             long matched;
             try {
                 var full = vn.shop.crm.contact.CustomerFilter.and(new ContactService.Pick(p.pickOrder(), p.minDays(), p.maxDays(),
