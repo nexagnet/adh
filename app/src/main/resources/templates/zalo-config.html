@@ -30,6 +30,7 @@
 
     <div class="formrow" th:if="${enabled}">
         <form th:action="@{/zalo/login/start(account=${account})}" method="post">
+            <input type="hidden" name="tab" value="cau-hinh">
             <button type="submit" class="btn">Đăng nhập bằng QR</button>
         </form>
         <form th:if="${account != 1}" th:action="@{/zalo/accounts/{id}/enabled(id=${account}, account=${account})}" method="post">

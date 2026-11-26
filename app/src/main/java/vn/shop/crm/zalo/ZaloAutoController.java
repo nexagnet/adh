@@ -389,22 +389,25 @@ public class ZaloAutoController {
     // ---------- quét QR ----------
 
     @PostMapping("/login/start")
-    public String loginStart(Principal user) {
+    public String loginStart(@RequestParam(required = false) String tab, Principal user) {
         requireEnabled();
         service.startLogin(by(user));
-        return "redirect:/zalo/login";
+        return "cau-hinh".equals(tab) ? "redirect:/zalo/login?tab=cau-hinh" : "redirect:/zalo/login";
     }
 
     @GetMapping("/login")
-    public String login(Principal user, Model model, HttpServletResponse response, RedirectAttributes redirect) {
+    public String login(@RequestParam(required = false) String tab, Principal user, Model model, HttpServletResponse response,
+                        RedirectAttributes redirect) {
         response.setHeader("Cache-Control", "no-store");
         response.setHeader("Pragma", "no-cache");
         requireEnabled();
+        boolean returnToConfig = "cau-hinh".equals(tab);
         ZaloSession.Login l = service.loginStatus(by(user));
         if (l.state() == ZaloSession.LoginState.DONE) {
             redirect.addFlashAttribute("flash", "Đăng nhập tài khoản phụ xong.");
-            return "redirect:/zalo";
+            return returnToConfig ? "redirect:/zalo?tab=cau-hinh" : "redirect:/zalo";
         }
+        model.addAttribute("returnToConfig", returnToConfig);
         model.addAttribute("state", l.state().name());
         model.addAttribute("scannedId", l.scannedId());
         model.addAttribute("waiting", l.state() == ZaloSession.LoginState.WAITING_SCAN

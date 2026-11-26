@@ -49,7 +49,10 @@
     </div>
 
     <div class="formrow">
-        <form th:action="@{/zalo/login/start(account=${account})}" method="post" th:unless="${waiting}"><button type="submit" class="btn">Tạo mã QR mới</button></form>
+        <form th:action="@{/zalo/login/start(account=${account})}" method="post" th:unless="${waiting}">
+            <input th:if="${returnToConfig}" type="hidden" name="tab" value="cau-hinh">
+            <button type="submit" class="btn">Tạo mã QR mới</button>
+        </form>
         <a class="btn secondary" th:href="@{/zalo(tab='cau-hinh', account=${account})}">Về cấu hình tài khoản</a>
     </div>
 </main>

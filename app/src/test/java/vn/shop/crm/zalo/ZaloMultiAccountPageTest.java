@@ -64,6 +64,12 @@ class ZaloMultiAccountPageTest extends AbstractPostgresTest {
                 .andExpect(content().string(containsString("/zalo/login/start?account=2")))
                 .andExpect(content().string(containsString("/zalo/accounts/2/enabled?account=2")));
 
+        mvc.perform(post("/zalo/login/start?account=2").param("tab", "cau-hinh").with(owner()).with(csrf()))
+                .andExpect(redirectedUrl("/zalo/login?tab=cau-hinh&account=2"));
+        bridges.second().login = ZaloSession.Login.of(ZaloSession.LoginState.DONE);
+        mvc.perform(get("/zalo/login?tab=cau-hinh&account=2").with(owner()))
+                .andExpect(redirectedUrl("/zalo?tab=cau-hinh&account=2"));
+
         mvc.perform(post("/zalo/accounts/2/enabled?account=2").param("on", "false").param("tab", "cau-hinh")
                         .with(owner()).with(csrf()))
                 .andExpect(redirectedUrl("/zalo?tab=cau-hinh&account=2"));

@@ -46,11 +46,13 @@ Máy thứ hai chỉ chạy cầu nối (`infra/docker-compose.bridge-only.yml`)
 
 1. Giữ `APP_ZALO_LIVE_2=false`. Tài khoản 2 chỉ được liên hệ số trong danh sách thử, kể cả khi tài khoản 1 đang chạy thật.
 2. Mở `/zalo`, chọn tài khoản 2, vào tab **Cấu hình** rồi chọn **Đăng nhập bằng QR**. Nếu đang đặt mã `0`, lần quét đầu sẽ hiện mã để đối chiếu. Sau khi xác nhận đúng, ghi mã đó vào `ZALO_ACCOUNT_ID` trong `.env.bridge` trên máy hai (hoặc `ZALO_ACCOUNT_ID_2` trong `.env` nếu chạy cùng máy), tạo lại cầu nối 2 và quét lại.
-3. Khi hai cầu nối đã đăng nhập đúng, chọn **Bật tài khoản này** ở tài khoản 2. Ứng dụng khóa dấu của hai tài khoản Zalo, từ chối cầu nối trùng hoặc khác với dấu đã được xác nhận. Bộ hẹn giờ vẫn chờ `APP_ZALO_MULTI_ENABLED=true`.
+3. Khi hai cầu nối đã đăng nhập đúng, chọn **Xác minh và bật tài khoản này** ở tài khoản 2. Ứng dụng khóa dấu của hai tài khoản Zalo, từ chối cầu nối trùng hoặc khác với dấu đã được xác nhận. Bộ hẹn giờ vẫn chờ `APP_ZALO_MULTI_ENABLED=true`.
 4. Ở tài khoản 2, chọn nấc, đặt hạn mức thấp, tra và xác nhận phó nhóm. Ở tab Giới hạn, đặt **trần tổng** (mặc định 50).
 5. Đặt `APP_ZALO_MULTI_ENABLED=true` và tạo lại container app để chạy thử tài khoản 2. Khi cầu nối thử sẵn sàng và còn hạn mức, hệ thống ưu tiên giao số thử chưa được gắn cho cầu nối này. Khách thường tiếp tục được phân cho tài khoản đang chạy thật.
 6. Chỉ sau khi thử đạt, đặt `APP_ZALO_LIVE_2=true` và tạo lại container app. Chế độ chạy thật của tài khoản 2 yêu cầu đồng thời `APP_ZALO_LIVE=true`.
 7. Tạm ngưng tài khoản thêm bằng nút **Tạm ngưng tài khoản này**. Khách đã gắn tài khoản đó chờ ngày bật lại.
+
+Khi cầu dao chung dừng các tài khoản, hãy xem cảnh báo và chọn **Mở lại** ở tài khoản đã báo lỗi. Nếu bridge nguồn đang ngoại tuyến hoặc đã gỡ khỏi cấu hình, khôi phục kết nối hoặc tuyến tới đúng bridge đó trước khi xác nhận. Các tài khoản tiếp tục dừng trong lúc chưa thể xác nhận trên bridge nguồn.
 
 Trong lần cập nhật sang bản có `APP_ZALO_LIVE_2`, giữ `APP_ZALO_MULTI_ENABLED=false` trong `infra/.env` đến khi đã xác nhận bản mới hoạt động. Tạm dừng cron bằng `./auto-deploy.sh pause` nếu thẻ trước còn là bản cũ. Nếu cần `./deploy.sh rollback` về bản cũ, tắt `APP_ZALO_MULTI_ENABLED` trong `.env` trước khi chạy. Cả lùi tự động lẫn lùi tay dùng lại `.env`, còn bản cũ chỉ đọc `APP_ZALO_LIVE` chung. Chỉ bật lại cron sau khi hai thẻ dùng để triển khai và lùi đều hiểu cấu hình chạy thử riêng.
 
