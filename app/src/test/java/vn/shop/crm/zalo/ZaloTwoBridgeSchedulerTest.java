@@ -36,9 +36,24 @@ import static org.assertj.core.api.Assertions.assertThat;
         "app.zalo.accounts[0].bridge-key=k2"})
 class ZaloTwoBridgeSchedulerTest extends AbstractPostgresTest {
 
-    record BridgePair(FakeZaloGateway first, FakeZaloGateway second) {
+    static class BridgeWithStatusHook extends FakeZaloGateway {
+        Runnable beforeNextStatus;
+
+        @Override
+        public Status status() {
+            Runnable hook = beforeNextStatus;
+            beforeNextStatus = null;
+            if (hook != null) {
+                hook.run();
+            }
+            return super.status();
+        }
+    }
+
+    record BridgePair(BridgeWithStatusHook first, FakeZaloGateway second) {
         void reset() {
             first.reset();
+            first.beforeNextStatus = null;
             second.reset();
             first.status = listening(FIRST_TAG, FIRST_SESSION);
             second.status = listening(SECOND_TAG, SECOND_SESSION);
@@ -49,7 +64,7 @@ class ZaloTwoBridgeSchedulerTest extends AbstractPostgresTest {
     static class Bridges {
         @Bean
         BridgePair bridgePair() {
-            return new BridgePair(new FakeZaloGateway(), new FakeZaloGateway());
+            return new BridgePair(new BridgeWithStatusHook(), new FakeZaloGateway());
         }
 
         @Bean
@@ -81,6 +96,8 @@ class ZaloTwoBridgeSchedulerTest extends AbstractPostgresTest {
     @Autowired ContactService contacts;
     @Autowired InviteService invites;
     @Autowired ZaloInviteSender sender;
+    @Autowired ZaloMessageService messages;
+    @Autowired ZaloDeputyService deputies;
     @Autowired ZaloReactionSender reactions;
     @Autowired ReplyService replies;
 
@@ -116,6 +133,21 @@ class ZaloTwoBridgeSchedulerTest extends AbstractPostgresTest {
         registry.setEnabled(2, false);
         scheduler.tick();
         assertThat(bridges.first().messages).isEmpty();
+    }
+
+    @Test
+    void aDeputyLookupTripDuringFirstBridgeStatusPreventsSendAndLeavesNoPendingAttempt() {
+        bridges.second().willFind(ZaloPersonFinder.Found.of(ZaloPersonFinder.FindResult.RESTRICTED, "VERIFY"));
+        bridges.first().beforeNextStatus = () -> ZaloAccountContext.run(2, () ->
+                assertThat(deputies.lookup("0900000001", "test").status()).isEqualTo(ZaloDeputyService.Status.STOPPED));
+
+        var delivery = messages.sendByPhone(ZaloMessageService.SCOPE_REAL, ZaloMessenger.Kind.INVITE,
+                null, "84900000001", "Tin 1", null, null);
+
+        assertThat(delivery.block()).isEqualTo(ZaloMessageService.Block.MODE_OFF);
+        assertThat(bridges.first().messages).isEmpty();
+        assertThat(jdbc.sql("SELECT count(*) FROM zalo_msg_log").query(Long.class).single()).isZero();
+        assertThat(auto.sharedHaltSource()).isEqualTo(2L);
     }
 
     @Test

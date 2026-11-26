@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
@@ -42,6 +43,7 @@ public class ZcaBridgeGateway implements ZaloLink {
     private final Supplier<String> pinnedTag;
     private final boolean requiresPin;
     private final Supplier<String> primaryTag;
+    private final BooleanSupplier writesPaused;
 
     public ZcaBridgeGateway(String bridgeUrl, String bridgeKey) {
         this(bridgeUrl, bridgeKey, () -> null, false);
@@ -52,11 +54,17 @@ public class ZcaBridgeGateway implements ZaloLink {
     }
 
     ZcaBridgeGateway(String bridgeUrl, String bridgeKey, Supplier<String> pinnedTag, boolean requiresPin, Supplier<String> primaryTag) {
+        this(bridgeUrl, bridgeKey, pinnedTag, requiresPin, primaryTag, () -> false);
+    }
+
+    ZcaBridgeGateway(String bridgeUrl, String bridgeKey, Supplier<String> pinnedTag, boolean requiresPin,
+                     Supplier<String> primaryTag, BooleanSupplier writesPaused) {
         this.base = bridgeUrl.endsWith("/") ? bridgeUrl.substring(0, bridgeUrl.length() - 1) : bridgeUrl;
         this.key = bridgeKey;
         this.pinnedTag = pinnedTag;
         this.requiresPin = requiresPin;
         this.primaryTag = primaryTag;
+        this.writesPaused = writesPaused;
         this.http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).version(HttpClient.Version.HTTP_1_1).build();
     }
 
@@ -71,7 +79,7 @@ public class ZcaBridgeGateway implements ZaloLink {
             if (expected != null && !expected.equals(actual)) {
                 return new Status(State.LOGIN_REQUIRED, "ACCOUNT_MISMATCH", false, null, null, null, null);
             }
-            return new Status(state(n.path("state").asString("")), safeCode(text(n, "tripReason")),
+            return new Status(state(n.path("state").asString("")), safeTripReason(text(n, "tripReason")),
                     n.hasNonNull("accountOk") ? n.path("accountOk").asBoolean() : null,
                     instant(n, "lastEventAt"), instant(n, "sessionSince"), safeCode(text(n, "detail")), safeCode(text(n, "accountTag")));
         } catch (Unreachable e) {
@@ -609,6 +617,10 @@ public class ZcaBridgeGateway implements ZaloLink {
         } else if (expected != null) {
             checkTag(expected);
         }
+        if ("POST".equals(method) && !path.startsWith("/session/")
+                && !"/friends/check".equals(path) && !"/people/lookup".equals(path) && writesPaused.getAsBoolean()) {
+            throw new Unreachable(new IOException("HALTED"));
+        }
         return exchange(method, path, body, timeoutSeconds, expected);
     }
 
@@ -688,6 +700,17 @@ public class ZcaBridgeGateway implements ZaloLink {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private static String safeTripReason(String reason) {
+        if (reason == null) {
+            return null;
+        }
+        String[] parts = reason.split(":", 2);
+        if (!parts[0].matches("[A-Z][A-Z0-9_]{0,39}")) {
+            return null;
+        }
+        return parts.length == 2 && parts[1].matches("[A-Z0-9_-]{1,40}") ? reason : parts[0];
     }
 
     /** Mã lỗi chỉ gồm chữ, số, gạch: không để chuỗi lạ (có thể chứa dữ liệu khách) lọt vào nhật ký. */

@@ -104,6 +104,18 @@ class ZcaBridgeGatewayTest {
     }
 
     @Test
+    void haltAfterIdentityPreflightBlocksWritesAndAllowsRecovery() {
+        var guarded = new ZcaBridgeGateway("http://127.0.0.1:" + server.getAddress().getPort(), "khoa-chung",
+                () -> "000000000002", true, () -> null, () -> !requests.isEmpty());
+        reply.set("{\"state\":\"LISTENING\",\"accountTag\":\"000000000002\",\"ok\":true}");
+
+        assertThat(guarded.sendByUid(ZaloMessenger.Kind.INVITE, "123", "Tin 1").notSent()).isTrue();
+        assertThat(requests).containsExactly("GET /status");
+        assertThat(guarded.resume()).isTrue();
+        assertThat(requests).endsWith("GET /status", "POST /session/resume");
+    }
+
+    @Test
     void enrollmentRejectsThePrimaryBridgeBeforeStartingQr() {
         String primary = "000000000001";
         var guarded = new ZcaBridgeGateway("http://127.0.0.1:" + server.getAddress().getPort(), "khoa-chung",
@@ -177,10 +189,13 @@ class ZcaBridgeGatewayTest {
         var r = gateway.addToGroup("1", "2");
         assertThat(r.outcome()).isEqualTo(ZaloGateway.Outcome.SYSTEM_ERROR);
         assertThat(r.code()).isEqualTo("BAD_REPLY");
-        reply.set("{\"state\":\"TRIPPED\",\"tripReason\":\"RESTRICTED:Z1 Nguyen Van A\",\"detail\":\"0912 345 678\"}");
+        reply.set("{\"state\":\"TRIPPED\",\"tripReason\":\"RESTRICTED:VERIFY\",\"detail\":\"0912 345 678\"}");
         var st = gateway.status();
-        assertThat(st.tripReason()).isEqualTo("RESTRICTED:Z1NguyenVanA".replace(":", ""));
+        assertThat(st.tripReason()).isEqualTo("RESTRICTED:VERIFY");
+        assertThat(ZaloAutoSettings.haltsAllAccounts(ZaloAutoService.bridgeTripReason(st))).isTrue();
         assertThat(st.detail()).isEqualTo("0912345678");
+        reply.set("{\"state\":\"TRIPPED\",\"tripReason\":\"RESTRICTED:Z1 Nguyen Van A\"}");
+        assertThat(gateway.status().tripReason()).isEqualTo("RESTRICTED");
     }
 
     @Test

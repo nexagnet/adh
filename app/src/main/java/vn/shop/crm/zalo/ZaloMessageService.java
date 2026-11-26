@@ -617,6 +617,10 @@ public class ZaloMessageService {
                             RETURNING id""")
                     .param("at", OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)).param("sc", scope)
                     .param("k", kind.name()).param("r", refId, java.sql.Types.BIGINT).param("acct", ZaloAccountContext.current()).query(Long.class).single();
+            if (cfg.tripped()) {
+                deleteUnsentAttempt(logId);
+                return Delivery.blocked(Block.MODE_OFF);
+            }
             Sent s;
             try {
                 s = call.get();
@@ -630,6 +634,10 @@ public class ZaloMessageService {
         }
     }
 
+    private void deleteUnsentAttempt(long logId) {
+        jdbc.sql("DELETE FROM zalo_msg_log WHERE id = :id").param("id", logId).update();
+    }
+
     private Delivery finish(long logId, Sent s) {
         try {
             if (s.result() == Result.OK) {
@@ -641,7 +649,7 @@ public class ZaloMessageService {
             }
             if (s.notSent()) {
                 // Cầu nối chắc chắn chưa chạm Zalo: không tính hạn mức.
-                jdbc.sql("DELETE FROM zalo_msg_log WHERE id = :id").param("id", logId).update();
+                deleteUnsentAttempt(logId);
                 return switch (s.result()) {
                     case RATE_LIMITED, UNREACHABLE -> new Delivery(Status.RETRY, null, s);
                     case PERSON_ERROR -> new Delivery(Status.PERSON_ERROR, null, s); // đầu vào sai, chưa chạm Zalo

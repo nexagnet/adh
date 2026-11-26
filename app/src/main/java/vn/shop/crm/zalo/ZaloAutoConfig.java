@@ -23,24 +23,25 @@ public class ZaloAutoConfig {
      */
     @Bean
     ZaloAccountRoutes zaloAccountRoutes(ZaloAutoProperties props, ZaloAccountProperties accounts, TestMode mode,
-                                        ZaloBridgeIdentity identity) {
+                                        ZaloBridgeIdentity identity, ZaloAutoSettings settings) {
         if (props.enabled() && (props.bridgeKey() == null || props.bridgeKey().isBlank())) {
             // thất bại kín: bật bộ nối mà không có khóa chung thì không khởi động
             throw new IllegalStateException("Đã bật APP_ZALO_AUTO_ENABLED nhưng chưa đặt APP_ZALO_BRIDGE_KEY.");
         }
         Map<Long, ZaloLink> links = new LinkedHashMap<>();
-        ZaloLink first = primaryRoute(props, accounts, identity);
+        ZaloLink first = primaryRoute(props, accounts, identity, settings);
         links.put(ZaloAccountContext.DEFAULT_ACCOUNT, new SafeZaloLink(first, mode));
         for (ZaloAccountProperties.Account a : accounts.accounts()) {
             ZaloLink raw = props.enabled() ? new ZcaBridgeGateway(a.bridgeUrl(), a.bridgeKey(), () -> identity.pinnedTag(a.id()), true,
-                    () -> first.status().accountTag())
+                    () -> first.status().accountTag(), settings::tripped)
                     : new ManualZaloGateway();
             links.put(a.id(), new SafeZaloLink(raw, mode));
         }
         return new ZaloAccountRoutes(links);
     }
 
-    private ZaloLink primaryRoute(ZaloAutoProperties props, ZaloAccountProperties accounts, ZaloBridgeIdentity identity) {
+    private ZaloLink primaryRoute(ZaloAutoProperties props, ZaloAccountProperties accounts, ZaloBridgeIdentity identity,
+                                  ZaloAutoSettings settings) {
         if (!props.enabled()) {
             return new ManualZaloGateway();
         }
@@ -48,9 +49,9 @@ public class ZaloAutoConfig {
                 .equals(ZaloAccountProperties.endpoint(props.bridgeUrl())))) {
             throw new IllegalStateException("Địa chỉ cầu nối Zalo phụ trùng với cầu nối chính.");
         }
-        return accounts.accounts().isEmpty() ? new ZcaBridgeGateway(props.bridgeUrl(), props.bridgeKey())
-                : new ZcaBridgeGateway(props.bridgeUrl(), props.bridgeKey(),
-                        () -> identity.pinnedTag(ZaloAccountContext.DEFAULT_ACCOUNT), false);
+        return new ZcaBridgeGateway(props.bridgeUrl(), props.bridgeKey(),
+                () -> accounts.accounts().isEmpty() ? null : identity.pinnedTag(ZaloAccountContext.DEFAULT_ACCOUNT),
+                false, () -> null, settings::tripped);
     }
 
     @Bean

@@ -177,7 +177,7 @@ class TestModeTest extends AbstractPostgresTest {
     @Test
     void duongNoiTuiZaloDuocBocBangLuoiAnToanCaKhiBatBoNoi() {
         assertThat(link).isInstanceOf(SafeZaloLink.class);
-        assertThat(new ZaloAutoConfig().zaloAccountRoutes(autoProps, new ZaloAccountProperties(null), mode, new ZaloBridgeIdentity(jdbc))
+        assertThat(new ZaloAutoConfig().zaloAccountRoutes(autoProps, new ZaloAccountProperties(null), mode, new ZaloBridgeIdentity(jdbc), cfg)
                 .target(1L)).isInstanceOf(SafeZaloLink.class);
     }
 
