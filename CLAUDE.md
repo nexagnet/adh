@@ -2,6 +2,8 @@
 
 File này dành cho AI (hoặc người) vào làm tiếp mà **không đọc được lịch sử trò chuyện**. Nó gom các quy tắc và quyết định của chủ dự án vốn chỉ nằm trong trí nhớ của các phiên trước. Cập nhật ngày 24/11/2026 (sau PR #125; mục 0 là bản tóm tắt mới nhất, đọc trước).
 
+**Cập nhật vận hành 26/11/2026:** đọc [biên bản kiểm tra hai máy](docs/BIEN-BAN-KIEM-TRA-HAI-MAY-2026-11-26.md) trước khi làm Zalo nhiều tài khoản hoặc thao tác production. Biên bản ghi rõ ảnh đang chạy, khác biệt giữa `.env` và container, thao tác đã thực hiện, phạm vi giai đoạn 2 và nghiệm thu còn mở. Các mô tả tình trạng máy dưới đây có mốc ngày riêng.
+
 **Phiên mới: đọc file này, rồi `docs/BAN-GIAO-CHIEN-DICH-THU.md` (cửa vào cho AI làm tiếp: chạy thử trên các số thử, việc cấm, dữ liệu thật và chế độ thử, thứ tự việc, danh sách xóa sau thử), rồi `docs/BAN-GIAO.md` mục 0 ("Bắt đầu nhanh": trạng thái PR, quyết định ngày 23/11, máy chủ, phạm vi giai đoạn 1 và 2, danh sách màn sẽ xóa), rồi `docs/HUONG-DAN-CHAY-THU-TOAN-DIEN.md`.** Nếu file này và tài liệu khác trong repo mâu thuẫn, **ưu tiên file này**, rồi tới `docs/BAN-GIAO.md` mục 0 (các mục 1 đến 10 của nó đã cũ, xem mục 9 ở đây). Nghiệp vụ gốc: `01_DAC_TA_NGHIEP_VU.md`. Quyết định D1 đến D18 và kế hoạch: `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md`. Vận hành: `docs/RUNBOOK.md`.
 
 ## 0. Tóm tắt trạng thái (24/11/2026, sau PR #125; đọc mục này trước, rồi quay lại các mục sau)
