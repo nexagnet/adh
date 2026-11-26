@@ -32,6 +32,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         "app.zalo.auto.enabled=true",
         "app.zalo.auto.bridge-key=test",
         "app.zalo.auto.initial-delay-millis=3600000",
+        "app.zalo.reconcile.enabled=true",
+        "app.zalo.reconcile.initial-delay-ms=3600000",
         "app.zalo.inbox.enabled=true",
         "app.ai.enabled=true",
         "app.ai.api-key=test-only",
@@ -46,10 +48,16 @@ class ZaloTwoBridgeSchedulerTest extends AbstractPostgresTest {
         Runnable beforeNextStatus;
         Instant inboundAt;
         FriendRequestState friendRequestState = FriendRequestState.UNAVAILABLE;
+        String friendReadReason;
 
         @Override
         public FriendRequestState friendRequestState(String uid) {
             return friendRequestState;
+        }
+
+        @Override
+        public FriendRequestObservation friendRequestObservation(String uid) {
+            return new FriendRequestObservation(friendRequestState, friendReadReason);
         }
 
         @Override
@@ -76,10 +84,12 @@ class ZaloTwoBridgeSchedulerTest extends AbstractPostgresTest {
             first.beforeNextStatus = null;
             first.inboundAt = null;
             first.friendRequestState = ZaloLink.FriendRequestState.UNAVAILABLE;
+            first.friendReadReason = null;
             second.reset();
             second.beforeNextStatus = null;
             second.inboundAt = null;
             second.friendRequestState = ZaloLink.FriendRequestState.UNAVAILABLE;
+            second.friendReadReason = null;
             first.status = listening(FIRST_TAG, FIRST_SESSION);
             second.status = listening(SECOND_TAG, SECOND_SESSION);
         }
@@ -311,6 +321,31 @@ class ZaloTwoBridgeSchedulerTest extends AbstractPostgresTest {
     }
 
     @Autowired ZaloFriendReconciliation reconciliation;
+    @Autowired ManualAttention attention;
+
+    @Test
+    void failedReadAfterUpgradeKeepsEvidenceOfExistingOutgoingRequest() {
+        prepareCampaign();
+        markInvited(1, "+84900000001", "60000001");
+        jdbc.sql("""
+                UPDATE invitation SET sent_channel = 'ZALO_AUTO', friend_request_outcome = 'UNKNOWN',
+                    friend_request_at = now() - interval '10 minutes', expires_at = now() + interval '1 day'
+                """).update();
+        jdbc.sql("""
+                INSERT INTO zalo_friend_observation
+                    (account_id, invitation_id, state, observed_at, last_confirmed_state, last_confirmed_at, needs_review)
+                SELECT account_id, id, 'OUTGOING', now() - interval '6 minutes', 'OUTGOING', now() - interval '6 minutes', true
+                FROM invitation
+                """).update();
+        bridges.first().friendReadReason = "Z114";
+        new ZaloFriendReconciliationScheduler(registry, reconciliation, Runnable::run).tick();
+        long campaign = jdbc.sql("SELECT id FROM invitation_campaign").query(Long.class).single();
+        assertThat(attention.rows(campaign)).singleElement().satisfies(row -> {
+            assertThat(row.canResendFriend()).isFalse();
+            assertThat(row.observation().previousStateLabel()).isNotBlank();
+            assertThat(row.observation().reasonCode()).isEqualTo("Z114");
+        });
+    }
 
     @Test
     void observesTwoAccountsAndKeepsPriorEvidenceWhenOneBecomesUnavailable() {
@@ -332,15 +367,48 @@ class ZaloTwoBridgeSchedulerTest extends AbstractPostgresTest {
                 .containsExactly(1L);
         jdbc.sql("UPDATE zalo_friend_observation SET observed_at = now() - interval '6 minutes'").update();
         bridges.first().friendRequestState = ZaloLink.FriendRequestState.UNAVAILABLE;
+        bridges.first().friendReadReason = "Z114";
         new ZaloFriendReconciliationScheduler(registry, reconciliation, Runnable::run).tick();
 
         assertThat(jdbc.sql("SELECT last_confirmed_state FROM zalo_friend_observation WHERE account_id = 1 AND needs_review")
                 .query(String.class).single()).isEqualTo("NONE");
         assertThat(jdbc.sql("SELECT state FROM zalo_friend_observation_event ORDER BY id").query(String.class).list())
                 .containsExactly("NONE", "OUTGOING", "UNAVAILABLE");
+        assertThat(jdbc.sql("SELECT reason_code FROM zalo_friend_observation WHERE account_id = 1").query(String.class).single())
+                .isEqualTo("Z114");
         assertThat(jdbc.sql("SELECT DISTINCT friend_request_outcome FROM invitation").query(String.class).list()).containsExactly("SENT");
         assertThat(bridges.first().messages).isEmpty();
         assertThat(bridges.second().messages).isEmpty();
+    }
+
+    @Test
+    void friendTimeoutKeepsReadSessionWhileWritesAreHaltedForBothAccounts() {
+        prepareCampaign("T2,DH2,05/01/2026 09:00:00,Khach 2,0900000002,1 Duong A Xa B Hà Nội,Giao thành công\n");
+        jdbc.sql("INSERT INTO zalo_test_number (phone, note, created_by) VALUES ('+84900000002', 'test', 'test')").update();
+        markInvited(1, "+84900000001", "60000001");
+        markInvited(2, "+84900000002", "60000001");
+        jdbc.sql("UPDATE invitation SET sent_channel = 'ZALO_AUTO', expires_at = now() + interval '1 day'").update();
+        settings.set("zalo.friend.daily", "10", "test");
+        long id = jdbc.sql("SELECT id FROM invitation WHERE account_id = 1").query(Long.class).single();
+        bridges.first().defaultFriend = ZaloMessenger.Sent.of(ZaloMessenger.Result.SYSTEM_ERROR, "TIMEOUT", false);
+        bridges.first().afterFriendRequest = () -> bridges.first().status = new ZaloGateway.Status(
+                ZaloGateway.State.TRIPPED, "SYSTEM_ERROR:TIMEOUT", true, null, FIRST_SESSION, null, FIRST_TAG, true);
+        try {
+            assertThat(messages.sendFriendRequest(ZaloMessageService.SCOPE_REAL, id, "60000001", "Lời mời thử").status())
+                    .isEqualTo(ZaloMessageService.Status.TRIPPED);
+        } finally {
+            bridges.first().afterFriendRequest = () -> {};
+        }
+        assertThat(bridges.first().stops).isZero();
+        assertThat(ZaloAccountContext.call(2L, auto::tripped)).isTrue();
+        scheduler.tick();
+        assertThat(bridges.second().messages).isEmpty();
+        assertThat(bridges.second().friendRequests).isEmpty();
+        bridges.first().friendRequestState = ZaloLink.FriendRequestState.OUTGOING;
+        new ZaloFriendReconciliationScheduler(registry, reconciliation, Runnable::run).tick();
+        assertThat(jdbc.sql("SELECT state FROM zalo_friend_observation WHERE account_id = 1").query(String.class).single())
+                .isEqualTo("OUTGOING");
+        assertThat(bridges.first().friendRequests).hasSize(1);
     }
 
     private void markInvited(long account, String phone, String uid) {
