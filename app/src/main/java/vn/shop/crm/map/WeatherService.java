@@ -1,5 +1,6 @@
 package vn.shop.crm.map;
 
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +19,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Dự báo thời tiết theo tỉnh và nhắc việc cho mẹ. Chỉ hỏi những tỉnh đang có khách, chỉ gửi tọa độ tỉnh lỵ ra ngoài.
@@ -29,6 +34,24 @@ public class WeatherService {
     private static final Logger log = LoggerFactory.getLogger(WeatherService.class);
 
     public enum Kind { COLD, HOT }
+
+    public enum RefreshState { IDLE, RUNNING, COMPLETE, FAILED }
+
+    public record RefreshStatus(RefreshState state, int updated) {
+        public boolean running() {
+            return state == RefreshState.RUNNING;
+        }
+
+        public String message() {
+            return switch (state) {
+                case IDLE -> "";
+                case RUNNING -> "Đang cập nhật thời tiết. Bạn vẫn có thể xem bản đồ trong lúc chờ.";
+                case COMPLETE -> updated > 0 ? "Đã cập nhật thời tiết cho " + updated + " tỉnh."
+                        : "Chưa nhận được dự báo mới. Dữ liệu cũ vẫn được giữ.";
+                case FAILED -> "Không hoàn tất cập nhật thời tiết. Bạn có thể thử lại.";
+            };
+        }
+    }
 
     public record Alert(Province province, Kind kind, double temp, long customers) {
         public String message() {
@@ -57,6 +80,10 @@ public class WeatherService {
     private final double hot;
     private final long minCustomers;
     private final boolean allProvinces;
+    private final ReentrantLock refreshLock = new ReentrantLock();
+    private final ExecutorService manualRefresh = Executors.newSingleThreadExecutor(
+            Thread.ofPlatform().daemon().name("weather-refresh").factory());
+    private volatile RefreshStatus refreshStatus = new RefreshStatus(RefreshState.IDLE, 0);
 
     /** Chỉ hỏi những tỉnh đang có khách (không hỏi tỉnh khác). */
     public WeatherService(JdbcClient jdbc, WeatherClient client, CustomerService customers, boolean enabled,
@@ -117,6 +144,39 @@ public class WeatherService {
         return minCustomers;
     }
 
+    /** Chỉ nhận một yêu cầu cập nhật tay đang chờ hoặc đang chạy. */
+    public synchronized void requestRefresh() {
+        if (!enabled || refreshStatus.running()) {
+            return;
+        }
+        refreshStatus = new RefreshStatus(RefreshState.RUNNING, 0);
+        try {
+            manualRefresh.execute(this::runManualRefresh);
+        } catch (RejectedExecutionException e) {
+            refreshStatus = new RefreshStatus(RefreshState.FAILED, 0);
+        }
+    }
+
+    public RefreshStatus refreshStatus() {
+        return refreshStatus;
+    }
+
+    private void runManualRefresh() {
+        try {
+            int updated = refresh(true);
+            RefreshState state = Thread.currentThread().isInterrupted() ? RefreshState.FAILED : RefreshState.COMPLETE;
+            refreshStatus = new RefreshStatus(state, updated);
+        } catch (RuntimeException e) {
+            log.warn("Cập nhật thời tiết không hoàn tất: {}", e.getClass().getSimpleName());
+            refreshStatus = new RefreshStatus(RefreshState.FAILED, 0);
+        }
+    }
+
+    @PreDestroy
+    void stopManualRefresh() {
+        manualRefresh.shutdownNow();
+    }
+
     /**
      * Hỏi thời tiết các tỉnh mà dự báo cũ đã hết hạn (hoặc tất cả nếu {@code force}). Tỉnh có khách được hỏi trước; nếu
      * bật {@code app.weather.all-provinces} thì hỏi nốt các tỉnh còn lại để bản đồ có đủ 63 tỉnh. Trả số tỉnh cập nhật được.
@@ -125,12 +185,33 @@ public class WeatherService {
         if (!enabled) {
             return 0;
         }
+        if (force) {
+            try {
+                refreshLock.lockInterruptibly();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return 0;
+            }
+        } else if (!refreshLock.tryLock()) {
+            return 0;
+        }
+        try {
+            return refreshProvinces(force);
+        } finally {
+            refreshLock.unlock();
+        }
+    }
+
+    private int refreshProvinces(boolean force) {
         int updated = 0;
         java.util.LinkedHashSet<String> codes = new java.util.LinkedHashSet<>(customers.countByProvince().keySet());
         if (allProvinces) {
             VnGeo.all().forEach(p -> codes.add(p.code()));
         }
         for (String code : codes) {
+            if (Thread.currentThread().isInterrupted()) {
+                break;
+            }
             Optional<Province> province = VnGeo.byCode(code);
             if (province.isEmpty() || (!force && isFresh(code))) {
                 continue;

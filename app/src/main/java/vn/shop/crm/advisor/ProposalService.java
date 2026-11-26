@@ -123,6 +123,7 @@ public class ProposalService {
                List<String> rejected, int proposals) {
         public String statusLabel() {
             return switch (status) {
+                case "RUNNING" -> "Đang xử lý";
                 case "OK" -> "Có đề xuất";
                 case "SKIPPED" -> "AI không đề xuất";
                 case "INVALID" -> "Đề xuất không đạt kiểm tra";

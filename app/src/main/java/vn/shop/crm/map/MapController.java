@@ -1,6 +1,8 @@
 package vn.shop.crm.map;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -66,6 +68,7 @@ public class MapController {
         model.addAttribute("tileUrl", tileUrl);
         model.addAttribute("tileAttribution", tileAttribution);
         model.addAttribute("weatherOn", weather.enabled());
+        model.addAttribute("weatherRefresh", weather.refreshStatus());
         model.addAttribute("alerts", weather.alerts());
         model.addAttribute("coldBac", weather.coldBac());
         model.addAttribute("coldTrung", weather.coldTrung());
@@ -128,13 +131,19 @@ public class MapController {
     }
 
     @PostMapping("/map/weather")
-    public String refreshWeather(RedirectAttributes redirect) {
+    public String refreshWeather(@RequestParam(required = false) String province, RedirectAttributes redirect) {
         if (!weather.enabled()) {
             redirect.addFlashAttribute("flash", "Chưa bật thời tiết. Hãy đặt APP_WEATHER_ENABLED=true rồi khởi động lại.");
         } else {
-            int n = weather.refresh(true);
-            redirect.addFlashAttribute("flash", "Đã cập nhật thời tiết cho " + n + " tỉnh.");
+            weather.requestRefresh();
         }
+        VnGeo.byCode(province).ifPresent(p -> redirect.addAttribute("province", p.code()));
         return "redirect:/map";
+    }
+
+    @GetMapping("/map/weather/status")
+    @ResponseBody
+    public ResponseEntity<WeatherService.RefreshStatus> weatherStatus() {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(weather.refreshStatus());
     }
 }

@@ -12,8 +12,8 @@
                 AI chỉ đề xuất. Bạn bấm duyệt thì hệ thống mới tạo chiến dịch, và chiến dịch đó vẫn chưa gửi gì cho đến khi bạn duyệt cho tự gửi.</p>
         </div>
         <div class="actions">
-            <form th:action="@{/advisor/run}" method="post" th:if="${enabled}">
-                <button type="submit" class="btn" th:disabled="${runsToday >= maxRuns}">Nhờ AI đề xuất</button>
+            <form id="advisor-request" th:action="@{/advisor/run}" method="post" th:if="${enabled}">
+                <button type="submit" class="btn" th:disabled="${activeJob != null}">Nhờ AI đề xuất</button>
             </form>
         </div>
     </header>
@@ -25,7 +25,18 @@
         <strong>Tính năng đang tắt</strong>
         Chưa sẵn sàng: cần bật AI và phần đề xuất ở máy chủ. Các đề xuất đã có vẫn xem được.
     </div>
-    <p class="muted small" th:if="${enabled}" th:text="'Hôm nay đã nhờ AI ' + ${runsToday} + ' / ' + ${maxRuns} + ' lần.'">Hôm nay đã nhờ AI 0 / 5 lần.</p>
+    <div class="notice" role="status" id="advisor-processing" th:if="${activeJob != null}"
+         th:data-status="@{/advisor/status/{id}(id=${activeJob})}" th:data-result="@{/advisor(job=${activeJob})}">
+        <span id="advisor-progress">AI đang xử lý. Bạn có thể rời trang và quay lại để xem kết quả.</span>
+        <a th:href="@{/advisor(job=${activeJob})}">Kiểm tra lại</a>
+    </div>
+    <div class="notice" role="status" th:if="${job != null and job.status != 'RUNNING'}">
+        <strong th:text="${job.statusLabel()}"></strong>
+        <span th:if="${job.status == 'OK'}" th:text="|AI đã lưu ${job.proposals} đề xuất.|"></span>
+        <span th:if="${job.status != 'OK'}" th:text="${job.skipReason != null ? job.skipReason : job.detail}"></span>
+        <a th:href="@{/advisor/runs/{id}(id=${job.id})}">Xem chi tiết lượt đề xuất</a>
+    </div>
+    <script th:src="@{/advisor-progress.js}" defer></script>
 
     <section>
         <h2>Hồ sơ cửa hàng</h2>

@@ -22,6 +22,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -29,9 +33,11 @@ import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** Bản đồ thật: dữ liệu JSON cho Leaflet, ranh giới tỉnh đi kèm ứng dụng và chính sách bảo mật cho ô bản đồ. */
@@ -67,6 +73,57 @@ class MapDataTest extends AbstractPostgresTest {
     private MockMvc standalone(WeatherService weather) {
         return MockMvcBuilders.standaloneSetup(new MapController(map, weather, groups, MapSettings.DEFAULT_TILE_URL,
                 MapSettings.DEFAULT_TILE_ATTRIBUTION)).build();
+    }
+
+    @Test
+    void manualWeatherRefreshReturnsBeforeProviderAndDeduplicates() throws Exception {
+        db.sql("""
+                INSERT INTO customer (phone, name, address, segment, successful_purchases, province)
+                VALUES ('+84901234000', 'K', 'x', 'ONE_TIME', 1, 'can-tho')""").update();
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var calls = new AtomicInteger();
+        WeatherService weather = weather(true, false, (lat, lon) -> {
+            calls.incrementAndGet();
+            entered.countDown();
+            try {
+                if (!release.await(10, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Test chưa mở khóa dự báo");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return Optional.empty();
+            }
+            var now = OffsetDateTime.now();
+            return Optional.of(new WeatherClient.Result(new Forecast(20, 30, "rain", now, List.of()), now.plusHours(3)));
+        });
+        MockMvc api = standalone(weather);
+        try (var requests = Executors.newSingleThreadExecutor()) {
+            var submitted = requests.submit(() -> api.perform(post("/map/weather")).andReturn());
+            try {
+                assertThat(submitted.get(5, TimeUnit.SECONDS).getResponse().getRedirectedUrl()).isEqualTo("/map");
+                assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+                api.perform(post("/map/weather")).andExpect(redirectedUrl("/map"));
+                api.perform(get("/map/weather/status")).andExpect(status().isOk())
+                        .andExpect(jsonPath("$.state").value("RUNNING"));
+                assertThat(weather.refresh(false)).isZero();
+                assertThat(calls).hasValue(1);
+            } finally {
+                release.countDown();
+            }
+        }
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            String response = api.perform(get("/map/weather/status")).andReturn().getResponse().getContentAsString();
+            if ("COMPLETE".equals(JSON.readTree(response).path("state").asString())) {
+                break;
+            }
+            Thread.sleep(10);
+        }
+        api.perform(get("/map/weather/status")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("COMPLETE"))
+                .andExpect(jsonPath("$.updated").value(1));
+        assertThat(calls).hasValue(1);
     }
 
     @Test
