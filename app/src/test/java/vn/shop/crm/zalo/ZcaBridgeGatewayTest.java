@@ -116,6 +116,19 @@ class ZcaBridgeGatewayTest {
     }
 
     @Test
+    void replyRechecksEligibilityAfterAccountTagPreflight() {
+        var guarded = new ZcaBridgeGateway("http://127.0.0.1:" + server.getAddress().getPort(), "khoa-chung",
+                () -> "000000000002", true);
+        reply.set("{\"state\":\"LISTENING\",\"accountTag\":\"000000000002\",\"outcome\":\"OK\"}");
+
+        var blocked = guarded.sendReply("123", "Dạ vâng", requests::isEmpty);
+        assertThat(blocked).isEqualTo(ZaloMessenger.replyNoLongerEligible());
+        assertThat(requests).containsExactly("GET /status");
+        assertThat(guarded.sendReply("123", "Dạ vâng", () -> true).result()).isEqualTo(ZaloMessenger.Result.OK);
+        assertThat(requests).endsWith("GET /status", "POST /messages");
+    }
+
+    @Test
     void enrollmentRejectsThePrimaryBridgeBeforeStartingQr() {
         String primary = "000000000001";
         var guarded = new ZcaBridgeGateway("http://127.0.0.1:" + server.getAddress().getPort(), "khoa-chung",

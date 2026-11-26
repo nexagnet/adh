@@ -219,6 +219,14 @@ public class ZcaBridgeGateway implements ZaloLink {
         return message(java.util.Map.of("kind", kind.name(), "uid", uid, "text", String.valueOf(text)));
     }
 
+    @Override
+    public Sent sendReply(String uid, String text, java.util.function.BooleanSupplier stillEligible) {
+        if (uid == null || !ZALO_ID.matcher(uid).matches()) {
+            return Sent.of(Result.PERSON_ERROR, "BAD_ID", true);
+        }
+        return message("/messages", java.util.Map.of("kind", Kind.REPLY.name(), "uid", uid, "text", String.valueOf(text)), stillEligible);
+    }
+
     /** Lời mời kết bạn: chỉ theo mã Zalo của người đã nhận Tin 1 (cầu nối kiểm lại), câu tối đa 150 ký tự. */
     @Override
     public Sent sendFriendRequest(String uid, String text) {
@@ -272,8 +280,12 @@ public class ZcaBridgeGateway implements ZaloLink {
     }
 
     private Sent message(String path, java.util.Map<String, String> body) {
+        return message(path, body, () -> true);
+    }
+
+    private Sent message(String path, java.util.Map<String, String> body, java.util.function.BooleanSupplier stillEligible) {
         try {
-            JsonNode n = call("POST", path, JSON.writeValueAsString(body), 90);
+            JsonNode n = call("POST", path, JSON.writeValueAsString(body), 90, stillEligible);
             Result result;
             try {
                 result = Result.valueOf(n.path("outcome").asString(""));
@@ -293,6 +305,8 @@ public class ZcaBridgeGateway implements ZaloLink {
                     || result == Result.PERSON_ERROR) && code != null && NOT_SENT_CODES.contains(code));
             int retry = Math.max(0, Math.min(3600, n.path("retryAfterSec").asInt(0)));
             return new Sent(result, code, uid, retry, notSent);
+        } catch (ReplyNoLongerEligible e) {
+            return ZaloMessenger.replyNoLongerEligible();
         } catch (Unreachable e) {
             return Sent.of(Result.UNREACHABLE, "BRIDGE_DOWN", true);
         } catch (TimedOut e) {
@@ -605,6 +619,14 @@ public class ZcaBridgeGateway implements ZaloLink {
     }
 
     private JsonNode call(String method, String path, String body, int timeoutSeconds) throws IOException, InterruptedException {
+        return call(method, path, body, timeoutSeconds, () -> true);
+    }
+
+    private static final class ReplyNoLongerEligible extends RuntimeException {
+    }
+
+    private JsonNode call(String method, String path, String body, int timeoutSeconds, java.util.function.BooleanSupplier stillEligible)
+            throws IOException, InterruptedException {
         if ("/status".equals(path)) {
             return exchange(method, path, body, timeoutSeconds, null);
         }
@@ -620,6 +642,9 @@ public class ZcaBridgeGateway implements ZaloLink {
         if ("POST".equals(method) && !path.startsWith("/session/")
                 && !"/friends/check".equals(path) && !"/people/lookup".equals(path) && writesPaused.getAsBoolean()) {
             throw new Unreachable(new IOException("HALTED"));
+        }
+        if (!stillEligible.getAsBoolean()) {
+            throw new ReplyNoLongerEligible();
         }
         return exchange(method, path, body, timeoutSeconds, expected);
     }

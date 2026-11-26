@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.TestPropertySource;
 import vn.shop.crm.AbstractPostgresTest;
+import vn.shop.crm.ai.AiClient;
 import vn.shop.crm.common.AppSettings;
 import vn.shop.crm.contact.ContactService;
 import vn.shop.crm.imports.ImportService;
@@ -21,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,6 +32,10 @@ import static org.assertj.core.api.Assertions.assertThat;
         "app.zalo.auto.enabled=true",
         "app.zalo.auto.bridge-key=test",
         "app.zalo.auto.initial-delay-millis=3600000",
+        "app.zalo.inbox.enabled=true",
+        "app.ai.enabled=true",
+        "app.ai.api-key=test-only",
+        "app.ai.model=test-model",
         "app.zalo.multi.enabled=true",
         "app.zalo.accounts[0].id=2",
         "app.zalo.accounts[0].bridge-url=http://127.0.0.1:1",
@@ -38,6 +44,7 @@ class ZaloTwoBridgeSchedulerTest extends AbstractPostgresTest {
 
     static class BridgeWithStatusHook extends FakeZaloGateway {
         Runnable beforeNextStatus;
+        Instant inboundAt;
 
         @Override
         public Status status() {
@@ -48,13 +55,23 @@ class ZaloTwoBridgeSchedulerTest extends AbstractPostgresTest {
             }
             return super.status();
         }
+
+        @Override
+        public List<Inbound> inbound(long afterSeq) {
+            List<Inbound> messages = super.inbound(afterSeq);
+            return inboundAt == null ? messages : messages.stream()
+                    .map(message -> new Inbound(message.seq(), message.uid(), message.text(), inboundAt)).toList();
+        }
     }
 
-    record BridgePair(BridgeWithStatusHook first, FakeZaloGateway second) {
+    record BridgePair(BridgeWithStatusHook first, BridgeWithStatusHook second) {
         void reset() {
             first.reset();
             first.beforeNextStatus = null;
+            first.inboundAt = null;
             second.reset();
+            second.beforeNextStatus = null;
+            second.inboundAt = null;
             first.status = listening(FIRST_TAG, FIRST_SESSION);
             second.status = listening(SECOND_TAG, SECOND_SESSION);
         }
@@ -64,7 +81,7 @@ class ZaloTwoBridgeSchedulerTest extends AbstractPostgresTest {
     static class Bridges {
         @Bean
         BridgePair bridgePair() {
-            return new BridgePair(new BridgeWithStatusHook(), new FakeZaloGateway());
+            return new BridgePair(new BridgeWithStatusHook(), new BridgeWithStatusHook());
         }
 
         @Bean
@@ -79,12 +96,30 @@ class ZaloTwoBridgeSchedulerTest extends AbstractPostgresTest {
         ZaloTestClock schedulerClock() {
             return new ZaloTestClock();
         }
+
+        @Bean
+        @Primary
+        AiClient fakeInboxAi() {
+            return (system, user, json) -> {
+                if (system.startsWith("Bạn chỉ làm một việc: xem MỘT tin")) {
+                    return "{\"scope\":\"TRONG\",\"confidence\":0.95}";
+                }
+                if (system.startsWith("Bạn là TRỢ LÝ AI")) {
+                    String answer = user.contains(SECOND_QUESTION) ? SECOND_ANSWER : FIRST_ANSWER;
+                    return "{\"reply\":\"" + answer + "\"}";
+                }
+                return "{\"intent\":\"CAU_HOI\",\"confidence\":0.95}";
+            };
+        }
     }
 
     private static final Instant FIRST_SESSION = Instant.parse("2026-11-22T00:00:00Z");
     private static final Instant SECOND_SESSION = FIRST_SESSION.plusSeconds(60);
     private static final String FIRST_TAG = "100000000001";
     private static final String SECOND_TAG = "200000000002";
+    private static final String SECOND_QUESTION = "Đơn trong nhóm có tính tiền vận chuyển không?";
+    private static final String FIRST_ANSWER = "Dạ vào nhóm mua trực tiếp sẽ được giảm 10% so với giá trên TikTok ạ.";
+    private static final String SECOND_ANSWER = "Dạ mua trực tiếp trong nhóm được miễn phí vận chuyển ạ.";
 
     @Autowired BridgePair bridges;
     @Autowired ZaloAutoScheduler scheduler;
@@ -238,15 +273,55 @@ class ZaloTwoBridgeSchedulerTest extends AbstractPostgresTest {
         assertThat(jdbc.sql("SELECT account_id FROM invitation WHERE status = 'READY'").query(Long.class).single()).isEqualTo(1L);
     }
 
+    @Test
+    void schedulerRepliesOnBothBridgesWhenInboundUidAndSequenceMatch() {
+        prepareCampaign("T2,DH2,05/01/2026 09:00:00,Khach 2,0900000002,1 Duong A Xa B Hà Nội,Giao thành công\n");
+        jdbc.sql("INSERT INTO zalo_test_number (phone, note, created_by) VALUES ('+84900000002', 'test', 'test')").update();
+        String sharedUid = "60000001";
+        markInvited(1, "+84900000001", sharedUid);
+        markInvited(2, "+84900000002", sharedUid);
+        replies.setMode(ReplyService.Mode.DRAFT, false, "test");
+        replies.setMode(ReplyService.Mode.AUTO, true, "test");
+        Instant receivedAt = jdbc.sql("SELECT now()").query(java.time.OffsetDateTime.class).single().toInstant();
+        bridges.first().inboundAt = receivedAt;
+        bridges.second().inboundAt = receivedAt;
+        bridges.first().pushInbound(sharedUid, "Trong nhóm giảm giá thế nào ạ?");
+        bridges.second().pushInbound(sharedUid, SECOND_QUESTION);
+
+        scheduler.tick();
+        scheduler.tick();
+
+        assertThat(bridges.first().messages).containsExactly(
+                new FakeZaloGateway.Msg(ZaloMessenger.Kind.REPLY, null, sharedUid, FIRST_ANSWER));
+        assertThat(bridges.second().messages).containsExactly(
+                new FakeZaloGateway.Msg(ZaloMessenger.Kind.REPLY, null, sharedUid, SECOND_ANSWER));
+        assertThat(jdbc.sql("SELECT account_id FROM reply_draft WHERE state = 'SENT' ORDER BY account_id")
+                .query(Long.class).list()).containsExactly(1L, 2L);
+        for (long account : new long[]{1, 2}) {
+            assertThat(ZaloAccountContext.call(account, () -> settings.get(ZaloInboxService.CURSOR))).contains("1");
+        }
+    }
+
+    private void markInvited(long account, String phone, String uid) {
+        jdbc.sql("""
+                        UPDATE invitation i SET account_id = :account, status = 'SENT', sent_at = now(), zalo_target_uid = :uid
+                        FROM customer c WHERE c.id = i.customer_id AND c.phone = :phone""")
+                .param("account", account).param("uid", uid).param("phone", phone).update();
+    }
+
     private static ZaloGateway.Status listening(String tag, Instant session) {
         return new ZaloGateway.Status(ZaloGateway.State.LISTENING, null, true, null, session, null, tag);
     }
 
     private void prepareCampaign() {
+        prepareCampaign("");
+    }
+
+    private void prepareCampaign(String extraRows) {
         String csv = """
                 Mã vận đơn,Mã đơn hàng,Ngày tạo,Tên người nhận,SĐT người nhận,Địa chỉ người nhận,Trạng thái
                 T1,DH1,05/01/2026 09:00:00,Khach 1,0900000001,1 Duong A Xa B Hà Nội,Giao thành công
-                """;
+                """ + extraRows;
         long id = imports.createBatch(Carrier.VIETTEL_POST, "t.csv", csv.getBytes(StandardCharsets.UTF_8));
         var view = imports.open(id, null);
         imports.commit(id, new ImportService.Mapping(view.headerRow(), view.suggested()));

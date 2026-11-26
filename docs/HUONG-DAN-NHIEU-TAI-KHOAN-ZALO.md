@@ -56,7 +56,13 @@ Khi cầu dao chung dừng các tài khoản, hãy xem cảnh báo và chọn **
 
 Trong lần cập nhật sang bản có `APP_ZALO_LIVE_2`, giữ `APP_ZALO_MULTI_ENABLED=false` trong `infra/.env` đến khi đã xác nhận bản mới hoạt động. Tạm dừng cron bằng `./auto-deploy.sh pause` nếu thẻ trước còn là bản cũ. Nếu cần `./deploy.sh rollback` về bản cũ, tắt `APP_ZALO_MULTI_ENABLED` trong `.env` trước khi chạy. Cả lùi tự động lẫn lùi tay dùng lại `.env`, còn bản cũ chỉ đọc `APP_ZALO_LIVE` chung. Chỉ bật lại cron sau khi hai thẻ dùng để triển khai và lùi đều hiểu cấu hình chạy thử riêng.
 
-## 6. Việc cố ý chưa làm
+## 6. Kiểm tra AI trả lời theo tài khoản
+
+- Ứng dụng cần `APP_AI_ENABLED=true` và `APP_ZALO_INBOX_ENABLED=true`. Từng cầu nối cần `BRIDGE_INBOX_ENABLED=true` trong container đang chạy. Docker báo `healthy` chỉ xác nhận dịch vụ HTTP và có thể vẫn báo xanh khi chức năng đọc tin đang tắt.
+- Trên máy cầu nối 2 của ADH, cấu hình nằm ở `/home/deploy/adh-bridge2/.env` và dịch vụ là `zalo-bridge` trong dự án Compose `adh-zalo-bridge-2`. Khi bật đọc tin, chỉ tạo lại dịch vụ này và đối chiếu volume `/data` trước và sau. Ngày 26/11/2026, kiểm tra trước triển khai thấy app và cầu nối 1 đã bật đọc tin, còn biến trên cầu nối 2 đang là `false`.
+- Nấc `AUTO` của trợ lý được dùng chung. Quyền gửi, danh tính, lời mời, con trỏ đọc và hàng chờ trả lời vẫn thuộc từng tài khoản. Kiểm tra lượt gửi bằng số bản ghi `zalo_msg_log` loại `REPLY` và trạng thái `SENT` trong `reply_draft`, nhóm theo `account_id`. So sánh trước và sau theo thời điểm triển khai, chỉ cần số đếm và mã trạng thái.
+
+## 7. Việc cố ý chưa làm
 
 - Chuyển khách sang tài khoản khác khi một tài khoản bị khóa: **không làm** (cấm); khách của tài khoản bị khóa chờ tài khoản đó hoặc người xử lý.
 - Báo cáo hiệu quả và màn nhắn tay vẫn nhìn chung mọi tài khoản.

@@ -22,6 +22,7 @@ Mặc định (chủ shop chốt 23/11): cửa hàng bán chủ yếu **áo đi�
 - Bảng `reply_draft` (V31): chữ khách (đã che) và câu AI soạn tự xóa sau 30 ngày; không lưu số điện thoại. Không bao giờ tự xóa số điện thoại hay khách (CLAUDE.md mục 5a).
 - Bộ nối `POST /messages` có thêm loại `REPLY`, cùng chốt chặn với `WELCOME`: chỉ theo mã Zalo, cần cờ đọc tin riêng, chỉ người vừa nhắn trong 24 giờ, một lần cho mỗi tin đến.
 - Việc chuyển người thật là **hàng đợi chung** ở trang "Việc cần xử lý" (cột `assigned_to` để dành cho giai đoạn 2). Khách nhắn thêm khi việc đang chờ thì chữ được ghi tiếp vào cùng việc, không gọi AI chen vào.
+- ADH đọc tin mới trước khi lấy câu đang chờ. Câu cũ bị bỏ khi khách đã từ chối, đang bị chặn hoặc có việc chờ duyệt hay bảo hành đang mở. ADH kiểm tra lại sau khi xác minh tài khoản cầu nối, ngay trước yêu cầu gửi. Lượt kẹt ở `SENDING` từ 5 phút được chuyển sang người xử lý với mã `INTERRUPTED`.
 - Có ô "Thử một câu" ở `/zalo/reply` để chạy chuỗi trên câu giả mà không lưu hay gửi gì. Nên thử vài chục câu (trong và ngoài phạm vi, câu cố lừa AI) trước khi bật.
 
 ## Không làm ở giai đoạn 1
