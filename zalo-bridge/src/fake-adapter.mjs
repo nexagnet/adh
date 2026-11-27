@@ -65,6 +65,10 @@ export class FakeAdapter {
     return this.friendRequestStates?.get(uid);
   }
 
+  async hasSentFriendRequest(uid) {
+    return Boolean(this.friendRequests?.some((request) => request.uid === uid) && !this.undone?.includes(uid));
+  }
+
   async findUid(phone) {
     if (this.findError) throw this.findError;
     return this.uids?.get(String(phone)) ?? null;

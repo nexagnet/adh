@@ -1220,7 +1220,7 @@ export class Bridge {
   }
 
   /** Chỉ đọc một mã đã được cầu nối này gửi hoặc thử gửi Tin 1. */
-  async readFriendRequestStatus(uid) {
+  async readFriendRequestStatus(uid, verifyDirection = false) {
     if (typeof uid !== 'string' || !ZALO_ID.test(uid)) return { ok: false, code: 'BAD_INPUT' };
     if (!this.msgLedger.has('INVITE', uid) && !this.msgLedger.has('INVITE_BLOCKED', uid)) {
       return { ok: false, code: 'NO_INVITE' };
@@ -1239,20 +1239,29 @@ export class Bridge {
     if (this.busy) return { ok: false, code: 'BUSY' };
 
     const generation = this.generation;
+    const listen = this.activeListen;
+    const isCurrent = () => generation === this.generation && listen === this.activeListen && canRead();
+    const timeout = Math.min(this.config.addTimeoutMs, 8000);
+    const deadline = performance.now() + timeout;
     this.busy = true;
     budget.n += 1;
     budget.lastAt = at;
     try {
-      const result = await withTimeout(this.adapter.friendRequestStatus(uid), Math.min(this.config.addTimeoutMs, 8000));
-      if (generation !== this.generation || !canRead()) return { ok: false, code: 'NOT_ACTIVE' };
+      const result = await withTimeout(this.adapter.friendRequestStatus(uid), timeout);
+      if (!isCurrent()) return { ok: false, code: 'NOT_ACTIVE' };
       const flags = [result?.is_friend, result?.is_requesting, result?.is_requested];
       if (!flags.every((value) => value === 0 || value === 1) || flags.filter((value) => value === 1).length > 1) {
         return { ok: false, code: 'BAD_RESPONSE' };
       }
       const state = ['FRIENDS', 'OUTGOING', 'INCOMING'][flags.indexOf(1)] ?? 'NONE';
+      if (verifyDirection && (state === 'OUTGOING' || state === 'INCOMING')) {
+        const outgoing = await this.#verifyOutgoing(uid, deadline, budget);
+        if (!isCurrent()) return { ok: false, code: 'NOT_ACTIVE' };
+        return { ok: true, state: outgoing ? 'OUTGOING_VERIFIED' : 'PENDING' };
+      }
       return { ok: true, state };
     } catch (e) {
-      if (generation !== this.generation || !canRead()) return { ok: false, code: 'NOT_ACTIVE' };
+      if (!isCurrent()) return { ok: false, code: 'NOT_ACTIVE' };
       const { code, outcome } = classifyError(e);
       if (outcome === 'SESSION_LOST' || outcome === 'RESTRICTED') {
         this.trip(code ? `${outcome}:${code}` : outcome);
@@ -1261,6 +1270,25 @@ export class Bridge {
       return { ok: false, code };
     } finally {
       this.busy = false;
+    }
+  }
+
+  /** So khớp một UID từ sổ Tin 1. Chỉ lấy bằng chứng mới trong chính lần đọc này. */
+  async #verifyOutgoing(uid, deadline, budget) {
+    const at = this.now();
+    const remaining = deadline - performance.now();
+    if (remaining <= 0 || budget.n >= this.config.friendSyncDaily || vnDayStart(at) !== budget.day
+        || !inWindow(at, this.config.windowStartMin, this.config.windowEndMin)) return false;
+
+    budget.n += 1;
+    try {
+      const match = await withTimeout(this.adapter.hasSentFriendRequest(uid), remaining);
+      return match === true && (this.incoming.get(uid) ?? -1) < at;
+    } catch (e) {
+      const { code, outcome } = classifyError(e);
+      if (outcome === 'SESSION_LOST' || outcome === 'RESTRICTED') throw e;
+      this.log(`xác minh chiều lời mời: ${code}`);
+      return false;
     }
   }
 

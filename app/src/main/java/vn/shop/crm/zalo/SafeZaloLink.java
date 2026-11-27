@@ -62,6 +62,12 @@ public final class SafeZaloLink implements ZaloLink {
     }
 
     @Override
+    public FriendRequestObservation friendRequestObservation(String uid, boolean verifyDirection) {
+        return mode.uidAllowed(uid) ? inner.friendRequestObservation(uid, verifyDirection)
+                : new FriendRequestObservation(FriendRequestState.UNAVAILABLE, CODE);
+    }
+
+    @Override
     public AddResult addToGroup(String uid, String zaloGroupId) {
         if (!mode.uidAllowed(uid)) {
             mode.noteBlocked("THEM_NHOM");

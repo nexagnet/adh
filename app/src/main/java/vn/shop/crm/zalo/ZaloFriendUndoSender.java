@@ -70,6 +70,17 @@ public class ZaloFriendUndoSender {
                 .param("s", start).query(Long.class).single();
     }
 
+    // A later ambiguous pending read must not reactivate an automatic withdrawal of this attempt.
+    private static final String UNDO_MAY_STILL_BE_PENDING = ZaloFriendReconciliation.STILL_MAY_BE_PENDING + """
+            AND NOT EXISTS (
+                SELECT 1 FROM zalo_friend_observation_event e
+                WHERE e.account_id = i.account_id AND e.invitation_id = i.id
+                  AND (e.attempt_at = i.friend_request_at
+                       OR (e.attempt_at IS NULL AND e.observed_at >= i.friend_request_at))
+                  AND e.state IN ('NONE', 'FRIENDS')
+            )
+            """;
+
     private List<Task> due(int days) {
         return jdbc.sql("""
                         SELECT i.id, i.zalo_target_uid
@@ -77,7 +88,7 @@ public class ZaloFriendUndoSender {
                         WHERE i.friend_request_outcome = 'SENT' AND i.friended_at IS NULL AND i.joined_at IS NULL AND i.friend_undo_at IS NULL
                           AND i.zalo_target_uid IS NOT NULL AND i.friend_request_at < :before
                           AND
-                        """ + ZaloFriendReconciliation.STILL_MAY_BE_PENDING + testMode.onlyTestSql("c.phone") + " AND "
+                        """ + UNDO_MAY_STILL_BE_PENDING + testMode.onlyTestSql("c.phone") + " AND "
                 + ZaloAccountContext.sql("i.account_id") + " ORDER BY i.friend_request_at, i.id LIMIT 1")
                 .param("before", OffsetDateTime.now(clock).minusDays(days))
                 .query((rs, n) -> new Task(rs.getLong("id"), rs.getString("zalo_target_uid"))).list();
@@ -88,7 +99,7 @@ public class ZaloFriendUndoSender {
                         UPDATE invitation i SET friend_undo_at = :at, friend_undo_outcome = 'UNKNOWN'
                         WHERE i.id = :id AND i.friend_undo_at IS NULL AND i.friend_request_outcome = 'SENT'
                           AND i.friended_at IS NULL AND i.joined_at IS NULL AND
-                        """ + ZaloFriendReconciliation.STILL_MAY_BE_PENDING + " AND " + ZaloAccountContext.sql("i.account_id"))
+                        """ + UNDO_MAY_STILL_BE_PENDING + " AND " + ZaloAccountContext.sql("i.account_id"))
                 .param("id", t.invitationId()).param("at", OffsetDateTime.now(clock)).update();
         if (claimed == 0) {
             return Step.NOTHING;

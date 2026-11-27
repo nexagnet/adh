@@ -184,6 +184,11 @@ td .sub-line { display: block; color: var(--muted); font-size: 16px; }
 td strong { font-weight: 700; }
 .table-wrap { overflow-x: auto; border-radius: 12px; }
 .table-wrap > table { min-width: 560px; }
+.reconciliation-accounts { display: grid; gap: 1rem; list-style: none; padding: 0; margin: 0; }
+.reconciliation-accounts > li { border: 1px solid var(--line); border-radius: 12px; padding: 0.75rem; }
+.reconciliation-accounts h3 { margin: 0; }
+.reconciliation-accounts progress { width: min(16rem, 100%); accent-color: var(--primary); }
+.reconciliation-accounts [data-progress-next]:empty { display: none; }
 
 /* Nút: bo góc 10px, viền 2px, chữ 18px */
 .btn, button.btn {

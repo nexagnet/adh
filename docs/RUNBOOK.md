@@ -208,3 +208,11 @@ Workflow **cd** chỉ xử lý commit hiện tại của `main` khi cả **ci** 
 1. Tạo environment `production` giới hạn ở nhánh `main`. Đặt `CD_MAIN_HOST` và `CD_BRIDGE2_HOST` dạng `user@host`. Đặt `CD_MAIN_SSH_KEY`, `CD_BRIDGE2_SSH_KEY` và `CD_KNOWN_HOSTS` trong environment secrets. Lấy host key từ bản đã xác minh qua đường quản trị.
 2. Cài `infra/github-deploy.sh` vào thư mục ADH cạnh Compose trên mỗi máy. Đặt `restrict,command="/bin/bash <đường dẫn>/github-deploy.sh main"` hoặc `bridge2` trước khóa công khai tương ứng trong `authorized_keys`. Chạy thử lệnh sai và xác minh bị từ chối.
 3. Dùng **Actions → cd → Run workflow** trên `main` để chạy lại một bản có CI và ảnh đã đạt. Đọc nhật ký job để xác định máy nào đã cập nhật nếu lượt triển khai thất bại giữa chừng.
+
+### Đối chiếu lời mời ngay từ chiến dịch
+
+Mở **Chiến dịch → chọn chiến dịch → Đối chiếu Zalo** bằng tài khoản quản trị. Bấm **Đối chiếu ngay** ở tài khoản phụ cần kiểm tra. Trang hiện số lời mời đã xử lý, số lượt lỗi hoặc bỏ qua và giờ gần nhất đọc được trạng thái từ Zalo theo giờ Việt Nam. Bảng bên dưới hiện lần ADH ghi gửi lời mời và trạng thái Zalo đã đọc cho đúng lần gửi đó. Bằng chứng cũ vẫn hiện kèm giờ nếu lượt mới không đọc được.
+
+Mỗi tài khoản chạy một lượt đối chiếu thủ công tại một thời điểm. Lượt đọc tiếp tục sau khi ADH khởi động lại. Bộ nối vẫn giới hạn khung giờ, khoảng nghỉ và số lần đọc trong ngày. Khi tới hạn mức ngày, hàng chờ tiếp tục vào ngày hôm sau. Nếu Zalo không còn trả về lời mời đang chờ, ADH ghi nhận quan sát đó. Muốn biết ai thu hồi hoặc từ chối thì cần thêm bằng chứng.
+
+Đối chiếu thủ công sử dụng đúng tài khoản và phạm vi chiến dịch qua thao tác của quản trị viên. Tài khoản ở chế độ thử vẫn chỉ đọc các số thử. Lượt thủ công ở tài khoản chạy thật có thể đọc lời mời đủ điều kiện trong chiến dịch đã chọn. Cờ danh sách thử của bộ hẹn giờ tự động giữ nguyên. Tác vụ lưu tiến độ và quan sát trong ADH. Nó không gửi, thu hồi hay chấp nhận lời mời trên Zalo.

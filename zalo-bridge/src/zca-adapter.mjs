@@ -194,6 +194,13 @@ export class ZcaAdapter {
     return this.api.getFriendRequestStatus(uid);
   }
 
+  /** Chỉ đọc. Tên, ảnh và nội dung lời mời không đi qua bộ điều hợp. */
+  async hasSentFriendRequest(uid) {
+    const requests = await this.api.getSentFriendRequest();
+    return requests !== null && typeof requests === 'object' && !Array.isArray(requests)
+      && Object.hasOwn(requests, uid) && requests[uid]?.userId === uid;
+  }
+
   loginQR(h) {
     let abortFn = null;
     const promise = (async () => {
