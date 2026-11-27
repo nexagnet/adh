@@ -87,6 +87,11 @@ public interface ZaloSession {
         }
     }
 
+    /** Đọc mã nhóm trên chính phiên sẽ tham gia. Một nhóm có thể có mã khác nhau trên hai phiên. */
+    default String resolveGroupInviteLink(String inviteLink, String accountTag) {
+        return null;
+    }
+
     /** Yêu cầu tham gia đúng một nhóm bằng phiên đã ghim. Chỉ gọi sau khi ADH lưu phê duyệt của OWNER. */
     default JoinGroupResult joinGroupViaLink(String expectedGroupId, String inviteLink, String accountTag) {
         return JoinGroupResult.of(JoinGroupOutcome.NOT_DISPATCHED, "JOIN_UNSUPPORTED");

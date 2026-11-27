@@ -142,10 +142,11 @@ class ZaloSharedGroupGrantsTest extends AbstractPostgresTest {
         when(accounts.active()).thenReturn(List.of(1L, 2L));
         String link = "https://zalo.me/g/otherFixture";
         var member = new java.util.concurrent.atomic.AtomicBoolean();
-        when(bridge.inspectGroup("700")).thenAnswer(call -> ZaloAccountContext.current() == 2
-                ? new ZaloSession.GroupInspection(true, true, false, true, link, OTHER_TAG, null)
-                : new ZaloSession.GroupInspection(true, member.get(), false, false, member.get() ? link : null, OWNER_TAG, null));
-        when(bridge.joinGroupViaLink("700", link, OWNER_TAG)).thenAnswer(call -> {
+        when(bridge.inspectGroup("700")).thenReturn(new ZaloSession.GroupInspection(true, true, false, true, link, OTHER_TAG, null));
+        when(bridge.resolveGroupInviteLink(link, OWNER_TAG)).thenReturn("710");
+        when(bridge.inspectGroup("710")).thenAnswer(call ->
+                new ZaloSession.GroupInspection(true, member.get(), false, false, member.get() ? link : null, OWNER_TAG, null));
+        when(bridge.joinGroupViaLink("710", link, OWNER_TAG)).thenAnswer(call -> {
             assertThat(ZaloAccountContext.current()).isEqualTo(1);
             return ZaloSession.JoinGroupResult.of(ZaloSession.JoinGroupOutcome.PENDING, "Z240");
         });
@@ -166,8 +167,8 @@ class ZaloSharedGroupGrantsTest extends AbstractPostgresTest {
         joins.verify(target, 1);
 
         assertThat(joins.views(target)).singleElement().satisfies(row -> assertThat(row.state()).isEqualTo("VERIFIED"));
-        assertThat(grants.grant(target, 1)).get().satisfies(row -> assertThat(row.bridgeGroupId()).isEqualTo("700"));
-        verify(bridge, times(1)).joinGroupViaLink("700", link, OWNER_TAG);
+        assertThat(grants.grant(target, 1)).get().satisfies(row -> assertThat(row.bridgeGroupId()).isEqualTo("710"));
+        verify(bridge, times(1)).joinGroupViaLink("710", link, OWNER_TAG);
         verify(bridge, never()).addToGroup(any(), any());
         mvc.perform(get(BASE + target).with(user("admin").roles("OWNER")).param("account", "2"))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Đã tham gia và xác minh quyền")));

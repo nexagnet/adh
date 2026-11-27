@@ -154,7 +154,7 @@ test('POST /people/lookup (D19) cần khóa, tra đúng một số, số sai kh�
 
 test('danh sách đường được phép là cố định', () => {
   assert.deepEqual(ROUTES, [
-    'GET /healthz', 'GET /status', 'GET /events', 'GET /inbox', 'POST /reactions', 'GET /groups', 'GET /groups/{id}/inspect', 'POST /groups/{id}/join', 'POST /groups', 'POST /groups/{id}/members', 'POST /groups/{id}/deputy', 'POST /messages', 'POST /friend-requests', 'POST /friend-requests/undo', 'GET /friend-requests/incoming', 'GET /friend-requests/status', 'POST /friend-requests/accept', 'POST /people/lookup', 'POST /session/login', 'GET /session/login',
+    'GET /healthz', 'GET /status', 'GET /events', 'GET /inbox', 'POST /reactions', 'GET /groups', 'GET /groups/{id}/inspect', 'GET /groups/join-target', 'POST /groups/{id}/join', 'POST /groups', 'POST /groups/{id}/members', 'POST /groups/{id}/deputy', 'POST /messages', 'POST /friend-requests', 'POST /friend-requests/undo', 'GET /friend-requests/incoming', 'GET /friend-requests/status', 'POST /friend-requests/accept', 'POST /people/lookup', 'POST /session/login', 'GET /session/login',
     'POST /session/logout', 'POST /session/stop', 'POST /session/resume',
   ]);
 });
@@ -199,6 +199,9 @@ test('tham gia bằng link chỉ cho đúng phiên và đúng nhóm đã xác mi
     let calls = 0;
     let member = false;
     s.c.adapter.resolveGroupInviteLink = async () => '333';
+    const resolve = '/groups/join-target?inviteLink=' + encodeURIComponent(inviteLink);
+    assert.equal((await s.call('GET', resolve)).status, 409);
+    assert.deepEqual((await s.call('GET', resolve, { accountTag })).json, { ok: true, groupId: '333' });
     s.c.adapter.hasGroupMembership = async () => member;
     s.c.adapter.joinGroupLink = async (link) => {
       assert.equal(link, inviteLink);

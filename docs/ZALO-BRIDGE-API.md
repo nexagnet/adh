@@ -146,3 +146,5 @@ Khi còn một lượt gọi lời mời `DANG_GOI`, tab **Cần xử lý tay** 
 `POST /groups/{id}/join` nhận `inviteLink` dạng `https://zalo.me/g/…`. Bắt buộc có khóa nội bộ và `X-Bridge-Account-Tag` khớp danh tính đã ghim. Khi Zalo giới hạn tra link với người ngoài nhóm, ADH chỉ gửi `ownerVerified=true` sau khi phiên chủ xác minh đúng link và mã nhóm. Nếu phiên tham gia phân giải link thành mã khác, cầu nối từ chối.
 
 ADH ghi yêu cầu OWNER vào cơ sở dữ liệu trước khi gọi. Cầu nối gửi tối đa một yêu cầu qua phiên đang chạy. Các kết quả gồm `JOINED`, `PENDING`, `NOT_DISPATCHED` và `UNKNOWN`. ADH xác minh quyền thêm khách bằng lượt đọc riêng. Bộ hẹn giờ chỉ đọc lại khi chờ duyệt hoặc chưa rõ kết quả, và không gửi lại yêu cầu tham gia. Cấp quyền và bật nhóm theo lựa chọn đã duyệt chỉ thực hiện khi đã xác nhận tư cách thành viên và quyền thêm người.
+
+ADH đọc mã nhóm của phiên tham gia qua `GET /groups/join-target?inviteLink=…`. Lượt đọc yêu cầu dấu tài khoản đã ghim. ADH lưu mã nhóm trên phiên chủ và phiên tham gia riêng để tiếp tục đối chiếu đúng sau khi ứng dụng khởi động lại.

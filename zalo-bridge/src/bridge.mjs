@@ -1159,6 +1159,28 @@ export class Bridge {
   // ---------- đọc danh sách nhóm (chỉ đọc) ----------
 
   /** Đọc bằng chứng của đúng một nhóm qua phiên hiện tại, bỏ mọi kết quả trả về sau khi phiên đổi. */
+  async readGroupJoinTarget(inviteLink) {
+    if (typeof inviteLink !== 'string' || !/^https:\/\/zalo\.me\/g\/[a-zA-Z0-9_-]{1,100}$/.test(inviteLink)) {
+      return { ok: false, code: 'BAD_INPUT' };
+    }
+    const generation = this.generation;
+    const listen = this.activeListen;
+    const active = () => generation === this.generation && listen === this.activeListen
+      && listen !== 0 && this.accountOk === true && this.state === 'LISTENING';
+    if (!active()) return { ok: false, code: 'NOT_ACTIVE' };
+    if (this.busy) return { ok: false, code: 'BUSY' };
+    this.busy = true;
+    try {
+      const groupId = await withTimeout(this.adapter.resolveGroupInviteLink(inviteLink), 7000);
+      return active() && typeof groupId === 'string' && ZALO_ID.test(groupId)
+        ? { ok: true, groupId } : { ok: false, code: 'LINK_CHECK_FAILED' };
+    } catch {
+      return { ok: false, code: 'LINK_CHECK_FAILED' };
+    } finally {
+      this.busy = false;
+    }
+  }
+
   async joinGroupByLink(groupId, inviteLink, ownerVerified) {
     const notSent = (code) => ({ outcome: 'NOT_DISPATCHED', code });
     if (typeof groupId !== 'string' || !ZALO_ID.test(groupId) || typeof inviteLink !== 'string'
