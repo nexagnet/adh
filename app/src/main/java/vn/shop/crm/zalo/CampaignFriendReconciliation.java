@@ -1,5 +1,7 @@
 package vn.shop.crm.zalo;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -15,6 +17,7 @@ import java.util.UUID;
 
 @Service
 public class CampaignFriendReconciliation {
+    private static final Logger log = LoggerFactory.getLogger(CampaignFriendReconciliation.class);
     private static final ZoneId SHOP_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final String SCOPE = "i.campaign_id = :campaign AND i.account_id = :account AND "
             + ZaloFriendReconciliation.ELIGIBLE;
@@ -150,6 +153,16 @@ public class CampaignFriendReconciliation {
                 WHERE job_id = :job AND result IS NULL ORDER BY invitation_id LIMIT 1
                 """).param("job", job.id()).query((rs, n) -> new Item(rs.getLong("invitation_id"),
                 rs.getObject("attempt_at", OffsetDateTime.class), rs.getInt("retries"))).single();
+        try {
+            readInvitation(account, job, item);
+        } catch (RuntimeException e) {
+            log.warn("Lỗi đọc hoặc lưu đối chiếu account={} campaign={} invitation={} error={}",
+                    account, job.campaign(), item.id(), e.getClass().getSimpleName());
+            tx.executeWithoutResult(t -> recoverFailure(job, item));
+        }
+    }
+
+    private void readInvitation(long account, Job job, Item item) {
         var candidate = scope("""
                 SELECT i.id, i.zalo_target_uid, i.friend_request_outcome, i.friend_request_at, clock_timestamp() AS started_at
                 FROM invitation i WHERE i.id = :id AND i.friend_request_at = :attempt AND
@@ -163,27 +176,50 @@ public class CampaignFriendReconciliation {
 
     private void finishRead(long account, Job job, Item item, ZaloFriendReconciliation.Candidate candidate,
                             ZaloLink.FriendRequestObservation observation) {
-        if (jdbc.sql("SELECT id FROM zalo_friend_read_job WHERE id = :job AND lease_token = :lease FOR UPDATE")
-                .param("job", job.id()).param("lease", job.lease()).query(Long.class).optional().isEmpty()) {
+        if (!ownsLease(job)) {
             return;
         }
         String reason = observation == null ? null : observation.reasonCode();
         boolean retry = item.retries() < 3 && retryable(reason);
         String wait = retry ? "now() + interval '30 seconds'" : defer(reason);
         if (wait != null) {
-            if (retry) {
-                jdbc.sql("""
-                        UPDATE zalo_friend_read_item SET retries = retries + 1 WHERE job_id = :job AND invitation_id = :id
-                        """).param("job", job.id()).param("id", item.id()).update();
-            }
-            jdbc.sql("UPDATE zalo_friend_read_job SET next_at = " + wait
-                            + ", waiting_reason = :reason, lease_token = NULL WHERE id = :job")
-                    .param("reason", reason).param("job", job.id()).update();
+            postpone(job, item, reason, wait, retry);
             return;
         }
         boolean stored = observation != null && reconciliation.record(account, candidate, observation, mode.live());
         String result = !stored ? "SKIPPED"
                 : observation.state() == ZaloLink.FriendRequestState.UNAVAILABLE ? "FAILED" : "READ";
+        completeItem(job, item, result);
+    }
+
+    private boolean ownsLease(Job job) {
+        return jdbc.sql("SELECT id FROM zalo_friend_read_job WHERE id = :job AND lease_token = :lease FOR UPDATE")
+                .param("job", job.id()).param("lease", job.lease()).query(Long.class).optional().isPresent();
+    }
+
+    private void recoverFailure(Job job, Item item) {
+        if (!ownsLease(job)) {
+            return;
+        }
+        if (item.retries() < 3) {
+            postpone(job, item, "READ_ERROR", "now() + interval '30 seconds'", true);
+        } else {
+            completeItem(job, item, "FAILED");
+        }
+    }
+
+    private void postpone(Job job, Item item, String reason, String wait, boolean retry) {
+        if (retry) {
+            jdbc.sql("""
+                    UPDATE zalo_friend_read_item SET retries = retries + 1 WHERE job_id = :job AND invitation_id = :id
+                    """).param("job", job.id()).param("id", item.id()).update();
+        }
+        jdbc.sql("UPDATE zalo_friend_read_job SET next_at = " + wait
+                        + ", waiting_reason = :reason, lease_token = NULL WHERE id = :job")
+                .param("reason", reason).param("job", job.id()).update();
+    }
+
+    private void completeItem(Job job, Item item, String result) {
         jdbc.sql("UPDATE zalo_friend_read_item SET result = :result WHERE job_id = :job AND invitation_id = :id")
                 .param("result", result).param("job", job.id()).param("id", item.id()).update();
         jdbc.sql("""
@@ -203,7 +239,7 @@ public class CampaignFriendReconciliation {
 
     private static boolean retryable(String reason) {
         return switch (reason == null ? "" : reason) {
-            case "BRIDGE_DOWN", "NOT_ACTIVE", "TIMEOUT", "INTERRUPTED" -> true;
+            case "BRIDGE_DOWN", "TIMEOUT", "INTERRUPTED" -> true;
             default -> false;
         };
     }
@@ -212,6 +248,8 @@ public class CampaignFriendReconciliation {
         return switch (reason == null ? "" : reason) {
             case "GAP", "BUSY" -> "now() + interval '10 seconds'";
             case "WINDOW" -> "now() + interval '15 minutes'";
+            case "NOT_ACTIVE", "SESSION", "RESTRICTED", "ACCOUNT_MISMATCH", "ACCOUNT_UNVERIFIED" ->
+                    "now() + interval '2 minutes'";
             case "LIMIT" -> "(((now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date + 1)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')";
             default -> null;
         };
@@ -223,13 +261,16 @@ public class CampaignFriendReconciliation {
 
     private static String statusMessage(boolean running, String wait, long failed, long skipped) {
         if (!running) {
-            return failed + skipped > 0 ? "Đã hoàn tất. Xem các lượt lỗi hoặc bỏ qua bên dưới." : "Đã đối chiếu xong.";
+            return failed + skipped > 0 ? "Đã hoàn tất với mục lỗi hoặc bỏ qua. Xem sổ gửi và trạng thái Zalo bên dưới." : "Đã đối chiếu xong.";
         }
         return switch (wait == null ? "" : wait) {
             case "LIMIT" -> "Đã tới hạn mức đọc trong ngày. ADH sẽ đọc tiếp vào ngày hôm sau.";
             case "WINDOW" -> "Đang chờ tới khung giờ bộ nối cho phép đọc.";
             case "GAP", "BUSY" -> "Đang chờ bộ nối Zalo rảnh hoặc đủ khoảng nghỉ.";
-            case "BRIDGE_DOWN", "NOT_ACTIVE", "TIMEOUT", "INTERRUPTED" ->
+            case "NOT_ACTIVE", "SESSION", "RESTRICTED", "ACCOUNT_MISMATCH", "ACCOUNT_UNVERIFIED" ->
+                    "Tài khoản Zalo chưa sẵn sàng để đọc. Kiểm tra trạng thái bộ nối và phiên đăng nhập.";
+            case "READ_ERROR" -> "ADH gặp lỗi khi đọc hoặc lưu kết quả. ADH sẽ thử lại.";
+            case "BRIDGE_DOWN", "TIMEOUT", "INTERRUPTED" ->
                     "Bộ nối Zalo chưa trả lời. ADH sẽ thử đọc lại.";
             default -> "Đang đối chiếu với Zalo.";
         };

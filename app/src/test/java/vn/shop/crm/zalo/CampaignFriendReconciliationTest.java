@@ -100,14 +100,14 @@ class CampaignFriendReconciliationTest extends AbstractPostgresTest {
         invitation(campaign, 1, "501");
         invitation(campaign, 2, "502");
         when(bridge.friendRequestObservation("501", true))
-                .thenThrow(new IllegalStateException("worker died"))
+                .thenThrow(new AssertionError("worker died"))
                 .thenReturn(new ZaloLink.FriendRequestObservation(ZaloLink.FriendRequestState.FRIENDS, null));
         when(bridge.friendRequestObservation("502", true))
                 .thenReturn(new ZaloLink.FriendRequestObservation(ZaloLink.FriendRequestState.NONE, null));
         jobs.start(campaign, 1);
         jobs.start(campaign, 2);
 
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> jobs.work(1)).isInstanceOf(IllegalStateException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> jobs.work(1)).isInstanceOf(AssertionError.class);
         assertThat(jobs.status(campaign, 1).processed()).isZero();
         jobs.work(2);
         assertThat(jobs.status(campaign, 2).running()).isFalse();
@@ -148,6 +148,42 @@ class CampaignFriendReconciliationTest extends AbstractPostgresTest {
                 SELECT outgoing_verified FROM zalo_friend_observation_event
                 WHERE invitation_id = :id ORDER BY id
                 """).param("id", target).query(Boolean.class).list()).containsExactly(true, false);
+    }
+
+    @Test
+    void waitsForTheAccountToRecoverWithoutConsumingTheBatch() {
+        invitation(campaign, 2, "501");
+        when(bridge.friendRequestObservation("501", true))
+                .thenReturn(new ZaloLink.FriendRequestObservation(ZaloLink.FriendRequestState.UNAVAILABLE, "NOT_ACTIVE"));
+        jobs.start(campaign, 2);
+        for (int i = 0; i < 5; i++) {
+            jdbc.sql("UPDATE zalo_friend_read_job SET next_at = now()").update();
+            jobs.work(2);
+        }
+        var status = jobs.status(campaign, 2);
+        assertThat(status.running()).isTrue();
+        assertThat(status.processed()).isZero();
+        assertThat(status.nextReadAt()).isNotNull();
+        assertThat(jdbc.sql("SELECT retries FROM zalo_friend_read_item").query(Integer.class).single()).isZero();
+    }
+
+    @Test
+    void aRepeatedExceptionDoesNotBlockTheNextInvitation() {
+        invitation(campaign, 2, "501");
+        invitation(campaign, 2, "502");
+        when(bridge.friendRequestObservation("501", true)).thenThrow(new IllegalStateException("failed to read"));
+        when(bridge.friendRequestObservation("502", true))
+                .thenReturn(new ZaloLink.FriendRequestObservation(ZaloLink.FriendRequestState.NONE, null));
+        jobs.start(campaign, 2);
+        for (int i = 0; i < 5; i++) {
+            jdbc.sql("UPDATE zalo_friend_read_job SET next_at = now()").update();
+            jobs.work(2);
+        }
+        assertThat(jobs.status(campaign, 2).failed()).isEqualTo(1);
+        assertThat(jobs.status(campaign, 2).processed()).isEqualTo(2);
+        assertThat(jobs.status(campaign, 2).running()).isFalse();
+        verify(bridge, times(4)).friendRequestObservation("501", true);
+        verify(bridge).friendRequestObservation("502", true);
     }
 
     private boolean directionVerified(long id) {
