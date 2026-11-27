@@ -9,6 +9,7 @@ import vn.shop.crm.common.ImportException;
 import vn.shop.crm.contact.ContactService;
 import vn.shop.crm.contact.CustomerFilter;
 import vn.shop.crm.zalo.ZaloAccountContext;
+import vn.shop.crm.zalo.ZaloSharedGroupGrants;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
@@ -147,7 +148,9 @@ public class InviteService {
     private final int overdueDays;
     private final int noReplyDays;
 
-    public InviteService(JdbcClient jdbc, ContactService contacts, GroupService groups, AppSettings settings,
+    private final ZaloSharedGroupGrants sharedGrants;
+
+    public InviteService(JdbcClient jdbc, ContactService contacts, GroupService groups, AppSettings settings, ZaloSharedGroupGrants sharedGrants,
                          @Value("${app.public-base-url:http://localhost:8080}") String baseUrl,
                          @Value("${app.shop-name:Cửa hàng}") String shopName,
                          @Value("${app.invitations.max-batch:20}") int maxBatch,
@@ -159,6 +162,7 @@ public class InviteService {
         this.contacts = contacts;
         this.groups = groups;
         this.settings = settings;
+        this.sharedGrants = sharedGrants;
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.shopName = shopName;
         this.maxBatch = maxBatch;
@@ -611,12 +615,17 @@ public class InviteService {
                 .param("id", invitationId).update();
         GroupService.Group held = null;
         if (reserve && !groupAddUnresolved(invitationId)) {
-            Long existingGroup = r.groupId() != null ? r.groupId() : r.reservationValid() ? r.reservedGroupId() : null;
-            held = existingGroup == null
-                    ? groups.pickGroupOfAccount(vn.shop.crm.geo.VnGeo.byCode(r.province()).orElse(null), r.accountId()).orElse(null)
-                    : groups.findOfAccount(existingGroup, r.accountId())
-                            .filter(g -> g.hasLink() && g.status() == GroupStatus.OPEN).orElse(null);
-            if (held != null && !r.reservationValid()) {
+            boolean preserveExisting = sharedGrants.enabled();
+            Long existingGroup = r.groupId() != null ? r.groupId()
+                    : preserveExisting && r.reservationValid() ? r.reservedGroupId() : null;
+            if (existingGroup != null) {
+                held = groups.findOfAccount(existingGroup, r.accountId())
+                        .filter(g -> g.hasLink() && g.status() == GroupStatus.OPEN).orElse(null);
+            }
+            if (held == null && (existingGroup == null || !preserveExisting)) {
+                held = groups.pickGroupOfAccount(vn.shop.crm.geo.VnGeo.byCode(r.province()).orElse(null), r.accountId()).orElse(null);
+            }
+            if (held != null && (!preserveExisting || !r.reservationValid())) {
                 jdbc.sql("""
                                 UPDATE invitation SET reserved_group_id = :g, reserved_until = now() + make_interval(hours => :h)
                                 WHERE id = :id""")
@@ -710,12 +719,12 @@ public class InviteService {
             group = groups.findOfAccount(r.groupId(), r.accountId()).filter(g -> g.hasLink() && g.status() == GroupStatus.OPEN
                     && (committed || !g.full())).orElse(null);
         }
-        if (r.groupId() == null && r.reservedGroupId() != null && r.reservationValid()) {
+        if (group == null && (r.groupId() == null || !sharedGrants.enabled()) && r.reservedGroupId() != null && r.reservationValid()) {
             // chỗ đã giữ cho chính khách này (R4): dùng đúng nhóm đó dù giờ nhóm đã tính đủ chỗ vì chính chỗ giữ đó
             group = groups.findOfAccount(r.reservedGroupId(), r.accountId())
                     .filter(g -> g.hasLink() && g.status() == GroupStatus.OPEN).orElse(null);
         }
-        if (group == null && (r.groupId() != null || (r.reservedGroupId() != null && r.reservationValid()))) {
+        if (group == null && sharedGrants.enabled() && (r.groupId() != null || (r.reservedGroupId() != null && r.reservationValid()))) {
             throw new ImportException("Nhóm đã gắn hoặc giữ chỗ hiện chưa dùng được. Hãy kiểm tra nhóm trước khi xác nhận.");
         }
         if (group == null) {
