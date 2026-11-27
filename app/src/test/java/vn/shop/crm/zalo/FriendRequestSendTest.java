@@ -628,6 +628,47 @@ class FriendRequestSendTest extends AbstractPostgresTest {
 
     // ---------- tự thu hồi lời mời quá N ngày chưa ai đồng ý ----------
 
+    @Test
+    void hienTrangThaiDoiChieuMaKhongSuyRaChieuLoiMoi() {
+        long invitation = friendRequestedDaysAgo(3);
+        jdbc.sql("""
+                INSERT INTO zalo_friend_observation
+                    (account_id, invitation_id, state, observed_at, last_confirmed_state, last_confirmed_at, needs_review, attempt_at)
+                SELECT account_id, id, 'INCOMING', now(), 'INCOMING', now(), true, friend_request_at
+                FROM invitation WHERE id = :i
+                """).param("i", invitation).update();
+        for (String state : java.util.List.of("INCOMING", "OUTGOING", "NONE")) {
+            jdbc.sql("UPDATE zalo_friend_observation SET state = :state WHERE invitation_id = :i")
+                    .param("state", state).param("i", invitation).update();
+            assertThat(attention.rows(campaign)).singleElement().satisfies(row -> {
+                assertThat(row.observation().stateLabel()).isEqualTo("NONE".equals(state)
+                        ? "Zalo không còn hiển thị lời mời đang chờ"
+                        : "Có lời mời đang chờ trên Zalo, chưa xác minh bên gửi");
+                assertThat(row.canResendFriend()).isFalse();
+            });
+        }
+        assertThat(outcome(invitation)).isEqualTo("SENT");
+    }
+
+    @Test
+    void khongThuHoiKhiDoiChieuCungLanGuiDaKhongConLoiMoi() {
+        long invitation = friendRequestedDaysAgo(8);
+        jdbc.sql("""
+                INSERT INTO zalo_friend_observation
+                    (account_id, invitation_id, state, observed_at, last_confirmed_state, last_confirmed_at, needs_review, attempt_at)
+                SELECT account_id, id, 'NONE', now(), 'NONE', now(), true, friend_request_at
+                FROM invitation WHERE id = :i
+                """).param("i", invitation).update();
+        gap();
+        sender.step();
+        assertThat(fake.undone).isEmpty();
+        assertThat(outcome(invitation)).isEqualTo("SENT");
+        // Bằng chứng của lần gửi cũ không chặn lần gửi hiện tại.
+        jdbc.sql("UPDATE zalo_friend_observation SET attempt_at=attempt_at - interval '1 day' WHERE invitation_id=:i")
+                .param("i", invitation).update();
+        assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.UNDO_DONE);
+    }
+
     /** Một khách đã được gửi lời mời cách đây {@code daysAgo} ngày (giờ giả của test); trả mã lời mời. */
     private long friendRequestedDaysAgo(int daysAgo) {
         long invitation = inviteOne();
