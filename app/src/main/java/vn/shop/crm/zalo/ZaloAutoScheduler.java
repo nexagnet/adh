@@ -20,18 +20,23 @@ public class ZaloAutoScheduler {
     private final ZaloInviteSender sender;
     private final ObjectProvider<ZaloTickHook> hooks;
     private final ZaloAccountRegistry accounts;
+    private final ZaloRestoreFence restoreFence;
 
     public ZaloAutoScheduler(ZaloAutoService service, ZaloInviteSender sender, ObjectProvider<ZaloTickHook> hooks,
-                             ZaloAccountRegistry accounts) {
+                             ZaloAccountRegistry accounts, ZaloRestoreFence restoreFence) {
         this.service = service;
         this.sender = sender;
         this.hooks = hooks;
         this.accounts = accounts;
+        this.restoreFence = restoreFence;
     }
 
     @Scheduled(initialDelayString = "${app.zalo.auto.initial-delay-millis:30000}",
             fixedDelayString = "${app.zalo.auto.tick-millis:30000}")
     void tick() {
+        if (restoreFence.locked()) {
+            return;
+        }
         List<Long> active = accounts.active();
         if (active.size() <= 1) {
             active.forEach(id -> runTick(id, null));

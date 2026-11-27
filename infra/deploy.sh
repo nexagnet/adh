@@ -87,7 +87,19 @@ latest_main_tag() {
     git -C "$HERE" ls-remote https://github.com/nexagnet/adh.git refs/heads/main | cut -f1
 }
 
+deployment_flag_enabled() { # .env và môi trường có thể khác nhau; khóa nếu một trong hai đang bật.
+    [[ "${!1:-false}" != false || "$(env_get "$1" false)" != false ]]
+}
+
+shared_group_rollback_locked() {
+    deployment_flag_enabled APP_ZALO_SHARED_GROUPS_ENABLED || deployment_flag_enabled ADH_ZALO_SHARED_GROUP_HISTORY
+}
+
 cmd="${1:-status}"; shift || true
+if [[ "$cmd" == deploy || "$cmd" == rollback ]] && deployment_flag_enabled APP_ZALO_RESTORE_FENCE; then
+    echo "LỖI: khóa phục hồi Zalo đang bật. Dừng cập nhật ảnh và quay lui trong khi đối chiếu dữ liệu." >&2
+    exit 1
+fi
 case "$cmd" in
 deploy)
     tag="${1:-$(latest_main_tag)}"
@@ -113,13 +125,19 @@ deploy)
     else
         echo "LỖI: ứng dụng không khỏe sau 3 phút." >&2
         dc logs --tail 40 app >&2 || true
-        if [ -n "$prev" ] && [ "$prev" != "$tag" ]; then
+        if shared_group_rollback_locked; then
+            echo "LỖI: khóa lùi ảnh vì nhóm dùng chung. Giữ nguyên bản để kiểm tra và sửa tiến." >&2
+        elif [ -n "$prev" ] && [ "$prev" != "$tag" ]; then
             echo "Lùi về $prev..." >&2; up_with "$prev"
             wait_healthy && echo "Đã lùi về $prev" >&2 || echo "CẢNH BÁO: lùi về $prev cũng chưa khỏe, kiểm tra thủ công" >&2
         fi
         exit 1
     fi ;;
 rollback)
+    if shared_group_rollback_locked; then
+        echo "LỖI: khóa lùi ảnh vì nhóm dùng chung. Xem quy trình lùi ảnh và khôi phục trong RUNBOOK." >&2
+        exit 1
+    fi
     [ -f "$PREV" ] || { echo "LỖI: chưa có thẻ trước đó" >&2; exit 1; }
     tag="$(cat "$PREV")"; cur="$(cat "$CUR" 2>/dev/null || true)"
     up_with "$tag"

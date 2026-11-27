@@ -376,6 +376,8 @@
 
     <section th:if="${tab == 'nhom'}" id="cho-vao-nhom">
         <h2>Khách chờ vào nhóm</h2>
+        <p><a th:href="@{/zalo/group-add-preview(account=${account})}">Mô phỏng xếp nhóm</a>
+            · <a th:href="@{/zalo/group-add-review}">Đối chiếu thêm nhóm</a></p>
         <p class="muted" th:if="${waiting.isEmpty()}">Chưa có khách nào chờ.</p>
         <div class="table-wrap" th:if="${!waiting.isEmpty()}">
             <table data-filter data-sticky>

@@ -274,6 +274,7 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
 
     @Test
     void tuDongKhongCoTranNhomMoiNgayChiCoKhungGioVaKhoangNghi() {
+        fake.uniqueGroupIds = true;
         mode(ZaloGroupMode.AUTO);
         friended(1, 2, 3, 4, 5, 6, 7, 8);
         assertThat(svc.step()).isEqualTo(Step.CREATED);
@@ -287,6 +288,7 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
 
     @Test
     void khoangNghiCoDinhGiuaHaiLanTaoTrongCungNgay() {
+        fake.uniqueGroupIds = true;
         mode(ZaloGroupMode.AUTO);
         friended(1, 2, 3, 4, 5, 6, 7, 8);
         assertThat(svc.step()).isEqualTo(Step.CREATED);
@@ -298,6 +300,27 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
         assertThat(svc.step()).isEqualTo(Step.CREATED);
         assertThat(fake.creates.get(1).name()).isEqualTo("Áo điều hòa ADH - Cần Thơ - 02");
         assertThat(fake.creates.get(1).members()).hasSize(3);
+    }
+
+    @Test
+    void claimRechecksAnotherProposalStartedDuringBridgeStatusRead() {
+        mode(ZaloGroupMode.CONFIRM);
+        friended(1, 2, 3);
+        assertThat(svc.step()).isEqualTo(Step.PROPOSED);
+        long pending = svc.recent(1).getFirst().id();
+        svc.approve(pending, "owner");
+        fake.beforeStatusCall = () -> {
+            fake.beforeStatusCall = () -> {};
+            jdbc.sql("""
+                    INSERT INTO zalo_group_proposal (scope, group_name, reason, waiting_count, state, started_at)
+                    VALUES ('P:can-tho', 'Đề xuất đang chạy ở tiến trình khác', 'test', 3, 'CREATING', :at)
+                    """).param("at", java.time.OffsetDateTime.ofInstant(clock.instant(), java.time.ZoneOffset.UTC)).update();
+        };
+
+        assertThat(svc.step()).isEqualTo(Step.NOTHING);
+        assertThat(fake.creates).isEmpty();
+        assertThat(jdbc.sql("SELECT state FROM zalo_group_proposal WHERE id = :id").param("id", pending).query(String.class).single())
+                .isEqualTo("APPROVED");
     }
 
     @Test

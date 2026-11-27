@@ -169,7 +169,7 @@ public class ZaloAutoSettings {
 
     /** Lần ghi nhật ký đăng nhập gần nhất đã là "XONG" chưa (để không ghi lặp mỗi lần trang tự làm mới). */
     public boolean lastLoginDone() {
-        return jdbc.sql("SELECT result FROM zalo_auto_log WHERE " + ZaloAccountContext.sql() + " AND action = :a ORDER BY id DESC LIMIT 1")
+        return jdbc.sql("SELECT result FROM zalo_auto_log WHERE " + ZaloAccountContext.sql() + " AND action = :a AND result <> 'CHUA_GOI' ORDER BY id DESC LIMIT 1")
                 .param("a", A_LOGIN).query(String.class).optional().map("XONG"::equals).orElse(false);
     }
 
@@ -211,7 +211,7 @@ public class ZaloAutoSettings {
         String[] parts = normalized.split(":", 2);
         return switch (parts[0]) {
             case "RESTRICTED", "SYSTEM_ERROR" -> parts.length == 1 || !LOCAL_BRIDGE_CODES.contains(parts[1]);
-            case "INTERRUPTED", "TIN_INTERRUPTED", "TAO_NHOM_INTERRUPTED", "LEDGER_CORRUPT", "CRASH_LOOP" -> true;
+            case "INTERRUPTED", "TIN_INTERRUPTED", "TAO_NHOM_INTERRUPTED", "ADD_REVIEW", "LEDGER_CORRUPT", "CRASH_LOOP" -> true;
             default -> false;
         };
     }
@@ -333,12 +333,12 @@ public class ZaloAutoSettings {
 
     /** Số lần thêm vào nhóm tính từ mốc (kể cả lần lỗi: đếm cả lần lỗi, ADR mục 3.4). */
     private int addsSince(Instant since) {
-        return jdbc.sql("SELECT count(*) FROM zalo_auto_log WHERE " + ZaloAccountContext.sql() + " AND action = :a AND at >= :s")
+        return jdbc.sql("SELECT count(*) FROM zalo_auto_log WHERE " + ZaloAccountContext.sql() + " AND action = :a AND result <> 'CHUA_GOI' AND at >= :s")
                 .param("a", A_ADD).param("s", OffsetDateTime.ofInstant(since, ZoneOffset.UTC)).query(Integer.class).single();
     }
 
     private Instant lastAdd() {
-        return jdbc.sql("SELECT max(at) FROM zalo_auto_log WHERE " + ZaloAccountContext.sql() + " AND action = :a").param("a", A_ADD)
+        return jdbc.sql("SELECT max(at) FROM zalo_auto_log WHERE " + ZaloAccountContext.sql() + " AND action = :a AND result <> 'CHUA_GOI'").param("a", A_ADD)
                 .query(OffsetDateTime.class).optional().map(OffsetDateTime::toInstant).orElse(null);
     }
 

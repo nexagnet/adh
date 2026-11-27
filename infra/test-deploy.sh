@@ -35,7 +35,11 @@ exit 0
 EOF
 cat >"$T/bin/curl" <<'EOF'
 #!/usr/bin/env bash
-printf 200
+if [ -f "$FAKE/unhealthy" ]; then printf 503; else printf 200; fi
+EOF
+cat >"$T/bin/sleep" <<'EOF'
+#!/usr/bin/env bash
+exit 0
 EOF
 chmod +x "$T/bin/"*
 export PATH="$T/bin:$PATH"
@@ -145,6 +149,33 @@ reset 'COMPOSE_FILE=docker-compose.shared.yml:docker-compose.zalo-2.yml
 '
 touch "$FAKE/pg"; (cd "$T/infra" && ./backup.sh >/dev/null 2>&1)
 (cd "$T/infra" && ./restore-test.sh >"$FAKE/out" 2>&1); has "-f $T/infra/docker-compose.shared.yml -f $T/infra/docker-compose.zalo-2.yml --env-file $T/infra/.env exec -T postgres psql" && ok "restore-test.sh tách hai tệp" || bad "restore-test.sh không tách tệp"
+
+echo "12. khóa khôi phục chặn cập nhật và lùi ảnh trước khi chạm dịch vụ"
+reset 'APP_ZALO_RESTORE_FENCE=true
+'
+echo prev >"$T/infra/.previous-tag"
+deploy && bad "cho cập nhật trong khi khôi phục" || ok "chặn cập nhật khi khôi phục"
+(cd "$T/infra" && ./deploy.sh rollback >"$FAKE/out" 2>&1) && bad "cho lùi ảnh trong khi khôi phục" || ok "chặn lùi ảnh khi khôi phục"
+expect_not " up " "không khởi động dịch vụ trong khi khôi phục"
+expect_not "pg_dump" "không khởi động thao tác sao lưu trong khi khôi phục"
+
+echo "13. đã dùng nhóm chung: vẫn chặn lùi ảnh khi đã tắt cấp chỗ mới"
+reset 'APP_ZALO_SHARED_GROUPS_ENABLED=false
+ADH_ZALO_SHARED_GROUP_HISTORY=true
+'
+echo prev >"$T/infra/.previous-tag"
+(cd "$T/infra" && ./deploy.sh rollback >"$FAKE/out" 2>&1) && bad "cho lùi ảnh sau khi đã có lịch sử" || ok "chặn lùi ảnh có lịch sử"
+expect_not " up " "không cấp lại dịch vụ bằng ảnh cũ"
+deploy && ok "vẫn cho cập nhật ảnh mới" || bad "cập nhật ảnh mới bị chặn"
+
+echo "14. ảnh mới lỗi: không tự lùi qua lịch sử nhóm dùng chung"
+reset 'ADH_ZALO_SHARED_GROUP_HISTORY=true
+'
+echo old >"$T/infra/.current-tag"
+touch "$FAKE/unhealthy"
+deploy && bad "chấp nhận ảnh không khỏe" || ok "báo ảnh không khỏe"
+grep -qF "khóa lùi ảnh vì nhóm dùng chung" "$FAKE/out" && ok "báo cần xử lý thay vì tự lùi" || bad "không giải thích là đang khóa lùi"
+[ "$(grep -cF ' up -d' "$FAKE/docker.calls")" = 1 ] && ok "chỉ khởi động ảnh mới một lần" || bad "đã có lần khởi động thứ hai"
 
 echo
 [ "$fails" = 0 ] && echo "TẤT CẢ ĐẠT" || { echo "$fails kiểm tra lỗi"; exit 1; }

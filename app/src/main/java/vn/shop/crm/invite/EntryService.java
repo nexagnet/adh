@@ -49,8 +49,7 @@ public class EntryService {
      */
     @Transactional
     public Result enter(String visitorCookie, String ip, String provinceCode) {
-        jdbc.sql("SELECT 1 FROM (SELECT pg_advisory_xact_lock(:k)) AS locked").param("k", InviteService.GROUP_PICK_LOCK)
-                .query(Integer.class).single();
+        GroupService.lockAllocation(jdbc);
         String visitor = visitorCookie != null && VISITOR.matcher(visitorCookie).matches() ? visitorCookie : null;
         Province chosen = VnGeo.byCode(provinceCode == null || provinceCode.isBlank() ? null : provinceCode.strip())
                 .orElse(null);

@@ -226,12 +226,21 @@ public class ZcaBridgeGateway implements ZaloLink {
 
     @Override
     public AddResult addToGroup(String uid, String zaloGroupId) {
+        return addMember(uid, zaloGroupId, null);
+    }
+
+    @Override
+    public AddResult addSharedGroupMember(SharedGroupTarget target) {
+        return addMember(target.uid(), target.bridgeGroupId(), target.accountTag());
+    }
+
+    private AddResult addMember(String uid, String zaloGroupId, String requiredTag) {
         if (uid == null || zaloGroupId == null || !ZALO_ID.matcher(uid).matches() || !ZALO_ID.matcher(zaloGroupId).matches()) {
             return AddResult.of(Outcome.PERSON_ERROR, "BAD_ID");
         }
         try {
             String body = JSON.writeValueAsString(java.util.Map.of("uid", uid));
-            JsonNode n = call("POST", "/groups/" + zaloGroupId + "/members", body, 45);
+            JsonNode n = call("POST", "/groups/" + zaloGroupId + "/members", body, 45, () -> true, requiredTag);
             Outcome outcome;
             try {
                 outcome = Outcome.valueOf(n.path("outcome").asString(""));
@@ -610,6 +619,35 @@ public class ZcaBridgeGateway implements ZaloLink {
     }
 
     @Override
+    public GroupInspection inspectGroup(String bridgeGroupId) {
+        if (bridgeGroupId == null || !ZALO_ID.matcher(bridgeGroupId).matches()) {
+            return GroupInspection.failed("BAD_ID");
+        }
+        try {
+            JsonNode n = call("GET", "/groups/" + bridgeGroupId + "/inspect", null, 12);
+            if (!n.path("ok").asBoolean(false)) {
+                String code = safeCode(text(n, "code"));
+                return GroupInspection.failed(code == null ? "INSPECT_FAILED" : code);
+            }
+            String tag = text(n, "accountTag");
+            if (tag == null || !tag.matches("[0-9a-f]{12}") || !n.path("present").isBoolean()) {
+                return GroupInspection.failed("BAD_RESPONSE");
+            }
+            boolean present = n.path("present").asBoolean();
+            if (present && (!n.path("adminOnlyAdd").isBoolean() || !n.path("admin").isBoolean())) {
+                return GroupInspection.failed("BAD_RESPONSE");
+            }
+            return new GroupInspection(true, present, n.path("adminOnlyAdd").asBoolean(false),
+                    n.path("admin").asBoolean(false), text(n, "inviteLink"), tag, null);
+        } catch (Unreachable e) {
+            return GroupInspection.failed("BRIDGE_DOWN");
+        } catch (Exception e) {
+            log.warn("Không kiểm tra được nhóm từ cầu nối: {}", e.getClass().getSimpleName());
+            return GroupInspection.failed("INSPECT_FAILED");
+        }
+    }
+
+    @Override
     public Login startLogin() {
         return login("POST");
     }
@@ -689,10 +727,19 @@ public class ZcaBridgeGateway implements ZaloLink {
 
     private JsonNode call(String method, String path, String body, int timeoutSeconds, java.util.function.BooleanSupplier stillEligible)
             throws IOException, InterruptedException {
+        return call(method, path, body, timeoutSeconds, stillEligible, null);
+    }
+
+    private JsonNode call(String method, String path, String body, int timeoutSeconds,
+                          java.util.function.BooleanSupplier stillEligible, String requiredTag)
+            throws IOException, InterruptedException {
         if ("/status".equals(path)) {
             return exchange(method, path, body, timeoutSeconds, null);
         }
         String expected = pinnedTag.get();
+        if (requiredTag != null && !requiredTag.equals(expected)) {
+            throw new Unreachable(new IOException("ACCOUNT_MISMATCH"));
+        }
         if (expected == null && requiresPin) {
             if (!"/session/login".equals(path)) {
                 throw new Unreachable(new IOException("ACCOUNT_UNVERIFIED"));

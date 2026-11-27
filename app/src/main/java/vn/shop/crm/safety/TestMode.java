@@ -2,6 +2,8 @@ package vn.shop.crm.safety;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import vn.shop.crm.zalo.ZaloGateway.SharedGroupTarget;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import vn.shop.crm.common.ImportException;
@@ -48,6 +50,60 @@ public class TestMode {
     private final ZaloSafetyProperties props;
     private final ZaloAccountProperties accounts;
     private final AtomicLong blocked = new AtomicLong();
+
+    @Value("${app.zalo.shared-groups.pilot-account:${APP_ZALO_SHARED_GROUPS_PILOT_ACCOUNT:0}}")
+    private long pilotAccount;
+    @Value("${app.zalo.shared-groups.pilot-invitation:${APP_ZALO_SHARED_GROUPS_PILOT_INVITATION:0}}")
+    private long pilotInvitation;
+    @Value("${app.zalo.shared-groups.pilot-group:${APP_ZALO_SHARED_GROUPS_PILOT_GROUP:0}}")
+    private long pilotGroup;
+    @Value("${app.zalo.shared-groups.pilot-bridge-group:${APP_ZALO_SHARED_GROUPS_PILOT_BRIDGE_GROUP:}}")
+    private String pilotBridgeGroup;
+
+    @Value("${app.zalo.shared-groups.live-enabled:${APP_ZALO_SHARED_GROUPS_LIVE_ENABLED:false}}")
+    private boolean sharedLiveEnabled;
+
+    public boolean sharedGroupTargetAllowed(long account, long invitation, long group, String bridgeGroup) {
+        return (live() && sharedLiveEnabled) || sharedGroupPairAllowed(account, invitation, group, bridgeGroup);
+    }
+
+    private boolean sharedGroupPairAllowed(long account, long invitation, long group, String bridgeGroup) {
+        return account == pilotAccount && invitation == pilotInvitation && group == pilotGroup
+                && bridgeGroup != null && bridgeGroup.equals(pilotBridgeGroup);
+    }
+
+    public boolean claimSharedGroupAdd(SharedGroupTarget target) {
+        if (!sharedGroupTargetAllowed(target.accountId(), target.invitationId(), target.groupId(), target.bridgeGroupId())
+                || !uidAllowed(target.uid())) {
+            return false;
+        }
+        return jdbc.sql("""
+                        UPDATE zalo_group_add_attempt pending SET bridge_claimed_at = now()
+                        WHERE pending.id = :id AND pending.state = 'DISPATCHED' AND pending.bridge_claimed_at IS NULL
+                          AND EXISTS (SELECT 1 FROM zalo_group_add_attempt a
+                          JOIN invitation i ON i.id = a.invitation_id AND i.account_id = a.account_id
+                          JOIN customer c ON c.id = i.customer_id
+                          JOIN zalo_group g ON g.id = a.group_id
+                          JOIN zalo_account z ON z.id = a.account_id
+                          JOIN zalo_account owner ON owner.id = g.account_id
+                          JOIN zalo_group_add_grant gr ON gr.group_id = g.id AND gr.account_id = z.id
+                          WHERE a.id = :id AND a.invitation_id = :invitation AND a.group_id = :group
+                            AND a.account_id = :account AND a.bridge_group_id = :bridgeGroup
+                            AND a.grant_revision = :revision AND z.account_tag = :tag
+                            AND a.state = 'DISPATCHED' AND i.zalo_uid = :uid
+                            AND i.status IN ('SENT', 'CLICKED', 'FRIENDED') AND i.zalo_add_code = 'DANG_GOI'
+                            AND g.shared_add_enabled AND g.status = 'OPEN' AND z.enabled AND owner.enabled
+                            AND gr.state = 'APPROVED' AND gr.revision = a.grant_revision
+                            AND gr.account_tag = z.account_tag AND gr.owner_tag = owner.account_tag
+                            AND gr.bridge_group_id = a.bridge_group_id AND gr.verified_at >= now() - interval '7 days'
+                            AND NOT EXISTS (SELECT 1 FROM zalo_group other WHERE other.id <> g.id AND other.invite_link = g.invite_link)
+                            %s)
+                        """.formatted(live() && sharedLiveEnabled ? "" : "AND c.phone IN " + ALLOWED))
+                .param("id", target.attemptId()).param("invitation", target.invitationId()).param("group", target.groupId())
+                .param("account", target.accountId()).param("bridgeGroup", target.bridgeGroupId())
+                .param("revision", target.revision()).param("tag", target.accountTag()).param("uid", target.uid())
+                .update() == 1;
+    }
 
     public TestMode(JdbcClient jdbc, ZaloSafetyProperties props, ZaloAccountProperties accounts) {
         this.jdbc = jdbc;

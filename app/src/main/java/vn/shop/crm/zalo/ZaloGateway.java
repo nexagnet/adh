@@ -120,4 +120,17 @@ public interface ZaloGateway {
 
     /** Thêm một người đã là bạn vào một nhóm (mã nhóm Zalo). Không bao giờ ném lỗi; mọi kết quả nằm trong {@link AddResult}. */
     AddResult addToGroup(String uid, String zaloGroupId);
+
+    record SharedGroupTarget(long attemptId, long invitationId, long groupId, long accountId,
+                             String uid, String bridgeGroupId, String accountTag, long revision) {
+        @Override
+        public String toString() {
+            return "SharedGroupTarget[attemptId=" + attemptId + ", invitationId=" + invitationId
+                    + ", groupId=" + groupId + ", accountId=" + accountId + "]";
+        }
+    }
+
+    default AddResult addSharedGroupMember(SharedGroupTarget target) {
+        return AddResult.of(Outcome.UNREACHABLE, "SHARED_GROUP_UNSUPPORTED");
+    }
 }

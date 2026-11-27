@@ -64,6 +64,8 @@ public class ZaloAutoService {
     private final ZaloMessageService messages;
     private final TestMode testMode;
     private final ZaloGroupSettings groupSettings;
+    private final ZaloSharedGroupGrants grants;
+    private final ZaloGroupAddAttempts attempts;
     /** Trạng thái cầu nối lần hỏi gần nhất (do bộ hẹn giờ cập nhật) để các trang không gọi cầu nối mỗi lần mở. */
     private final Map<Long, ZaloGateway.Status> bridgeStatuses = new ConcurrentHashMap<>();
     private final Map<Long, FriendSync> friendSyncs = new ConcurrentHashMap<>();
@@ -71,7 +73,9 @@ public class ZaloAutoService {
     public ZaloAutoService(JdbcClient jdbc, ZaloGateway gateway, ZaloSession session, ZaloAutoSettings cfg,
                            InviteService invites, GroupService groups, ContactService contacts, TransactionTemplate tx,
                            Clock clock, org.springframework.beans.factory.ObjectProvider<ZaloFriendTap> taps,
-                           ZaloMessageService messages, TestMode testMode, ZaloGroupSettings groupSettings) {
+                           ZaloMessageService messages, TestMode testMode, ZaloGroupSettings groupSettings, ZaloSharedGroupGrants grants, ZaloGroupAddAttempts attempts) {
+        this.grants = grants;
+        this.attempts = attempts;
         this.groupSettings = groupSettings;
         this.taps = taps;
         this.testMode = testMode;
@@ -182,6 +186,7 @@ public class ZaloAutoService {
 
     /** Một mã đã là bạn mà hệ thống chưa biết: ghi nhận như sự kiện kết bạn. Gọi trong giao dịch. */
     private boolean reconcile(String uid) {
+        GroupService.lockAllocation(jdbc);
         Optional<Match> m = findMatchByTargetUid(uid);
         if (m.isEmpty() || !m.get().matchable()) {
             return false;
@@ -235,6 +240,7 @@ public class ZaloAutoService {
 
     /** Ghép một sự kiện. Gọi trong giao dịch. */
     void ingest(ZaloGateway.FriendEvent e) {
+        GroupService.lockAllocation(jdbc);
         Integer seen = jdbc.sql("SELECT count(*) FROM zalo_friend_event WHERE " + ZaloAccountContext.sql() + " AND bridge_seq = :s").param("s", e.seq())
                 .query(Integer.class).single();
         if (seen > 0) {
@@ -399,6 +405,7 @@ public class ZaloAutoService {
     /** Người xử lý nói sự kiện không có số này là của khách nào. Vẫn qua cùng cổng điều kiện như ghép tự động. */
     public void resolve(long eventId, long invitationId, String by) {
         tx.executeWithoutResult(status -> {
+            GroupService.lockAllocation(jdbc);
             String uid = jdbc.sql("SELECT uid FROM zalo_friend_event WHERE id = :id AND outcome = 'NO_PHONE' AND "
                             + ZaloAccountContext.sql() + " FOR UPDATE")
                     .param("id", eventId).query(String.class).optional()
@@ -454,7 +461,9 @@ public class ZaloAutoService {
     public void retry(long invitationId, String by) {
         int n = jdbc.sql("""
                         UPDATE invitation SET zalo_add_state = 'WAITING_APPROVAL', zalo_add_code = NULL
-                        WHERE id = :id AND account_id = :acct AND zalo_add_state = 'FAILED' AND status IN ('SENT', 'CLICKED', 'FRIENDED')""")
+                        WHERE id = :id AND account_id = :acct AND zalo_add_state = 'FAILED' AND status IN ('SENT', 'CLICKED', 'FRIENDED')
+                          AND NOT EXISTS (SELECT 1 FROM zalo_group_add_attempt a WHERE a.invitation_id = invitation.id
+                            AND a.state IN ('DISPATCHED', 'REVIEW'))""")
                 .param("id", invitationId).param("acct", ZaloAccountContext.current()).update();
         if (n == 0) {
             throw new ImportException("Khách này không ở trạng thái lỗi cần thử lại.");
@@ -466,7 +475,9 @@ public class ZaloAutoService {
     public void release(long invitationId, String by) {
         int changed = jdbc.sql("""
                         UPDATE invitation SET zalo_add_state = NULL, zalo_add_code = NULL
-                        WHERE id = :id AND account_id = :acct AND zalo_add_state IN ('WAITING_APPROVAL', 'QUEUED', 'FAILED')""")
+                        WHERE id = :id AND account_id = :acct AND zalo_add_state IN ('WAITING_APPROVAL', 'QUEUED', 'FAILED')
+                          AND NOT EXISTS (SELECT 1 FROM zalo_group_add_attempt a WHERE a.invitation_id = invitation.id
+                            AND a.state IN ('DISPATCHED', 'REVIEW'))""")
                 .param("id", invitationId).param("acct", ZaloAccountContext.current()).update();
         if (changed > 0) {
             cfg.log(ZaloAutoSettings.A_APPROVE, invitationId, null, "TU_XU_LY", null, by);
@@ -474,7 +485,8 @@ public class ZaloAutoService {
     }
 
     private record Task(long invitationId, long customerId, String uid, String provinceCode, String prevState, Long heldGroupId,
-                        boolean foreignHeldGroup, Instant friendedAt) {
+                        boolean foreignHeldGroup, Instant friendedAt, OffsetDateTime reservedUntil,
+                        boolean heldSeat, OffsetDateTime assignedClickAt) {
     }
 
     /**
@@ -490,12 +502,12 @@ public class ZaloAutoService {
             return Step.NOTHING;
         }
         try {
-            if (inFlightLeftover()) {
+            if (attempts.expireDispatches() || inFlightLeftover()) {
                 // Một lần gọi Zalo trước đó không có kết quả (sập giữa chừng): không biết đã thêm hay chưa, dừng, không tự thử lại.
                 tripAndStop("INTERRUPTED", true);
                 return Step.TRIPPED;
             }
-            if (!cfg.mayAddNow()) {
+            if (attempts.hasDispatch() || !cfg.mayAddNow()) {
                 return Step.LIMIT;
             }
             ZaloGateway.Status st = gateway.status();
@@ -511,22 +523,14 @@ public class ZaloAutoService {
                 return Step.UNREACHABLE; // thất bại kín: chưa chắc đúng tài khoản phụ thì không thêm ai
             }
             // MỘT nhóm cho cả hai đường (tự thêm và tin gửi link): nhóm phải có cả mã nhóm Zalo lẫn link mời, và đang nhận khách.
-            List<GroupService.Group> usable = groups.listOfAccount(ZaloAccountContext.current()).stream()
-                    .filter(g -> g.hasZaloId() && g.hasLink() && g.status() == vn.shop.crm.invite.GroupStatus.OPEN).toList();
+            long account = ZaloAccountContext.current();
+            var mappings = eligibleMappings(account);
+            List<GroupService.Group> usable = groupPool(account, mappings.keySet());
             Step best = Step.NOTHING;
-            List<Task> tasks = queued(mode);
-            // Khách dư lẻ: nhóm cùng khu vực đã đủ mục tiêu mà khu vực (miền) còn quá ít khách chờ để lập nhóm mới thì được thêm vào nhóm còn
-            // dưới TRẦN MỀM (mục tiêu + vài khách) thay vì chờ mãi. Đếm khách chờ theo miền (khách chưa có nhóm nào dưới mục tiêu).
-            java.util.Map<vn.shop.crm.geo.Region, Integer> waitingByRegion = new java.util.HashMap<>();
+            List<Task> tasks = queued(mode, false);
+            var waiting = waitingByRegion(usable, tasks, mappings);
             for (Task t : tasks) {
-                var p = VnGeo.byCode(t.provinceCode()).orElse(null);
-                if (p != null && t.heldGroupId() == null && groups.pickGroup(usable, p).isEmpty()) {
-                    waitingByRegion.merge(p.region(), 1, Integer::sum);
-                }
-            }
-            int minToCreate = groupSettings.minCustomers();
-            for (Task t : tasks) {
-                if (t.foreignHeldGroup()) {
+                if (t.foreignHeldGroup() && !mappings.containsKey(t.heldGroupId())) {
                     // Dữ liệu cũ có thể đã gửi khách vào nhóm của tài khoản khác; cần người kiểm tra trước khi chọn lại.
                     fail(t.invitationId(), "NHOM_KHAC_TAI_KHOAN");
                     cfg.log(ZaloAutoSettings.A_MATCH, t.invitationId(), t.heldGroupId(), "BO_QUA", "NHOM_KHAC_TAI_KHOAN", "system");
@@ -537,27 +541,16 @@ public class ZaloAutoService {
                     cfg.log(ZaloAutoSettings.A_MATCH, t.invitationId(), null, "BO_QUA", "KHONG_DU_DIEU_KIEN", "system"); // không phải lần gọi Zalo: không tính hạn mức
                     continue;
                 }
-                Optional<GroupService.Group> group;
-                if (t.heldGroupId() != null) {
-                    // khách đã được giữ chỗ/gán một nhóm (nhóm gợi ý ở tin link): dùng đúng nhóm đó, không đổi sang nhóm khác
-                    group = usable.stream().filter(g -> g.id() == t.heldGroupId()).findFirst();
-                } else {
-                    var province = VnGeo.byCode(t.provinceCode()).orElse(null);
-                    // Khách chưa rõ tỉnh chỉ được thêm vào nhóm CHUNG (không gắn khu vực); thêm vào nhóm của một miền bất kỳ có thể sai miền.
-                    List<GroupService.Group> pool = province == null ? usable.stream().filter(g -> g.scope() == null).toList() : usable;
-                    group = groups.pickGroup(pool, province);
-                    if (group.isEmpty() && province != null && waitingByRegion.getOrDefault(province.region(), 0) < minToCreate) {
-                        // khách dư lẻ: mới đồng ý chỉ vào nhóm CÙNG TỈNH; chờ quá số ngày đã chỉnh thì được gộp lên nhóm cùng vùng hoặc miền
-                        boolean waitedLong = t.friendedAt() != null
-                                && !t.friendedAt().plus(java.time.Duration.ofDays(groupSettings.mergeUpDays())).isAfter(clock.instant());
-                        group = groups.pickGroup(pool, province, true, waitedLong ? Integer.MAX_VALUE : 0);
-                    }
-                }
-                if (group.isEmpty()) {
-                    best = Step.NO_GROUP; // chưa có nhóm hợp khu vực (R7): giữ hàng đợi, không đẩy sang miền khác
+                Choice choice = choose(usable, t, waiting, mappings, grants.enabled());
+                if (choice == null) {
+                    best = Step.NO_GROUP;
                     continue;
                 }
-                return addOne(t, group.get());
+                Step result = addOne(t, choice.group(), st, choice.overflow());
+                if (result != Step.NO_GROUP) {
+                    return result;
+                }
+                best = Step.NO_GROUP;
             }
             return best;
         } finally {
@@ -565,86 +558,211 @@ public class ZaloAutoService {
         }
     }
 
-    private List<Task> queued(ZaloMode mode) {
+    private record Choice(GroupService.Group group, boolean overflow) {}
+
+    public record Preview(long invitationId, long accountId, Long heldGroupId, OffsetDateTime reservedUntil,
+                          Long legacyGroupId, Long proposedGroupId, String groupName, Integer spotsLeft, String reason) {
+        public LocalDateTime localReservedUntil() {
+            return reservedUntil == null ? null
+                    : reservedUntil.atZoneSameInstant(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDateTime();
+        }
+    }
+
+    @org.springframework.transaction.annotation.Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public List<Preview> preview() {
+        long account = ZaloAccountContext.current();
+        var tasks = queued(ZaloMode.AUTO, true);
+        var mappings = eligibleMappings(account);
+        var legacy = new java.util.ArrayList<>(groupPool(account, java.util.Set.of()));
+        var proposed = new java.util.ArrayList<>(groupPool(account, mappings.keySet()));
+        var legacyWaiting = waitingByRegion(legacy, tasks, Map.of());
+        var proposedWaiting = waitingByRegion(proposed, tasks, mappings);
+        var result = new java.util.ArrayList<Preview>();
+        for (Task task : tasks) {
+            boolean eligible = contacts.stillEligible(task.customerId());
+            Choice previous = eligible ? choose(legacy, task, legacyWaiting, Map.of(), false) : null;
+            Choice next = eligible ? choose(proposed, task, proposedWaiting, mappings, grants.enabled()) : null;
+            result.add(new Preview(task.invitationId(), account, task.heldGroupId(), task.reservedUntil(),
+                    previous == null ? null : previous.group().id(), next == null ? null : next.group().id(),
+                    next == null ? null : next.group().name(), next == null ? null : next.group().spotsLeft(),
+                    next != null ? null : !eligible ? "Khách chưa đủ điều kiện liên hệ"
+                            : task.heldGroupId() != null ? "Nhóm đã giữ chưa thể dùng với tài khoản này"
+                            : "Chưa có nhóm phù hợp còn chỗ"));
+            occupySimulatedSeat(legacy, task, previous);
+            occupySimulatedSeat(proposed, task, next);
+        }
+        return List.copyOf(result);
+    }
+
+    private void occupySimulatedSeat(List<GroupService.Group> pool, Task task, Choice choice) {
+        if (choice == null || task.heldSeat()) {
+            return;
+        }
+        var g = choice.group();
+        pool.set(pool.indexOf(g), new GroupService.Group(g.id(), g.name(), g.inviteLink(), g.target(), g.actual(),
+                g.countedAt(), g.status(), g.note(), g.pendingClicks(), g.score() + groups.addSeatCost(g, task.assignedClickAt()), g.scope(),
+                g.zaloGroupId(), g.reserved() + 1, g.accountId()));
+    }
+
+    private Map<Long, ZaloSharedGroupGrants.Grant> eligibleMappings(long account) {
+        return grants.eligibleGrants(account).stream().collect(java.util.stream.Collectors.toMap(
+                ZaloSharedGroupGrants.Grant::groupId, java.util.function.Function.identity()));
+    }
+
+    private List<GroupService.Group> groupPool(long account, java.util.Set<Long> sharedIds) {
+        return (sharedIds.isEmpty() ? groups.listOfAccount(account) : groups.list()).stream()
+                .filter(g -> g.accountId() == account || sharedIds.contains(g.id()))
+                .filter(g -> g.hasZaloId() && g.hasLink() && g.status() == GroupStatus.OPEN).toList();
+    }
+
+    private Map<vn.shop.crm.geo.Region, Integer> waitingByRegion(List<GroupService.Group> pool, List<Task> tasks, Map<Long, ZaloSharedGroupGrants.Grant> mappings) {
+        var waiting = new java.util.HashMap<vn.shop.crm.geo.Region, Integer>();
+        for (Task task : tasks) {
+            var province = VnGeo.byCode(task.provinceCode()).orElse(null);
+            if (province != null && task.heldGroupId() == null && groups.pickGroup(seatsForAdd(allowedPool(pool, task, mappings), false), province).isEmpty()) {
+                waiting.merge(province.region(), 1, Integer::sum);
+            }
+        }
+        return waiting;
+    }
+
+    private Choice choose(List<GroupService.Group> usable, Task task, Map<vn.shop.crm.geo.Region, Integer> waiting,
+                          Map<Long, ZaloSharedGroupGrants.Grant> mappings, boolean shared) {
+        List<GroupService.Group> allowed = allowedPool(usable, task, mappings);
+        if (task.heldGroupId() != null) {
+            return allowed.stream().filter(g -> g.id() == task.heldGroupId()
+                            && groups.hasAddSeat(g, task.heldSeat(), task.assignedClickAt(), false)).findFirst()
+                    .map(g -> new Choice(g, false)).orElse(null);
+        }
+        var province = VnGeo.byCode(task.provinceCode()).orElse(null);
+        var pool = province == null ? allowed.stream().filter(g -> g.scope() == null).toList() : allowed;
+        var normal = groups.pickGroup(seatsForAdd(pool, false), province, false, Integer.MAX_VALUE, shared);
+        if (normal.isPresent()) {
+            return new Choice(normal.get(), false);
+        }
+        if (province == null || waiting.getOrDefault(province.region(), 0) >= groupSettings.minCustomers()) {
+            return null;
+        }
+        boolean waitedLong = task.friendedAt() != null
+                && !task.friendedAt().plus(java.time.Duration.ofDays(groupSettings.mergeUpDays())).isAfter(clock.instant());
+        return groups.pickGroup(seatsForAdd(pool, true), province, true, waitedLong ? Integer.MAX_VALUE : 0, shared)
+                .map(g -> new Choice(g, true)).orElse(null);
+    }
+
+    private List<GroupService.Group> seatsForAdd(List<GroupService.Group> pool, boolean overflow) {
+        int cap = overflow ? groups.softCap() : 0;
+        return pool.stream().filter(g -> g.score() + 1 <= Math.max(g.target(), cap)).toList();
+    }
+
+    private List<GroupService.Group> allowedPool(List<GroupService.Group> pool, Task task,
+                                                     Map<Long, ZaloSharedGroupGrants.Grant> mappings) {
+        long account = ZaloAccountContext.current();
+        return pool.stream().filter(group -> {
+            if (group.accountId() == account) {
+                return true;
+            }
+            var grant = mappings.get(group.id());
+            return grant != null && testMode.sharedGroupTargetAllowed(account, task.invitationId(), group.id(), grant.bridgeGroupId());
+        }).toList();
+    }
+
+    private List<Task> queued(ZaloMode mode, boolean preview) {
         // AUTO: cả người còn "chờ duyệt" cũng đủ điều kiện (đã chọn tự thêm). CONFIRM: chỉ người đã được duyệt.
         String states = mode == ZaloMode.AUTO ? "('QUEUED', 'WAITING_APPROVAL')" : "('QUEUED')";
         return jdbc.sql("""
                         SELECT i.id, i.customer_id, i.zalo_uid, c.province, i.zalo_add_state,
-                               g.id AS held_group, (g.account_id <> i.account_id) AS foreign_held_group, i.friended_at
+                               g.id AS held_group, (g.account_id <> i.account_id) AS foreign_held_group, i.friended_at, i.reserved_until,
+                               (i.reserved_group_id = g.id AND i.reserved_until > now() AND i.status = 'FRIENDED'
+                                   AND i.first_clicked_at IS NULL) AS held_seat,
+                               CASE WHEN i.group_id = g.id THEN i.first_clicked_at END AS assigned_click_at
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
                         LEFT JOIN zalo_group g ON g.id = coalesce(i.group_id,
                             CASE WHEN i.reserved_until > now() THEN i.reserved_group_id END)
                         WHERE i.zalo_add_state IN %s AND i.zalo_uid IS NOT NULL AND i.status IN ('SENT', 'CLICKED', 'FRIENDED')
                           AND (i.tin1_blocked_at IS NULL OR i.tin1_resent_at IS NOT NULL)
-                        """.formatted(states) + testMode.onlyTestSql("c.phone") + " AND " + ZaloAccountContext.sql("i.account_id") + " ORDER BY i.friended_at NULLS LAST, i.id LIMIT 500")
+                        """.formatted(states) + (preview ? " AND c.phone IN (SELECT phone FROM zalo_test_number)" : testMode.onlyTestSql("c.phone"))
+                        + " AND " + ZaloAccountContext.sql("i.account_id") + " ORDER BY i.friended_at NULLS LAST, i.id LIMIT 500")
                 .query((rs, n) -> new Task(rs.getLong("id"), rs.getLong("customer_id"), rs.getString("zalo_uid"),
                          rs.getString("province"), rs.getString("zalo_add_state"), (Long) rs.getObject("held_group"),
                          rs.getBoolean("foreign_held_group"),
-                        rs.getTimestamp("friended_at") == null ? null : rs.getTimestamp("friended_at").toInstant())).list();
+                        rs.getTimestamp("friended_at") == null ? null : rs.getTimestamp("friended_at").toInstant(),
+                        rs.getObject("reserved_until", OffsetDateTime.class), rs.getBoolean("held_seat"),
+                        rs.getObject("assigned_click_at", OffsetDateTime.class))).list();
     }
 
     /** Có lần gọi Zalo nào còn ghi "đang gọi" không? Đang giữ khóa thêm người nên mọi dòng như vậy là của lần đã chết giữa chừng. */
     private boolean inFlightLeftover() {
-        return jdbc.sql("SELECT count(*) FROM zalo_auto_log WHERE " + ZaloAccountContext.sql() + " AND action = :a AND result = 'DANG_GOI'")
+        return jdbc.sql("SELECT count(*) FROM zalo_auto_log WHERE " + ZaloAccountContext.sql()
+                        + " AND action = :a AND result = 'DANG_GOI'"
+                        + " AND NOT EXISTS (SELECT 1 FROM zalo_group_add_attempt a WHERE a.log_id = zalo_auto_log.id)")
                 .param("a", ZaloAutoSettings.A_ADD).query(Long.class).single() > 0;
     }
 
-    private Step addOne(Task t, GroupService.Group group) {
-        // Trước khi gọi: đánh dấu khách này "đang gọi" (FAILED/DANG_GOI) rồi ghi nhật ký. Sập giữa chừng thì khách ở lại trạng thái
-        // cần người xem, KHÔNG quay về hàng đợi để lần sau thêm lại; nhật ký vẫn tính vào hạn mức.
-        fail(t.invitationId(), "DANG_GOI");
-        long logId = jdbc.sql("""
-                        INSERT INTO zalo_auto_log (at, action, invitation_id, group_id, result, actor, account_id)
-                        VALUES (:at, :a, :i, :g, 'DANG_GOI', 'system', :acct) RETURNING id""")
-                .param("acct", ZaloAccountContext.current())
-                .param("at", OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)).param("a", ZaloAutoSettings.A_ADD)
-                .param("i", t.invitationId()).param("g", group.id()).query(Long.class).single();
-        ZaloGateway.AddResult r = gateway.addToGroup(t.uid(), group.zaloGroupId());
-        if (r.outcome() == ZaloGateway.Outcome.UNREACHABLE) {
-            // chưa chạm Zalo (không nối được): không tính hạn mức, trả khách về trạng thái cũ
-            jdbc.sql("DELETE FROM zalo_auto_log WHERE id = :id").param("id", logId).update();
-            jdbc.sql("UPDATE invitation SET zalo_add_state = :s, zalo_add_code = NULL WHERE id = :id")
-                    .param("s", t.prevState()).param("id", t.invitationId()).update();
-            return Step.UNREACHABLE;
+    private Step addOne(Task task, GroupService.Group group, ZaloGateway.Status status, boolean overflow) {
+        long account = ZaloAccountContext.current();
+        ZaloSharedGroupGrants.Grant grant = null;
+        if (group.accountId() != account) {
+            grant = grants.grant(group.id(), account).filter(g -> g.accountTag().equals(status.accountTag())
+                    && testMode.sharedGroupTargetAllowed(account, task.invitationId(), group.id(), g.bridgeGroupId()))
+                    .orElse(null);
+            if (grant == null) {
+                return Step.NO_GROUP;
+            }
+            var observed = session.inspectGroup(grant.bridgeGroupId());
+            if (!validSharedTarget(group, grant, observed)) {
+                return Step.NO_GROUP;
+            }
+        }
+        var attempt = attempts.dispatch(task.invitationId(), task.customerId(), task.uid(), task.prevState(),
+                group, grant, overflow);
+        if (attempt == null) {
+            return Step.NO_GROUP;
         }
         try {
-            jdbc.sql("UPDATE zalo_auto_log SET result = :r, code = :c WHERE id = :id")
-                    .param("r", r.outcome().name()).param("c", r.code(), java.sql.Types.VARCHAR).param("id", logId).update();
-            switch (r.outcome()) {
-                case OK -> {
-                    tx.executeWithoutResult(status -> {
-                        invites.markJoinedExact(t.invitationId(), group.id());
-                        jdbc.sql("UPDATE invitation SET zalo_add_state = 'ADDED', zalo_add_code = NULL, zalo_add_at = :at WHERE id = :id")
-                                .param("at", OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC))
-                                .param("id", t.invitationId()).update();
-                    });
-                    return Step.ADDED;
-                }
-                case PERSON_ERROR -> {
-                    fail(t.invitationId(), r.code() == null ? "LOI_NGUOI" : r.code());
-                    return afterPersonError(group);
-                }
+            ZaloGateway.AddResult result = grant == null
+                    ? gateway.addToGroup(task.uid(), attempt.bridgeGroupId())
+                    : gateway.addSharedGroupMember(new ZaloGateway.SharedGroupTarget(attempt.id(), task.invitationId(),
+                            group.id(), account, task.uid(), grant.bridgeGroupId(), grant.accountTag(), grant.revision()));
+            String error = result.outcome().name() + (result.code() == null ? "" : ":" + result.code());
+            if (!attempts.complete(attempt, result)) {
+                tripAndStop("ADD_REVIEW", true);
+                return Step.TRIPPED;
+            }
+            return switch (result.outcome()) {
+                case OK -> Step.ADDED;
+                case UNREACHABLE -> Step.UNREACHABLE;
+                case PERSON_ERROR -> afterPersonError(group, grant);
                 case GROUP_ERROR -> {
-                    // Zalo báo lỗi của CẢ NHÓM (không còn nhóm, không đủ quyền...): không phải lỗi của khách này và không phải dấu hiệu tài khoản
-                    // bị hạn chế. Tạm dừng đúng nhóm đó, trả khách về hàng đợi (khách sẽ được xếp nhóm khác), mẹ thấy cảnh báo.
-                    jdbc.sql("UPDATE invitation SET zalo_add_state = :s, zalo_add_code = NULL WHERE id = :id")
-                            .param("s", t.prevState()).param("id", t.invitationId()).update();
-                    groups.setStatus(group.id(), GroupStatus.PAUSED);
-                    return afterGroupError();
+                    if (grant == null) {
+                        groups.setStatus(group.id(), GroupStatus.PAUSED);
+                    } else {
+                        validSharedTarget(group, grant, session.inspectGroup(grant.bridgeGroupId()));
+                    }
+                    yield afterGroupError();
                 }
                 default -> {
-                    // phiên mất, Zalo cảnh báo, lỗi lạ hoặc không rõ kết quả: dừng ngay, đánh dấu để người kiểm tra tay
-                    fail(t.invitationId(), r.outcome().name() + (r.code() == null ? "" : "_" + r.code()));
-                    tripAndStop(r.outcome().name() + (r.code() == null ? "" : ":" + r.code()), true);
-                    return Step.TRIPPED;
+                    tripAndStop(error, true);
+                    yield Step.TRIPPED;
                 }
-            }
+            };
         } catch (RuntimeException e) {
-            // Đã gọi Zalo nhưng ghi kết quả lỗi (ví dụ cơ sở dữ liệu chớp): không biết trạng thái thật, dừng. Khách ở lại FAILED/DANG_GOI.
-            log.warn("Lỗi sau khi gọi Zalo thêm người: {}", e.getClass().getSimpleName());
+            log.warn("Lỗi ghi nhận lượt thêm nhóm attempt={} group={} account={} type={}",
+                    attempt.id(), group.id(), account, e.getClass().getSimpleName());
             tripAndStop("INTERRUPTED", true);
             return Step.TRIPPED;
         }
+    }
+
+    private boolean validSharedTarget(GroupService.Group group, ZaloSharedGroupGrants.Grant grant,
+                                      ZaloSession.GroupInspection observed) {
+        if (!observed.ok() || !grant.accountTag().equals(observed.accountTag())) {
+            return false;
+        }
+        if (!observed.canAdd() || (observed.inviteLink() != null && !group.inviteLink().equals(observed.inviteLink()))) {
+            grants.suspend(group.id(), grant.accountId(), grant.revision());
+            return false;
+        }
+        return group.inviteLink().equals(observed.inviteLink());
     }
 
     /** Bao nhiêu lần thêm liền lỗi riêng người, cùng MỘT nhóm, thì tạm dừng nhóm đó (nghi nhóm cài sai: chỉ quản trị viên được thêm...). */
@@ -660,8 +778,8 @@ public class ZaloAutoService {
      * (1) {@value #GROUP_STREAK} lần liền cùng một nhóm: tạm dừng nhóm đó, mẹ xem; (2) {@value #TRIP_PERSON_ERRORS} trong {@value #TRIP_WINDOW}
      * lần gần nhất (lẫn nhiều nhóm): dừng cầu dao, đừng đốt hạn mức.
      */
-    private Step afterPersonError(GroupService.Group group) {
-        List<Map<String, Object>> last = jdbc.sql("SELECT result, group_id FROM zalo_auto_log WHERE " + ZaloAccountContext.sql() + " AND action = :a AND result <> 'DANG_GOI' ORDER BY id DESC LIMIT :n")
+    private Step afterPersonError(GroupService.Group group, ZaloSharedGroupGrants.Grant grant) {
+        List<Map<String, Object>> last = jdbc.sql("SELECT result, group_id FROM zalo_auto_log WHERE " + ZaloAccountContext.sql() + " AND action = :a AND result NOT IN ('DANG_GOI', 'CHUA_GOI') ORDER BY id DESC LIMIT :n")
                 .param("a", ZaloAutoSettings.A_ADD).param("n", TRIP_WINDOW).query().listOfRows();
         long persons = last.stream().filter(m -> "PERSON_ERROR".equals(m.get("result"))).count();
         if (last.size() == TRIP_WINDOW && persons >= TRIP_PERSON_ERRORS) {
@@ -670,7 +788,7 @@ public class ZaloAutoService {
         }
         boolean streak = last.size() >= GROUP_STREAK && last.stream().limit(GROUP_STREAK)
                 .allMatch(m -> "PERSON_ERROR".equals(m.get("result")) && m.get("group_id") != null && ((Number) m.get("group_id")).longValue() == group.id());
-        if (streak) {
+        if (streak && grant == null) {
             groups.setStatus(group.id(), GroupStatus.PAUSED);
             return Step.GROUP_FAILED;
         }
@@ -678,7 +796,7 @@ public class ZaloAutoService {
     }
 
     private Step afterGroupError() {
-        List<String> last = jdbc.sql("SELECT result FROM zalo_auto_log WHERE " + ZaloAccountContext.sql() + " AND action = :a AND result <> 'DANG_GOI' ORDER BY id DESC LIMIT :n")
+        List<String> last = jdbc.sql("SELECT result FROM zalo_auto_log WHERE " + ZaloAccountContext.sql() + " AND action = :a AND result NOT IN ('DANG_GOI', 'CHUA_GOI') ORDER BY id DESC LIMIT :n")
                 .param("a", ZaloAutoSettings.A_ADD).param("n", GROUP_ERROR_TRIP).query(String.class).list();
         if (last.size() == GROUP_ERROR_TRIP && last.stream().allMatch("GROUP_ERROR"::equals)) {
             tripAndStop("NHIEU_LOI_NHOM", true);

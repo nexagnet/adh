@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Dùng chung nhóm Zalo')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <header class="page-head">
+        <div class="titles">
+            <h1>Dùng chung nhóm Zalo</h1>
+            <p><strong th:text="${group.name}">Nhóm</strong> · Chủ nhóm là tài khoản phụ <span th:text="${group.accountId}">1</span></p>
+            <p><a th:href="@{/groups}">Quay lại Nhóm Zalo</a></p>
+        </div>
+    </header>
+
+    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
+    <div class="notice warn" th:unless="${systemEnabled}">Tính năng dùng chung đang tắt ở cấp hệ thống. Có thể chuẩn bị quyền cho từng tài khoản.</div>
+
+    <section>
+        <h2>Cấp lượt mới</h2>
+        <p th:text="${sharing.sharing} ? 'Nhóm đang mở dùng chung.' : 'Nhóm đang tắt dùng chung.'"></p>
+        <form th:action="@{/zalo/shared-groups/{id}/enabled(id=${group.id},account=${group.accountId})}" method="post">
+            <input type="hidden" name="sharing" th:value="${!sharing.sharing}">
+            <button class="btn" type="submit" th:text="${sharing.sharing} ? 'Dừng cấp lượt mới' : 'Bật dùng chung cho nhóm'"></button>
+        </form>
+    </section>
+
+    <section>
+        <h2>Quyền theo tài khoản</h2>
+        <p th:if="${sharing.grants.isEmpty()}">Chưa có quyền nào được xác minh.</p>
+        <div class="table-wrap" th:unless="${sharing.grants.isEmpty()}">
+            <table>
+                <thead><tr><th>Tài khoản</th><th>Mã nhóm của phiên</th><th>Trạng thái</th><th>Duyệt bởi</th><th>Lần xác minh</th><th>Thao tác</th></tr></thead>
+                <tbody>
+                <tr th:each="g : ${sharing.grants}">
+                    <td th:text="${g.accountLabel}">Tài khoản</td>
+                    <td><code th:text="${g.bridgeGroupId}"></code></td>
+                    <td th:switch="${g.state}">
+                        <span th:case="'APPROVED'" th:text="${g.expired} ? 'Cần xác minh lại' : 'Đã xác minh'"></span>
+                        <span th:case="'REVIEW'">Cần xác minh lại</span>
+                        <span th:case="'SUSPENDED'">Đã tạm ngưng</span>
+                        <span th:case="'REVOKED'">Đã thu hồi</span>
+                    </td>
+                    <td th:text="${g.approvedBy}"></td>
+                    <td th:text="${#temporals.format(g.verifiedAt, 'dd/MM/yyyy HH:mm')}"></td>
+                    <td>
+                        <form th:unless="${g.state == 'REVOKED'}"
+                              th:action="@{/zalo/shared-groups/{id}/grants/{grantee}/revoke(id=${group.id},grantee=${g.accountId},account=${group.accountId})}"
+                              method="post">
+                            <input type="hidden" name="revision" th:value="${g.revision}">
+                            <button class="btn sm" type="submit">Thu hồi quyền</button>
+                        </form>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section>
+        <h2>Xác minh và cấp quyền</h2>
+        <p>Hai tài khoản phải đang ở đúng nhóm và nhìn thấy cùng link mời đang lưu trong Adh. Tài khoản được cấp phải có quyền thêm thành viên.</p>
+        <p th:unless="${group.hasZaloId() and group.hasLink()}">Gán mã nhóm gốc và lưu link mời trước khi cấp quyền.</p>
+        <p th:if="${otherAccounts.isEmpty()}">Chưa khai báo thêm tài khoản Zalo phụ.</p>
+        <form class="formrow" th:if="${group.hasZaloId() and group.hasLink() and !otherAccounts.isEmpty()}"
+              th:action="@{/zalo/shared-groups/{id}/grants(id=${group.id},account=${group.accountId})}" method="post">
+            <label class="field">Tài khoản được cấp quyền
+                <select name="grantee" required>
+                    <option value="">Chọn tài khoản</option>
+                    <option th:each="a : ${otherAccounts}" th:value="${a.id}" th:disabled="${!a.enabled}"
+                            th:text="${a.enabled} ? ${a.label} : ${a.label} + ' (đang tạm ngưng)'"></option>
+                </select>
+            </label>
+            <label class="field">Mã nhóm từ tài khoản được cấp
+                <input type="text" name="bridgeGroupId" inputmode="numeric" maxlength="32" pattern="[0-9]{1,32}" required>
+            </label>
+            <button class="btn" type="submit">Đối chiếu hai phiên và duyệt</button>
+        </form>
+    </section>
+
+    <section th:unless="${possibleDuplicates.isEmpty()}">
+        <h2>Nhóm cần rà trùng</h2>
+        <p>Các nhóm dưới đây có cùng tên hoặc link mời. Mở từng bản ghi và đối chiếu trên Zalo trước khi cấp quyền.</p>
+        <ul>
+            <li th:each="g : ${possibleDuplicates}">
+                <a th:href="@{/zalo/shared-groups/{id}(id=${g.id})}" th:text="${g.name}">Nhóm</a>
+                <span th:text="' · Chủ nhóm: tài khoản phụ ' + ${g.accountId}"></span>
+            </li>
+        </ul>
+    </section>
+</main>
+</body>
+</html>

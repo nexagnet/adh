@@ -19,6 +19,7 @@ public class FakeZaloGateway implements ZaloLink {
     public Login login = Login.of(LoginState.IDLE);
 
     public int statusCalls;
+    Runnable beforeStatusCall = () -> {};
     public int eventCalls;
     public final List<String[]> adds = new ArrayList<>();
     public int stops;
@@ -37,6 +38,7 @@ public class FakeZaloGateway implements ZaloLink {
         defaultResult = AddResult.ok();
         login = Login.of(LoginState.IDLE);
         statusCalls = 0;
+        beforeStatusCall = () -> {};
         eventCalls = 0;
         adds.clear();
         friends.clear();
@@ -297,6 +299,7 @@ public class FakeZaloGateway implements ZaloLink {
 
     @Override
     public Status status() {
+        beforeStatusCall.run();
         statusCalls++;
         return status;
     }

@@ -186,6 +186,86 @@ class CampaignFriendReconciliationTest extends AbstractPostgresTest {
         verify(bridge).friendRequestObservation("502", true);
     }
 
+
+    @Test
+    void explainsWhichCampaignBlocksAnotherWhenAccountIsPaused() throws Exception {
+        invitation(campaign, 2, "501");
+        long other = campaign("Chiến dịch chờ");
+        invitation(other, 2, "502");
+        jobs.start(campaign, 2);
+        when(accounts.active()).thenReturn(java.util.List.of(1L));
+        jobs.work(2);
+        verifyNoInteractions(bridge);
+
+        var owner = user("admin").roles("OWNER");
+        mvc.perform(get("/campaigns/" + campaign + "/reconcile/2").with(owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.waitReason").value("ACCOUNT_PAUSED"))
+                .andExpect(jsonPath("$.startedAt").isNotEmpty())
+                .andExpect(jsonPath("$.nextReadAt").isEmpty());
+        mvc.perform(get("/campaigns/" + other + "/reconcile/2").with(owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.blockingCampaignId").value(campaign))
+                .andExpect(jsonPath("$.blockingCampaignName").value("Chiến dịch đang đọc"));
+    }
+
+    @Test
+    void ownerCancelsOnlyPendingReadsAndLateResultCannotAffectTheNextJob() throws Exception {
+        long completed = invitation(campaign, 2, "501");
+        long inFlight = invitation(campaign, 2, "502");
+        invitation(campaign, 2, "503");
+        long other = campaign("Chiến dịch kế tiếp");
+        long next = invitation(other, 2, "504");
+        jobs.start(campaign, 2);
+        long job = jdbc.sql("SELECT id FROM zalo_friend_read_job").query(Long.class).single();
+        when(bridge.friendRequestObservation("501", true))
+                .thenReturn(new ZaloLink.FriendRequestObservation(ZaloLink.FriendRequestState.OUTGOING_VERIFIED, null));
+        jobs.work(2);
+        jdbc.sql("UPDATE zalo_friend_read_job SET next_at = now() WHERE id = :job").param("job", job).update();
+
+        String path = "/campaigns/" + campaign + "/reconcile/2/cancel";
+        var owner = user("admin").roles("OWNER");
+        mvc.perform(post(path).param("job", Long.toString(job)).param("confirmed", "true").with(owner))
+                .andExpect(status().isForbidden());
+        mvc.perform(post(path).param("job", Long.toString(job)).param("confirmed", "true")
+                        .with(user("worker")).with(csrf()))
+                .andExpect(status().isForbidden());
+        mvc.perform(post(path).param("job", Long.toString(job)).with(owner).with(csrf()))
+                .andExpect(status().isBadRequest());
+        assertThat(jobs.status(campaign, 2).processed()).isEqualTo(1);
+
+        when(bridge.friendRequestObservation("502", true)).thenAnswer(call -> {
+            mvc.perform(post(path).param("job", Long.toString(job)).param("confirmed", "true").with(owner).with(csrf()))
+                    .andExpect(redirectedUrl("/campaigns/" + campaign + "?tab=doi-chieu"));
+            assertThat(jobs.status(campaign, 2).running()).isTrue();
+            assertThat(jobs.status(campaign, 2).processed()).isEqualTo(1);
+            jdbc.sql("UPDATE zalo_friend_read_job SET next_at = now() WHERE id = :job").param("job", job).update();
+            jobs.work(2); // lease expires, cancellation drains without asking Zalo again
+            jobs.start(other, 2);
+            return new ZaloLink.FriendRequestObservation(ZaloLink.FriendRequestState.FRIENDS, null);
+        });
+        jobs.work(2);
+        verify(bridge, never()).friendRequestObservation("503", true);
+        assertThat(jobs.status(campaign, 2).running()).isFalse();
+        mvc.perform(get("/campaigns/" + campaign + "/reconcile/2").with(owner))
+                .andExpect(jsonPath("$.cancelled").value(2)).andExpect(jsonPath("$.processed").value(1));
+        assertThat(directionVerified(completed)).isTrue();
+        assertThat(jdbc.sql("SELECT count(*) FROM zalo_friend_observation WHERE invitation_id IN (:late, :next)")
+                .param("late", inFlight).param("next", next).query(Long.class).single()).isZero();
+        assertThat(jobs.status(other, 2).running()).isTrue();
+
+        when(bridge.friendRequestObservation("504", true))
+                .thenReturn(new ZaloLink.FriendRequestObservation(ZaloLink.FriendRequestState.NONE, null));
+        jobs.work(2);
+        jobs.start(campaign, 2);
+        // An old tab cannot cancel the replacement or erase the completed history.
+        mvc.perform(post(path).param("job", Long.toString(job)).param("confirmed", "true").with(owner).with(csrf()))
+                .andExpect(redirectedUrl("/campaigns/" + campaign + "?tab=doi-chieu"));
+        assertThat(jobs.status(campaign, 2).running()).isTrue();
+        assertThat(jdbc.sql("SELECT result FROM zalo_friend_read_item WHERE job_id = :job ORDER BY invitation_id")
+                .param("job", job).query(String.class).list()).containsExactly("READ", "CANCELLED", "CANCELLED");
+    }
+
     private boolean directionVerified(long id) {
         return jdbc.sql("""
                 SELECT coalesce(outgoing_verified_at = observed_at, false)

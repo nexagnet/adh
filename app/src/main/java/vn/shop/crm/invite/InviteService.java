@@ -9,6 +9,7 @@ import vn.shop.crm.common.ImportException;
 import vn.shop.crm.contact.ContactService;
 import vn.shop.crm.contact.CustomerFilter;
 import vn.shop.crm.zalo.ZaloAccountContext;
+import vn.shop.crm.zalo.ZaloSharedGroupGrants;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
@@ -147,7 +148,9 @@ public class InviteService {
     private final int overdueDays;
     private final int noReplyDays;
 
-    public InviteService(JdbcClient jdbc, ContactService contacts, GroupService groups, AppSettings settings,
+    private final ZaloSharedGroupGrants sharedGrants;
+
+    public InviteService(JdbcClient jdbc, ContactService contacts, GroupService groups, AppSettings settings, ZaloSharedGroupGrants sharedGrants,
                          @Value("${app.public-base-url:http://localhost:8080}") String baseUrl,
                          @Value("${app.shop-name:Cửa hàng}") String shopName,
                          @Value("${app.invitations.max-batch:20}") int maxBatch,
@@ -159,6 +162,7 @@ public class InviteService {
         this.contacts = contacts;
         this.groups = groups;
         this.settings = settings;
+        this.sharedGrants = sharedGrants;
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.shopName = shopName;
         this.maxBatch = maxBatch;
@@ -402,7 +406,7 @@ public class InviteService {
                                k.id AS campaign_id, k.name AS campaign_name, k.message_template
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
                         JOIN invitation_campaign k ON k.id = i.campaign_id
-                        LEFT JOIN zalo_group g ON g.id = i.group_id AND g.account_id = i.account_id
+                        LEFT JOIN zalo_group g ON g.id = i.group_id
                         """ + where + " ORDER BY i.id");
         if (param instanceof List<?>) {
             spec = spec.param("ids", param);
@@ -559,21 +563,25 @@ public class InviteService {
     // ---------- đường nhắn bằng tài khoản Zalo phụ (D13): người gửi tay đánh dấu từng bước ----------
 
     private record StepRow(long customerId, long accountId, String phone, String status, Long groupId, String province, boolean clicked,
-                           boolean linkSent, Long reservedGroupId, boolean reservationValid, boolean left) {
+                           boolean linkSent, Long reservedGroupId, boolean reservationValid, boolean left, boolean countedAdd) {
     }
 
     private StepRow stepRow(long invitationId) {
+        return loadStepRow(invitationId).orElseThrow(() -> new ImportException("Không tìm thấy lời mời."));
+    }
+
+    private Optional<StepRow> loadStepRow(long invitationId) {
         return jdbc.sql("""
                         SELECT i.customer_id, i.account_id, c.phone, i.status, i.group_id, c.province, i.first_clicked_at IS NOT NULL AS clicked,
                                i.group_link_sent_at IS NOT NULL AS link_sent, i.reserved_group_id,
-                               coalesce(i.reserved_until > now(), false) AS reservation_valid, i.left_at IS NOT NULL AS is_left
+                               coalesce(i.reserved_until > now(), false) AS reservation_valid, i.left_at IS NOT NULL AS is_left, i.zalo_group_add_counted
                         FROM invitation i JOIN customer c ON c.id = i.customer_id WHERE i.id = :id""")
                 .param("id", invitationId)
                 .query((rs, n) -> new StepRow(rs.getLong("customer_id"), rs.getLong("account_id"), rs.getString("phone"), rs.getString("status"),
                         (Long) rs.getObject("group_id"), rs.getString("province"), rs.getBoolean("clicked"),
                         rs.getBoolean("link_sent"), (Long) rs.getObject("reserved_group_id"),
-                        rs.getBoolean("reservation_valid"), rs.getBoolean("is_left")))
-                .optional().orElseThrow(() -> new ImportException("Không tìm thấy lời mời."));
+                        rs.getBoolean("reservation_valid"), rs.getBoolean("is_left"), rs.getBoolean("zalo_group_add_counted")))
+                .optional();
     }
 
     /**
@@ -598,6 +606,7 @@ public class InviteService {
      */
     @Transactional
     public FriendedResult markFriended(long invitationId, String via, boolean reserve) {
+        GroupService.lockAllocation(jdbc);
         StepRow r = stepRow(invitationId);
         if (!List.of("SENT", "CLICKED").contains(r.status())) {
             throw new ImportException("Chỉ đánh dấu \"đã kết bạn\" cho khách đã được nhắn (đã xuất danh sách để gửi).");
@@ -605,20 +614,22 @@ public class InviteService {
         jdbc.sql("UPDATE invitation SET status = 'FRIENDED', friended_at = now() WHERE id = :id")
                 .param("id", invitationId).update();
         GroupService.Group held = null;
-        if (reserve) {
-            jdbc.sql("SELECT 1 FROM (SELECT pg_advisory_xact_lock(:k)) AS locked").param("k", GROUP_PICK_LOCK)
-                    .query(Integer.class).single();
-            GroupService.Group chosen = r.groupId() == null ? null : groups.findOfAccount(r.groupId(), r.accountId())
-                    .filter(g -> g.hasLink() && g.status() == GroupStatus.OPEN).orElse(null);
-            if (chosen == null) {
-                chosen = groups.pickGroupOfAccount(vn.shop.crm.geo.VnGeo.byCode(r.province()).orElse(null), r.accountId()).orElse(null);
+        if (reserve && !groupAddUnresolved(invitationId)) {
+            boolean preserveExisting = sharedGrants.enabled();
+            Long existingGroup = r.groupId() != null ? r.groupId()
+                    : preserveExisting && r.reservationValid() ? r.reservedGroupId() : null;
+            if (existingGroup != null) {
+                held = groups.findOfAccount(existingGroup, r.accountId())
+                        .filter(g -> g.hasLink() && g.status() == GroupStatus.OPEN).orElse(null);
             }
-            if (chosen != null) {
+            if (held == null && (existingGroup == null || !preserveExisting)) {
+                held = groups.pickGroupOfAccount(vn.shop.crm.geo.VnGeo.byCode(r.province()).orElse(null), r.accountId()).orElse(null);
+            }
+            if (held != null && (!preserveExisting || !r.reservationValid())) {
                 jdbc.sql("""
                                 UPDATE invitation SET reserved_group_id = :g, reserved_until = now() + make_interval(hours => :h)
                                 WHERE id = :id""")
-                        .param("g", chosen.id()).param("h", reserveHours).param("id", invitationId).update();
-                held = chosen;
+                        .param("g", held.id()).param("h", reserveHours).param("id", invitationId).update();
             }
         }
         contacts.event(r.customerId(), r.phone(), "FRIENDED", "Khách đồng ý kết bạn Zalo (" + via + ")"
@@ -638,6 +649,7 @@ public class InviteService {
     /** Như trên, người gửi chọn đúng nhóm đã thêm khách vào ({@code null} = nhóm gợi ý). */
     @Transactional
     public void markFriendedAndJoined(long invitationId, Long chosenGroupId) {
+        GroupService.lockAllocation(jdbc);
         StepRow r = stepRow(invitationId);
         if (List.of("SENT", "CLICKED").contains(r.status())) {
             markFriended(invitationId);
@@ -651,6 +663,7 @@ public class InviteService {
      */
     @Transactional
     public void markLeft(long invitationId) {
+        GroupService.lockAllocation(jdbc);
         StepRow r = stepRow(invitationId);
         if (!"JOINED".equals(r.status())) {
             throw new ImportException("Chỉ báo \"đã rời nhóm\" cho khách đã vào nhóm.");
@@ -660,7 +673,7 @@ public class InviteService {
         }
         Long groupId = jdbc.sql("UPDATE invitation SET left_at = now() WHERE id = :id AND left_at IS NULL RETURNING group_id")
                 .param("id", invitationId).query(Long.class).optional().orElse(null);
-        if (groupId != null && !r.clicked()) {
+        if (groupId != null && (!r.clicked() || r.countedAdd())) {
             jdbc.sql("UPDATE zalo_group SET actual_customers = greatest(actual_customers - 1, 0) WHERE id = :g")
                     .param("g", groupId).update();
         }
@@ -683,6 +696,7 @@ public class InviteService {
      */
     @Transactional
     public void markJoined(long invitationId, Long chosenGroupId) {
+        GroupService.lockAllocation(jdbc);
         StepRow r = stepRow(invitationId);
         if (!List.of("SENT", "CLICKED", "FRIENDED").contains(r.status())) {
             throw new ImportException("Chỉ đánh dấu \"đã vào nhóm\" cho khách đã được nhắn và chưa bị hủy.");
@@ -691,13 +705,12 @@ public class InviteService {
             GroupService.Group chosen = groups.findOfAccount(chosenGroupId, r.accountId())
                     .filter(g -> g.hasLink() && (g.status() == GroupStatus.OPEN || g.status() == GroupStatus.PAUSED))
                     .orElseThrow(() -> new ImportException("Nhóm đã chọn không thuộc tài khoản của khách, đã đóng hoặc chưa có link."));
-            jdbc.sql("SELECT 1 FROM (SELECT pg_advisory_xact_lock(:k)) AS locked").param("k", GROUP_PICK_LOCK)
-                    .query(Integer.class).single();
             finishJoin(invitationId, r, chosen, "đánh dấu tay, người gửi chọn nhóm");
             return;
         }
-        jdbc.sql("SELECT 1 FROM (SELECT pg_advisory_xact_lock(:k)) AS locked").param("k", GROUP_PICK_LOCK)
-                .query(Integer.class).single();
+        if (groupAddUnresolved(invitationId)) {
+            throw new ImportException("Lượt thêm vào nhóm đang cần đối chiếu. Hãy chọn đúng nhóm trên Zalo hoặc xử lý ở mục Đối chiếu thêm nhóm.");
+        }
         GroupService.Group group = null;
         if (r.groupId() != null) {
             // nhóm đã cấp phải còn nhận khách (đang mở, có link); khách chưa từng bấm link còn cần nhóm chưa đầy.
@@ -706,10 +719,13 @@ public class InviteService {
             group = groups.findOfAccount(r.groupId(), r.accountId()).filter(g -> g.hasLink() && g.status() == GroupStatus.OPEN
                     && (committed || !g.full())).orElse(null);
         }
-        if (group == null && r.reservedGroupId() != null && r.reservationValid()) {
+        if (group == null && (r.groupId() == null || !sharedGrants.enabled()) && r.reservedGroupId() != null && r.reservationValid()) {
             // chỗ đã giữ cho chính khách này (R4): dùng đúng nhóm đó dù giờ nhóm đã tính đủ chỗ vì chính chỗ giữ đó
             group = groups.findOfAccount(r.reservedGroupId(), r.accountId())
                     .filter(g -> g.hasLink() && g.status() == GroupStatus.OPEN).orElse(null);
+        }
+        if (group == null && sharedGrants.enabled() && (r.groupId() != null || (r.reservedGroupId() != null && r.reservationValid()))) {
+            throw new ImportException("Nhóm đã gắn hoặc giữ chỗ hiện chưa dùng được. Hãy kiểm tra nhóm trước khi xác nhận.");
         }
         if (group == null) {
             group = groups.pickGroupOfAccount(vn.shop.crm.geo.VnGeo.byCode(r.province()).orElse(null), r.accountId()).orElse(null);
@@ -726,6 +742,7 @@ public class InviteService {
      */
     @Transactional
     public void markJoinedExact(long invitationId, long groupId) {
+        GroupService.lockAllocation(jdbc);
         StepRow r = stepRow(invitationId);
         if (!List.of("SENT", "CLICKED", "FRIENDED").contains(r.status())) {
             return; // đã vào nhóm (người bấm tay trước) hoặc đã hủy: không ghi đè
@@ -735,25 +752,62 @@ public class InviteService {
         finishJoin(invitationId, r, group, "bộ nối Zalo");
     }
 
+    /** Ghi kết quả chỉ khi tác vụ bền trước đó đã khóa đúng khách, tài khoản và nhóm đích. */
+    @Transactional
+    public boolean finishDispatchedGroupAdd(long attemptId, long invitationId, long groupId, long accountId, boolean shared) {
+        GroupService.lockAllocation(jdbc);
+        boolean authorized = jdbc.sql("""
+                        SELECT EXISTS (SELECT 1 FROM zalo_group_add_attempt WHERE id = :attempt
+                          AND invitation_id = :invitation AND group_id = :group AND account_id = :account
+                          AND state IN ('DISPATCHED', 'REVIEW') AND (grant_revision IS NOT NULL OR restored_evidence) = :shared)
+                        """).param("attempt", attemptId).param("invitation", invitationId).param("group", groupId)
+                .param("account", accountId).param("shared", shared).query(Boolean.class).single();
+        if (!authorized) {
+            throw new IllegalStateException("Group add attempt does not match the invitation");
+        }
+        Optional<StepRow> loaded = loadStepRow(invitationId);
+        if (loaded.isEmpty()) {
+            return false;
+        }
+        StepRow row = loaded.get();
+        if (row.accountId() != accountId || row.left() || (row.groupId() != null && row.groupId() != groupId)) {
+            return false;
+        }
+        if ("JOINED".equals(row.status())) {
+            return row.groupId() != null;
+        }
+        if (!List.of("SENT", "CLICKED", "FRIENDED").contains(row.status())) {
+            return false;
+        }
+        GroupService.Group group = groups.find(groupId).orElseThrow();
+        return finishJoin(invitationId, row, group, "bộ nối Zalo, tài khoản " + accountId, true);
+    }
+
     private void finishJoin(long invitationId, StepRow r, GroupService.Group group, String via) {
+        finishJoin(invitationId, r, group, via, false);
+    }
+
+    private boolean finishJoin(long invitationId, StepRow r, GroupService.Group group, String via, boolean countActual) {
         int changed = jdbc.sql("""
                         UPDATE invitation SET status = 'JOINED', group_id = :g, joined_at = now(),
-                               friended_at = coalesce(friended_at, now())
+                               friended_at = coalesce(friended_at, now()), zalo_group_add_counted = :counted
                         WHERE id = :id AND status IN ('SENT', 'CLICKED', 'FRIENDED')""")
-                .param("g", group.id()).param("id", invitationId).update();
+                .param("g", group.id()).param("id", invitationId).param("counted", countActual).update();
         if (changed == 0) {
-            return; // bấm hai lần liền: lần trước đã ghi rồi, không tăng số khách của nhóm thêm lần nữa
+            return false; // bấm hai lần liền: lần trước đã ghi rồi, không tăng số khách của nhóm thêm lần nữa
         }
-        if (!r.clicked()) {
+        if (countActual || !r.clicked()) {
             // khách đã từng bấm link thì đã được tính ở "lượt bấm chờ" của nhóm (dù trạng thái giờ là đã kết bạn), không tính hai lần
             groups.addMember(group.id());
         }
         contacts.event(r.customerId(), r.phone(), "JOINED_GROUP", "Đã thêm vào nhóm: " + group.name() + " (" + via + ")");
+        return true;
     }
 
     /** Khách từ chối hoặc nhắn xin ngừng nhận tin: ghi vào danh sách từ chối vĩnh viễn, lời mời đã gửi chuyển thành "đã hủy". */
     @Transactional
     public void markDeclined(long invitationId) {
+        GroupService.lockAllocation(jdbc);
         StepRow r = stepRow(invitationId);
         if (!List.of("SENT", "CLICKED", "FRIENDED", "JOINED").contains(r.status())) {
             throw new ImportException("Chỉ ghi \"khách từ chối\" cho khách đã được nhắn. Muốn chặn khách chưa nhắn, dùng nút chặn ở trang khách.");
@@ -772,6 +826,15 @@ public class InviteService {
         return loadForClick(token).filter(this::stillValid).isPresent();
     }
 
+    private boolean groupAddUnresolved(long invitationId) {
+        return jdbc.sql("""
+                        SELECT EXISTS (SELECT 1 FROM zalo_group_add_attempt WHERE invitation_id = :id
+                          AND state IN ('DISPATCHED', 'REVIEW')) OR EXISTS (SELECT 1 FROM zalo_group_proposal_member m
+                            JOIN zalo_group_proposal p ON p.id = m.proposal_id
+                            WHERE m.invitation_id = :id AND p.state = 'CREATING')
+                        """).param("id", invitationId).query(Boolean.class).single();
+    }
+
     private record ClickRow(long id, long customerId, long accountId, String status, OffsetDateTime expiresAt, Long groupId) {
     }
 
@@ -779,7 +842,7 @@ public class InviteService {
         if (token == null || token.length() > 64) {
             return Optional.empty();
         }
-        return jdbc.sql("SELECT id, customer_id, account_id, status, expires_at, group_id FROM invitation WHERE token = :t")
+        return jdbc.sql("SELECT id, customer_id, account_id, status, expires_at, coalesce(group_id, CASE WHEN reserved_until > now() THEN reserved_group_id END) AS group_id FROM invitation WHERE token = :t")
                 .param("t", token)
                 .query((rs, i) -> new ClickRow(rs.getLong("id"), rs.getLong("customer_id"), rs.getLong("account_id"), rs.getString("status"),
                         rs.getObject("expires_at", OffsetDateTime.class), (Long) rs.getObject("group_id")))
@@ -797,6 +860,7 @@ public class InviteService {
      */
     @Transactional
     public GoResult go(String token) {
+        GroupService.lockAllocation(jdbc);
         Optional<ClickRow> loaded = loadForClick(token);
         if (loaded.isEmpty()) {
             return new GoResult(Outcome.UNAVAILABLE, null);
@@ -805,13 +869,17 @@ public class InviteService {
         if (!stillValid(row)) {
             return new GoResult(Outcome.UNAVAILABLE, null);
         }
-        jdbc.sql("SELECT 1 FROM (SELECT pg_advisory_xact_lock(:k)) AS locked").param("k", GROUP_PICK_LOCK)
-                .query(Integer.class).single();
+        if (groupAddUnresolved(row.id())) {
+            return new GoResult(Outcome.NO_GROUP, null);
+        }
         GroupService.Group group = null;
         if (row.groupId() != null) {
-            group = groups.findOfAccount(row.groupId(), row.accountId())
+            group = groups.find(row.groupId())
                     .filter(g -> g.hasLink() && g.status() != GroupStatus.CLOSED && g.status() != GroupStatus.PREPARING)
                     .orElse(null);
+        }
+        if (group == null && row.groupId() != null) {
+            return new GoResult(Outcome.NO_GROUP, null);
         }
         if (group == null) {
             // Khách đã biết (có trong danh sách): xếp vào nhóm cùng khu vực theo tỉnh đoán từ địa chỉ đã có.
@@ -823,9 +891,16 @@ public class InviteService {
         if (group == null) {
             return new GoResult(Outcome.NO_GROUP, null);
         }
-        if ("FRIENDED".equals(row.status()) || "JOINED".equals(row.status())) {
-            // đã được xử lý tay: chỉ cho vào nhóm, không đổi trạng thái và không ghi thêm lượt bấm (tránh đếm hai lần)
+        if ("JOINED".equals(row.status()) || ("FRIENDED".equals(row.status()) && row.groupId() != null)) {
             return new GoResult(Outcome.REDIRECT, group.inviteLink());
+        }
+        if ("FRIENDED".equals(row.status())) {
+            int reserved = jdbc.sql("""
+                            UPDATE invitation SET reserved_group_id = :group, reserved_until = now() + make_interval(hours => :hours)
+                            WHERE id = :id AND status = 'FRIENDED' AND group_id IS NULL
+                              AND (reserved_group_id IS NULL OR reserved_until IS NULL OR reserved_until <= now())
+                            """).param("group", group.id()).param("hours", reserveHours).param("id", row.id()).update();
+            return reserved == 1 ? new GoResult(Outcome.REDIRECT, group.inviteLink()) : new GoResult(Outcome.UNAVAILABLE, null);
         }
         int clicked = jdbc.sql("""
                         UPDATE invitation SET status = 'CLICKED', group_id = :g, click_count = click_count + 1,

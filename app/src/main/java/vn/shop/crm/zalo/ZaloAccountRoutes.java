@@ -18,12 +18,18 @@ public final class ZaloAccountRoutes {
 
     private final Map<Long, ZaloLink> links;
     private final ZaloLink router;
+    private final boolean restoreLocked;
 
     public ZaloAccountRoutes(Map<Long, ZaloLink> links) {
+        this(links, false);
+    }
+
+    ZaloAccountRoutes(Map<Long, ZaloLink> links, boolean restoreLocked) {
         if (links == null || links.isEmpty()) {
             throw new IllegalArgumentException("Cần ít nhất một tài khoản Zalo");
         }
         this.links = new LinkedHashMap<>(links);
+        this.restoreLocked = restoreLocked;
         this.router = (ZaloLink) Proxy.newProxyInstance(ZaloLink.class.getClassLoader(), new Class<?>[]{ZaloLink.class}, new Handler());
     }
 
@@ -61,6 +67,12 @@ public final class ZaloAccountRoutes {
             ZaloLink target = links.get(account);
             if (target == null) {
                 throw new IllegalStateException("Tài khoản Zalo " + account + " chưa khai báo cầu nối.");
+            }
+            if (restoreLocked) {
+                Object blocked = ZaloRestoreFence.blockedResult(method.getReturnType());
+                if (blocked != null) {
+                    return blocked;
+                }
             }
             try {
                 return method.invoke(target, args);

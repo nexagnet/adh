@@ -163,6 +163,29 @@ export class ZcaAdapter {
    * Chỉ ĐỌC: nhóm mà tài khoản phụ đang tham gia (mã, tên, số thành viên, cài đặt "chỉ quản trị viên được thêm", tài khoản phụ có
    * phải quản trị viên không). Để chủ shop chọn đúng "mã nhóm Zalo" cho Adh. Không liệt kê bạn bè, không dò ai.
    */
+  /** Chỉ đọc một nhóm thuộc phiên hiện tại. Không chuyển thông tin thành viên ra khỏi bộ nối. */
+  async inspectGroup(groupId) {
+    const membership = (await this.api.getAllGroups())?.gridVerMap;
+    if (!membership || typeof membership !== 'object' || Array.isArray(membership)) return null;
+    if (!Object.hasOwn(membership, groupId)) return { present: false };
+
+    const group = (await this.api.getGroupInfo(groupId))?.gridInfoMap?.[groupId];
+    const adminOnlyAdd = group?.setting?.addMemberOnly;
+    if (String(group?.groupId) !== groupId || ![0, 1].includes(adminOnlyAdd)
+      || typeof group.creatorId !== 'string' || !Array.isArray(group.adminIds)) return null;
+    const own = String(this.api.getOwnId());
+    const admin = group.creatorId === own || group.adminIds.includes(own);
+    const evidence = { present: true, adminOnlyAdd: adminOnlyAdd === 1, admin, inviteLink: null };
+    if (evidence.adminOnlyAdd && !admin) return evidence;
+
+    try {
+      const detail = await this.api.getGroupLinkDetail(groupId);
+      return { ...evidence, inviteLink: detail?.enabled === 1 ? detail.link : null };
+    } catch {
+      // Đọc được vai trò, nhưng chưa đủ bằng chứng để cấp quyền dùng chung.
+      return evidence;
+    }
+  }
   async listGroups() {
     const own = String(this.api.getOwnId());
     const all = await this.api.getAllGroups();

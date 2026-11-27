@@ -15,12 +15,15 @@ export function safeCode(s) {
  * @param {object} result  kết quả {errorMembers, error_data} của addUserToGroup khi KHÔNG ném lỗi
  */
 export function classifyResult(result, uid, groupCodes = new Set()) {
-  const failed = Array.isArray(result?.errorMembers) ? result.errorMembers.map(String) : [];
-  if (!failed.includes(String(uid))) return { outcome: 'OK' };
-  // Zalo tự báo lỗi riêng cho người này: có cấu trúc, đó chính là lỗi theo người. Mã lấy từ khóa của error_data.
-  const codes = Object.entries(result?.error_data ?? {}).filter(([, uids]) => Array.isArray(uids) && uids.map(String).includes(String(uid))).map(([c]) => c);
-  // Mã báo lỗi của CẢ NHÓM (nhóm đã giải tán, mình không còn là quản trị...) không phải lỗi của người này: tách riêng để Adh tạm dừng đúng nhóm đó.
-  if (codes.some((c) => groupCodes.has(String(c)))) return { outcome: 'GROUP_ERROR', code: safeCode(`Z${codes[0]}`) };
+  if (!Array.isArray(result?.errorMembers)) return { outcome: 'SYSTEM_ERROR', code: 'BAD_REPLY' };
+  const failed = result.errorMembers.map(String);
+  const target = String(uid);
+  if (failed.some((member) => member !== target)) return { outcome: 'SYSTEM_ERROR', code: 'BAD_REPLY' };
+  const codes = Object.entries(result?.error_data ?? {})
+    .filter(([, uids]) => Array.isArray(uids) && uids.map(String).includes(target)).map(([code]) => code);
+  if (failed.length === 0) return codes.length === 0 ? { outcome: 'OK' } : { outcome: 'SYSTEM_ERROR', code: 'BAD_REPLY' };
+  const groupCode = codes.find((code) => groupCodes.has(code));
+  if (groupCode !== undefined) return { outcome: 'GROUP_ERROR', code: safeCode(`Z${groupCode}`) };
   return { outcome: 'PERSON_ERROR', code: safeCode(codes.length ? `Z${codes[0]}` : 'MEMBER_ERROR') };
 }
 

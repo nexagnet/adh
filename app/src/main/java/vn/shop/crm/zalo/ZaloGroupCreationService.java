@@ -83,12 +83,16 @@ public class ZaloGroupCreationService implements ZaloTickHook {
     private final Clock clock;
     private final ZaloDeputyService deputies;
     private final ZaloAccountRegistry accounts;
+    private final ZaloSharedGroupGrants grants;
+    private final vn.shop.crm.safety.TestMode testMode;
     private final ReentrantLock lock = new ReentrantLock();
 
     public ZaloGroupCreationService(JdbcClient jdbc, ZaloGroupMaker maker, ZaloGateway gateway, ZaloSession session,
                                     ZaloAutoSettings auto, ZaloGroupSettings cfg, GroupService groups, InviteService invites,
                                     ContactService contacts, TransactionTemplate tx, Clock clock, ZaloDeputyService deputies,
-                                    ZaloAccountRegistry accounts) {
+                                    ZaloAccountRegistry accounts, ZaloSharedGroupGrants grants, vn.shop.crm.safety.TestMode testMode) {
+        this.grants = grants;
+        this.testMode = testMode;
         this.jdbc = jdbc;
         this.maker = maker;
         this.gateway = gateway;
@@ -291,7 +295,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
                 .query((rs, n) -> new Object[]{rs.getLong("id"), rs.getLong("customer_id"), rs.getString("province"),
                         rs.getObject("friended_at", OffsetDateTime.class)}).list().forEach(r -> {
                     var province = VnGeo.byCode((String) r[2]).orElse(null);
-                    if (province == null || groups.pickGroup(all, province).isPresent() || !contacts.mayContact((Long) r[1])
+                    if (province == null || groups.pickGroup(all, province).isPresent() || canUseSharedGroup((Long) r[0], province, false) || !contacts.mayContact((Long) r[1])
                             || pendingGroups.stream().anyMatch(g -> groups.rank(g, province) >= 0)) {
                         return;
                     }
@@ -306,9 +310,18 @@ public class ZaloGroupCreationService implements ZaloTickHook {
         int min = cfg.minCustomers();
         out.removeIf(w -> {
             var p = VnGeo.byCode(w.provinceCode()).orElse(null);
-            return p != null && byRegion.getOrDefault(p.region(), 0) < min && groups.pickGroup(all, p, true).isPresent();
+            return p != null && byRegion.getOrDefault(p.region(), 0) < min && (groups.pickGroup(all, p, true).isPresent() || canUseSharedGroup(w.invitationId(), p, true));
         });
         return out;
+    }
+
+    private boolean canUseSharedGroup(long invitation, vn.shop.crm.geo.Province province, boolean overflow) {
+        long account = ZaloAccountContext.current();
+        var qualified = grants.grantedGroupIds(account).stream()
+                .filter(id -> grants.grant(id, account).filter(grant -> testMode.sharedGroupTargetAllowed(account,
+                        invitation, id, grant.bridgeGroupId())).isPresent())
+                .flatMap(id -> groups.find(id).stream()).filter(GroupService.Group::hasZaloId).toList();
+        return groups.pickGroup(qualified, province, overflow, Integer.MAX_VALUE, true).isPresent();
     }
 
     private String nextName(GeoArea scope) {
@@ -480,21 +493,12 @@ public class ZaloGroupCreationService implements ZaloTickHook {
             return Step.NOTHING;
         }
         GeoArea scope = GeoArea.parse((String) row.get("scope")).orElse(null);
-        List<Member> members = eligibleMembers(id);
-        if (scope == null || members.size() < 2) {
-            finish(id, "EXPIRED", scope == null ? "KHU_VUC_LA" : "KHONG_CON_DU_KHACH");
-            auto.log(ZaloGroupSettings.A_GROUP, null, null, "HET_HAN", null, "system");
+        CreateDispatch dispatch = tx.execute(ignored -> claimCreate(id, scope));
+        if (dispatch == null) {
             return Step.NOTHING;
         }
-        String name = nextName(scope);
-        // Ghi TRƯỚC khi gọi Zalo: sập giữa chừng thì dòng CREATING còn lại, lần sau dừng thay vì thử lại.
-        int claimed = jdbc.sql("""
-                        UPDATE zalo_group_proposal SET state = 'CREATING', started_at = :now, group_name = :n
-                        WHERE id = :id AND account_id = :acct AND state = 'APPROVED'""")
-                .param("n", name).param("id", id).param("now", now()).param("acct", ZaloAccountContext.current()).update();
-        if (claimed == 0) {
-            return Step.NOTHING;
-        }
+        List<Member> members = dispatch.members();
+        String name = dispatch.name();
         String deputy = deputyUid(members);
         ZaloGroupMaker.Created r = maker.createGroup(name, members.stream().map(Member::uid).toList(), deputy, cfg.welcomeText());
         if (r.outcome() == ZaloGroupMaker.GroupOutcome.UNREACHABLE || r.outcome() == ZaloGroupMaker.GroupOutcome.RATE_LIMITED
@@ -534,6 +538,44 @@ public class ZaloGroupCreationService implements ZaloTickHook {
         }
     }
 
+    private record CreateDispatch(String name, List<Member> members) {}
+
+    /** Chọn lại khách và đánh dấu phát lệnh dưới cùng khóa với đường tự thêm. */
+    private CreateDispatch claimCreate(long id, GeoArea scope) {
+        GroupService.lockAllocation(jdbc);
+        if (!mayCreateNow() || count("SELECT count(*) FROM zalo_group_proposal WHERE " + ZaloAccountContext.sql()
+                + " AND state = 'CREATING'") > 0) {
+            return null;
+        }
+        if (!jdbc.sql("SELECT EXISTS (SELECT 1 FROM zalo_group_proposal WHERE id = :id AND state = 'APPROVED' AND "
+                        + ZaloAccountContext.sql() + ")").param("id", id).query(Boolean.class).single()) {
+            return null;
+        }
+        List<Member> members = eligibleMembers(id);
+        if (grants.enabled()) {
+            members = members.stream().filter(member -> {
+                var province = jdbc.sql("""
+                                SELECT c.province FROM invitation i JOIN customer c ON c.id = i.customer_id
+                                WHERE i.id = :id
+                                """).param("id", member.invitationId()).query(String.class).optional()
+                        .flatMap(VnGeo::byCode).orElse(null);
+                return !canUseSharedGroup(member.invitationId(), province, false);
+            }).toList();
+        }
+        if (scope == null || members.size() < 2) {
+            finish(id, "EXPIRED", scope == null ? "KHU_VUC_LA" : "KHONG_CON_DU_KHACH");
+            auto.log(ZaloGroupSettings.A_GROUP, null, null, "HET_HAN", null, "system");
+            return null;
+        }
+        String name = nextName(scope);
+        // Ghi TRƯỚC khi gọi Zalo: sập giữa chừng thì dòng CREATING còn lại, lần sau dừng thay vì thử lại.
+        int claimed = jdbc.sql("""
+                        UPDATE zalo_group_proposal SET state = 'CREATING', started_at = :now, group_name = :n
+                        WHERE id = :id AND account_id = :acct AND state = 'APPROVED'""")
+                .param("n", name).param("id", id).param("now", now()).param("acct", ZaloAccountContext.current()).update();
+        return claimed == 0 ? null : new CreateDispatch(name, members);
+    }
+
     /** Cầu nối chưa sẵn sàng hoặc đã ngắt: trả bước phải dừng ở đó (đã ngắt cầu dao nếu cần); null = được phép gọi Zalo. */
     private Step gatewayBlocker() {
         if (auto.tripped()) {
@@ -563,6 +605,8 @@ public class ZaloGroupCreationService implements ZaloTickHook {
                         JOIN invitation_campaign k ON k.id = i.campaign_id
                         WHERE m.proposal_id = :p AND i.account_id = :acct AND i.status = 'FRIENDED' AND i.zalo_uid IS NOT NULL AND i.group_id IS NULL
                           AND k.allow_group_creation
+                          AND (i.reserved_group_id IS NULL OR i.reserved_until <= now())
+                          AND NOT EXISTS (SELECT 1 FROM zalo_group_add_attempt a WHERE a.invitation_id = i.id AND a.state IN ('DISPATCHED', 'REVIEW'))
                           AND (i.zalo_add_state IS NULL OR i.zalo_add_state IN ('WAITING_APPROVAL', 'QUEUED'))
                         ORDER BY i.friended_at NULLS LAST, i.id""")
                 .param("p", proposalId).param("acct", ZaloAccountContext.current())
