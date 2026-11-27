@@ -23,7 +23,7 @@ public class ZaloAutoConfig {
      */
     @Bean
     ZaloAccountRoutes zaloAccountRoutes(ZaloAutoProperties props, ZaloAccountProperties accounts, TestMode mode,
-                                        ZaloBridgeIdentity identity, ZaloAutoSettings settings) {
+                                        ZaloBridgeIdentity identity, ZaloAutoSettings settings, ZaloRestoreFence restoreFence) {
         if (props.enabled() && (props.bridgeKey() == null || props.bridgeKey().isBlank())) {
             // thất bại kín: bật bộ nối mà không có khóa chung thì không khởi động
             throw new IllegalStateException("Đã bật APP_ZALO_AUTO_ENABLED nhưng chưa đặt APP_ZALO_BRIDGE_KEY.");
@@ -37,7 +37,7 @@ public class ZaloAutoConfig {
                     : new ManualZaloGateway();
             links.put(a.id(), new SafeZaloLink(raw, mode));
         }
-        return new ZaloAccountRoutes(links);
+        return new ZaloAccountRoutes(links, restoreFence.locked());
     }
 
     private ZaloLink primaryRoute(ZaloAutoProperties props, ZaloAccountProperties accounts, ZaloBridgeIdentity identity,

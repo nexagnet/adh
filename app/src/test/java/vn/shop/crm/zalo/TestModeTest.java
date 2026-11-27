@@ -177,7 +177,7 @@ class TestModeTest extends AbstractPostgresTest {
     @Test
     void duongNoiTuiZaloDuocBocBangLuoiAnToanCaKhiBatBoNoi() {
         assertThat(link).isInstanceOf(SafeZaloLink.class);
-        assertThat(new ZaloAutoConfig().zaloAccountRoutes(autoProps, new ZaloAccountProperties(null), mode, new ZaloBridgeIdentity(jdbc), cfg)
+        assertThat(new ZaloAutoConfig().zaloAccountRoutes(autoProps, new ZaloAccountProperties(null), mode, new ZaloBridgeIdentity(jdbc), cfg, new ZaloRestoreFence(false))
                 .target(1L)).isInstanceOf(SafeZaloLink.class);
     }
 
@@ -351,6 +351,8 @@ class TestModeTest extends AbstractPostgresTest {
 
         // thêm vào nhóm
         assertThat(link.addToGroup("UREAL", "1001").outcome()).isEqualTo(Outcome.UNREACHABLE);
+        assertThat(fake.adds).isEmpty();
+        assertThat(link.addToGroup("UT5", "777000").outcome()).isEqualTo(Outcome.UNREACHABLE);
         assertThat(fake.adds).isEmpty();
         assertThat(link.addToGroup("UT5", "1001")).isEqualTo(AddResult.ok());
         assertThat(fake.adds).hasSize(1);

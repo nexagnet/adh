@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Mô phỏng xếp nhóm')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <h1>Mô phỏng xếp nhóm Zalo</h1>
+    <p><a th:href="@{/groups}">Nhóm Zalo</a> · <a th:href="@{/zalo(account=${account})}">Đổi tài khoản Zalo</a></p>
+    <p class="hint" th:text="|Dữ liệu thử của tài khoản phụ ${account}. Số chỗ được trừ giả lập theo thứ tự khách chờ.|"></p>
+    <p th:if="${rows.isEmpty()}">Chưa có khách thử đủ điều kiện đưa vào mô phỏng.</p>
+    <div class="table-wrap" th:unless="${rows.isEmpty()}">
+        <table>
+            <thead><tr><th>Lời mời</th><th>Nhóm đã giữ</th><th>Hạn giữ</th><th>Nhóm theo quy tắc cũ</th><th>Nhóm đề xuất</th><th>Chỗ còn theo mục tiêu</th><th>Lý do</th></tr></thead>
+            <tbody><tr th:each="row : ${rows}">
+                <td th:text="${row.invitationId}"></td>
+                <td th:text="${row.heldGroupId}"></td>
+                <td th:text="${row.reservedUntil == null ? '' : #temporals.format(row.localReservedUntil(), 'dd/MM HH:mm')}"></td>
+                <td th:text="${row.legacyGroupId}"></td>
+                <td th:text="${row.groupName}"></td>
+                <td th:text="${row.spotsLeft}"></td>
+                <td th:text="${row.reason}"></td>
+            </tr></tbody>
+        </table>
+    </div>
+</main>
+</body>
+</html>

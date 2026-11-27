@@ -274,6 +274,7 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
 
     @Test
     void tuDongKhongCoTranNhomMoiNgayChiCoKhungGioVaKhoangNghi() {
+        fake.uniqueGroupIds = true;
         mode(ZaloGroupMode.AUTO);
         friended(1, 2, 3, 4, 5, 6, 7, 8);
         assertThat(svc.step()).isEqualTo(Step.CREATED);
@@ -287,6 +288,7 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
 
     @Test
     void khoangNghiCoDinhGiuaHaiLanTaoTrongCungNgay() {
+        fake.uniqueGroupIds = true;
         mode(ZaloGroupMode.AUTO);
         friended(1, 2, 3, 4, 5, 6, 7, 8);
         assertThat(svc.step()).isEqualTo(Step.CREATED);

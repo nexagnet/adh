@@ -58,6 +58,22 @@ public interface ZaloSession {
      */
     GroupList listGroups();
 
+    /** Bằng chứng nhóm chỉ đọc qua đúng phiên đã ghim. Link có thể thiếu khi Zalo không cho đọc. */
+    record GroupInspection(boolean ok, boolean present, boolean adminOnlyAdd, boolean admin,
+                           String inviteLink, String accountTag, String code) {
+        public boolean canAdd() {
+            return ok && present && (!adminOnlyAdd || admin);
+        }
+
+        public static GroupInspection failed(String code) {
+            return new GroupInspection(false, false, false, false, null, null, code);
+        }
+    }
+
+    default GroupInspection inspectGroup(String bridgeGroupId) {
+        return GroupInspection.failed("INSPECTION_UNAVAILABLE");
+    }
+
     /** Bắt đầu đăng nhập bằng QR. */
     Login startLogin();
 

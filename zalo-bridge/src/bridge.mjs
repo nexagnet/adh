@@ -1158,6 +1158,38 @@ export class Bridge {
 
   // ---------- đọc danh sách nhóm (chỉ đọc) ----------
 
+  /** Đọc bằng chứng của đúng một nhóm qua phiên hiện tại, bỏ mọi kết quả trả về sau khi phiên đổi. */
+  async inspectGroup(groupId) {
+    if (typeof groupId !== 'string' || !ZALO_ID.test(groupId)) return { ok: false, code: 'BAD_INPUT' };
+    const canRead = () => this.accountOk === true && this.state === 'LISTENING' && this.activeListen !== 0;
+    const accountTag = this.status().accountTag;
+    if (!canRead() || !accountTag) return { ok: false, code: 'NOT_ACTIVE' };
+    if (this.busy) return { ok: false, code: 'BUSY' };
+
+    const generation = this.generation;
+    const listen = this.activeListen;
+    this.busy = true;
+    try {
+      const evidence = await withTimeout(this.adapter.inspectGroup(groupId), Math.min(this.config.addTimeoutMs, 8000));
+      if (generation !== this.generation || listen !== this.activeListen || !canRead()) {
+        return { ok: false, code: 'NOT_ACTIVE' };
+      }
+      if (evidence?.present === false) return { ok: true, present: false, accountTag };
+      if (evidence?.present !== true || typeof evidence.adminOnlyAdd !== 'boolean'
+        || typeof evidence.admin !== 'boolean') {
+        return { ok: false, code: 'BAD_RESPONSE' };
+      }
+      return {
+        ok: true, present: true, accountTag, adminOnlyAdd: evidence.adminOnlyAdd, admin: evidence.admin,
+        inviteLink: typeof evidence.inviteLink === 'string' && evidence.inviteLink.length <= 300
+          ? evidence.inviteLink : null,
+      };
+    } catch {
+      return { ok: false, code: 'INSPECT_FAILED' };
+    } finally {
+      this.busy = false;
+    }
+  }
   /**
    * Nhóm tài khoản phụ đang tham gia, để trang quản trị chọn "mã nhóm Zalo". Chỉ đọc nên lỗi không làm cầu dao nhảy; chỉ hỏi khi
    * đang nghe bình thường, không hỏi dồn (giữ kết quả 30 giây). Tên nhóm không vào log.

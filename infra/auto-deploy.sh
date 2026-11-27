@@ -209,12 +209,14 @@ n=$((n + 1)); echo "$head $n" >"$ATTEMPTS"
 now="$(cat "$CUR" 2>/dev/null || true)"
 if grep -q 'ứng dụng không khỏe' "$out"; then
     echo "$head" >"$FAILED"   # đã khởi động thử và hỏng: KHÔNG thử lại (migration có thể đã chạy một phần)
-    if healthy; then
+    if grep -q 'khóa lùi ảnh vì nhóm dùng chung' "$out"; then
+        msg="bản ${short} KHÔNG khỏe sau khi triển khai. Khóa lùi ảnh vì nhóm dùng chung đang bật. CẦN NGƯỜI XEM NGAY (./deploy.sh status, logs)."
+    elif healthy; then
         msg="bản ${short} KHÔNG khỏe sau khi triển khai; đã lùi về ${now:0:9} và chặn bản này."
     else
         msg="bản ${short} KHÔNG khỏe và lùi về ${now:0:9} cũng chưa khỏe: CẦN NGƯỜI XEM NGAY (./deploy.sh status, logs)."
     fi
-    msg="$msg Cơ sở dữ liệu có thể đã được migration đổi trước khi lùi; bản sao lưu trước đó: ${backup:-không có}. Khôi phục: docs/RUNBOOK.md."
+    msg="$msg Cơ sở dữ liệu có thể đã được Flyway đổi khi khởi động; bản sao lưu trước đó: ${backup:-không có}. Khôi phục: docs/RUNBOOK.md."
     log "THẤT BẠI: $msg"; printf '%s' "$msg" >"$NOTE"; notify "$msg"
 elif [ "$n" -ge "$MAX_ATTEMPTS" ]; then
     echo "$head" >"$FAILED"

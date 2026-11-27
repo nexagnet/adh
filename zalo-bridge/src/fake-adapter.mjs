@@ -143,6 +143,13 @@ export class FakeAdapter {
     return '';
   }
 
+  async inspectGroup(groupId) {
+    if (this.groupsError) throw this.groupsError;
+    const group = (this.groups ?? []).find((row) => row.id === groupId);
+    return group
+      ? { present: true, adminOnlyAdd: group.adminOnlyAdd, admin: group.isAdmin, inviteLink: group.inviteLink }
+      : { present: false };
+  }
   async listGroups() {
     if (this.groupsError) throw this.groupsError;
     this.groupListCalls = (this.groupListCalls ?? 0) + 1;

@@ -24,12 +24,12 @@ class ZaloGatewayShapeTest {
 
     @Test
     void gatewayChiCoBaViec() {
-        assertThat(names(ZaloGateway.class)).containsExactly("addToGroup", "friendEvents", "friendsAmong", "incomingRequests", "status");
+        assertThat(names(ZaloGateway.class)).containsExactly("addSharedGroupMember", "addToGroup", "friendEvents", "friendsAmong", "incomingRequests", "status");
     }
 
     @Test
     void phienChiCoQuanLyDangNhapVaDocDanhSachNhom() {
-        assertThat(names(ZaloSession.class)).containsExactly("listGroups", "loginStatus", "logout", "resume", "startLogin", "stop");
+        assertThat(names(ZaloSession.class)).containsExactly("inspectGroup", "listGroups", "loginStatus", "logout", "resume", "startLogin", "stop");
     }
 
     @Test

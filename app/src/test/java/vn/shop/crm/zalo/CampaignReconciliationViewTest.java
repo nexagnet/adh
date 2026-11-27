@@ -3,6 +3,7 @@ package vn.shop.crm.zalo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
@@ -16,6 +17,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@TestPropertySource(properties = {
+        "app.zalo.reconcile.enabled=true",
+        "app.zalo.reconcile.manual-initial-delay-ms=3600000",
+        "app.zalo.reconcile.initial-delay-ms=3600000"
+})
 class CampaignReconciliationViewTest extends AbstractPostgresTest {
 
     @Autowired WebApplicationContext context;
@@ -101,8 +107,8 @@ class CampaignReconciliationViewTest extends AbstractPostgresTest {
         long invitation = invite(1, "Khách thử", "0900000123");
         long queued = invite(1, "Khách chưa đọc", "0900000321");
         long job = jdbc.sql("""
-                INSERT INTO zalo_friend_read_job (campaign_id, account_id, waiting_reason, next_at)
-                VALUES (:campaign, 1, 'LIMIT', '2026-11-28T00:00:00+07') RETURNING id
+                INSERT INTO zalo_friend_read_job (campaign_id, account_id, waiting_reason, started_at, next_at)
+                VALUES (:campaign, 1, 'LIMIT', '2026-11-27T09:00:00+07', '2026-11-28T00:00:00+07') RETURNING id
                 """).param("campaign", campaign).query(Long.class).single();
         jdbc.sql("""
                 INSERT INTO zalo_friend_read_item (job_id, invitation_id, attempt_at, result)
@@ -118,6 +124,10 @@ class CampaignReconciliationViewTest extends AbstractPostgresTest {
                 .andExpect(content().string(containsString("Đối chiếu ngay · Tài khoản phụ 1")))
                 .andExpect(content().string(containsString("1 / 2")))
                 .andExpect(content().string(containsString("1 lỗi đọc")))
+                .andExpect(content().string(containsString(path + "/reconcile/1/cancel")))
+                .andExpect(content().string(containsString("Xác nhận hủy phần chưa đọc")))
+                .andExpect(content().string(containsString("27/11/2026 09:00")))
+                .andExpect(content().string(containsString("Đã tới hạn mức đọc trong ngày")))
                 .andExpect(content().string(containsString("Lần đọc tiếp theo dự kiến · 28/11/2026 00:00")));
         mvc.perform(get(path).param("tab", "doi-chieu").with(user("employee")))
                 .andExpect(status().isOk())

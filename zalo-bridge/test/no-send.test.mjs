@@ -40,7 +40,14 @@ test('findUser và sendMessage (D18) chỉ nằm trong bộ điều hợp thật
 
 test('bộ điều hợp zca-js chỉ dùng các thành phần đã khai báo', () => {
   const used = new Set([...code('zca-adapter.mjs').matchAll(/this\.api\??\.([A-Za-z]+)/g)].map((m) => m[1]));
-  assert.deepEqual([...used].sort(), ['acceptFriendRequest', 'addGroupDeputy', 'addReaction', 'addUserToGroup', 'createGroup', 'enableGroupLink', 'findUser', 'getAllFriends', 'getAllGroups', 'getFriendRequestStatus', 'getGroupInfo', 'getOwnId', 'getSentFriendRequest', 'getUserInfo', 'listener', 'logout', 'sendFriendRequest', 'sendMessage', 'undoFriendRequest'].sort());
+  assert.deepEqual([...used].sort(), ['acceptFriendRequest', 'addGroupDeputy', 'addReaction', 'addUserToGroup', 'createGroup', 'enableGroupLink', 'findUser', 'getAllFriends', 'getAllGroups', 'getFriendRequestStatus', 'getGroupInfo', 'getGroupLinkDetail', 'getOwnId', 'getSentFriendRequest', 'getUserInfo', 'listener', 'logout', 'sendFriendRequest', 'sendMessage', 'undoFriendRequest'].sort());
+});
+
+test('chỉ đọc link nhóm đang tham gia ở một chỗ, không chuyển danh sách thành viên', () => {
+  const adapter = code('zca-adapter.mjs');
+  assert.equal((adapter.match(/\bapi\.getGroupLinkDetail\b/g) ?? []).length, 1);
+  assert.match(adapter, /if \(!Object\.hasOwn\(membership, groupId\)\) return \{ present: false \}/);
+  assert.match(adapter, /return \{ \.\.\.evidence, inviteLink: detail\?\.enabled === 1 \? detail\.link : null \}/);
 });
 
 test('sendFriendRequest chỉ có đúng một chỗ gọi (bộ điều hợp thật), chỉ gọi từ Bridge.sendFriendRequest và chỉ khi người đó đã nhận Tin 1', () => {

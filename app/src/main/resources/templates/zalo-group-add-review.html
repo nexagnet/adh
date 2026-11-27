@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head th:replace="~{fragments :: head('Đối chiếu thêm nhóm')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+<main>
+    <h1>Đối chiếu thêm nhóm</h1>
+    <p><a th:href="@{/groups}">Nhóm Zalo</a></p>
+    <p class="notice ok" th:if="${flash}" th:text="${flash}"></p>
+    <p class="hint">Mở đúng nhóm trên Zalo và kiểm tra thành viên trước khi xác nhận. Khi kết quả chưa rõ, ADH giữ chỗ và chờ kiểm tra.</p>
+    <details th:if="${restoreFence}">
+        <summary>Ghi lại khách đã vào nhóm sau mốc sao lưu</summary>
+        <p class="hint">Chỉ dùng khi bản sao lưu thiếu lượt thêm và quản trị viên đã kiểm chứng khách ở đúng nhóm trên đúng tài khoản Zalo.</p>
+        <form class="stack" th:action="@{/zalo/group-add-review/restore}" method="post">
+            <label>Mã lời mời <input type="number" name="invitation" required min="1"></label>
+            <label>Mã nhóm ADH <input type="number" name="group" required min="1"></label>
+            <label>Tài khoản đã thêm <input type="number" name="account" required min="1"></label>
+            <label>Bằng chứng đã kiểm tra <input name="note" required maxlength="300"></label>
+            <button class="btn secondary" type="submit">Ghi nhận tư cách thành viên</button>
+        </form>
+    </details>
+    <p th:if="${reviews.isEmpty()}">Chưa có lượt thêm nhóm cần theo dõi.</p>
+    <div class="table-wrap" th:unless="${reviews.isEmpty()}">
+        <table>
+            <thead><tr><th>Lời mời</th><th>Tài khoản thêm</th><th>Nhóm</th><th>Giờ phát lệnh</th><th>Đối chiếu</th></tr></thead>
+            <tbody><tr th:each="row : ${reviews}">
+                <td th:text="${row.invitationId}"></td>
+                <td th:text="${row.accountId}"></td>
+                <td th:text="${row.groupName}"></td>
+                <td th:text="${#temporals.format(row.localDispatchedAt(), 'dd/MM HH:mm')}"></td>
+                <td>
+                    <p th:if="${row.result != null}" th:text="${row.result}"></p>
+                    <p th:if="${row.providerOutcome != null}" th:text="|Bộ nối đã báo ${row.providerOutcome}|"></p>
+                    <p th:unless="${row.canConfirm}">Đang chờ kết quả từ bộ nối</p>
+                    <form class="stack" th:if="${row.canConfirm}" th:action="@{/zalo/group-add-review/{id}(id=${row.id},account=${row.accountId})}" method="post">
+                        <label>Lý do xác nhận <input name="note" required maxlength="300"></label>
+                        <button class="btn secondary sm" type="submit" name="joined" value="true">Khách đã vào đúng nhóm</button>
+                        <button class="btn secondary sm" type="submit" name="joined" value="false">Khách chưa vào nhóm</button>
+                    </form>
+                </td>
+            </tr></tbody>
+        </table>
+    </div>
+</main>
+</body>
+</html>

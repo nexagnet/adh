@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import vn.shop.crm.common.AppSettings;
 import vn.shop.crm.common.ImportException;
 import vn.shop.crm.geo.Province;
+import vn.shop.crm.zalo.ZaloSharedGroupGrants;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -97,6 +98,11 @@ public class GroupService {
         this.allowOtherRegion = allowOtherRegion;
     }
 
+    public static void lockAllocation(JdbcClient jdbc) {
+        jdbc.sql("SELECT 1 FROM (SELECT pg_advisory_xact_lock(:k)) AS locked")
+                .param("k", InviteService.GROUP_PICK_LOCK).query(Integer.class).single();
+    }
+
     public List<Group> list() {
         return jdbc.sql(SELECT + " ORDER BY g.id").query((rs, i) -> map(rs)).list();
     }
@@ -109,6 +115,7 @@ public class GroupService {
     /** Người gửi vừa thêm một khách vào nhóm bằng tay: tăng số khách thật thêm 1. */
     @Transactional
     public void addMember(long groupId) {
+        lockAllocation(jdbc);
         jdbc.sql("UPDATE zalo_group SET actual_customers = actual_customers + 1 WHERE id = :id").param("id", groupId).update();
     }
 
@@ -125,12 +132,21 @@ public class GroupService {
             SELECT g.id, g.name, g.invite_link, g.target_customers, g.actual_customers, g.counted_at, g.status, g.note, g.geo_scope, g.zalo_group_id, g.account_id,
                    (SELECT count(*) FROM invitation i
                      WHERE i.group_id = g.id AND i.first_clicked_at IS NOT NULL
-                       AND (g.counted_at IS NULL OR i.first_clicked_at > g.counted_at))
+                       AND (g.counted_at IS NULL OR i.first_clicked_at > g.counted_at)
+                       AND NOT i.zalo_group_add_counted
+                       AND NOT EXISTS (SELECT 1 FROM zalo_group_add_attempt a WHERE a.invitation_id = i.id
+                           AND a.group_id = g.id AND a.state IN ('DISPATCHED', 'REVIEW')
+                           AND i.status <> 'JOINED'))
                    + (SELECT count(*) FROM open_entry o
                        WHERE o.group_id = g.id AND (g.counted_at IS NULL OR o.created_at > g.counted_at)) AS pending,
                    (SELECT count(*) FROM invitation r
                      WHERE r.reserved_group_id = g.id AND r.status = 'FRIENDED' AND r.reserved_until > now()
-                       AND r.first_clicked_at IS NULL) AS reserved
+                       AND r.first_clicked_at IS NULL
+                       AND NOT EXISTS (SELECT 1 FROM zalo_group_add_attempt a WHERE a.invitation_id = r.id
+                           AND a.group_id = g.id AND a.state IN ('DISPATCHED', 'REVIEW')))
+                   + (SELECT count(*) FROM zalo_group_add_attempt a JOIN invitation i ON i.id = a.invitation_id
+                     WHERE a.group_id = g.id AND a.state IN ('DISPATCHED', 'REVIEW')
+                       AND (i.status <> 'JOINED' OR i.group_id IS DISTINCT FROM g.id)) AS reserved
             FROM zalo_group g""";
 
     private Group map(java.sql.ResultSet rs) throws java.sql.SQLException {
@@ -157,6 +173,7 @@ public class GroupService {
     /** Tạo nhóm thuộc một tài khoản Zalo phụ (D23); các đường cũ (nhóm tay, link) thuộc tài khoản 1. */
     @Transactional
     public long create(String name, String link, Integer target, String scope, long accountId) {
+        lockAllocation(jdbc);
         String n = requireName(name);
         String l = validateLink(link);
         int t = validateTarget(target);
@@ -175,8 +192,12 @@ public class GroupService {
 
     @Transactional
     public void update(long id, String name, String link, Integer target, String note, String scope) {
+        lockAllocation(jdbc);
         Group g = find(id).orElseThrow(() -> new ImportException("Không tìm thấy nhóm."));
         String l = validateLink(link);
+        if (!java.util.Objects.equals(l, g.inviteLink())) {
+            requireNoUnresolvedAdd(id, "Hãy đối chiếu lượt thêm đang xử lý trước khi đổi mã hoặc link nhóm.");
+        }
         if (l == null && g.status() == GroupStatus.OPEN) {
             throw new ImportException("Nhóm đang nhận khách phải có link. Hãy tạm dừng nhóm trước khi xóa link.");
         }
@@ -201,6 +222,14 @@ public class GroupService {
         if (!v.isEmpty() && !v.matches("\\d{1,32}")) {
             throw new ImportException("Mã nhóm Zalo chỉ gồm chữ số (không phải link nhóm).");
         }
+        lockAllocation(jdbc);
+        Group group = findOfAccount(id, accountId).orElseThrow(() -> new ImportException("Không tìm thấy nhóm."));
+        if (!java.util.Objects.equals(v.isEmpty() ? null : v, group.zaloGroupId())) {
+            requireNoUnresolvedAdd(id, "Hãy đối chiếu lượt thêm đang xử lý trước khi đổi mã hoặc link nhóm.");
+        }
+        if (!v.isEmpty()) {
+            ZaloSharedGroupGrants.checkLegacyMapping(jdbc, id, accountId, v);
+        }
         int n = jdbc.sql("UPDATE zalo_group SET zalo_group_id = :z WHERE id = :id AND account_id = :acct")
                 .param("z", v.isEmpty() ? null : v, java.sql.Types.VARCHAR).param("id", id).param("acct", accountId).update();
         if (n == 0) {
@@ -208,9 +237,21 @@ public class GroupService {
         }
     }
 
+    private void requireNoUnresolvedAdd(long groupId, String reason) {
+        boolean unresolved = jdbc.sql("""
+                        SELECT EXISTS (SELECT 1 FROM zalo_group_add_attempt WHERE group_id = :group
+                          AND state IN ('DISPATCHED', 'REVIEW'))
+                        """).param("group", groupId).query(Boolean.class).single();
+        if (unresolved) {
+            throw new ImportException(reason);
+        }
+    }
+
     /** Mẹ/quản trị đếm lại số khách thật trong nhóm; đặt lại mốc "đang chờ". */
     @Transactional
     public void recount(long id, Integer actual) {
+        lockAllocation(jdbc);
+        requireNoUnresolvedAdd(id, "Hãy đối chiếu lượt thêm đang xử lý trước khi đếm lại số khách.");
         if (actual == null || actual < 0 || actual > 1000) {
             throw new ImportException("Số khách phải từ 0 đến 1000 (không tính tài khoản mẹ và trợ lý AI).");
         }
@@ -223,6 +264,7 @@ public class GroupService {
 
     @Transactional
     public void setStatus(long id, GroupStatus status) {
+        lockAllocation(jdbc);
         Group g = find(id).orElseThrow(() -> new ImportException("Không tìm thấy nhóm."));
         if (status == GroupStatus.OPEN && !g.hasLink()) {
             throw new ImportException("Hãy nhập link nhóm Zalo trước khi mở nhóm nhận khách.");
@@ -288,6 +330,10 @@ public class GroupService {
 
     /** Như trên, thêm {@code maxRank}: chỉ xét nhóm có thứ tự ưu tiên ({@link #rank}) không lớn hơn số này (0 = chỉ nhóm cùng tỉnh). */
     public Optional<Group> pickGroup(List<Group> all, Province province, boolean overflow, int maxRank) {
+        return pickGroup(all, province, overflow, maxRank, false);
+    }
+
+    public Optional<Group> pickGroup(List<Group> all, Province province, boolean overflow, int maxRank, boolean fillFirst) {
         int cap = softCap();
         return all.stream()
                 .filter(g -> g.status() == GroupStatus.OPEN && g.hasLink() && (overflow ? !g.fullAtCap(cap) : !g.full()))
@@ -295,7 +341,7 @@ public class GroupService {
                 // cùng thứ tự ưu tiên thì nhóm đã có mã nhóm Zalo đứng trước: nhóm gợi ý ở tin link thường cũng là nhóm bộ nối tự thêm được
                 .min(java.util.Comparator.comparingInt((Group g) -> rank(g, province))
                         .thenComparing((Group g) -> g.hasZaloId() ? 0 : 1)
-                        .thenComparingDouble(Group::score)
+                        .thenComparingDouble(g -> fillFirst ? g.target() - g.score() : g.score())
                         .thenComparingLong(Group::id));
     }
 

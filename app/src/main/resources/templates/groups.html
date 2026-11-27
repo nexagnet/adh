@@ -49,6 +49,7 @@
             <th:block th:each="g : ${groups}">
             <tr>
                 <td><strong th:text="${g.name}">Nhóm 1</strong>
+                    <a class="sub-line" th:href="@{/zalo/shared-groups/{id}(id=${g.id})}">Quyền dùng chung</a>
                     <span class="sub-line">Khu vực: <span th:text="${g.scopeLabel()}">Chung</span></span>
                     <span class="sub-line" th:if="${g.note != null}" th:text="${g.note}">ghi chú</span></td>
                 <td><span th:if="${g.hasLink()}" th:text="${g.inviteLink}">https://zalo.me/g/x</span><span class="muted" th:unless="${g.hasLink()}">Chưa có link</span>

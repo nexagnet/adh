@@ -10,28 +10,44 @@
             <li class="stack" th:each="account : ${reconcileAccounts}"
                 th:with="job=${account.job}, running=${job != null and job.running}"
                 data-reconciliation-account
-                th:attr="data-running=${running}, data-status=@{/campaigns/{id}/reconcile/{account}(id=${campaign.id},account=${account.id})}">
+                th:attr="data-running=${running}, data-job=${job.jobId}, data-blocker=${job.blockingCampaignId},
+                    data-status=@{/campaigns/{id}/reconcile/{account}(id=${campaign.id},account=${account.id})}">
                 <div class="actions">
                     <h3 th:text="${account.label}">Tài khoản phụ</h3>
-                    <form th:action="@{/campaigns/{id}/reconcile/{account}(id=${campaign.id},account=${account.id})}" method="post">
+                    <form data-reconciliation-start th:action="@{/campaigns/{id}/reconcile/{account}(id=${campaign.id},account=${account.id})}" method="post">
                         <button type="submit" class="btn secondary"
-                                th:disabled="${running or !account.active or account.eligible == 0}"
+                                th:disabled="${running or job.blockingCampaignId != null or !account.active or account.eligible == 0}"
                                 th:aria-label="${'Đối chiếu ngay · ' + account.label}"
                                 th:text="${running ? 'Đang đối chiếu…' : 'Đối chiếu ngay'}">Đối chiếu ngay</button>
                     </form>
                 </div>
+                <form class="stack small" data-reconciliation-cancel th:if="${job.canCancel}"
+                      th:action="@{/campaigns/{id}/reconcile/{account}/cancel(id=${campaign.id},account=${account.id})}" method="post">
+                    <input type="hidden" name="job" th:value="${job.jobId}">
+                    <label><input type="checkbox" name="confirmed" value="true" required> Xác nhận hủy phần chưa đọc</label>
+                    <div class="actions">
+                        <button type="submit" class="btn secondary" th:aria-label="${'Hủy phần chưa đọc · ' + account.label}">Hủy phần chưa đọc</button>
+                    </div>
+                </form>
                 <span class="muted small" th:if="${!account.active}">Tài khoản này chưa thể đối chiếu.</span>
                 <span class="muted small" th:if="${account.active and account.eligible == 0}">Chưa có lời mời đủ điều kiện để đối chiếu.</span>
                 <div role="status" aria-atomic="true" class="stack small">
                     <span data-progress-summary th:if="${job != null and job.total > 0}">
                         <strong th:text="${job.processed + ' / ' + job.total}">0 / 0</strong> lời mời đã xử lý<span
                             th:if="${job.failed > 0}" th:text="${' · ' + job.failed + ' lỗi đọc'}"></span><span
-                            th:if="${job.skipped > 0}" th:text="${' · ' + job.skipped + ' bỏ qua'}"></span>
+                            th:if="${job.skipped > 0}" th:text="${' · ' + job.skipped + ' bỏ qua'}"></span><span
+                            th:if="${job.cancelled > 0}" th:text="${' · ' + job.cancelled + ' đã hủy'}"></span>
                     </span>
                     <progress th:if="${job != null and job.total > 0}" data-progress-meter
                               th:aria-label="${'Tiến độ đối chiếu · ' + account.label}"
                               th:value="${job.processed}" th:max="${job.total}"></progress>
                     <span th:if="${job != null}" data-progress-message th:text="${job.message}"></span>
+                    <a th:if="${job.blockingCampaignId != null}"
+                       th:href="@{/campaigns/{id}(id=${job.blockingCampaignId},tab='doi-chieu')}">Mở chiến dịch đang đối chiếu</a>
+                    <span class="muted" th:if="${running and job.startedAt != null}">
+                        Bắt đầu chờ từ · <time th:datetime="${job.startedAt}"
+                            th:text="${#temporals.format(job.startedAt, 'dd/MM/yyyy HH:mm')}"></time><span data-progress-age></span>
+                    </span>
                     <span class="muted" data-progress-latest>
                         Đọc Zalo thành công gần nhất · <time th:if="${job != null and job.latestReadAt != null}"
                               th:datetime="${job.latestReadAt}" th:text="${#temporals.format(job.latestReadAt, 'dd/MM/yyyy HH:mm')}"></time><span

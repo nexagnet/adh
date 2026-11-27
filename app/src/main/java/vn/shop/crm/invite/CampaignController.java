@@ -218,6 +218,16 @@ public class CampaignController {
         return "redirect:/campaigns/" + id + "?tab=doi-chieu";
     }
 
+    @PostMapping("/campaigns/{id}/reconcile/{account}/cancel")
+    public String cancelFriendRead(@PathVariable long id, @PathVariable long account, @RequestParam long job,
+                                   @RequestParam(defaultValue = "false") boolean confirmed) {
+        if (!confirmed) {
+            throw new ImportException("Hãy xác nhận hủy phần lời mời chưa đọc.");
+        }
+        friendReconciliation.cancel(id, account, job);
+        return "redirect:/campaigns/" + id + "?tab=doi-chieu";
+    }
+
     /**
      * Lịch và nhịp RIÊNG của chiến dịch (D21 PR 4): chỉ làm chặt hơn trần hệ thống, để trống là theo hệ thống.
      * Nút "Theo hệ thống" (reset) xóa hết giá trị riêng.

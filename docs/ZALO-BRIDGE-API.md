@@ -108,6 +108,10 @@ Nhóm mà **tài khoản phụ đang tham gia**, để chọn "mã nhóm Zalo" c
 ```
 `code` khi không đọc được: `LOGIN_REQUIRED`, `NOT_ACTIVE` (đang dừng/chưa nghe), `BUSY`, `LIST_FAILED`. Chỉ đọc nên lỗi **không** làm cầu dao nhảy. Chỉ hỏi khi đang nghe bình thường; kết quả được giữ 30 giây để không hỏi dồn Zalo. Tên nhóm không vào log. `adminOnlyAdd` = nhóm bật "chỉ quản trị viên được thêm thành viên"; `isAdmin` = tài khoản phụ có là chủ/quản trị viên nhóm không.
 
+### `GET /groups/{id}/inspect`
+
+Đọc đúng một nhóm từ phiên đang nghe. Yêu cầu cả khóa cầu nối và dấu `X-Bridge-Account-Tag` đã ghim. Cầu nối trả `409` nếu thiếu dấu hoặc dấu không khớp. Kết quả xác nhận tài khoản còn ở nhóm, cài đặt hạn chế thêm thành viên, vai trò hiện tại và link mời đang bật nếu đọc được. Một lần đọc lỗi hoặc link thiếu chưa đủ để đối chiếu cùng nhóm. Dữ liệu thành viên, mã tài khoản gốc và tên nhóm không có trong phản hồi. Đường này chỉ đọc, không bật link hay thêm người.
+
 ## Quản lý phiên (chỉ trang quản trị gọi)
 - `POST /session/login` bắt đầu quét QR → `{ "state": "WAITING_SCAN", "qr": "<PNG base64>" }`; `GET /session/login` hỏi tiến độ. `state`: `WAITING_SCAN`, `SCANNED`, `DONE`, `EXPIRED`, `FAILED`, `ACCOUNT_MISMATCH` (tài khoản quét không phải tài khoản phụ đã khai báo: cầu nối từ chối và đăng xuất, không lưu gì, không đụng phiên phụ đang chạy). Khi và chỉ khi `ACCOUNT_MISMATCH`, trả thêm `scannedId` (mã Zalo chữ số của tài khoản vừa quét) để người quản trị điền đúng `ZALO_ACCOUNT_ID`; mã này chỉ ở bộ nhớ, không log, không lưu đĩa, Adh chỉ hiện trên trang quét QR của admin. Ảnh QR chỉ nằm trong bộ nhớ.
 - `POST /session/logout` đăng xuất và xóa tệp phiên. `POST /session/stop` dừng nghe, giữ phiên. `POST /session/resume` nghe lại bằng phiên đã lưu (chỉ khi người bấm "Mở lại"). Cả ba trả `{ "ok": true|false }`.

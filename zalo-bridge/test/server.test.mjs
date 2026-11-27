@@ -154,7 +154,7 @@ test('POST /people/lookup (D19) cần khóa, tra đúng một số, số sai kh�
 
 test('danh sách đường được phép là cố định', () => {
   assert.deepEqual(ROUTES, [
-    'GET /healthz', 'GET /status', 'GET /events', 'GET /inbox', 'POST /reactions', 'GET /groups', 'POST /groups', 'POST /groups/{id}/members', 'POST /groups/{id}/deputy', 'POST /messages', 'POST /friend-requests', 'POST /friend-requests/undo', 'GET /friend-requests/incoming', 'GET /friend-requests/status', 'POST /friend-requests/accept', 'POST /people/lookup', 'POST /session/login', 'GET /session/login',
+    'GET /healthz', 'GET /status', 'GET /events', 'GET /inbox', 'POST /reactions', 'GET /groups', 'GET /groups/{id}/inspect', 'POST /groups', 'POST /groups/{id}/members', 'POST /groups/{id}/deputy', 'POST /messages', 'POST /friend-requests', 'POST /friend-requests/undo', 'GET /friend-requests/incoming', 'GET /friend-requests/status', 'POST /friend-requests/accept', 'POST /people/lookup', 'POST /session/login', 'GET /session/login',
     'POST /session/logout', 'POST /session/stop', 'POST /session/resume',
   ]);
 });
@@ -248,4 +248,26 @@ test('GET /inbox: cần khóa; tắt mặc định thì báo enabled=false và r
   assert.equal((await on.call('GET', '/inbox?after=' + r2.json.messages[0].seq)).json.messages.length, 0);
   assert.equal((await on.call('POST', '/inbox', { body: {} })).status, 404);
   await on.close();
+});
+
+test('kiểm tra đúng một nhóm bằng phiên đã ghim, không đổi dữ liệu', async () => {
+  const s = await boot();
+  try {
+    const tag = (await s.call('GET', '/status')).json.accountTag;
+    const p = '/groups/222/inspect';
+    s.c.adapter.groups = [{ id: '222', name: 'Nhóm thử', adminOnlyAdd: true, isAdmin: false,
+      inviteLink: 'https://zalo.me/g/fake222' }];
+    assert.equal((await s.call('GET', p)).status, 409);
+    assert.equal((await s.call('GET', p, { accountTag: '000000000000' })).status, 409);
+    assert.deepEqual((await s.call('GET', p, { accountTag: tag })).json, {
+      ok: true, present: true, adminOnlyAdd: true, admin: false, inviteLink: 'https://zalo.me/g/fake222', accountTag: tag,
+    });
+    s.c.adapter.groups[0].isAdmin = true;
+    assert.equal((await s.call('GET', p, { accountTag: tag })).json.admin, true);
+    assert.deepEqual((await s.call('GET', '/groups/333/inspect', { accountTag: tag })).json,
+      { ok: true, present: false, accountTag: tag });
+    assert.equal(s.c.adapter.adds.length, 0);
+  } finally {
+    await s.close();
+  }
 });

@@ -108,6 +108,15 @@ test('không lấy được số do lỗi thường thì vẫn báo sự kiện 
   c.cleanup();
 });
 
+test('thêm nhóm: phản hồi sai cấu trúc không được ghi thành công', async () => {
+  const c = setup();
+  await c.bridge.start();
+  await loginAndListen(c);
+  c.adapter.nextAdd = { error_data: {} };
+  assert.deepEqual(await c.bridge.addMember('111', '222'), { outcome: 'SYSTEM_ERROR', code: 'BAD_REPLY' });
+  c.cleanup();
+});
+
 test('thêm người: thành công, và lỗi riêng người (Zalo báo errorMembers) không làm dừng', async () => {
   const c = setup();
   await c.bridge.start();

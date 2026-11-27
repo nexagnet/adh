@@ -69,11 +69,21 @@ public final class SafeZaloLink implements ZaloLink {
 
     @Override
     public AddResult addToGroup(String uid, String zaloGroupId) {
-        if (!mode.uidAllowed(uid)) {
+        if (!mode.uidAllowed(uid) || !mode.ownGroup(zaloGroupId)) {
             mode.noteBlocked("THEM_NHOM");
             return AddResult.of(Outcome.UNREACHABLE, CODE);
         }
         return inner.addToGroup(uid, zaloGroupId);
+    }
+
+    @Override
+    public AddResult addSharedGroupMember(SharedGroupTarget target) {
+        if (target.accountId() != ZaloAccountContext.current()
+                || !mode.claimSharedGroupAdd(target)) {
+            mode.noteBlocked("THEM_NHOM_DUNG_CHUNG");
+            return AddResult.of(Outcome.UNREACHABLE, CODE);
+        }
+        return inner.addSharedGroupMember(target);
     }
 
     // ---------- ZaloMessenger ----------
@@ -205,6 +215,11 @@ public final class SafeZaloLink implements ZaloLink {
     @Override
     public GroupList listGroups() {
         return inner.listGroups();
+    }
+
+    @Override
+    public GroupInspection inspectGroup(String bridgeGroupId) {
+        return inner.inspectGroup(bridgeGroupId);
     }
 
     @Override
