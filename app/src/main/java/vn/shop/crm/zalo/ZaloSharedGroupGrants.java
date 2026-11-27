@@ -81,11 +81,18 @@ public class ZaloSharedGroupGrants {
     }
 
     public List<Long> grantedGroupIds(long accountId) {
+        return eligibleGrants(accountId).stream().map(Grant::groupId).toList();
+    }
+
+    public List<Grant> eligibleGrants(long accountId) {
         if (!enabled) {
             return List.of();
         }
-        return jdbc.sql("SELECT a.group_id " + ELIGIBLE + " ORDER BY a.group_id")
-                .param("account", accountId).query(Long.class).list();
+        return jdbc.sql("SELECT a.group_id, a.account_id, a.bridge_group_id, a.account_tag, a.revision " + ELIGIBLE
+                        + " ORDER BY a.group_id")
+                .param("account", accountId)
+                .query((rs, row) -> new Grant(rs.getLong("group_id"), rs.getLong("account_id"),
+                        rs.getString("bridge_group_id"), rs.getString("account_tag"), rs.getLong("revision"))).list();
     }
 
     public GroupView view(long groupId) {

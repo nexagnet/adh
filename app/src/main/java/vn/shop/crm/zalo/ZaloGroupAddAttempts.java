@@ -43,8 +43,8 @@ public class ZaloGroupAddAttempts {
 
     record Attempt(long id, long invitationId, long groupId, long accountId, long logId, String bridgeGroupId,
                    boolean shared, String previousState) {}
-    private record Candidate(Long heldGroup, String state) {}
-    public record Review(long id, long invitationId, long accountId, String groupName, OffsetDateTime dispatchedAt,
+    private record Candidate(Long heldGroup, Long assignedGroup, boolean reserved, OffsetDateTime clickedAt, String state) {}
+    public record Review(long id, Long invitationId, long accountId, String groupName, OffsetDateTime dispatchedAt,
                          String result, String providerOutcome, boolean canConfirm) {
         public java.time.LocalDateTime localDispatchedAt() {
             return dispatchedAt.atZoneSameInstant(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDateTime();
@@ -62,7 +62,10 @@ public class ZaloGroupAddAttempts {
             return null;
         }
         Candidate row = jdbc.sql("""
-                        SELECT i.zalo_add_state, coalesce(i.group_id,
+                        SELECT i.zalo_add_state, i.group_id, i.first_clicked_at,
+                            (i.reserved_group_id = :group AND i.reserved_until > now()
+                                AND i.status = 'FRIENDED' AND i.first_clicked_at IS NULL) AS reserved,
+                            coalesce(i.group_id,
                             CASE WHEN i.reserved_until > now() THEN i.reserved_group_id END) AS held
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
                         WHERE i.id = :id AND i.customer_id = :customer AND i.account_id = :account AND i.zalo_uid = :uid
@@ -74,9 +77,10 @@ public class ZaloGroupAddAttempts {
                             JOIN zalo_group_proposal p ON p.id = m.proposal_id
                             WHERE m.invitation_id = i.id AND p.state = 'CREATING')
                         """ + testMode.onlyTestSql("c.phone") + " FOR UPDATE OF i")
-                .param("id", invitation).param("customer", customer).param("account", account)
+                .param("id", invitation).param("customer", customer).param("account", account).param("group", selected.id())
                 .param("uid", uid).param("state", expectedState)
-                .query((rs, n) -> new Candidate(rs.getObject("held", Long.class), rs.getString("zalo_add_state")))
+                .query((rs, n) -> new Candidate(rs.getObject("held", Long.class), rs.getObject("group_id", Long.class),
+                        rs.getBoolean("reserved"), rs.getObject("first_clicked_at", OffsetDateTime.class), rs.getString("zalo_add_state")))
                 .optional().orElse(null);
         var group = groups.find(selected.id()).orElse(null);
         if (row == null || group == null || group.status() != GroupStatus.OPEN || !group.hasLink() || !group.hasZaloId()
@@ -84,7 +88,7 @@ public class ZaloGroupAddAttempts {
                 || !Objects.equals(group.zaloGroupId(), selected.zaloGroupId())
                 || !Objects.equals(group.scope(), selected.scope())
                 || (row.heldGroup() != null && row.heldGroup() != group.id())
-                || (row.heldGroup() == null && (group.score() + 1 > (overflow ? Math.max(group.target(), groups.softCap()) : group.target())))) {
+                || !groups.hasAddSeat(group, row.reserved(), Objects.equals(row.assignedGroup(), group.id()) ? row.clickedAt() : null, overflow)) {
             return null;
         }
         String bridgeGroup = group.zaloGroupId();
@@ -129,6 +133,7 @@ public class ZaloGroupAddAttempts {
                             AND state = 'DISPATCHED' AND dispatched_at < now() - interval '2 minutes'
                         """).param("account", ZaloAccountContext.current()).query(ZaloGroupAddAttempts::mapAttempt).list();
         for (Attempt attempt : expired) {
+            lockInvitation(attempt.invitationId());
             finish(attempt, "REVIEW", "INTERRUPTED", null, null);
             writeLog(attempt, "REVIEW", "INTERRUPTED");
             setInvitation(attempt, "FAILED", "CAN_DOI_CHIEU");
@@ -139,6 +144,7 @@ public class ZaloGroupAddAttempts {
     @Transactional
     public boolean complete(Attempt attempt, ZaloGateway.AddResult result) {
         GroupService.lockAllocation(jdbc);
+        boolean invitationPresent = lockInvitation(attempt.invitationId());
         jdbc.sql("UPDATE zalo_group_add_attempt SET provider_outcome = :result, provider_code = :code WHERE id = :id AND provider_outcome IS NULL")
                 .param("result", result.outcome().name()).param("code", result.code(), java.sql.Types.VARCHAR)
                 .param("id", attempt.id()).update();
@@ -148,9 +154,9 @@ public class ZaloGroupAddAttempts {
         boolean consistent = true;
         switch (result.outcome()) {
             case OK -> {
-                consistent = confirmJoined(attempt);
+                consistent = invitationPresent && confirmJoined(attempt);
                 finish(attempt, consistent ? "JOINED" : "REVIEW", "OK", null, null);
-                writeLog(attempt, consistent ? "OK" : "REVIEW", consistent ? null : "NHOM_KHONG_KHOP");
+                writeLog(attempt, consistent ? "OK" : "REVIEW", consistent ? null : invitationPresent ? "NHOM_KHONG_KHOP" : "LOI_MOI_DA_XOA");
                 setInvitation(attempt, consistent ? "ADDED" : "FAILED", consistent ? null : "CAN_DOI_CHIEU");
             }
             case UNREACHABLE -> {
@@ -177,11 +183,12 @@ public class ZaloGroupAddAttempts {
 
     public List<Review> reviews() {
         return jdbc.sql("""
-                        SELECT a.id, a.invitation_id, a.account_id, g.name, a.dispatched_at, a.result, a.provider_outcome, (a.state = 'REVIEW' OR a.dispatched_at < now() - interval '2 minutes') AS can_confirm
+                        SELECT a.id, a.invitation_id, a.account_id, g.name, a.dispatched_at, a.result, a.provider_outcome,
+                            (a.invitation_id IS NOT NULL AND (a.state = 'REVIEW' OR a.dispatched_at < now() - interval '2 minutes')) AS can_confirm
                         FROM zalo_group_add_attempt a JOIN zalo_group g ON g.id = a.group_id
                         WHERE a.state IN ('DISPATCHED', 'REVIEW')
                         ORDER BY a.dispatched_at, a.id
-                        """).query((rs, n) -> new Review(rs.getLong("id"), rs.getLong("invitation_id"),
+                        """).query((rs, n) -> new Review(rs.getLong("id"), rs.getObject("invitation_id", Long.class),
                         rs.getLong("account_id"), rs.getString("name"), rs.getObject("dispatched_at", OffsetDateTime.class),
                         rs.getString("result"), rs.getString("provider_outcome"), rs.getBoolean("can_confirm"))).list();
     }
@@ -195,6 +202,9 @@ public class ZaloGroupAddAttempts {
                           AND (state = 'REVIEW' OR (state = 'DISPATCHED' AND dispatched_at < now() - interval '2 minutes'))
                         """).param("id", id).param("account", ZaloAccountContext.current()).query(ZaloGroupAddAttempts::mapAttempt).optional()
                 .orElseThrow(() -> new ImportException("Lượt này chưa sẵn sàng hoặc đã được xác nhận."));
+        if (!lockInvitation(attempt.invitationId())) {
+            throw new ImportException("Lời mời đã xóa. Hãy kiểm đếm nhóm trên Zalo để chốt lượt này.");
+        }
         if (joined && !confirmJoined(attempt)) {
             // Giữ kết quả Zalo và trạng thái hiện tại khi hai nhóm xung đột. Vẫn giữ chỗ để người vận hành xử lý.
             finish(attempt, "REVIEW", "CONFIRMED_CONFLICT", note, actor);
@@ -257,6 +267,11 @@ public class ZaloGroupAddAttempts {
     private boolean confirmJoined(Attempt attempt) {
         return invites.finishDispatchedGroupAdd(attempt.id(), attempt.invitationId(), attempt.groupId(),
                 attempt.accountId(), attempt.shared());
+    }
+
+    private boolean lockInvitation(long id) {
+        return jdbc.sql("SELECT id FROM invitation WHERE id = :id FOR UPDATE")
+                .param("id", id).query(Long.class).optional().isPresent();
     }
 
     private boolean isDispatched(long id) {

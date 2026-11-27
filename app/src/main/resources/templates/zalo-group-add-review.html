@@ -24,14 +24,15 @@
         <table>
             <thead><tr><th>Lời mời</th><th>Tài khoản thêm</th><th>Nhóm</th><th>Giờ phát lệnh</th><th>Đối chiếu</th></tr></thead>
             <tbody><tr th:each="row : ${reviews}">
-                <td th:text="${row.invitationId}"></td>
+                <td th:text="${row.invitationId == null ? 'Đã xóa' : row.invitationId}"></td>
                 <td th:text="${row.accountId}"></td>
                 <td th:text="${row.groupName}"></td>
                 <td th:text="${#temporals.format(row.localDispatchedAt(), 'dd/MM HH:mm')}"></td>
                 <td>
                     <p th:if="${row.result != null}" th:text="${row.result}"></p>
                     <p th:if="${row.providerOutcome != null}" th:text="|Bộ nối đã báo ${row.providerOutcome}|"></p>
-                    <p th:unless="${row.canConfirm}">Đang chờ kết quả từ bộ nối</p>
+                    <p th:if="${!row.canConfirm and row.invitationId != null}">Đang chờ kết quả từ bộ nối</p>
+                    <p th:if="${row.invitationId == null}">Lời mời đã xóa. Kiểm đếm trên Zalo rồi cập nhật số khách ở trang Nhóm Zalo.</p>
                     <form class="stack" th:if="${row.canConfirm}" th:action="@{/zalo/group-add-review/{id}(id=${row.id},account=${row.accountId})}" method="post">
                         <label>Lý do xác nhận <input name="note" required maxlength="300"></label>
                         <button class="btn secondary sm" type="submit" name="joined" value="true">Khách đã vào đúng nhóm</button>

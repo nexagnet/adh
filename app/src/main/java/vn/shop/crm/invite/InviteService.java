@@ -780,7 +780,7 @@ public class InviteService {
             return false;
         }
         GroupService.Group group = groups.find(groupId).orElseThrow();
-        return finishJoin(invitationId, row, group, "bộ nối Zalo, tài khoản " + accountId, shared);
+        return finishJoin(invitationId, row, group, "bộ nối Zalo, tài khoản " + accountId, true);
     }
 
     private void finishJoin(long invitationId, StepRow r, GroupService.Group group, String via) {

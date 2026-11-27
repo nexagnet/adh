@@ -144,10 +144,22 @@ public class GroupService {
                        AND r.first_clicked_at IS NULL
                        AND NOT EXISTS (SELECT 1 FROM zalo_group_add_attempt a WHERE a.invitation_id = r.id
                            AND a.group_id = g.id AND a.state IN ('DISPATCHED', 'REVIEW')))
-                   + (SELECT count(*) FROM zalo_group_add_attempt a JOIN invitation i ON i.id = a.invitation_id
+                   + (SELECT count(*) FROM zalo_group_add_attempt a LEFT JOIN invitation i ON i.id = a.invitation_id
                      WHERE a.group_id = g.id AND a.state IN ('DISPATCHED', 'REVIEW')
-                       AND (i.status <> 'JOINED' OR i.group_id IS DISTINCT FROM g.id)) AS reserved
+                       AND (i.status IS DISTINCT FROM 'JOINED' OR i.group_id IS DISTINCT FROM g.id)) AS reserved
             FROM zalo_group g""";
+
+    public boolean hasAddSeat(Group group, boolean reserved, OffsetDateTime clickedAt, boolean overflow) {
+        if (reserved) {
+            return true;
+        }
+        return group.score() + addSeatCost(group, clickedAt) <= (overflow ? Math.max(group.target(), softCap()) : group.target());
+    }
+
+    public double addSeatCost(Group group, OffsetDateTime clickedAt) {
+        return clickedAt != null && (group.countedAt() == null || clickedAt.isAfter(group.countedAt()))
+                ? 1 - acceptRate : 1;
+    }
 
     private Group map(java.sql.ResultSet rs) throws java.sql.SQLException {
         int actual = rs.getInt("actual_customers");
@@ -251,10 +263,20 @@ public class GroupService {
     @Transactional
     public void recount(long id, Integer actual) {
         lockAllocation(jdbc);
-        requireNoUnresolvedAdd(id, "Hãy đối chiếu lượt thêm đang xử lý trước khi đếm lại số khách.");
         if (actual == null || actual < 0 || actual > 1000) {
             throw new ImportException("Số khách phải từ 0 đến 1000 (không tính tài khoản mẹ và trợ lý AI).");
         }
+        // Tác vụ của khách đã xóa chỉ còn số chỗ ẩn danh. Kiểm kê trực tiếp trên Zalo chốt các lượt này.
+        jdbc.sql("""
+                        WITH settled AS (
+                            UPDATE zalo_group_add_attempt SET state = 'RECOUNTED', result = 'ERASURE_RECOUNT', finished_at = now()
+                            WHERE group_id = :group AND invitation_id IS NULL AND state = 'REVIEW'
+                            RETURNING log_id
+                        )
+                        UPDATE zalo_auto_log SET result = 'ERASURE_RECOUNT', code = NULL
+                        WHERE id IN (SELECT log_id FROM settled)
+                        """).param("group", id).update();
+        requireNoUnresolvedAdd(id, "Hãy đối chiếu lượt thêm đang xử lý trước khi đếm lại số khách.");
         int n = jdbc.sql("UPDATE zalo_group SET actual_customers = :a, counted_at = now() WHERE id = :id")
                 .param("a", actual).param("id", id).update();
         if (n == 0) {

@@ -543,6 +543,10 @@ public class ZaloGroupCreationService implements ZaloTickHook {
     /** Chọn lại khách và đánh dấu phát lệnh dưới cùng khóa với đường tự thêm. */
     private CreateDispatch claimCreate(long id, GeoArea scope) {
         GroupService.lockAllocation(jdbc);
+        if (!mayCreateNow() || count("SELECT count(*) FROM zalo_group_proposal WHERE " + ZaloAccountContext.sql()
+                + " AND state = 'CREATING'") > 0) {
+            return null;
+        }
         if (!jdbc.sql("SELECT EXISTS (SELECT 1 FROM zalo_group_proposal WHERE id = :id AND state = 'APPROVED' AND "
                         + ZaloAccountContext.sql() + ")").param("id", id).query(Boolean.class).single()) {
             return null;

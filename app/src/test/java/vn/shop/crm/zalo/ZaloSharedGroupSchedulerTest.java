@@ -404,4 +404,40 @@ class ZaloSharedGroupSchedulerTest extends AbstractPostgresTest {
                 .andExpect(status().is3xxRedirection());
         assertThat(groups.find(group).orElseThrow().actual()).isEqualTo(1);
     }
+
+    @Test
+    void privacyErasureDuringAddKeepsAnAnonymousAttemptAndRecountClosesIt() {
+        grant(1);
+        long invitation = queue(1);
+        long customer = jdbc.sql("SELECT customer_id FROM invitation WHERE id = :id").param("id", invitation).query(Long.class).single();
+        bridge(1).onAdd = () -> jdbc.sql("DELETE FROM customer WHERE id = :id").param("id", customer).update();
+        assertThat(auto.addNext()).isEqualTo(ZaloAutoService.Step.TRIPPED);
+        assertThat(attempts.reviews()).singleElement().satisfies(row -> {
+            assertThat(row.invitationId()).isNull();
+            assertThat(row.providerOutcome()).isEqualTo("OK");
+        });
+        assertThat(groups.find(group).orElseThrow().reserved()).isEqualTo(1);
+        assertThat(jdbc.sql("SELECT count(*) FROM zalo_auto_log WHERE result = 'DANG_GOI'").query(Long.class).single()).isZero();
+        groups.recount(group, 1);
+        assertThat(attempts.reviews()).isEmpty();
+        assertThat(groups.find(group).orElseThrow().score()).isEqualTo(1);
+        settings.reopen("owner");
+        assertThat(auto.addNext()).isNotEqualTo(ZaloAutoService.Step.TRIPPED);
+    }
+
+    @Test
+    void oldClickDoesNotReserveASeatAfterRecountFilledTheGroup() {
+        grant(1);
+        long invitation = queue(1);
+        jdbc.sql("UPDATE invitation SET group_id = :group, first_clicked_at = now() - interval '1 hour' WHERE id = :id")
+                .param("group", group).param("id", invitation).update();
+        groups.recount(group, 5);
+        assertThat(auto.addNext()).isEqualTo(ZaloAutoService.Step.NO_GROUP);
+        assertThat(bridge(1).adds).isEmpty();
+        assertThat(jdbc.sql("SELECT group_id FROM invitation WHERE id = :id").param("id", invitation).query(Long.class).single())
+                .isEqualTo(group);
+        groups.recount(group, 4);
+        assertThat(auto.addNext()).isEqualTo(ZaloAutoService.Step.ADDED);
+        assertThat(groups.find(group).orElseThrow().actual()).isEqualTo(5);
+    }
 }
