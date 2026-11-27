@@ -648,6 +648,33 @@ public class ZcaBridgeGateway implements ZaloLink {
     }
 
     @Override
+    public JoinGroupResult joinGroupViaLink(String expectedGroupId, String inviteLink, String accountTag) {
+        if (expectedGroupId == null || !ZALO_ID.matcher(expectedGroupId).matches()
+                || inviteLink == null || !inviteLink.matches("https://zalo\\.me/g/[a-zA-Z0-9_-]{1,100}")
+                || accountTag == null || !accountTag.matches("[0-9a-f]{12}")) {
+            return JoinGroupResult.of(JoinGroupOutcome.NOT_DISPATCHED, "BAD_INPUT");
+        }
+        try {
+            String body = JSON.writeValueAsString(java.util.Map.of("inviteLink", inviteLink, "ownerVerified", true));
+            JsonNode result = call("POST", "/groups/" + expectedGroupId + "/join", body, 36, () -> true, accountTag);
+            JoinGroupOutcome outcome = JoinGroupOutcome.valueOf(result.path("outcome").asString(""));
+            String code = safeCode(text(result, "code"));
+            String groupId = text(result, "groupId");
+            if (outcome == JoinGroupOutcome.JOINED && !expectedGroupId.equals(groupId)) {
+                return JoinGroupResult.of(JoinGroupOutcome.UNKNOWN, "TARGET_UNCONFIRMED");
+            }
+            return new JoinGroupResult(outcome, code, expectedGroupId.equals(groupId) ? groupId : null);
+        } catch (Unreachable e) {
+            return JoinGroupResult.of(JoinGroupOutcome.NOT_DISPATCHED, "BRIDGE_UNREACHABLE");
+        } catch (TimedOut e) {
+            return JoinGroupResult.of(JoinGroupOutcome.UNKNOWN, "TIMEOUT");
+        } catch (Exception e) {
+            log.warn("Lỗi yêu cầu tham gia nhóm qua cầu nối: {}", e.getClass().getSimpleName());
+            return JoinGroupResult.of(JoinGroupOutcome.UNKNOWN, "JOIN_RESULT_UNKNOWN");
+        }
+    }
+
+    @Override
     public Login startLogin() {
         return login("POST");
     }

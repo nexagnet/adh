@@ -164,6 +164,22 @@ export class ZcaAdapter {
    * phải quản trị viên không). Để chủ shop chọn đúng "mã nhóm Zalo" cho Adh. Không liệt kê bạn bè, không dò ai.
    */
   /** Chỉ đọc một nhóm thuộc phiên hiện tại. Không chuyển thông tin thành viên ra khỏi bộ nối. */
+  async resolveGroupInviteLink(link) {
+    const data = await this.api.getGroupLinkInfo({ link });
+    const id = String(data?.groupId ?? '');
+    return /^\d{1,32}$/.test(id) ? id : null;
+  }
+
+  async hasGroupMembership(groupId) {
+    const membership = (await this.api.getAllGroups())?.gridVerMap;
+    return !membership || typeof membership !== 'object' || Array.isArray(membership)
+      ? null : Object.hasOwn(membership, groupId);
+  }
+
+  async joinGroupLink(link) {
+    return this.api.joinGroupLink(link);
+  }
+
   async inspectGroup(groupId) {
     const membership = (await this.api.getAllGroups())?.gridVerMap;
     if (!membership || typeof membership !== 'object' || Array.isArray(membership)) return null;

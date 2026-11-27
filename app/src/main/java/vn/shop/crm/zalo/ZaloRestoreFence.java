@@ -13,6 +13,7 @@ final class ZaloRestoreFence {
 
     // Mỗi kiểu kết quả dưới đây thuộc thao tác có thể thay đổi dữ liệu trên Zalo.
     private static final Map<Class<?>, Object> BLOCKED_RESULTS = Map.of(
+            ZaloSession.JoinGroupResult.class, ZaloSession.JoinGroupResult.of(ZaloSession.JoinGroupOutcome.NOT_DISPATCHED, CODE),
             ZaloGateway.AddResult.class, ZaloGateway.AddResult.of(ZaloGateway.Outcome.UNREACHABLE, CODE),
             ZaloMessenger.Sent.class, ZaloMessenger.Sent.of(ZaloMessenger.Result.UNREACHABLE, CODE, true),
             ZaloGroupMaker.Created.class, ZaloGroupMaker.Created.of(ZaloGroupMaker.GroupOutcome.UNREACHABLE, CODE, true),

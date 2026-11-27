@@ -139,3 +139,10 @@ Khi còn một lượt gọi lời mời `DANG_GOI`, tab **Cần xử lý tay** 
 | Hết giờ chờ lúc thêm người (kết quả không biết) | `SYSTEM_ERROR` mã `TIMEOUT`: dừng ngay, khách để người kiểm tra tay |
 | Trả lời lạ, mã HTTP khác 200 lúc thêm người | `SYSTEM_ERROR`: dừng ngay |
 | `PERSON_ERROR` | Ghi `FAILED` cho khách đó, không tự thử lại, hiện cho người xử lý |
+
+
+### Tài khoản phụ tham gia một nhóm qua link đã xác minh
+
+`POST /groups/{id}/join` nhận `inviteLink` dạng `https://zalo.me/g/…`. Bắt buộc có khóa nội bộ và `X-Bridge-Account-Tag` khớp danh tính đã ghim. Khi Zalo giới hạn tra link với người ngoài nhóm, ADH chỉ gửi `ownerVerified=true` sau khi phiên chủ xác minh đúng link và mã nhóm. Nếu phiên tham gia phân giải link thành mã khác, cầu nối từ chối.
+
+ADH ghi yêu cầu OWNER vào cơ sở dữ liệu trước khi gọi. Cầu nối gửi tối đa một yêu cầu qua phiên đang chạy. Các kết quả gồm `JOINED`, `PENDING`, `NOT_DISPATCHED` và `UNKNOWN`. ADH xác minh quyền thêm khách bằng lượt đọc riêng. Bộ hẹn giờ chỉ đọc lại khi chờ duyệt hoặc chưa rõ kết quả, và không gửi lại yêu cầu tham gia. Cấp quyền và bật nhóm theo lựa chọn đã duyệt chỉ thực hiện khi đã xác nhận tư cách thành viên và quyền thêm người.
