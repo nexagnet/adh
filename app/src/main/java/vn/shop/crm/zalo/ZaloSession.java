@@ -74,6 +74,24 @@ public interface ZaloSession {
         return GroupInspection.failed("INSPECTION_UNAVAILABLE");
     }
 
+    enum JoinGroupOutcome { JOINED, PENDING, NOT_DISPATCHED, UNKNOWN }
+
+    record JoinGroupResult(JoinGroupOutcome outcome, String code, String groupId) {
+        public static JoinGroupResult of(JoinGroupOutcome outcome, String code) {
+            return new JoinGroupResult(outcome, code, null);
+        }
+
+        @Override
+        public String toString() {
+            return "JoinGroupResult[outcome=" + outcome + ", code=" + code + "]";
+        }
+    }
+
+    /** Yêu cầu tham gia đúng một nhóm bằng phiên đã ghim. Chỉ gọi sau khi ADH lưu phê duyệt của OWNER. */
+    default JoinGroupResult joinGroupViaLink(String expectedGroupId, String inviteLink, String accountTag) {
+        return JoinGroupResult.of(JoinGroupOutcome.NOT_DISPATCHED, "JOIN_UNSUPPORTED");
+    }
+
     /** Bắt đầu đăng nhập bằng QR. */
     Login startLogin();
 

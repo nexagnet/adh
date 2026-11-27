@@ -133,6 +133,67 @@ class ZaloSharedGroupGrantsTest extends AbstractPostgresTest {
                         """).query(Long.class).single()).isEqualTo(1L);
     }
 
+    @Autowired ZaloSharedGroupJoin joins;
+
+    @Test
+    void ownerApprovalJoinsOnceAndVerifiesBeforeOpeningTheGroup() throws Exception {
+        long target = groups.create("Nhóm của tài khoản 2", "https://zalo.me/g/otherFixture", 5, null, 2);
+        groups.setZaloGroupId(target, "700", 2);
+        when(accounts.active()).thenReturn(List.of(1L, 2L));
+        String link = "https://zalo.me/g/otherFixture";
+        var member = new java.util.concurrent.atomic.AtomicBoolean();
+        when(bridge.inspectGroup("700")).thenAnswer(call -> ZaloAccountContext.current() == 2
+                ? new ZaloSession.GroupInspection(true, true, false, true, link, OTHER_TAG, null)
+                : new ZaloSession.GroupInspection(true, member.get(), false, false, member.get() ? link : null, OWNER_TAG, null));
+        when(bridge.joinGroupViaLink("700", link, OWNER_TAG)).thenAnswer(call -> {
+            assertThat(ZaloAccountContext.current()).isEqualTo(1);
+            return ZaloSession.JoinGroupResult.of(ZaloSession.JoinGroupOutcome.PENDING, "Z240");
+        });
+
+        String path = BASE + target + "/join";
+        mvc.perform(post(path).with(user("admin").roles("OWNER"))).andExpect(status().isForbidden());
+        mvc.perform(post(path).with(user("worker")).with(csrf())).andExpect(status().isForbidden());
+        mvc.perform(post(path).with(user("admin").roles("OWNER")).with(csrf())
+                .param("account", "2").param("grantee", "1").param("confirmed", "true").param("activate", "true"))
+                .andExpect(redirectedUrl(BASE + target));
+
+        assertThat(grants.view(target).sharing()).isFalse();
+        assertThat(grants.view(target).grants()).isEmpty();
+        assertThatThrownBy(() -> joins.start(target, 1, true, "admin")).isInstanceOf(ImportException.class);
+        joins.verify(target, 1);
+        assertThat(joins.views(target)).singleElement().satisfies(row -> assertThat(row.state()).isEqualTo("PENDING"));
+        member.set(true);
+        joins.verify(target, 1);
+
+        assertThat(joins.views(target)).singleElement().satisfies(row -> assertThat(row.state()).isEqualTo("VERIFIED"));
+        assertThat(grants.grant(target, 1)).get().satisfies(row -> assertThat(row.bridgeGroupId()).isEqualTo("700"));
+        verify(bridge, times(1)).joinGroupViaLink("700", link, OWNER_TAG);
+        verify(bridge, never()).addToGroup(any(), any());
+        mvc.perform(get(BASE + target).with(user("admin").roles("OWNER")).param("account", "2"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Đã tham gia và xác minh quyền")));
+    }
+
+    @Test
+    void unknownRequestNeverResendsAndCannotApproveAfterTheGroupLinkChanges() {
+        long target = groups.create("Nhóm tài khoản 2", "https://zalo.me/g/oldFixture", 5, null, 2);
+        groups.setZaloGroupId(target, "701", 2);
+        when(accounts.active()).thenReturn(List.of(1L, 2L));
+        String original = "https://zalo.me/g/oldFixture";
+        when(bridge.inspectGroup("701")).thenAnswer(call -> ZaloAccountContext.current() == 2
+                ? new ZaloSession.GroupInspection(true, true, false, true, original, OTHER_TAG, null)
+                : new ZaloSession.GroupInspection(true, false, false, false, null, OWNER_TAG, null));
+        when(bridge.joinGroupViaLink("701", original, OWNER_TAG))
+                .thenReturn(ZaloSession.JoinGroupResult.of(ZaloSession.JoinGroupOutcome.UNKNOWN, "TIMEOUT"));
+        joins.start(target, 1, true, "admin");
+        assertThatThrownBy(() -> joins.start(target, 1, true, "admin")).isInstanceOf(ImportException.class);
+        groups.update(target, "Nhóm tài khoản 2", "https://zalo.me/g/newFixture", 5, null);
+        joins.verify(target, 1);
+        assertThat(joins.views(target)).singleElement().satisfies(row -> assertThat(row.state()).isEqualTo("CHANGED"));
+        assertThat(grants.view(target).grants()).isEmpty();
+        assertThat(grants.view(target).sharing()).isFalse();
+        verify(bridge, times(1)).joinGroupViaLink("701", original, OWNER_TAG);
+    }
+
     private static boolean succeeded(CountDownLatch start, Runnable action) throws InterruptedException {
         start.await();
         try {

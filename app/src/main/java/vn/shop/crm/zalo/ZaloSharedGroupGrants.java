@@ -44,7 +44,7 @@ public class ZaloSharedGroupGrants {
     public record GroupView(boolean sharing, List<View> grants) {
     }
 
-    private record EvidenceTarget(long ownerId, String ownerGroupId, String canonicalLink, String ownerTag,
+    record EvidenceTarget(long ownerId, String ownerGroupId, String canonicalLink, String ownerTag,
                                   String actorTag, long groupRevision, long ownerRevision, long actorRevision,
                                   long grantRevision, boolean enabledAccounts) {
     }
@@ -141,30 +141,35 @@ public class ZaloSharedGroupGrants {
 
         tx.executeWithoutResult(status -> {
             GroupService.lockAllocation(jdbc);
-            if (!target.equals(evidenceTarget(groupId, accountId))) {
-                throw new ImportException("Nhóm hoặc tài khoản đã đổi trong lúc kiểm tra. Hãy duyệt lại.");
-            }
-            boolean duplicate = jdbc.sql("SELECT EXISTS (SELECT 1 FROM zalo_group WHERE id <> :group AND invite_link = :link)")
-                    .param("group", groupId).param("link", target.canonicalLink()).query(Boolean.class).single();
-            if (duplicate) {
-                throw new ImportException("Link này đã có trong một bản ghi ADH khác. Hãy rà soát nhóm trùng trước khi cấp quyền.");
-            }
-            checkLegacyMapping(jdbc, groupId, accountId, groupCode);
-            jdbc.sql("""
-                            INSERT INTO zalo_group_add_grant
-                                (group_id, account_id, bridge_group_id, account_tag, owner_tag, state,
-                                 approved_by, verified_at, changed_by)
-                            VALUES (:group, :account, :bridge, :tag, :owner, 'APPROVED', :by, now(), :by)
-                            ON CONFLICT (group_id, account_id) DO UPDATE SET
-                                bridge_group_id = excluded.bridge_group_id, account_tag = excluded.account_tag,
-                                owner_tag = excluded.owner_tag, state = excluded.state, approved_by = excluded.approved_by,
-                                verified_at = excluded.verified_at, changed_by = excluded.changed_by, changed_at = now(),
-                                revision = zalo_group_add_grant.revision + 1
-                            """)
-                    .param("group", groupId).param("account", accountId).param("bridge", groupCode)
-                    .param("tag", target.actorTag()).param("owner", target.ownerTag()).param("by", approvedBy).update();
+            storeApproval(groupId, accountId, groupCode, approvedBy, target);
         });
         log.info("Đã xác minh quyền thêm nhóm Adh {} cho tài khoản {}", groupId, accountId);
+    }
+
+    // Caller holds the allocation lock. Both live observations were collected outside the transaction.
+    void storeApproval(long groupId, long accountId, String groupCode, String approvedBy, EvidenceTarget target) {
+        if (!target.equals(evidenceTarget(groupId, accountId))) {
+            throw new ImportException("Nhóm hoặc tài khoản đã đổi trong lúc kiểm tra. Hãy duyệt lại.");
+        }
+        boolean duplicate = jdbc.sql("SELECT EXISTS (SELECT 1 FROM zalo_group WHERE id <> :group AND invite_link = :link)")
+                .param("group", groupId).param("link", target.canonicalLink()).query(Boolean.class).single();
+        if (duplicate) {
+            throw new ImportException("Link này đã có trong một bản ghi ADH khác. Hãy rà soát nhóm trùng trước khi cấp quyền.");
+        }
+        checkLegacyMapping(jdbc, groupId, accountId, groupCode);
+        jdbc.sql("""
+                        INSERT INTO zalo_group_add_grant
+                            (group_id, account_id, bridge_group_id, account_tag, owner_tag, state,
+                             approved_by, verified_at, changed_by)
+                        VALUES (:group, :account, :bridge, :tag, :owner, 'APPROVED', :by, now(), :by)
+                        ON CONFLICT (group_id, account_id) DO UPDATE SET
+                            bridge_group_id = excluded.bridge_group_id, account_tag = excluded.account_tag,
+                            owner_tag = excluded.owner_tag, state = excluded.state, approved_by = excluded.approved_by,
+                            verified_at = excluded.verified_at, changed_by = excluded.changed_by, changed_at = now(),
+                            revision = zalo_group_add_grant.revision + 1
+                        """)
+                .param("group", groupId).param("account", accountId).param("bridge", groupCode)
+                .param("tag", target.actorTag()).param("owner", target.ownerTag()).param("by", approvedBy).update();
     }
 
     public void revoke(long groupId, long accountId, long revision, String actor) {
@@ -213,7 +218,7 @@ public class ZaloSharedGroupGrants {
         }
     }
 
-    private EvidenceTarget evidenceTarget(long groupId, long accountId) {
+    EvidenceTarget evidenceTarget(long groupId, long accountId) {
         return jdbc.sql("""
                         SELECT g.account_id, g.zalo_group_id, g.invite_link, owner.account_tag AS owner_tag,
                                actor.account_tag AS actor_tag, g.shared_identity_revision AS group_revision,
@@ -231,7 +236,7 @@ public class ZaloSharedGroupGrants {
                 .orElseThrow(() -> new ImportException("Không tìm thấy nhóm hoặc tài khoản phụ."));
     }
 
-    private void requireVerifiable(EvidenceTarget target, long accountId) {
+    void requireVerifiable(EvidenceTarget target, long accountId) {
         if (target.ownerId() == accountId) {
             throw new ImportException("Tài khoản chủ nhóm đã có đường thêm khách riêng.");
         }
@@ -243,7 +248,7 @@ public class ZaloSharedGroupGrants {
         }
     }
 
-    private ZaloSession.GroupInspection inspect(long account, String groupCode, String expectedTag) {
+    ZaloSession.GroupInspection inspect(long account, String groupCode, String expectedTag) {
         var result = ZaloAccountContext.call(account, () -> bridge.inspectGroup(groupCode));
         if (result == null || !result.ok() || !expectedTag.equals(result.accountTag())) {
             throw new ImportException("Chưa lấy được bằng chứng nhóm qua đúng phiên Zalo. Hãy kiểm tra phiên rồi thử lại.");

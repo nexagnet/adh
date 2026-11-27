@@ -57,6 +57,46 @@
     </section>
 
     <section>
+        <h2>Tham gia nhóm qua link</h2>
+        <p>ADH dùng link đã lưu của nhóm này để đưa đúng tài khoản phụ vào nhóm Zalo thật. ADH chỉ cấp quyền thêm khách sau khi xác minh được tư cách thành viên và quyền thêm người.</p>
+        <form class="formrow" th:if="${group.hasZaloId() and group.hasLink() and !otherAccounts.isEmpty()}"
+              th:action="@{/zalo/shared-groups/{id}/join(id=${group.id},account=${group.accountId})}" method="post">
+            <label class="field">Tài khoản sẽ tham gia
+                <select name="grantee" required>
+                    <option value="">Chọn tài khoản</option>
+                    <option th:each="a : ${otherAccounts}" th:value="${a.id}" th:disabled="${!a.enabled}" th:text="${a.label}"></option>
+                </select>
+            </label>
+            <label><input type="checkbox" name="confirmed" value="true" required> Cho tài khoản đã chọn tham gia đúng nhóm này trên Zalo</label>
+            <label th:if="${systemEnabled}"><input type="checkbox" name="activate" value="true"> Bật dùng chung cho nhóm sau khi xác minh quyền</label>
+            <button class="btn" type="submit">Tham gia và xác minh</button>
+        </form>
+        <div class="table-wrap" th:unless="${joinAttempts.isEmpty()}">
+            <table>
+                <thead><tr><th>Tài khoản</th><th>Kết quả</th><th>Thao tác</th></tr></thead>
+                <tbody><tr th:each="job : ${joinAttempts}">
+                    <td th:text="|Tài khoản phụ ${job.accountId}|"></td>
+                    <td th:switch="${job.state}">
+                        <span th:case="'VERIFIED'">Đã tham gia và xác minh quyền</span>
+                        <span th:case="'DISPATCHED'">Đang xử lý</span>
+                        <span th:case="'PENDING'">Đang chờ Zalo hoặc quyền thêm khách</span>
+                        <span th:case="'UNKNOWN'">Chưa rõ kết quả, đang đối chiếu</span>
+                        <span th:case="'NOT_DISPATCHED'">Yêu cầu chưa được gửi</span>
+                        <span th:case="'CHANGED'">Thông tin nhóm hoặc tài khoản đã thay đổi</span>
+                        <small class="sub-line" th:if="${job.code != null}" th:text="${job.code}"></small>
+                    </td>
+                    <td>
+                        <form th:if="${job.state == 'PENDING' or job.state == 'UNKNOWN' or job.state == 'DISPATCHED'}"
+                              th:action="@{/zalo/shared-groups/{id}/join/{grantee}/verify(id=${group.id},grantee=${job.accountId},account=${group.accountId})}" method="post">
+                            <button class="btn secondary sm" type="submit">Xác minh lại</button>
+                        </form>
+                    </td>
+                </tr></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section>
         <h2>Xác minh và cấp quyền</h2>
         <p>Hai tài khoản phải đang ở đúng nhóm và nhìn thấy cùng link mời đang lưu trong Adh. Tài khoản được cấp phải có quyền thêm thành viên.</p>
         <p th:unless="${group.hasZaloId() and group.hasLink()}">Gán mã nhóm gốc và lưu link mời trước khi cấp quyền.</p>

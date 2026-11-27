@@ -1159,6 +1159,65 @@ export class Bridge {
   // ---------- đọc danh sách nhóm (chỉ đọc) ----------
 
   /** Đọc bằng chứng của đúng một nhóm qua phiên hiện tại, bỏ mọi kết quả trả về sau khi phiên đổi. */
+  async joinGroupByLink(groupId, inviteLink, ownerVerified) {
+    const notSent = (code) => ({ outcome: 'NOT_DISPATCHED', code });
+    if (typeof groupId !== 'string' || !ZALO_ID.test(groupId) || typeof inviteLink !== 'string'
+      || !/^https:\/\/zalo\.me\/g\/[a-zA-Z0-9_-]{1,100}$/.test(inviteLink)) return notSent('BAD_INPUT');
+
+    const generation = this.generation;
+    const listen = this.activeListen;
+    const active = () => generation === this.generation && listen === this.activeListen
+      && listen !== 0 && this.accountOk === true && this.state === 'LISTENING';
+    if (!active()) return notSent('NOT_ACTIVE');
+    if (this.busy) return notSent('BUSY');
+
+    this.busy = true;
+    try {
+      let actual = null;
+      try {
+        actual = await withTimeout(this.adapter.resolveGroupInviteLink(inviteLink), 6000);
+      } catch {
+        // Nhóm có thể ẩn dữ liệu với người ngoài. Link này đến từ ADH sau khi đọc trực tiếp trên phiên chủ nhóm.
+      }
+      if (actual != null && actual !== groupId) return notSent('LINK_GROUP_MISMATCH');
+      if (actual == null && !ownerVerified) return notSent('LINK_CHECK_FAILED');
+
+      let member;
+      try {
+        member = await withTimeout(this.adapter.hasGroupMembership(groupId), 6000);
+      } catch {
+        return notSent('MEMBERSHIP_CHECK_FAILED');
+      }
+      if (!active()) return notSent('NOT_ACTIVE');
+      if (member === true) return { outcome: 'JOINED', code: 'ALREADY_MEMBER', groupId };
+      if (member !== false) return notSent('MEMBERSHIP_CHECK_FAILED');
+      try {
+        await withTimeout(this.adapter.joinGroupLink(inviteLink), 10000);
+      } catch (e) {
+        if ([240, 248, 252].includes(e?.code)) return { outcome: 'PENDING', code: 'Z' + e.code };
+        if (e?.code !== 178) {
+          const failure = classifyError(e);
+          if (failure.outcome === 'RESTRICTED' || failure.outcome === 'SESSION_LOST') {
+            this.trip(failure.code ? `${failure.outcome}:${failure.code}` : failure.outcome);
+          }
+          const code = Number.isSafeInteger(e?.code) ? 'Z' + e.code : 'JOIN_RESULT_UNKNOWN';
+          return { outcome: 'UNKNOWN', code };
+        }
+      }
+      if (!active()) return { outcome: 'UNKNOWN', code: 'SESSION_CHANGED' };
+      try {
+        if (await withTimeout(this.adapter.hasGroupMembership(groupId), 6000) === true && active()) {
+          return { outcome: 'JOINED', groupId };
+        }
+      } catch {
+        // ADH sẽ đối chiếu lại, không phát lại yêu cầu tham gia.
+      }
+      return { outcome: 'UNKNOWN', code: 'MEMBERSHIP_UNCONFIRMED' };
+    } finally {
+      this.busy = false;
+    }
+  }
+
   async inspectGroup(groupId) {
     if (typeof groupId !== 'string' || !ZALO_ID.test(groupId)) return { ok: false, code: 'BAD_INPUT' };
     const canRead = () => this.accountOk === true && this.state === 'LISTENING' && this.activeListen !== 0;

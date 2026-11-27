@@ -154,7 +154,7 @@ test('POST /people/lookup (D19) cần khóa, tra đúng một số, số sai kh�
 
 test('danh sách đường được phép là cố định', () => {
   assert.deepEqual(ROUTES, [
-    'GET /healthz', 'GET /status', 'GET /events', 'GET /inbox', 'POST /reactions', 'GET /groups', 'GET /groups/{id}/inspect', 'POST /groups', 'POST /groups/{id}/members', 'POST /groups/{id}/deputy', 'POST /messages', 'POST /friend-requests', 'POST /friend-requests/undo', 'GET /friend-requests/incoming', 'GET /friend-requests/status', 'POST /friend-requests/accept', 'POST /people/lookup', 'POST /session/login', 'GET /session/login',
+    'GET /healthz', 'GET /status', 'GET /events', 'GET /inbox', 'POST /reactions', 'GET /groups', 'GET /groups/{id}/inspect', 'POST /groups/{id}/join', 'POST /groups', 'POST /groups/{id}/members', 'POST /groups/{id}/deputy', 'POST /messages', 'POST /friend-requests', 'POST /friend-requests/undo', 'GET /friend-requests/incoming', 'GET /friend-requests/status', 'POST /friend-requests/accept', 'POST /people/lookup', 'POST /session/login', 'GET /session/login',
     'POST /session/logout', 'POST /session/stop', 'POST /session/resume',
   ]);
 });
@@ -188,6 +188,70 @@ test('GET /groups cần khóa và trả nhóm của tài khoản phụ; chỉ c�
   assert.equal((await s.call('PUT', '/groups', { body: {} })).status, 404);
   assert.equal(s.c.adapter.adds.length, 0);
   await s.close();
+});
+
+test('tham gia bằng link chỉ cho đúng phiên và đúng nhóm đã xác minh', async () => {
+  const s = await boot();
+  try {
+    const accountTag = (await s.call('GET', '/status')).json.accountTag;
+    const inviteLink = 'https://zalo.me/g/fixture';
+    const p = '/groups/222/join';
+    let calls = 0;
+    let member = false;
+    s.c.adapter.resolveGroupInviteLink = async () => '333';
+    s.c.adapter.hasGroupMembership = async () => member;
+    s.c.adapter.joinGroupLink = async (link) => {
+      assert.equal(link, inviteLink);
+      calls++;
+      member = true;
+    };
+    assert.equal((await s.call('POST', p, { key: '', accountTag, body: { inviteLink } })).status, 401);
+    assert.equal((await s.call('POST', p, { body: { inviteLink } })).status, 409);
+    assert.equal((await s.call('POST', p, { accountTag: '000000000000', body: { inviteLink } })).status, 409);
+    assert.deepEqual((await s.call('POST', p, { accountTag, body: { inviteLink: 'https://example.test/g/fixture' } })).json,
+      { outcome: 'NOT_DISPATCHED', code: 'BAD_INPUT' });
+    assert.deepEqual((await s.call('POST', p, { accountTag, body: { inviteLink } })).json,
+      { outcome: 'NOT_DISPATCHED', code: 'LINK_GROUP_MISMATCH' });
+    assert.equal(calls, 0);
+    s.c.adapter.resolveGroupInviteLink = async () => '222';
+    assert.deepEqual((await s.call('POST', p, { accountTag, body: { inviteLink } })).json,
+      { outcome: 'JOINED', groupId: '222' });
+    assert.deepEqual((await s.call('POST', p, { accountTag, body: { inviteLink } })).json,
+      { outcome: 'JOINED', code: 'ALREADY_MEMBER', groupId: '222' });
+    assert.equal(calls, 1);
+  } finally {
+    await s.close();
+  }
+});
+
+test('tham gia nhóm phân biệt đang chờ duyệt và kết quả chưa rõ', async () => {
+  const s = await boot();
+  try {
+    const accountTag = (await s.call('GET', '/status')).json.accountTag;
+    const inviteLink = 'https://zalo.me/g/fixture';
+    const p = '/groups/222/join';
+    const options = { accountTag, body: { inviteLink } };
+    let calls = 0;
+    s.c.adapter.resolveGroupInviteLink = async () => '222';
+    s.c.adapter.hasGroupMembership = async () => false;
+    s.c.adapter.joinGroupLink = async () => {
+      calls++;
+      throw Object.assign(new Error('provider details'), {code: 240});
+    };
+    assert.deepEqual((await s.call('POST', p, options)).json, { outcome: 'PENDING', code: 'Z240' });
+    assert.equal(calls, 1);
+    s.c.adapter.joinGroupLink = async () => { calls++; };
+    assert.deepEqual((await s.call('POST', p, options)).json, { outcome: 'UNKNOWN', code: 'MEMBERSHIP_UNCONFIRMED' });
+    assert.equal(calls, 2);
+    s.c.adapter.resolveGroupInviteLink = async () => { throw new Error('provider details'); };
+    assert.deepEqual((await s.call('POST', p, options)).json, { outcome: 'NOT_DISPATCHED', code: 'LINK_CHECK_FAILED' });
+    assert.equal(calls, 2);
+    assert.deepEqual((await s.call('POST', p, { accountTag, body: { inviteLink, ownerVerified: true } })).json,
+      { outcome: 'UNKNOWN', code: 'MEMBERSHIP_UNCONFIRMED' });
+    assert.equal(calls, 3);
+  } finally {
+    await s.close();
+  }
 });
 
 test('POST /groups (D19) cần khóa, tạo đúng một nhóm, body sai không gọi Zalo', async () => {
