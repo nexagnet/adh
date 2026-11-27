@@ -18,11 +18,11 @@ public class ZaloSharedGroupJoin {
     private static final Logger log = LoggerFactory.getLogger(ZaloSharedGroupJoin.class);
 
     public record View(long accountId, String state, String code, OffsetDateTime updatedAt) {}
-    private record Job(long groupId, long accountId, String code, long groupRevision, long ownerRevision,
+    private record Job(long groupId, long accountId, String ownerCode, String actorCode, long groupRevision, long ownerRevision,
                        long actorRevision, long grantRevision, String actor,
                        String state, long attempt) {
         boolean matches(ZaloSharedGroupGrants.EvidenceTarget target) {
-            return code.equals(target.ownerGroupId()) && groupRevision == target.groupRevision()
+            return ownerCode.equals(target.ownerGroupId()) && groupRevision == target.groupRevision()
                     && ownerRevision == target.ownerRevision() && actorRevision == target.actorRevision()
                     && grantRevision == target.grantRevision();
         }
@@ -60,14 +60,20 @@ public class ZaloSharedGroupJoin {
         }
         var target = target(group, account);
         verifyOwner(target);
-        var current = grants.inspect(account, target.ownerGroupId(), target.actorTag());
+        String resolvedCode = ZaloAccountContext.call(account,
+                () -> bridge.resolveGroupInviteLink(target.canonicalLink(), target.actorTag()));
+        String actorCode = resolvedCode == null ? target.ownerGroupId() : resolvedCode;
+        if (!actorCode.matches("[0-9]{1,32}")) {
+            throw new ImportException("Mã nhóm do phiên tham gia trả về không hợp lệ.");
+        }
+        var current = grants.inspect(account, actorCode, target.actorTag());
         if (current.present() && !current.canAdd()) {
             throw new ImportException("Tài khoản đã ở trong nhóm nhưng chưa có quyền thêm thành viên.");
         }
         if (current.present() && !target.canonicalLink().equals(current.inviteLink())) {
             throw new ImportException("Hai tài khoản chưa xác nhận cùng một nhóm qua link mời.");
         }
-        Job job = claim(group, account, activate, by, target);
+        Job job = claim(group, account, activate, by, target, actorCode);
         if (current.present()) {
             settleVerified(job, target);
             return;
@@ -75,7 +81,7 @@ public class ZaloSharedGroupJoin {
         log.info("Phát yêu cầu tham gia nhóm ADH group={} account={} attempt={}", group, account, job.attempt());
         ZaloSession.JoinGroupResult result;
         try {
-            result = ZaloAccountContext.call(account, () -> bridge.joinGroupViaLink(target.ownerGroupId(),
+            result = ZaloAccountContext.call(account, () -> bridge.joinGroupViaLink(actorCode,
                     target.canonicalLink(), target.actorTag()));
         } catch (RuntimeException e) {
             save(job, "UNKNOWN", "BRIDGE_ERROR");
@@ -89,27 +95,27 @@ public class ZaloSharedGroupJoin {
         }
     }
 
-    private Job claim(long group, long account, boolean activate, String by, ZaloSharedGroupGrants.EvidenceTarget target) {
+    private Job claim(long group, long account, boolean activate, String by, ZaloSharedGroupGrants.EvidenceTarget target, String actorCode) {
         return tx.execute(status -> {
             GroupService.lockAllocation(jdbc);
             if (!target.equals(target(group, account))) {
                 throw new ImportException("Nhóm hoặc tài khoản đã thay đổi trong lúc xác minh. Hãy mở lại trang nhóm.");
             }
-            ZaloSharedGroupGrants.checkLegacyMapping(jdbc, group, account, target.ownerGroupId());
+            ZaloSharedGroupGrants.checkLegacyMapping(jdbc, group, account, actorCode);
             return jdbc.sql("""
-                            INSERT INTO zalo_shared_group_join (group_id, account_id, owner_group_id, group_revision, owner_revision,
+                            INSERT INTO zalo_shared_group_join (group_id, account_id, owner_group_id, actor_group_id, group_revision, owner_revision,
                               actor_revision, grant_revision, approved_by, activate, state, next_check_at)
-                            VALUES (:group, :account, :code, :groupRevision, :ownerRevision, :actorRevision, :grantRevision,
+                            VALUES (:group, :account, :code, :actorCode, :groupRevision, :ownerRevision, :actorRevision, :grantRevision,
                               :by, :activate, 'DISPATCHED', now() + interval '2 minutes')
                             ON CONFLICT (group_id, account_id) DO UPDATE SET owner_group_id = excluded.owner_group_id,
-                              group_revision = excluded.group_revision, owner_revision = excluded.owner_revision,
+                              actor_group_id = excluded.actor_group_id, group_revision = excluded.group_revision, owner_revision = excluded.owner_revision,
                               actor_revision = excluded.actor_revision, grant_revision = excluded.grant_revision,
                               approved_by = excluded.approved_by, activate = excluded.activate, state = 'DISPATCHED',
                               code = NULL, created_at = now(), updated_at = now(), next_check_at = excluded.next_check_at,
                               attempt = zalo_shared_group_join.attempt + 1
                             WHERE zalo_shared_group_join.state IN ('NOT_DISPATCHED', 'VERIFIED', 'CHANGED')
                             RETURNING *
-                            """).param("group", group).param("account", account).param("code", target.ownerGroupId())
+                            """).param("group", group).param("account", account).param("code", target.ownerGroupId()).param("actorCode", actorCode)
                     .param("groupRevision", target.groupRevision()).param("ownerRevision", target.ownerRevision())
                     .param("actorRevision", target.actorRevision()).param("grantRevision", target.grantRevision())
                     .param("by", by).param("activate", activate)
@@ -144,7 +150,7 @@ public class ZaloSharedGroupJoin {
                 return;
             }
             verifyOwner(target);
-            var actor = grants.inspect(job.accountId(), job.code(), target.actorTag());
+            var actor = grants.inspect(job.accountId(), job.actorCode(), target.actorTag());
             if (!actor.present()) {
                 save(job, "PENDING".equals(job.state()) ? "PENDING" : "UNKNOWN", "MEMBERSHIP_NOT_CONFIRMED");
                 return;
@@ -178,7 +184,7 @@ public class ZaloSharedGroupJoin {
             if (ready.isEmpty()) {
                 return;
             }
-            grants.storeApproval(job.groupId(), job.accountId(), job.code(), job.actor(), target);
+            grants.storeApproval(job.groupId(), job.accountId(), job.actorCode(), job.actor(), target);
             if (ready.get() && grants.enabled()) {
                 grants.setGroupEnabled(job.groupId(), true);
             }
@@ -219,7 +225,7 @@ public class ZaloSharedGroupJoin {
     }
 
     private static Job mapJob(java.sql.ResultSet rs, int ignored) throws java.sql.SQLException {
-        return new Job(rs.getLong("group_id"), rs.getLong("account_id"), rs.getString("owner_group_id"),
+        return new Job(rs.getLong("group_id"), rs.getLong("account_id"), rs.getString("owner_group_id"), rs.getString("actor_group_id"),
                 rs.getLong("group_revision"), rs.getLong("owner_revision"), rs.getLong("actor_revision"),
                 rs.getLong("grant_revision"), rs.getString("approved_by"),
                 rs.getString("state"), rs.getLong("attempt"));

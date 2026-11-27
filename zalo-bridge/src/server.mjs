@@ -48,6 +48,7 @@ export const ROUTES = [
   'POST /reactions',
   'GET /groups',
   'GET /groups/{id}/inspect',
+  'GET /groups/join-target',
   'POST /groups/{id}/join',
   'POST /groups',
   'POST /groups/{id}/members',
@@ -103,6 +104,12 @@ export function createServer({ bridge, config, fake = null }) {
           return send(409, { error: 'account_unverified' });
         }
         return send(200, await bridge.inspectGroup(inspect[1]));
+      }
+      if (route === 'GET /groups/join-target') {
+        if (typeof accountTag !== 'string' || !/^[0-9a-f]{12}$/.test(accountTag)) {
+          return send(409, { error: 'account_unverified' });
+        }
+        return send(200, await bridge.readGroupJoinTarget(url.searchParams.get('inviteLink')));
       }
       const join = /^POST \/groups\/(\d{1,32})\/join$/.exec(route);
       if (join) {

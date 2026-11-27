@@ -648,6 +648,22 @@ public class ZcaBridgeGateway implements ZaloLink {
     }
 
     @Override
+    public String resolveGroupInviteLink(String inviteLink, String accountTag) {
+        if (inviteLink == null || !inviteLink.matches("https://zalo\\.me/g/[a-zA-Z0-9_-]{1,100}")
+                || accountTag == null || !accountTag.matches("[0-9a-f]{12}")) {
+            return null;
+        }
+        try {
+            String encoded = java.net.URLEncoder.encode(inviteLink, java.nio.charset.StandardCharsets.UTF_8);
+            JsonNode result = call("GET", "/groups/join-target?inviteLink=" + encoded, null, 12, () -> true, accountTag);
+            String code = text(result, "groupId");
+            return result.path("ok").asBoolean(false) && code != null && ZALO_ID.matcher(code).matches() ? code : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Override
     public JoinGroupResult joinGroupViaLink(String expectedGroupId, String inviteLink, String accountTag) {
         if (expectedGroupId == null || !ZALO_ID.matcher(expectedGroupId).matches()
                 || inviteLink == null || !inviteLink.matches("https://zalo\\.me/g/[a-zA-Z0-9_-]{1,100}")

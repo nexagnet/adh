@@ -223,6 +223,11 @@ public final class SafeZaloLink implements ZaloLink {
     }
 
     @Override
+    public String resolveGroupInviteLink(String inviteLink, String accountTag) {
+        return inner.resolveGroupInviteLink(inviteLink, accountTag);
+    }
+
+    @Override
     public JoinGroupResult joinGroupViaLink(String expectedGroupId, String inviteLink, String accountTag) {
         if (!mode.live()) {
             return JoinGroupResult.of(JoinGroupOutcome.NOT_DISPATCHED, CODE);

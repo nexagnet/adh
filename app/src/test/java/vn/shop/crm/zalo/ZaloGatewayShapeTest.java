@@ -29,7 +29,7 @@ class ZaloGatewayShapeTest {
 
     @Test
     void phienChiCoQuanLyDangNhapVaDocDanhSachNhom() {
-        assertThat(names(ZaloSession.class)).containsExactly("inspectGroup", "joinGroupViaLink", "listGroups", "loginStatus", "logout", "resume", "startLogin", "stop");
+        assertThat(names(ZaloSession.class)).containsExactly("inspectGroup", "joinGroupViaLink", "listGroups", "loginStatus", "logout", "resolveGroupInviteLink", "resume", "startLogin", "stop");
     }
 
     @Test
