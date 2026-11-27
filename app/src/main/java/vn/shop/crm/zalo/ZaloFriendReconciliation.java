@@ -91,7 +91,9 @@ class ZaloFriendReconciliation {
                 .query((rs, n) -> new Previous(rs.getString("state"), rs.getString("reason_code"), rs.getBoolean("needs_review"))).optional();
         boolean confirmed = state != ZaloLink.FriendRequestState.UNAVAILABLE;
         boolean unknownAttempt = "UNKNOWN".equals(target.expected());
-        boolean review = confirmed ? state != ZaloLink.FriendRequestState.OUTGOING || unknownAttempt
+        // Both provider flags establish that a request exists. The direction is not independently verified.
+        boolean pending = state == ZaloLink.FriendRequestState.OUTGOING || state == ZaloLink.FriendRequestState.INCOMING;
+        boolean review = confirmed ? !pending || unknownAttempt
                 : unknownAttempt || actionableReadError(observation.reasonCode()) || previous.map(Previous::review).orElse(false);
         int stored = jdbc.sql("""
                 INSERT INTO zalo_friend_observation AS o
