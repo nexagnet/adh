@@ -259,7 +259,7 @@
             </form>
         </div>
         <h3>Tự thu hồi lời mời quá hạn</h3>
-        <p>Hiện có <strong th:text="${friendPending}">0</strong> lời mời kết bạn đã gửi mà khách chưa đồng ý. Để danh sách lời mời đang chờ của Zalo luôn còn chỗ,
+        <p>Hiện có <strong th:text="${friendPending}">0</strong> lời mời kết bạn đã gửi có thể còn chờ. Để danh sách lời mời đang chờ của Zalo luôn còn chỗ,
             hệ thống tự <strong>thu hồi</strong> lời mời quá số ngày bên dưới chưa ai đồng ý (không nhắn gì cho khách, không xóa khách hay số điện thoại), từng lời mời một,
             nghỉ cố định, tối đa <span th:text="${undoMax}">20</span> lời mỗi ngày (hôm nay đã thu hồi <span th:text="${undoUsed}">0</span>), chung cầu dao và khung giờ với tin.
             Đặt 0 để tắt. Hiện: <strong th:text="${friendWithdrawDays == 0 ? 'ĐANG TẮT' : 'sau ' + friendWithdrawDays + ' ngày'}">sau 7 ngày</strong>.</p>

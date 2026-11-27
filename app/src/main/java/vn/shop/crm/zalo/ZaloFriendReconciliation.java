@@ -14,6 +14,16 @@ import java.util.Optional;
 @Service
 class ZaloFriendReconciliation {
     private static final Logger log = LoggerFactory.getLogger(ZaloFriendReconciliation.class);
+    /** Loại các lần gửi đã được xác nhận là không còn lời mời hoặc đã thành bạn. Alias lời mời là i. */
+    static final String STILL_MAY_BE_PENDING = """
+            NOT EXISTS (
+                SELECT 1 FROM zalo_friend_observation o
+                WHERE o.account_id = i.account_id AND o.invitation_id = i.id
+                  AND (o.attempt_at = i.friend_request_at
+                       OR (o.attempt_at IS NULL AND o.last_confirmed_at >= i.friend_request_at))
+                  AND o.last_confirmed_state IN ('NONE', 'FRIENDS')
+            )
+            """;
     private static final String ELIGIBLE = """
             i.status IN ('SENT', 'CLICKED') AND i.sent_channel = 'ZALO_AUTO'
             AND i.friend_request_outcome IN ('SENT', 'UNKNOWN') AND i.zalo_target_uid IS NOT NULL

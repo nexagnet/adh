@@ -663,9 +663,11 @@ class FriendRequestSendTest extends AbstractPostgresTest {
         sender.step();
         assertThat(fake.undone).isEmpty();
         assertThat(outcome(invitation)).isEqualTo("SENT");
+        assertThat(messages.friendPending()).isZero();
         // Bằng chứng của lần gửi cũ không chặn lần gửi hiện tại.
         jdbc.sql("UPDATE zalo_friend_observation SET attempt_at=attempt_at - interval '1 day' WHERE invitation_id=:i")
                 .param("i", invitation).update();
+        assertThat(messages.friendPending()).isEqualTo(1);
         assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.UNDO_DONE);
     }
 

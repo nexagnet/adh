@@ -28,15 +28,6 @@ public class ZaloFriendUndoSender {
     private static final Logger log = LoggerFactory.getLogger(ZaloFriendUndoSender.class);
     /** Số lần Zalo từ chối thu hồi trong một ngày thì dừng đến ngày mai (nhiều khả năng cách làm này không hợp, để người xem). */
     static final int MAX_FAILED_PER_DAY = 3;
-    private static final String STILL_MAY_BE_PENDING = """
-            NOT EXISTS (
-                SELECT 1 FROM zalo_friend_observation o
-                WHERE o.account_id = i.account_id AND o.invitation_id = i.id
-                  AND (o.attempt_at = i.friend_request_at
-                       OR (o.attempt_at IS NULL AND o.last_confirmed_at >= i.friend_request_at))
-                  AND o.last_confirmed_state IN ('NONE', 'FRIENDS')
-            )
-            """;
 
     public enum Step { NOT_ACTIVE, BLOCKED, NOTHING, DONE, FAILED_ONE, RETRY, TRIPPED }
 
@@ -86,7 +77,7 @@ public class ZaloFriendUndoSender {
                         WHERE i.friend_request_outcome = 'SENT' AND i.friended_at IS NULL AND i.joined_at IS NULL AND i.friend_undo_at IS NULL
                           AND i.zalo_target_uid IS NOT NULL AND i.friend_request_at < :before
                           AND
-                        """ + STILL_MAY_BE_PENDING + testMode.onlyTestSql("c.phone") + " AND "
+                        """ + ZaloFriendReconciliation.STILL_MAY_BE_PENDING + testMode.onlyTestSql("c.phone") + " AND "
                 + ZaloAccountContext.sql("i.account_id") + " ORDER BY i.friend_request_at, i.id LIMIT 1")
                 .param("before", OffsetDateTime.now(clock).minusDays(days))
                 .query((rs, n) -> new Task(rs.getLong("id"), rs.getString("zalo_target_uid"))).list();
@@ -97,7 +88,7 @@ public class ZaloFriendUndoSender {
                         UPDATE invitation i SET friend_undo_at = :at, friend_undo_outcome = 'UNKNOWN'
                         WHERE i.id = :id AND i.friend_undo_at IS NULL AND i.friend_request_outcome = 'SENT'
                           AND i.friended_at IS NULL AND i.joined_at IS NULL AND
-                        """ + STILL_MAY_BE_PENDING + " AND " + ZaloAccountContext.sql("i.account_id"))
+                        """ + ZaloFriendReconciliation.STILL_MAY_BE_PENDING + " AND " + ZaloAccountContext.sql("i.account_id"))
                 .param("id", t.invitationId()).param("at", OffsetDateTime.now(clock)).update();
         if (claimed == 0) {
             return Step.NOTHING;
