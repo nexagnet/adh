@@ -176,11 +176,17 @@ public class ZcaBridgeGateway implements ZaloLink {
 
     @Override
     public FriendRequestObservation friendRequestObservation(String uid) {
+        return friendRequestObservation(uid, false);
+    }
+
+    @Override
+    public FriendRequestObservation friendRequestObservation(String uid, boolean verifyDirection) {
         if (uid == null || !ZALO_ID.matcher(uid).matches()) {
             return friendReadFailed("BAD_INPUT");
         }
         try {
-            JsonNode n = call("GET", "/friend-requests/status?uid=" + uid, null, 10);
+            String route = "/friend-requests/status?uid=" + uid + (verifyDirection ? "&verifyDirection=true" : "");
+            JsonNode n = call("GET", route, null, 10);
             JsonNode ok = n.path("ok");
             JsonNode state = n.path("state");
             if (ok.isBoolean() && ok.asBoolean() && state.isString()) {
@@ -188,6 +194,8 @@ public class ZcaBridgeGateway implements ZaloLink {
                     case "FRIENDS" -> new FriendRequestObservation(FriendRequestState.FRIENDS, null);
                     case "OUTGOING" -> new FriendRequestObservation(FriendRequestState.OUTGOING, null);
                     case "INCOMING" -> new FriendRequestObservation(FriendRequestState.INCOMING, null);
+                    case "PENDING" -> new FriendRequestObservation(FriendRequestState.PENDING, null);
+                    case "OUTGOING_VERIFIED" -> new FriendRequestObservation(FriendRequestState.OUTGOING_VERIFIED, null);
                     case "NONE" -> new FriendRequestObservation(FriendRequestState.NONE, null);
                     default -> friendReadFailed("BAD_RESPONSE");
                 };

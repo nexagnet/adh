@@ -96,7 +96,8 @@ class ZcaBridgeGatewayTest {
     @Test
     void chiNhanTrangThaiLoiMoiTuPhanHoiHopLe() {
         for (var state : List.of(ZaloLink.FriendRequestState.FRIENDS, ZaloLink.FriendRequestState.OUTGOING,
-                ZaloLink.FriendRequestState.INCOMING, ZaloLink.FriendRequestState.NONE)) {
+                ZaloLink.FriendRequestState.INCOMING, ZaloLink.FriendRequestState.NONE,
+                ZaloLink.FriendRequestState.PENDING, ZaloLink.FriendRequestState.OUTGOING_VERIFIED)) {
             reply.set("{\"ok\":true,\"state\":\"" + state.name() + "\"}");
             assertThat(gateway.friendRequestState("501")).isEqualTo(state);
         }
@@ -112,6 +113,21 @@ class ZcaBridgeGatewayTest {
         assertThat(gateway.friendRequestState("501&uid=502")).isEqualTo(ZaloLink.FriendRequestState.UNAVAILABLE);
         assertThat(gateway.friendRequestState(null)).isEqualTo(ZaloLink.FriendRequestState.UNAVAILABLE);
         assertThat(requests).hasSize(calls);
+    }
+
+    @Test
+    void xacMinhChieuChiBatKhiDuocYeuCauVaDongGhimTaiKhoan() {
+        String tag = "000000000002";
+        var guarded = new ZcaBridgeGateway("http://127.0.0.1:" + server.getAddress().getPort(), "khoa-chung",
+                () -> tag, true, () -> null, () -> true);
+        reply.set("""
+                {"state":"OUTGOING_VERIFIED","accountTag":"000000000002","ok":true}
+                """);
+        assertThat(guarded.friendRequestObservation("501", true).state())
+                .isEqualTo(ZaloLink.FriendRequestState.OUTGOING_VERIFIED);
+        assertThat(requests).containsExactly("GET /status", "GET /friend-requests/status?uid=501&verifyDirection=true");
+        assertThat(accountTags).containsExactly(null, tag);
+        assertThat(bodies).containsExactly("", "");
     }
 
     @Test

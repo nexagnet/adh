@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<body>
+<th:block th:fragment="report">
+    <section class="panel stack">
+        <h2>Đối chiếu lời mời kết bạn</h2>
+        <p class="hint">Chọn tài khoản phụ đã gửi lời mời trong chiến dịch này. ADH chạy nền và chỉ đọc trạng thái từ Zalo.</p>
+        <p class="muted" th:if="${#lists.isEmpty(reconcileAccounts)}">Chưa có tài khoản Zalo để đối chiếu trong chiến dịch này.</p>
+        <ul class="reconciliation-accounts" th:unless="${#lists.isEmpty(reconcileAccounts)}">
+            <li class="stack" th:each="account : ${reconcileAccounts}"
+                th:with="job=${account.job}, running=${job != null and job.running}"
+                data-reconciliation-account
+                th:attr="data-running=${running}, data-status=@{/campaigns/{id}/reconcile/{account}(id=${campaign.id},account=${account.id})}">
+                <div class="actions">
+                    <h3 th:text="${account.label}">Tài khoản phụ</h3>
+                    <form th:action="@{/campaigns/{id}/reconcile/{account}(id=${campaign.id},account=${account.id})}" method="post">
+                        <button type="submit" class="btn secondary"
+                                th:disabled="${running or !account.active or account.eligible == 0}"
+                                th:aria-label="${'Đối chiếu ngay · ' + account.label}"
+                                th:text="${running ? 'Đang đối chiếu…' : 'Đối chiếu ngay'}">Đối chiếu ngay</button>
+                    </form>
+                </div>
+                <span class="muted small" th:if="${!account.active}">Tài khoản này chưa thể đối chiếu.</span>
+                <span class="muted small" th:if="${account.active and account.eligible == 0}">Chưa có lời mời đủ điều kiện để đối chiếu.</span>
+                <div role="status" aria-atomic="true" class="stack small">
+                    <span data-progress-summary th:if="${job != null and job.total > 0}">
+                        <strong th:text="${job.processed + ' / ' + job.total}">0 / 0</strong> lời mời đã xử lý<span
+                            th:if="${job.failed > 0}" th:text="${' · ' + job.failed + ' lỗi đọc'}"></span><span
+                            th:if="${job.skipped > 0}" th:text="${' · ' + job.skipped + ' bỏ qua'}"></span>
+                    </span>
+                    <progress th:if="${job != null and job.total > 0}" data-progress-meter
+                              th:aria-label="${'Tiến độ đối chiếu · ' + account.label}"
+                              th:value="${job.processed}" th:max="${job.total}"></progress>
+                    <span th:if="${job != null}" data-progress-message th:text="${job.message}"></span>
+                    <span class="muted" data-progress-latest>
+                        Đọc Zalo thành công gần nhất · <time th:if="${job != null and job.latestReadAt != null}"
+                              th:datetime="${job.latestReadAt}" th:text="${#temporals.format(job.latestReadAt, 'dd/MM/yyyy HH:mm')}"></time><span
+                              th:if="${job == null or job.latestReadAt == null}">Chưa có lượt đọc</span>
+                    </span>
+                    <span class="muted" data-progress-next th:if="${job != null}"
+                          th:text="${job.nextReadAt == null ? '' : 'Lần đọc tiếp theo dự kiến · ' + #temporals.format(job.nextReadAt, 'dd/MM/yyyy HH:mm')}"></span>
+                </div>
+            </li>
+        </ul>
+        <div class="actions" th:unless="${#lists.isEmpty(reconcileAccounts)}">
+            <a th:href="@{/campaigns/{id}(id=${campaign.id},tab='doi-chieu',reconciliationPage=${reconcileRows.number})}">Cập nhật tiến độ và kết quả</a>
+        </div>
+    </section>
+    <section class="panel stack">
+        <h2>Kết quả đối chiếu</h2>
+        <p class="hint">Sổ gửi của ADH ghi lại lượt gửi. Cột bên cạnh hiển thị trạng thái Zalo trả về khi đọc.</p>
+        <p class="muted" th:if="${#lists.isEmpty(reconcileRows.items)}">Trang này chưa có kết quả để hiển thị.</p>
+        <div class="table-wrap" th:unless="${#lists.isEmpty(reconcileRows.items)}">
+            <table>
+                <thead><tr><th scope="col">Khách</th><th scope="col">Tài khoản Zalo</th><th scope="col">Sổ gửi ADH</th><th scope="col">Trạng thái trên Zalo</th></tr></thead>
+                <tbody>
+                <tr th:each="row : ${reconcileRows.items}">
+                    <td th:text="${row.who}">Khách</td>
+                    <td th:text="${row.accountLabel}">Tài khoản phụ</td>
+                    <td>
+                        <strong th:text="${row.historyLabel}">Đã gửi lời mời kết bạn</strong>
+                        <div class="muted small">Lượt gửi · <time th:datetime="${row.attemptAt}"
+                              th:text="${#temporals.format(row.attemptAt, 'dd/MM/yyyy HH:mm')}"></time></div>
+                    </td>
+                    <td>
+                        <strong th:text="${row.stateLabel ?: 'Chưa đối chiếu lượt này'}">Đã đọc</strong>
+                        <div class="muted small" th:if="${row.observedAt != null}">Lượt đọc gần nhất · <time th:datetime="${row.observedAt}"
+                              th:text="${#temporals.format(row.observedAt, 'dd/MM/yyyy HH:mm')}"></time></div>
+                        <div class="muted small" th:if="${row.reasonCode != null}"
+                             th:text="${'Mã đọc trạng thái · ' + row.reasonCode}">Mã đọc trạng thái</div>
+                        <div class="muted small" th:if="${row.lastConfirmedAt != null and row.lastConfirmedStateLabel != null}">
+                            Đọc thành công gần nhất · <time th:datetime="${row.lastConfirmedAt}"
+                                  th:text="${#temporals.format(row.lastConfirmedAt, 'dd/MM/yyyy HH:mm')}"></time>
+                            <div th:text="${row.lastConfirmedStateLabel}"></div>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <nav class="actions" aria-label="Trang kết quả đối chiếu" th:if="${reconcileRows.hasPrevious or reconcileRows.hasNext}">
+            <a class="btn secondary" th:if="${reconcileRows.hasPrevious}"
+               th:href="@{/campaigns/{id}(id=${campaign.id},tab='doi-chieu',reconciliationPage=${reconcileRows.number - 1})}">Trang trước</a>
+            <span class="small" th:text="${'Trang ' + (reconcileRows.number + 1)}">Trang 1</span>
+            <a class="btn secondary" th:if="${reconcileRows.hasNext}"
+               th:href="@{/campaigns/{id}(id=${campaign.id},tab='doi-chieu',reconciliationPage=${reconcileRows.number + 1})}">Trang sau</a>
+        </nav>
+    </section>
+    <script th:src="@{/campaign-reconciliation.js}" defer></script>
+</th:block>
+</body>
+</html>

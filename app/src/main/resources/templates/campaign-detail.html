@@ -18,6 +18,7 @@
         Có <strong th:text="${attentionCount}">3</strong> khách cần bạn xử lý tay.
         <a th:href="@{/campaigns/{id}(id=${campaign.id}, tab='can-xu-ly')}">Xem ở tab "Cần xử lý tay"</a>
     </div>
+    <th:block th:if="${tab == 'doi-chieu'}" th:insert="~{campaign-reconciliation :: report}"></th:block>
     <div class="panel stack" th:if="${tab == 'can-xu-ly'}">
         <h2>Khách cần xử lý tay</h2>
         <p class="hint">Đối chiếu trên đúng tài khoản Zalo được ghi cho từng khách. <strong>Tin 1 không gửi được</strong>: xem lý do rồi tự nhắn trên Zalo nếu cần.

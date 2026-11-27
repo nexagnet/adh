@@ -127,7 +127,11 @@ export function createServer({ bridge, config, fake = null }) {
       if (route === 'GET /friend-requests/incoming') return send(200, { uids: bridge.incomingRequests() });
       if (route === 'GET /friend-requests/status') {
         const uids = url.searchParams.getAll('uid');
-        return send(200, await bridge.readFriendRequestStatus(uids.length === 1 ? uids[0] : null));
+        const verify = url.searchParams.getAll('verifyDirection');
+        if (verify.length > 1 || (verify.length === 1 && verify[0] !== 'true')) {
+          return send(200, { ok: false, code: 'BAD_INPUT' });
+        }
+        return send(200, await bridge.readFriendRequestStatus(uids.length === 1 ? uids[0] : null, verify.length === 1));
       }
       if (route === 'POST /friend-requests/accept') {
         const body = await readJson(req);

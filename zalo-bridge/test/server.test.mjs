@@ -75,9 +75,19 @@ test('đọc trạng thái lời mời chỉ cho mã đã nhận Tin 1 của đ�
     assert.deepEqual((await s.call('GET', p, { accountTag: tag })).json, { ok: false, code: 'NO_INVITE' });
     s.c.bridge.msgLedger.markSent('INVITE', '555');
     s.c.adapter.friendRequestStates = new Map([['555', { is_friend: 0, is_requested: 0, is_requesting: 1 }]]);
+    let listReads = 0;
+    s.c.adapter.hasSentFriendRequest = async (uid) => { listReads += 1; return uid === '555'; };
     assert.deepEqual((await s.call('GET', p + '&uid=123', { accountTag: tag })).json, { ok: false, code: 'BAD_INPUT' });
     assert.deepEqual((await s.call('GET', p, { accountTag: tag })).json, { ok: true, state: 'OUTGOING' });
     assert.deepEqual(s.c.adapter.friendRequestReads, ['555']);
+    assert.equal(listReads, 0);
+    const verify = p + '&verifyDirection=true';
+    s.c.clock.t += 3100;
+    assert.deepEqual((await s.call('GET', verify + '&verifyDirection=false', { accountTag: tag })).json, { ok: false, code: 'BAD_INPUT' });
+    assert.equal((await s.call('GET', verify, { accountTag: '000000000000' })).status, 409);
+    assert.equal(listReads, 0);
+    assert.deepEqual((await s.call('GET', verify, { accountTag: tag })).json, { ok: true, state: 'OUTGOING_VERIFIED' });
+    assert.equal(listReads, 1);
     assert.equal(s.c.adapter.friendRequests, undefined);
   } finally {
     await s.close();

@@ -20,6 +20,79 @@ async function account(t, env = ENABLED) {
   return c;
 }
 
+test('chỉ xác minh chiều gửi bằng UID khớp trong danh sách đã gửi của chính phiên', async (t) => {
+  const c = await account(t);
+  const other = '502';
+  const unrelated = '999';
+  c.bridge.msgLedger.markSent('INVITE', other);
+  c.adapter.friendRequestStates.set(other, OUTGOING);
+  c.adapter.friendRequestStates.set(UID, { is_friend: 0, is_requested: 1, is_requesting: 0 });
+  const checked = [];
+  c.adapter.hasSentFriendRequest = async (uid) => { checked.push(uid); return uid === UID || uid === unrelated; };
+
+  assert.deepEqual(await c.bridge.readFriendRequestStatus(unrelated, true), { ok: false, code: 'NO_INVITE' });
+  assert.deepEqual(checked, []);
+  assert.deepEqual(await c.bridge.readFriendRequestStatus(UID, true), { ok: true, state: 'OUTGOING_VERIFIED' });
+  c.clock.t += 3100;
+  assert.deepEqual(await c.bridge.readFriendRequestStatus(other, true), { ok: true, state: 'PENDING' });
+  assert.deepEqual(checked, [UID, other]);
+  assert.equal(c.adapter.friendRequests, undefined);
+  assert.equal(c.logs.some((line) => line.includes(unrelated)), false);
+});
+
+test('lời mời cũ biến mất thì không dùng lại bằng chứng chiều gửi dù không nhận sự kiện', async (t) => {
+  const c = await account(t);
+  let sent = true;
+  let calls = 0;
+  c.adapter.hasSentFriendRequest = async () => { calls += 1; return sent; };
+  assert.deepEqual(await c.bridge.readFriendRequestStatus(UID, true), { ok: true, state: 'OUTGOING_VERIFIED' });
+  sent = false;
+  c.clock.t += 3100;
+  assert.deepEqual(await c.bridge.readFriendRequestStatus(UID, true), { ok: true, state: 'PENDING' });
+  assert.equal(calls, 2);
+});
+
+test('tín hiệu lời mời đến trong lúc kiểm tra danh sách thì giữ nhãn trung tính', async (t) => {
+  const c = await account(t);
+  c.adapter.hasSentFriendRequest = async () => {
+    c.bridge.onFriendRequest(c.bridge.generation, UID);
+    return true;
+  };
+  assert.deepEqual(await c.bridge.readFriendRequestStatus(UID, true), { ok: true, state: 'PENDING' });
+});
+
+test('lỗi nguồn xác minh chiều vẫn giữ kết quả đang chờ và không làm cầu dao nhảy', async (t) => {
+  const c = await account(t);
+  c.adapter.hasSentFriendRequest = async () => { throw Object.assign(new Error('không có lời mời'), { code: 112 }); };
+  assert.deepEqual(await c.bridge.readFriendRequestStatus(UID, true), { ok: true, state: 'PENDING' });
+  assert.equal(c.bridge.status().state, 'LISTENING');
+  c.clock.t += 3100;
+  c.adapter.friendRequestStates.set(UID, { is_friend: 0, is_requested: 0, is_requesting: 0 });
+  assert.deepEqual(await c.bridge.readFriendRequestStatus(UID, true), { ok: true, state: 'NONE' });
+});
+
+test('cảnh báo rõ từ nguồn xác minh chiều vẫn bảo vệ phiên như lần đọc trạng thái', async (t) => {
+  const c = await account(t);
+  let calls = 0;
+  c.adapter.hasSentFriendRequest = async () => {
+    calls += 1;
+    throw new Error('Zalo yêu cầu xác minh');
+  };
+  assert.deepEqual(await c.bridge.readFriendRequestStatus(UID, true), { ok: false, code: 'RESTRICTED' });
+  c.clock.t += 3100;
+  assert.deepEqual(await c.bridge.readFriendRequestStatus(UID, true), CLOSED);
+  assert.equal(calls, 1);
+});
+
+test('đọc chiều dùng chung hạn mức của trạng thái và không giữ sổ gửi', async (t) => {
+  const c = await account(t, { ...ENABLED, BRIDGE_FRIEND_SYNC_DAILY: '2' });
+  c.adapter.hasSentFriendRequest = async () => true;
+  assert.deepEqual(await c.bridge.readFriendRequestStatus(UID, true), { ok: true, state: 'OUTGOING_VERIFIED' });
+  c.clock.t += 3100;
+  assert.deepEqual(await c.bridge.readFriendRequestStatus(UID, true), { ok: false, code: 'LIMIT' });
+  assert.equal(c.bridge.friendLedger.has('FRIEND', UID), false);
+});
+
 test('đối chiếu lời mời sau lỗi gửi vẫn đọc được khi inbox tắt, mọi lần gửi bị chặn', async (t) => {
   const c = await account(t);
   let calls = 0;

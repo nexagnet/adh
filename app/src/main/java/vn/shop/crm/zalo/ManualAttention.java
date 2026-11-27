@@ -95,6 +95,8 @@ public class ManualAttention {
                         SELECT i.id, c.name, c.phone, i.status, i.last_error, i.friend_request_outcome, i.friend_request_retry_at, i.friend_ask_outcome,
                                i.friended_at, i.joined_at, i.inbound_at, a.label AS account_label, i.friend_transport_failures,
                                i.friend_transport_code, o.state, o.observed_at, o.last_confirmed_state, o.last_confirmed_at, o.reason_code,
+                               o.outgoing_verified_at = o.observed_at AS direction_verified,
+                               o.outgoing_verified_at = o.last_confirmed_at AS last_confirmed_direction_verified,
                                %s AS manual_problem, (%s OR %s) AS resend_blocked, %s AS pending_call
                         FROM invitation i JOIN customer c ON c.id = i.customer_id JOIN zalo_account a ON a.id = i.account_id
                         """.formatted(MANUAL_PROBLEM, POSITIVE_EVIDENCE, INCOMPLETE_DISPATCH, PENDING_DISPATCH)
@@ -126,9 +128,10 @@ public class ManualAttention {
                     boolean can = friendUnknown && !retried && "SENT".equals(rs.getString("status"))
                             && rs.getObject("inbound_at") == null && !rs.getBoolean("resend_blocked");
                     String state = rs.getString("state");
-                    Observation observation = state == null ? null : new Observation(observationLabel(state),
+                    Observation observation = state == null ? null : new Observation(observationLabel(state, rs.getBoolean("direction_verified")),
                             localTime(rs.getObject("observed_at", OffsetDateTime.class)),
-                            "UNAVAILABLE".equals(state) ? observationLabel(rs.getString("last_confirmed_state")) : null,
+                            "UNAVAILABLE".equals(state) ? observationLabel(rs.getString("last_confirmed_state"),
+                                    rs.getBoolean("last_confirmed_direction_verified")) : null,
                             "UNAVAILABLE".equals(state) ? localTime(rs.getObject("last_confirmed_at", OffsetDateTime.class)) : null,
                             rs.getString("reason_code"));
                     return new Row(rs.getLong("id"), who(rs.getString("name"), rs.getString("phone")),
@@ -136,24 +139,25 @@ public class ManualAttention {
                 }).list();
     }
 
-    private static LocalDateTime localTime(OffsetDateTime value) {
+    static LocalDateTime localTime(OffsetDateTime value) {
         return value == null ? null : value.atZoneSameInstant(ZALO_TIME_ZONE).toLocalDateTime();
     }
 
-    private static String observationLabel(String state) {
+    static String observationLabel(String state, boolean outgoingVerified) {
         if (state == null) {
             return null;
         }
         return switch (state) {
             case "FRIENDS" -> "Hai tài khoản đã kết bạn";
-            case "OUTGOING", "INCOMING" -> "Có lời mời đang chờ trên Zalo, chưa xác minh bên gửi";
+            case "OUTGOING", "INCOMING" -> outgoingVerified && "OUTGOING".equals(state)
+                    ? "Tài khoản phụ đã gửi lời mời, đang chờ" : "Có lời mời đang chờ trên Zalo, chưa xác minh bên gửi";
             case "NONE" -> "Zalo không còn hiển thị lời mời đang chờ";
             default -> "Chưa đọc được trạng thái từ Zalo";
         };
     }
 
     /** Tên và bốn số cuối: đủ để nhận ra khách, không lộ cả số điện thoại trên màn hình. */
-    private static String who(String name, String phone) {
+    static String who(String name, String phone) {
         String n = name == null || name.isBlank() ? "Khách chưa có tên" : name.strip();
         String p = phone == null ? "" : phone.replaceAll("\\D", "");
         return p.length() >= 4 ? n + " (số …" + p.substring(p.length() - 4) + ")" : n;

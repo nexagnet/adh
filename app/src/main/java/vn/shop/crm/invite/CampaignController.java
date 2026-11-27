@@ -29,6 +29,8 @@ public class CampaignController {
     private final vn.shop.crm.inbox.ComebackService comebacks;
     private final vn.shop.crm.zalo.ManualAttention attention;
     private final CampaignArchive archive;
+    private final vn.shop.crm.zalo.CampaignFriendReconciliation friendReconciliation;
+    private final vn.shop.crm.zalo.CampaignReconciliationView reconciliationView;
 
     private final CampaignFilterForm filterForm;
 
@@ -37,7 +39,11 @@ public class CampaignController {
                               vn.shop.crm.zalo.ZaloCampaignIntake intake, vn.shop.crm.zalo.CampaignPolicy policy,
                               CampaignSteps steps, vn.shop.crm.zalo.CampaignAutoStop autoStop,
                               vn.shop.crm.zalo.CampaignGroupTarget groupTarget, vn.shop.crm.inbox.ComebackService comebacks,
-                              vn.shop.crm.zalo.ZaloQueueView queueView, CampaignArchive archive, vn.shop.crm.zalo.ManualAttention attention) {
+                              vn.shop.crm.zalo.ZaloQueueView queueView, CampaignArchive archive, vn.shop.crm.zalo.ManualAttention attention,
+                              vn.shop.crm.zalo.CampaignFriendReconciliation friendReconciliation,
+                              vn.shop.crm.zalo.CampaignReconciliationView reconciliationView) {
+        this.friendReconciliation = friendReconciliation;
+        this.reconciliationView = reconciliationView;
         this.filterForm = filterForm;
         this.attention = attention;
         this.archive = archive;
@@ -133,25 +139,36 @@ public class CampaignController {
 
     static final java.util.List<Tab> TABS = java.util.List.of(
             new Tab("tong-quan", "Tổng quan và lời mời"), new Tab("lich", "Lịch và điều kiện gửi"),
-            new Tab("tin", "Chuỗi tin"), new Tab("nhom", "Nhóm Zalo và khách quay lại"), new Tab("can-xu-ly", "Cần xử lý tay"));
+            new Tab("tin", "Chuỗi tin"), new Tab("nhom", "Nhóm Zalo và khách quay lại"), new Tab("can-xu-ly", "Cần xử lý tay"),
+            new Tab("doi-chieu", "Đối chiếu Zalo"));
 
     /** Tab được chọn: tham số {@code tab}, hoặc tab vừa lưu (gửi qua thuộc tính flash để địa chỉ chuyển hướng không đổi); lạ thì về tab đầu. */
-    private static String pickTab(String param, Model model) {
+    private static String pickTab(String param, Model model, java.util.List<Tab> tabs) {
         Object flash = model.asMap().get("tab");
         for (String candidate : new String[]{param, flash instanceof String f ? f : null}) {
-            if (candidate != null && TABS.stream().anyMatch(t -> t.key().equals(candidate))) {
+            if (candidate != null && tabs.stream().anyMatch(t -> t.key().equals(candidate))) {
                 return candidate;
             }
         }
-        return TABS.get(0).key();
+        return tabs.get(0).key();
     }
 
     @GetMapping("/campaigns/{id}")
-    public String detail(@PathVariable long id, @RequestParam(required = false) String tab, Model model) {
-        model.addAttribute("tabs", TABS);
-        model.addAttribute("tab", pickTab(tab, model));
+    public String detail(@PathVariable long id, @RequestParam(required = false) String tab,
+                         @RequestParam(defaultValue = "0") int reconciliationPage,
+                         jakarta.servlet.http.HttpServletRequest request, Model model) {
+        boolean canReconcile = request.isUserInRole("OWNER");
+        var visibleTabs = TABS.stream().filter(t -> canReconcile || !"doi-chieu".equals(t.key())).toList();
+        model.addAttribute("tabs", visibleTabs);
+        model.addAttribute("tab", pickTab(tab, model, visibleTabs));
         var campaign = invites.campaign(id).orElseThrow(() -> new ImportException("Không tìm thấy chiến dịch."));
         model.addAttribute("campaign", campaign);
+        model.addAttribute("attentionCount", attention.count(id));
+        if ("doi-chieu".equals(model.asMap().get("tab"))) {
+            model.addAttribute("reconcileAccounts", friendReconciliation.accounts(id));
+            model.addAttribute("reconcileRows", reconciliationView.rows(id, reconciliationPage));
+            return "campaign-detail";
+        }
         var filter = invites.campaignFilter(id);
         model.addAttribute("filterLines", filter.describe());
         model.addAttribute("filterPick", filter.pickLabel());
@@ -171,7 +188,6 @@ public class CampaignController {
         model.addAttribute("minGapDays", CampaignSteps.MIN_GAP_DAYS);
         model.addAttribute("stopFooter", CampaignSteps.STOP_FOOTER);
         model.addAttribute("multiTemplate", InviteService.MULTI_TEMPLATE);
-        model.addAttribute("attentionCount", attention.count(id));
         model.addAttribute("attention", "can-xu-ly".equals(model.asMap().get("tab")) ? attention.rows(id) : java.util.List.of());
         model.addAttribute("friendAsk", steps.friendAskMessage(id));
         model.addAttribute("friendAskDefault", vn.shop.crm.zalo.ZaloFriendAskSender.DEFAULT_TEXT);
@@ -186,6 +202,20 @@ public class CampaignController {
         model.addAttribute("stoppedReason", autoStop.stoppedReason(id).orElse(null));
         model.addAttribute("schedBlock", policy.blocker(id).map(vn.shop.crm.zalo.CampaignPolicy.Block::label).orElse(null));
         return "campaign-detail";
+    }
+
+    @GetMapping("/campaigns/{id}/reconcile/{account}")
+    @org.springframework.web.bind.annotation.ResponseBody
+    public org.springframework.http.ResponseEntity<vn.shop.crm.zalo.CampaignFriendReconciliation.Status> friendReadStatus(
+            @PathVariable long id, @PathVariable long account) {
+        return org.springframework.http.ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(friendReconciliation.status(id, account));
+    }
+
+    @PostMapping("/campaigns/{id}/reconcile/{account}")
+    public String readFriends(@PathVariable long id, @PathVariable long account) {
+        friendReconciliation.start(id, account);
+        return "redirect:/campaigns/" + id + "?tab=doi-chieu";
     }
 
     /**

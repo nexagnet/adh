@@ -35,7 +35,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/login", "/app.css", "/error", "/i/**", "/n", "/moi", "/moi/**").permitAll()
                         // Trang Zalo tài khoản phụ (D16): có mã QR đăng nhập tài khoản, chỉ admin (vai trò OWNER).
-                        .requestMatchers("/zalo", "/zalo/**").hasRole("OWNER")
+                        .requestMatchers("/zalo", "/zalo/**", "/campaigns/*/reconcile/*").hasRole("OWNER")
                         .anyRequest().authenticated())
                 .formLogin(form -> form.loginPage("/login").defaultSuccessUrl("/", true).permitAll())
                 .logout(logout -> logout.logoutSuccessUrl("/login?logout"))

@@ -671,6 +671,27 @@ class FriendRequestSendTest extends AbstractPostgresTest {
         assertThat(sender.step()).isEqualTo(ZaloInviteSender.Step.UNDO_DONE);
     }
 
+    @Test
+    void quanSatDangChoSauKhiDaBienMatKhongKhoiDongLaiTuDongThuHoi() {
+        long invitation = friendRequestedDaysAgo(8);
+        jdbc.sql("""
+                INSERT INTO zalo_friend_observation
+                    (account_id, invitation_id, state, observed_at, last_confirmed_state, last_confirmed_at, needs_review, attempt_at)
+                SELECT account_id, id, 'OUTGOING', now(), 'OUTGOING', now(), false, friend_request_at
+                FROM invitation WHERE id = :i
+                """).param("i", invitation).update();
+        jdbc.sql("""
+                INSERT INTO zalo_friend_observation_event
+                    (account_id, invitation_id, state, observed_at, expected_outcome, needs_review, attempt_at)
+                SELECT account_id, id, 'NONE', now() - interval '1 minute', 'SENT', true, friend_request_at
+                FROM invitation WHERE id = :i
+                """).param("i", invitation).update();
+        gap();
+        sender.step();
+        assertThat(fake.undone).isEmpty();
+        assertThat(outcome(invitation)).isEqualTo("SENT");
+    }
+
     /** Một khách đã được gửi lời mời cách đây {@code daysAgo} ngày (giờ giả của test); trả mã lời mời. */
     private long friendRequestedDaysAgo(int daysAgo) {
         long invitation = inviteOne();
