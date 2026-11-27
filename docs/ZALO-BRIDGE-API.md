@@ -33,7 +33,7 @@ Chỉ có khi đặt `BRIDGE_INBOX_ENABLED=true` ở cầu nối; tắt thì c�
 
 ### `GET /friend-requests/status?uid=123456789`
 
-Đọc trạng thái lời mời của một UID đã có trong sổ Tin 1 của cầu nối. Trả `{"ok":true,"state":"FRIENDS"}` hoặc một trong các trạng thái `OUTGOING`, `INCOMING`, `NONE`. Lỗi đọc trả `{"ok":false,"code":"..."}`. Dữ liệu trống hoặc trái hợp đồng được coi là lỗi đọc. `NONE` là quan sát không thấy quan hệ hay lời mời, chưa xác định được ai đã thu hồi hoặc từ chối.
+Đọc trạng thái lời mời của một UID đã có trong sổ Tin 1 của cầu nối. Trả `{"ok":true,"state":"FRIENDS"}` hoặc một trong các trạng thái `OUTGOING`, `INCOMING`, `NONE`. Lỗi đọc trả `{"ok":false,"code":"..."}`. Dữ liệu trống hoặc trái hợp đồng được coi là lỗi đọc. ADH hiển thị hai nhãn chờ dưới cùng trạng thái chưa xác minh bên gửi, vì các cờ của nguồn đọc chưa được kiểm chứng độc lập. `NONE` nghĩa là hiện không thấy quan hệ bạn bè hay lời mời chờ. ADH giữ lịch sử gửi và bỏ qua thu hồi tự động khi quan sát xác nhận `NONE` hoặc `FRIENDS` cho đúng lần gửi.
 
 ADH có thể quan sát một việc mỗi tài khoản trong từng nhịp với `APP_ZALO_RECONCILE_ENABLED=true`. Mặc định chạy cách nhau 30 phút để phù hợp với ngân sách đọc mặc định của cầu nối. Ảnh cầu nối cũ chưa có endpoint này sẽ chỉ cho kết quả không đọc được. Kiểm chứng chiều lời mời bằng tài khoản thử trước khi dùng làm điều kiện phục hồi.
 

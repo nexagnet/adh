@@ -422,11 +422,11 @@ class ZaloTwoBridgeSchedulerTest extends AbstractPostgresTest {
                     friend_request_at = now() - interval '10 minutes', expires_at = now() + interval '1 day'
                 """).update();
         bridges.first().friendRequestState = ZaloLink.FriendRequestState.NONE;
-        bridges.second().friendRequestState = ZaloLink.FriendRequestState.OUTGOING;
+        bridges.second().friendRequestState = ZaloLink.FriendRequestState.INCOMING;
         new ZaloFriendReconciliationScheduler(registry, reconciliation, Runnable::run).tick();
 
         assertThat(jdbc.sql("SELECT state FROM zalo_friend_observation ORDER BY account_id").query(String.class).list())
-                .containsExactly("NONE", "OUTGOING");
+                .containsExactly("NONE", "INCOMING");
         assertThat(jdbc.sql("SELECT account_id FROM zalo_friend_observation WHERE needs_review").query(Long.class).list())
                 .containsExactly(1L);
         jdbc.sql("UPDATE zalo_friend_observation SET observed_at = now() - interval '6 minutes'").update();
@@ -437,7 +437,7 @@ class ZaloTwoBridgeSchedulerTest extends AbstractPostgresTest {
         assertThat(jdbc.sql("SELECT last_confirmed_state FROM zalo_friend_observation WHERE account_id = 1 AND needs_review")
                 .query(String.class).single()).isEqualTo("NONE");
         assertThat(jdbc.sql("SELECT state FROM zalo_friend_observation_event ORDER BY id").query(String.class).list())
-                .containsExactly("NONE", "OUTGOING", "UNAVAILABLE");
+                .containsExactly("NONE", "INCOMING", "UNAVAILABLE");
         assertThat(jdbc.sql("SELECT reason_code FROM zalo_friend_observation WHERE account_id = 1").query(String.class).single())
                 .isEqualTo("Z114");
         assertThat(jdbc.sql("SELECT DISTINCT friend_request_outcome FROM invitation").query(String.class).list()).containsExactly("SENT");

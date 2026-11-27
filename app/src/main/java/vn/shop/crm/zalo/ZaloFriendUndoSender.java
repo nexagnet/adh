@@ -76,15 +76,19 @@ public class ZaloFriendUndoSender {
                         FROM invitation i JOIN customer c ON c.id = i.customer_id
                         WHERE i.friend_request_outcome = 'SENT' AND i.friended_at IS NULL AND i.joined_at IS NULL AND i.friend_undo_at IS NULL
                           AND i.zalo_target_uid IS NOT NULL AND i.friend_request_at < :before
-                        """ + testMode.onlyTestSql("c.phone") + " AND " + ZaloAccountContext.sql("i.account_id") + " ORDER BY i.friend_request_at, i.id LIMIT 1")
+                          AND
+                        """ + ZaloFriendReconciliation.STILL_MAY_BE_PENDING + testMode.onlyTestSql("c.phone") + " AND "
+                + ZaloAccountContext.sql("i.account_id") + " ORDER BY i.friend_request_at, i.id LIMIT 1")
                 .param("before", OffsetDateTime.now(clock).minusDays(days))
                 .query((rs, n) -> new Task(rs.getLong("id"), rs.getString("zalo_target_uid"))).list();
     }
 
     private Step send(Task t, int days) {
         int claimed = jdbc.sql("""
-                        UPDATE invitation SET friend_undo_at = :at, friend_undo_outcome = 'UNKNOWN'
-                        WHERE id = :id AND friend_undo_at IS NULL AND friend_request_outcome = 'SENT' AND friended_at IS NULL AND joined_at IS NULL""")
+                        UPDATE invitation i SET friend_undo_at = :at, friend_undo_outcome = 'UNKNOWN'
+                        WHERE i.id = :id AND i.friend_undo_at IS NULL AND i.friend_request_outcome = 'SENT'
+                          AND i.friended_at IS NULL AND i.joined_at IS NULL AND
+                        """ + ZaloFriendReconciliation.STILL_MAY_BE_PENDING + " AND " + ZaloAccountContext.sql("i.account_id"))
                 .param("id", t.invitationId()).param("at", OffsetDateTime.now(clock)).update();
         if (claimed == 0) {
             return Step.NOTHING;

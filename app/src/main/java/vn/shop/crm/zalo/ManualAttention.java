@@ -146,9 +146,8 @@ public class ManualAttention {
         }
         return switch (state) {
             case "FRIENDS" -> "Hai tài khoản đã kết bạn";
-            case "OUTGOING" -> "Lời mời đã gửi vẫn đang chờ";
-            case "INCOMING" -> "Đang có lời mời kết bạn từ khách";
-            case "NONE" -> "Không thấy lời mời đang chờ hoặc quan hệ bạn bè";
+            case "OUTGOING", "INCOMING" -> "Có lời mời đang chờ trên Zalo, chưa xác minh bên gửi";
+            case "NONE" -> "Zalo không còn hiển thị lời mời đang chờ";
             default -> "Chưa đọc được trạng thái từ Zalo";
         };
     }
