@@ -2,10 +2,10 @@
 <html xmlns:th="http://www.thymeleaf.org" lang="vi">
 <head th:replace="~{fragments :: head('Đăng nhập')}"></head>
 <body class="login-page">
-<div class="login">
+<main class="login">
     <div class="card">
-        <h1>Chăm sóc khách</h1>
-        <p class="sub-title">Đăng nhập</p>
+        <div class="login-brand"><span class="brand-mark" aria-hidden="true">ADH</span><span>ADH · Chăm sóc khách</span></div>
+        <h1>Đăng nhập</h1>
         <div class="notice bad" th:if="${param.error}"><strong>Sai tên đăng nhập hoặc mật khẩu</strong>Vui lòng kiểm tra rồi thử lại.</div>
         <div class="notice bad" th:if="${param.locked}"><strong>Bạn đã nhập sai nhiều lần</strong>Vui lòng đợi 15 phút rồi thử lại.</div>
         <div class="notice ok" th:if="${param.logout}"><strong>Bạn đã đăng xuất</strong></div>
@@ -20,6 +20,6 @@
         </form>
         <p class="note">Mỗi người một mật khẩu riêng để hệ thống ghi đúng ai đã duyệt khách, ai đã xóa dữ liệu.</p>
     </div>
-</div>
+</main>
 </body>
 </html>

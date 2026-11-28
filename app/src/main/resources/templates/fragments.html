@@ -3,7 +3,7 @@
 <head th:fragment="head(title)">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title th:text="${title} + ' - Chăm sóc khách'">Chăm sóc khách</title>
+    <title th:text="${title} + ' – ADH'">ADH</title>
     <link rel="stylesheet" th:href="@{/app.css}">
     <script defer th:src="@{/responsive-tables.js}"></script>
     <script defer th:src="@{/popover.js}"></script>
@@ -16,20 +16,20 @@
         <span th:text="${n < current ? '' : n + '. '} + (${n == 1} ? 'Chọn file' : (${n == 2} ? 'Chọn cột' : (${n == 3} ? 'Xem trước' : 'Xác nhận')))">Chọn file</span>
     </li>
 </ol>
-<div th:fragment="testModeAlert">
-    <div class="notice bad" th:if="${@testMode.live()}">
+<div th:fragment="testModeAlert" class="status-stack">
+    <div class="notice warn mode-strip" th:if="${@testMode.live()}">
         <strong>Đang CHẠY THẬT</strong>
-        Hệ thống có thể nhắn cho khách thật theo các chiến dịch đã duyệt. Cần dừng ngay thì vào <a th:href="@{/zalo}">Zalo tài khoản phụ</a> bấm Dừng ngay,
-        hoặc <a th:href="@{/campaigns}">Chiến dịch mời</a> bấm Tạm dừng tất cả chiến dịch.
+        <span>Chiến dịch đã duyệt có thể nhắn cho khách thật.</span>
+        <a th:href="${account != null} ? @{/zalo#dieu-khien-zalo(account=${account})} : @{/zalo#dieu-khien-zalo}">Điều khiển dừng Zalo</a>
+        <a th:href="@{/campaigns}">Đến nút tạm dừng chiến dịch</a>
     </div>
-    <div class="notice info" th:if="${@testMode.testOnly()}">
+    <div class="notice info mode-strip" th:if="${@testMode.testOnly()}">
         <strong>Đang ở chế độ thử</strong>
-        Hệ thống chỉ được nhắn tin, thêm nhóm, tạo nhóm, tự nhận khách và để AI trả lời với những số điện thoại đã khai báo là số thử.
-        Khách thật được bảo vệ, kể cả khi công tắc tự gửi đang bật.
+        <span>Thao tác tự động qua Zalo chỉ áp dụng cho số thử đã khai báo.</span>
         <a th:href="@{/zalo(tab=thu)}">Xem danh sách số thử</a>
     </div>
 </div>
-<div th:fragment="zaloAlert" th:with="za=${@zaloAutoService.alert().orElse(null)}, zh=${@zaloHealthService.open()}">
+<div th:fragment="zaloAlert" class="status-stack" th:with="za=${@zaloAutoService.alert().orElse(null)}, zh=${@zaloHealthService.open()}">
     <div class="notice" th:each="h : ${zh}" th:classappend="${h.critical} ? 'bad' : 'warn'">
         <strong th:text="${@zaloLabels.healthTitle(h.kind)}">Zalo có dấu hiệu hạn chế tài khoản phụ</strong>
         <span th:text="${@zaloLabels.healthAdvice(h.kind)}">Việc cần làm.</span>
@@ -51,16 +51,20 @@
     <a th:href="${current == 'zalo-groups'} ? @{/zalo/groups(account=${account})} : @{/zalo/groups}" th:classappend="${current == 'zalo-groups'} ? 'active'" th:attr="aria-current=${current == 'zalo-groups'} ? 'page'">Gán mã nhóm Zalo</a>
 </div>
 <nav th:fragment="nav" class="nav" aria-label="Menu chính">
-    <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Mở hoặc đóng menu">
+    <a class="skip-link btn" href="#noi-dung-chinh">Đến nội dung chính</a>
+    <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Hiện menu chính" aria-controls="nav-body">
     <div class="nav-bar">
-        <a class="brand" th:href="@{/}">Chăm sóc khách</a>
-        <label for="nav-toggle" class="nav-burger"><span class="nav-burger-open">Menu</span><span class="nav-burger-close">Đóng</span></label>
+        <a class="brand" th:href="@{/}" aria-label="ADH — Tổng quan">
+            <span class="brand-mark" aria-hidden="true">ADH</span>
+            <span class="brand-name">Chăm sóc khách</span>
+        </a>
+        <label for="nav-toggle" class="nav-burger" aria-hidden="true"><span class="nav-burger-open">Menu</span><span class="nav-burger-close">Đóng menu</span></label>
     </div>
-    <div class="nav-body">
+    <div class="nav-body" id="nav-body">
         <th:block th:each="g : ${@navMenu.groups(navKey)}">
             <div class="nav-group" th:unless="${g.collapsible}">
                 <div class="nav-title" th:text="${g.title}">Khách hàng</div>
-                <a th:each="i : ${g.items}" th:href="@{${i.url}}" th:classappend="${i.active} ? 'active'">
+                <a th:each="i : ${g.items}" th:href="@{${i.url}}" th:classappend="${i.active} ? 'active'" th:attr="aria-current=${i.active} ? 'page'">
                     <span th:text="${i.label}">Tổng quan</span>
                     <span class="count" th:if="${i.hasBadge()}" th:text="${i.badge}">3</span>
                 </a>
@@ -68,14 +72,13 @@
             <details class="nav-group nav-more" th:if="${g.collapsible}" th:attr="open=${g.hasActive()} ? 'open'">
                 <summary class="nav-title"><span th:text="${g.title}">Khác</span>
                     <span class="count" th:if="${g.badge() > 0}" th:text="${g.badge()}">2</span></summary>
-                <a th:each="i : ${g.items}" th:href="@{${i.url}}" th:classappend="${i.active} ? 'active'">
+                <a th:each="i : ${g.items}" th:href="@{${i.url}}" th:classappend="${i.active} ? 'active'" th:attr="aria-current=${i.active} ? 'page'">
                     <span th:text="${i.label}">Yêu cầu của khách</span>
                     <span class="count" th:if="${i.hasBadge()}" th:text="${i.badge}">3</span>
                 </a>
             </details>
         </th:block>
         <div class="nav-account">
-            <div class="who">Đang đăng nhập: Chủ cửa hàng</div>
             <form th:action="@{/logout}" method="post">
                 <button type="submit">Đăng xuất</button>
             </form>

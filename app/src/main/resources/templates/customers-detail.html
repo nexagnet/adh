@@ -3,11 +3,11 @@
 <head th:replace="~{fragments :: head('Chi tiết khách')}"></head>
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
-<main>
+<main id="noi-dung-chinh" tabindex="-1">
     <header class="page-head">
         <div class="titles">
-            <h1 th:text="${detail.customer.displayPhone()}">0912 345 678</h1>
-            <p class="hint"><span th:text="${detail.customer.name}">Nguyễn Văn An</span>
+            <h1 th:text="${#strings.isEmpty(detail.customer.name) ? detail.customer.displayPhone() : detail.customer.name}">Nguyễn Văn An</h1>
+            <p class="hint"><span th:unless="${#strings.isEmpty(detail.customer.name)}" th:text="${detail.customer.displayPhone()}">0912 345 678</span>
                 <span th:if="${detail.customer.address != null and !detail.customer.address.isEmpty()}"> · <span th:text="${detail.customer.address}">Xóm 3, Hà Nam</span></span>
                 <span th:if="${detail.customer.province != null}"> · <span th:text="${detail.customer.provinceLabel()} + ' (' + ${detail.customer.regionLabel()} + ')'">Hà Nội (Miền Bắc)</span></span></p>
         </div>
@@ -32,6 +32,27 @@
                 <div class="label">Phân loại</div>
             </div>
         </div>
+
+        <section>
+            <h2>Lịch sử gửi Zalo</h2>
+            <p class="muted" th:if="${zaloDeliveries.isEmpty()}">Chưa ghi nhận lần gửi Zalo nào.</p>
+            <div class="table-wrap" th:unless="${zaloDeliveries.isEmpty()}">
+                <table>
+                    <caption>Lần gửi được hệ thống xác nhận (tối đa 50 lần gần nhất)</caption>
+                    <thead><tr><th scope="col">Lúc gửi</th><th scope="col">Tài khoản gửi</th><th scope="col">Loại tin</th></tr></thead>
+                    <tbody>
+                        <tr th:each="delivery : ${zaloDeliveries}">
+                            <td th:text="${#temporals.format(delivery.at, 'dd/MM/yyyy HH:mm')}">20/11/2026 15:03</td>
+                            <td th:text="${delivery.accountLabel}">Tài khoản phụ 1</td>
+                            <td>
+                                <span th:text="${delivery.messageLabel}">Tin 1 mời khách</span>
+                                <span class="sub-line" th:if="${delivery.partial}">Đã gửi một phần</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
 
         <section>
             <h2>Các lần mua và vận đơn</h2>
@@ -64,16 +85,16 @@
         </section>
 
         <section>
-            <h2>Ghi chú của bố mẹ</h2>
+            <h2>Ghi chú khách hàng</h2>
             <form th:action="@{/customers/{id}/note(id=${detail.customer.id})}" method="post" class="stack">
-                <textarea name="note" rows="3" maxlength="2000" th:text="${note}"
+                <textarea aria-label="Ghi chú khách hàng" name="note" rows="3" maxlength="2000" th:text="${note}"
                           placeholder="Ví dụ: khách quen, đã gọi điện hỏi thăm ngày ..."></textarea>
                 <div class="actions"><button type="submit" class="btn secondary">Lưu ghi chú</button></div>
             </form>
         </section>
 
-        <section th:if="${!events.isEmpty()}">
-            <h2>Nhật ký</h2>
+        <details class="more" th:if="${!events.isEmpty()}">
+            <summary>Nhật ký liên hệ</summary>
             <div class="table-wrap">
                 <table data-filter>
                     <tr><th>Lúc</th><th>Việc</th><th>Ai</th></tr>
@@ -85,28 +106,7 @@
                     </tr>
                 </table>
             </div>
-        </section>
-
-        <section>
-            <h2>Lịch sử gửi Zalo</h2>
-            <p class="muted" th:if="${zaloDeliveries.isEmpty()}">Chưa ghi nhận lần gửi Zalo nào.</p>
-            <div class="table-wrap" th:unless="${zaloDeliveries.isEmpty()}">
-                <table>
-                    <caption>Lần gửi được hệ thống xác nhận (tối đa 50 lần gần nhất)</caption>
-                    <thead><tr><th scope="col">Lúc gửi</th><th scope="col">Tài khoản gửi</th><th scope="col">Loại tin</th></tr></thead>
-                    <tbody>
-                        <tr th:each="delivery : ${zaloDeliveries}">
-                            <td th:text="${#temporals.format(delivery.at, 'dd/MM/yyyy HH:mm')}">20/11/2026 15:03</td>
-                            <td th:text="${delivery.accountLabel}">Tài khoản phụ 1</td>
-                            <td>
-                                <span th:text="${delivery.messageLabel}">Tin 1 mời khách</span>
-                                <span class="sub-line" th:if="${delivery.partial}">Đã gửi một phần</span>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
+        </details>
     </div>
 
     <div class="col-side">
@@ -153,36 +153,38 @@
             </div>
         </div>
 
-        <div class="panel">
-            <h2>Dữ liệu của khách</h2>
-            <p class="muted">Khi khách nhắn yêu cầu, ghi nhận ngay để hệ thống đếm hạn phản hồi (xem, xuất, ngừng liên hệ: 2 ngày làm việc; xóa: 20 ngày; chưa có xác nhận pháp lý).</p>
-            <form th:action="@{/customers/{id}/privacy/open(id=${detail.customer.id})}" method="post" class="stack">
-                <select name="kind" aria-label="Loại yêu cầu">
-                    <option value="ACCESS">Xem dữ liệu</option>
-                    <option value="EXPORT">Xuất dữ liệu</option>
-                    <option value="STOP_CONTACT">Ngừng liên hệ</option>
-                    <option value="ERASE">Xóa dữ liệu</option>
-                </select>
-                <label class="field">Ngày khách gửi
-                    <input type="date" name="receivedOn" th:value="${today}"></label>
-                <button type="submit" class="btn secondary">Ghi nhận yêu cầu của khách</button>
-            </form>
-            <form th:action="@{/customers/{id}/privacy/export.csv(id=${detail.customer.id})}" method="post">
-                <button type="submit" class="btn secondary">Tải dữ liệu của khách (Excel)</button>
-            </form>
-            <form th:if="${!suppressed}" th:action="@{/customers/{id}/privacy/stop-contact(id=${detail.customer.id})}" method="post">
-                <button type="submit" class="btn secondary">Khách xin ngừng liên hệ</button>
-            </form>
-        </div>
+        <details class="more">
+            <summary>Yêu cầu về dữ liệu của khách</summary>
+            <div class="stack">
+                <p class="muted">Khi khách nhắn yêu cầu, ghi nhận ngay để hệ thống đếm hạn phản hồi (xem, xuất, ngừng liên hệ: 2 ngày làm việc; xóa: 20 ngày; chưa có xác nhận pháp lý).</p>
+                <form th:action="@{/customers/{id}/privacy/open(id=${detail.customer.id})}" method="post" class="stack">
+                    <select name="kind" aria-label="Loại yêu cầu">
+                        <option value="ACCESS">Xem dữ liệu</option>
+                        <option value="EXPORT">Xuất dữ liệu</option>
+                        <option value="STOP_CONTACT">Ngừng liên hệ</option>
+                        <option value="ERASE">Xóa dữ liệu</option>
+                    </select>
+                    <label class="field">Ngày khách gửi
+                        <input type="date" name="receivedOn" th:value="${today}"></label>
+                    <button type="submit" class="btn secondary">Ghi nhận yêu cầu của khách</button>
+                </form>
+                <form th:action="@{/customers/{id}/privacy/export.csv(id=${detail.customer.id})}" method="post">
+                    <button type="submit" class="btn secondary">Tải dữ liệu của khách (Excel)</button>
+                </form>
+                <form th:if="${!suppressed}" th:action="@{/customers/{id}/privacy/stop-contact(id=${detail.customer.id})}" method="post">
+                    <button type="submit" class="btn secondary">Khách xin ngừng liên hệ</button>
+                </form>
+            </div>
+        </details>
 
-        <div class="panel danger">
-            <h2>Xóa dữ liệu của khách</h2>
+        <details class="more panel danger">
+            <summary>Xóa dữ liệu của khách</summary>
             <p class="muted">Không hoàn tác. Xóa khách và toàn bộ vận đơn của khách. Số điện thoại chỉ còn dạng mã băm để không nhập lại và không bao giờ liên hệ lại.</p>
             <form th:action="@{/customers/{id}/privacy/erase(id=${detail.customer.id})}" method="post" class="stack">
-                <input type="text" name="confirm" placeholder="Gõ XOA để xác nhận" autocomplete="off">
+                <input type="text" name="confirm" aria-label="Xác nhận xóa dữ liệu" placeholder="Gõ XOA để xác nhận" autocomplete="off">
                 <button type="submit" class="btn danger">Xóa vĩnh viễn</button>
             </form>
-        </div>
+        </details>
     </div>
     </div>
 </main>

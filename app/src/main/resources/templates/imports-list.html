@@ -3,37 +3,40 @@
 <head th:replace="~{fragments :: head('Nhập đơn')}"></head>
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
-<main>
+<main id="noi-dung-chinh" tabindex="-1">
     <header class="page-head">
         <div class="titles">
-            <h1>Các lần nhập đơn</h1>
-            <p class="hint">Mỗi lần nhập là một file Excel xuất từ trang quản lý của hãng vận chuyển.</p>
+            <h1>Nhập đơn hàng</h1>
+            <p class="hint">Nhập file từ hãng vận chuyển và kiểm tra kết quả.</p>
         </div>
         <div class="actions"><a class="btn" th:href="@{/imports/new}">Nhập file mới</a>
-            <a class="btn secondary" th:href="@{/imports/settlement}">Nhập file đối soát J&amp;T</a></div>
+            <a class="btn secondary" th:href="@{/imports/settlement}">Đối soát J&amp;T</a></div>
     </header>
-    <div class="table-wrap">
-        <table data-filter>
-            <tr>
-                <th>Thời gian</th><th>Hãng</th><th>File</th><th>Dòng</th>
-                <th>Mới</th><th>Cập nhật</th><th>Lỗi</th><th>Tình trạng</th>
-            </tr>
-            <tr th:each="b : ${batches}">
-                <td th:text="${#temporals.format(b.uploadedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
-                <td th:text="${b.carrier.label()}">Viettel Post</td>
-                <td><a th:href="${b.committed()} ? @{/imports/{id}(id=${b.id})} : @{/imports/{id}/mapping(id=${b.id})}" th:text="${b.filename}">file.csv</a></td>
-                <td th:text="${b.totalRows}">-</td>
-                <td th:text="${b.newShipments}">-</td>
-                <td th:text="${b.updatedShipments}">-</td>
-                <td th:text="${b.errorRows}">-</td>
-                <td>
-                    <span class="badge ok" th:if="${b.committed()}">Đã nhập</span>
-                    <span class="badge warn" th:unless="${b.committed()}">Chưa xác nhận</span>
-                </td>
-            </tr>
-            <tr th:if="${batches.isEmpty()}"><td colspan="8" class="muted">Chưa có lần nhập nào.</td></tr>
-        </table>
-    </div>
+    <section aria-labelledby="history-title">
+        <h2 id="history-title">Lịch sử nhập</h2>
+        <div class="table-wrap">
+            <table data-filter>
+                <tr>
+                    <th scope="col">Tên file</th><th scope="col">Tình trạng</th><th scope="col">Thời gian</th><th scope="col">Hãng</th>
+                    <th scope="col">Số dòng</th><th scope="col">Vận đơn mới</th><th scope="col">Cập nhật</th><th scope="col">Lỗi</th>
+                </tr>
+                <tr th:each="b : ${batches}">
+                    <td><a th:href="${b.committed()} ? @{/imports/{id}(id=${b.id})} : @{/imports/{id}/mapping(id=${b.id})}" th:text="${b.filename}">file.csv</a></td>
+                    <td>
+                        <span class="badge ok" th:if="${b.committed()}">Đã nhập</span>
+                        <span class="badge warn" th:unless="${b.committed()}">Chưa xác nhận</span>
+                    </td>
+                    <td th:text="${#temporals.format(b.uploadedAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</td>
+                    <td th:text="${b.carrier.label()}">Viettel Post</td>
+                    <td th:text="${b.totalRows}">-</td>
+                    <td th:text="${b.newShipments}">-</td>
+                    <td th:text="${b.updatedShipments}">-</td>
+                    <td th:text="${b.errorRows}">-</td>
+                </tr>
+                <tr th:if="${batches.isEmpty()}"><td colspan="8" class="muted">Chưa có lần nhập nào.</td></tr>
+            </table>
+        </div>
+    </section>
 </main>
 </body>
 </html>

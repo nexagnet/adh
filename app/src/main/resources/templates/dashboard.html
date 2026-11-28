@@ -3,8 +3,7 @@
 <head th:replace="~{fragments :: head('Tổng quan')}"></head>
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
-<main>
-    <div th:replace="~{fragments :: testModeAlert}"></div>
+<main id="noi-dung-chinh" tabindex="-1">
     <header class="page-head">
         <div class="titles">
             <h1>Tổng quan</h1>
@@ -15,6 +14,7 @@
         <div class="actions"><a class="btn" th:href="@{/imports/new}">Nhập file đơn hàng</a></div>
     </header>
 
+    <div th:replace="~{fragments :: testModeAlert}"></div>
     <div th:replace="~{fragments :: zaloAlert}"></div>
 
     <div class="notice" th:if="${totalShipments == 0}">
@@ -28,119 +28,123 @@
         <a th:href="@{/map}">Xem bản đồ và chi tiết</a>
     </div>
 
-    <section th:if="${totalShipments > 0}">
-        <h2>Việc cần làm hôm nay</h2>
-        <div class="todo">
-        <ul>
-            <li th:if="${contact.candidates > 0}">
-                <span><span class="todo-num blue" th:text="${contact.candidates}">0</span>khách mua 1 lần đang chờ bạn duyệt để được mời vào nhóm</span>
-                <a class="btn" th:href="@{/contacts}">Duyệt danh sách mời</a>
-            </li>
-            <li th:if="${friend.readyToAdd > 0}">
-                <span><span class="todo-num" th:classappend="${friend.overdue > 0} ? 'red'" th:text="${friend.readyToAdd}">0</span><th:block
-                    th:text="${friend.overdue > 0} ? 'khách đã kết bạn đang chờ thêm vào nhóm (' + ${friend.overdue} + ' khách quá ' + ${overdueDays} + ' ngày)' : 'khách đã kết bạn đang chờ thêm vào nhóm'">khách đã kết bạn đang chờ thêm vào nhóm</th:block></span>
-                <a class="btn" th:href="@{/friends}">Thêm vào nhóm</a>
-            </li>
-            <li th:if="${friend.waitingGroup > 0}">
-                <span><span class="todo-num red" th:text="${friend.waitingGroup}">0</span>khách đã kết bạn mà chưa có nhóm hợp khu vực. Hãy mở nhóm Zalo mới ở khu vực đó, khách sẽ hiện thành việc thêm vào nhóm</span>
-                <a class="btn secondary" th:href="@{/groups}">Mở nhóm</a>
-            </li>
-            <li th:if="${friend.noReply > 0}">
-                <span><span class="todo-num" th:text="${friend.noReply}">0</span><th:block th:text="'khách đã nhắn quá ' + ${noReplyDays} + ' ngày chưa kết bạn (không nhắn lại)'">khách đã nhắn lâu chưa kết bạn</th:block></span>
-                <a class="btn secondary" th:href="@{/friends}">Xem</a>
-            </li>
-            <li th:if="${proposalsOpen > 0}">
-                <span><span class="todo-num blue" th:text="${proposalsOpen}">0</span>đề xuất chiến dịch của AI đang chờ bạn xem (AI chỉ đề xuất, bạn bấm duyệt mới tạo chiến dịch)</span>
-                <a class="btn secondary" th:href="@{/advisor}">Xem đề xuất</a>
-            </li>
-            <li th:if="${privacyOpen > 0}">
-                <span><span class="todo-num" th:classappend="${privacyOverdue > 0} ? 'red'" th:text="${privacyOverdue > 0} ? ${privacyOverdue} : ${privacyOpen}">0</span><th:block
-                    th:text="${privacyOverdue > 0} ? 'yêu cầu của khách đã quá hạn phản hồi' : 'yêu cầu của khách đang chờ xử lý'">yêu cầu của khách đã quá hạn phản hồi</th:block></span>
-                <a class="btn secondary" th:href="@{/privacy}">Xem yêu cầu</a>
-            </li>
-            <li th:if="${handoffOpen > 0}">
-                <span><span class="todo-num" th:text="${handoffOpen}">0</span>việc trợ lý AI chuyển cho người thật</span>
-                <a class="btn secondary" th:href="@{/handoffs}">Xem việc</a>
-            </li>
-            <li th:if="${refusalHeld > 0}">
-                <span><span class="todo-num" th:text="${refusalHeld}">0</span>khách nhắn riêng cần người thật xem (nghi từ chối và đã tạm dừng tin, hoặc khách cũ muốn mua lại)</span>
-                <a class="btn secondary" th:href="@{/handoffs}">Xem tin</a>
-            </li>
-            <li th:if="${unmapped > 0}">
-                <span><span class="todo-num" th:text="${unmapped}">0</span>trạng thái đơn chưa rõ nghĩa, chưa được tính là mua thành công</span>
-                <a class="btn secondary" th:href="@{/status-mappings}">Chọn nghĩa</a>
-            </li>
-            <li th:if="${review > 0}">
-                <span><span class="todo-num" th:text="${review}">0</span>khách cần kiểm tra lại</span>
-                <a class="btn secondary" th:href="@{/customers(review=true)}">Xem khách</a>
-            </li>
-            <li th:if="${groupsNeedRecount > 0}">
-                <span><span class="todo-num" th:text="${groupsNeedRecount}">0</span>nhóm Zalo chưa đếm lại thành viên trong 7 ngày</span>
-                <a class="btn secondary" th:href="@{/groups}">Đếm lại nhóm</a>
-            </li>
-            <li th:each="a : ${exportDue}">
-                <span>Đã <span class="todo-num" th:text="${a.daysSince}">0</span>ngày chưa nhập file đơn mới của
-                    <strong th:text="${a.carrier.label()}">J&amp;T Express</strong>.
-                    Xuất Excel từ ngày <strong th:text="${#temporals.format(a.from, 'dd/MM/yyyy')}">01/01/2026</strong> đến hôm nay.</span>
-                <a class="btn secondary" th:href="@{/imports/new}">Nhập file mới</a>
-            </li>
-            <li class="todo-empty"
-                th:if="${contact.candidates == 0 and friend.friended == 0 and friend.noReply == 0 and privacyOpen == 0 and handoffOpen == 0 and proposalsOpen == 0 and refusalHeld == 0 and unmapped == 0 and review == 0 and groupsNeedRecount == 0 and exportDue.isEmpty()}">
-                Hôm nay chưa có việc nào cần làm.
-            </li>
-        </ul>
-        </div>
-    </section>
+    <div class="dashboard-layout">
+        <section aria-labelledby="dashboard-work">
+            <h2 id="dashboard-work">Việc cần làm hôm nay</h2>
+            <div class="todo">
+            <ul>
+                <li th:if="${contact.candidates > 0}">
+                    <span><span class="todo-num blue" th:text="${contact.candidates}">0</span>khách mua 1 lần đang chờ bạn duyệt để được mời vào nhóm</span>
+                    <a class="btn" th:href="@{/contacts}">Duyệt danh sách mời</a>
+                </li>
+                <li th:if="${friend.readyToAdd > 0}">
+                    <span><span class="todo-num" th:classappend="${friend.overdue > 0} ? 'red'" th:text="${friend.readyToAdd}">0</span><th:block
+                        th:text="${friend.overdue > 0} ? 'khách đã kết bạn đang chờ thêm vào nhóm (' + ${friend.overdue} + ' khách quá ' + ${overdueDays} + ' ngày)' : 'khách đã kết bạn đang chờ thêm vào nhóm'">khách đã kết bạn đang chờ thêm vào nhóm</th:block></span>
+                    <a class="btn" th:href="@{/friends}">Thêm vào nhóm</a>
+                </li>
+                <li th:if="${friend.waitingGroup > 0}">
+                    <span><span class="todo-num red" th:text="${friend.waitingGroup}">0</span>khách đã kết bạn mà chưa có nhóm hợp khu vực. Hãy mở nhóm Zalo mới ở khu vực đó, khách sẽ hiện thành việc thêm vào nhóm</span>
+                    <a class="btn secondary" th:href="@{/groups}">Mở nhóm</a>
+                </li>
+                <li th:if="${friend.noReply > 0}">
+                    <span><span class="todo-num" th:text="${friend.noReply}">0</span><th:block th:text="'khách đã nhắn quá ' + ${noReplyDays} + ' ngày chưa kết bạn (không nhắn lại)'">khách đã nhắn lâu chưa kết bạn</th:block></span>
+                    <a class="btn secondary" th:href="@{/friends}">Xem</a>
+                </li>
+                <li th:if="${proposalsOpen > 0}">
+                    <span><span class="todo-num blue" th:text="${proposalsOpen}">0</span>đề xuất chiến dịch của AI đang chờ bạn xem (AI chỉ đề xuất, bạn bấm duyệt mới tạo chiến dịch)</span>
+                    <a class="btn secondary" th:href="@{/advisor}">Xem đề xuất</a>
+                </li>
+                <li th:if="${privacyOpen > 0}">
+                    <span><span class="todo-num" th:classappend="${privacyOverdue > 0} ? 'red'" th:text="${privacyOverdue > 0} ? ${privacyOverdue} : ${privacyOpen}">0</span><th:block
+                        th:text="${privacyOverdue > 0} ? 'yêu cầu của khách đã quá hạn phản hồi' : 'yêu cầu của khách đang chờ xử lý'">yêu cầu của khách đã quá hạn phản hồi</th:block></span>
+                    <a class="btn secondary" th:href="@{/privacy}">Xem yêu cầu</a>
+                </li>
+                <li th:if="${handoffOpen > 0}">
+                    <span><span class="todo-num" th:text="${handoffOpen}">0</span>việc trợ lý AI chuyển cho người thật</span>
+                    <a class="btn secondary" th:href="@{/handoffs}">Xem việc</a>
+                </li>
+                <li th:if="${refusalHeld > 0}">
+                    <span><span class="todo-num" th:text="${refusalHeld}">0</span>khách nhắn riêng cần người thật xem (nghi từ chối và đã tạm dừng tin, hoặc khách cũ muốn mua lại)</span>
+                    <a class="btn secondary" th:href="@{/handoffs}">Xem tin</a>
+                </li>
+                <li th:if="${unmapped > 0}">
+                    <span><span class="todo-num" th:text="${unmapped}">0</span>trạng thái đơn chưa rõ nghĩa, chưa được tính là mua thành công</span>
+                    <a class="btn secondary" th:href="@{/status-mappings}">Chọn nghĩa</a>
+                </li>
+                <li th:if="${review > 0}">
+                    <span><span class="todo-num" th:text="${review}">0</span>khách cần kiểm tra lại</span>
+                    <a class="btn secondary" th:href="@{/customers(review=true)}">Xem khách</a>
+                </li>
+                <li th:if="${groupsNeedRecount > 0}">
+                    <span><span class="todo-num" th:text="${groupsNeedRecount}">0</span>nhóm Zalo chưa đếm lại thành viên trong 7 ngày</span>
+                    <a class="btn secondary" th:href="@{/groups}">Đếm lại nhóm</a>
+                </li>
+                <li th:each="a : ${exportDue}">
+                    <span>Đã <span class="todo-num" th:text="${a.daysSince}">0</span>ngày chưa nhập file đơn mới của
+                        <strong th:text="${a.carrier.label()}">J&amp;T Express</strong>.
+                        Xuất Excel từ ngày <strong th:text="${#temporals.format(a.from, 'dd/MM/yyyy')}">01/01/2026</strong> đến hôm nay.</span>
+                    <a class="btn secondary" th:href="@{/imports/new}">Nhập file mới</a>
+                </li>
+                <li class="todo-empty"
+                    th:if="${contact.candidates == 0 and friend.friended == 0 and friend.noReply == 0 and privacyOpen == 0 and handoffOpen == 0 and proposalsOpen == 0 and refusalHeld == 0 and unmapped == 0 and review == 0 and groupsNeedRecount == 0 and exportDue.isEmpty()}">
+                    Hôm nay chưa có việc nào cần làm.
+                </li>
+            </ul>
+            </div>
+        </section>
 
-    <section>
-        <h2>Tự gửi tin hôm nay</h2>
-        <div class="cards c4">
-            <a class="card" th:classappend="${!msg.enabled} ? 'warn'" th:href="@{/zalo}">
-                <div class="big" th:text="${msg.enabled ? 'Bật' : 'Tắt'}">Tắt</div>
-                <div class="label" th:text="${@testMode.testOnly() ? 'Công tắc tự gửi (đang ở chế độ thử: chỉ nhắn số thử)' : 'Công tắc tự gửi (chạy thật)'}">Công tắc tự gửi</div>
-            </a>
-            <a class="card" th:href="@{/zalo}">
-                <div class="big"><span th:text="${msg.usedToday}">0</span> / <span th:text="${msg.limits.daily}">10</span></div>
-                <div class="label">Khách đã được nhắn chủ động hôm nay (Tin 1 và tin nhắc; trần cứng <span th:text="${msg.maxDaily}">50</span>)</div>
-            </a>
-            <a class="card" th:href="@{/campaigns}">
-                <div class="big" th:text="${autoCampaigns}">0</div>
-                <div class="label">Chiến dịch đã duyệt cho tự gửi</div>
-            </a>
-            <a class="card" th:href="@{/advisor}">
-                <div class="big" th:text="${proposalsOpen}">0</div>
-                <div class="label">Đề xuất chiến dịch của AI đang chờ</div>
-            </a>
-        </div>
-        <p class="muted small" style="margin-top:10px">Mặc định mọi thứ tự động đều tắt. Kết quả từng đợt xem ở <a th:href="@{/performance}">Hiệu quả chiến dịch</a>.</p>
-    </section>
+        <div class="dashboard-overview">
+            <section class="panel dashboard-metrics" aria-labelledby="dashboard-sending">
+                <h2 id="dashboard-sending">Tự gửi tin hôm nay</h2>
+                <div class="cards c4">
+                    <a class="card" th:classappend="${!msg.enabled} ? 'warn'" th:href="@{/zalo}">
+                        <div class="big" th:text="${msg.enabled ? 'Bật' : 'Tắt'}">Tắt</div>
+                        <div class="label" th:text="${@testMode.testOnly() ? 'Tự gửi · chế độ thử' : 'Tự gửi · chạy thật'}">Công tắc tự gửi</div>
+                    </a>
+                    <a class="card" th:href="@{/zalo}">
+                        <div class="big"><span th:text="${msg.usedToday}">0</span> / <span th:text="${msg.limits.daily}">10</span></div>
+                        <div class="label">Đã nhắn hôm nay · trần <span th:text="${msg.maxDaily}">50</span></div>
+                    </a>
+                    <a class="card" th:href="@{/campaigns}">
+                        <div class="big" th:text="${autoCampaigns}">0</div>
+                        <div class="label">Chiến dịch đã duyệt cho tự gửi</div>
+                    </a>
+                    <a class="card" th:href="@{/advisor}">
+                        <div class="big" th:text="${proposalsOpen}">0</div>
+                        <div class="label">Đề xuất chiến dịch của AI đang chờ</div>
+                    </a>
+                </div>
+                <p class="dashboard-link"><a th:href="@{/performance}">Xem hiệu quả chiến dịch</a></p>
+            </section>
 
-    <section>
-        <h2>Khách hàng</h2>
-        <div class="cards c4">
-            <a class="card" th:href="@{/customers(segment=ONE_TIME)}">
-                <div class="big" th:text="${oneTime}">0</div>
-                <div class="label">Khách mua 1 lần</div>
-            </a>
-            <a class="card" th:href="@{/customers(segment=REPEAT)}">
-                <div class="big" th:text="${repeat}">0</div>
-                <div class="label">Khách mua từ 2 lần</div>
-            </a>
-            <a class="card" th:classappend="${review > 0} ? 'warn'" th:href="@{/customers(review=true)}">
-                <div class="big" th:text="${review}">0</div>
-                <div class="label">Khách cần kiểm tra</div>
-            </a>
-            <a class="card" th:href="@{/customers(segment=NO_SUCCESSFUL_PURCHASE)}">
-                <div class="big" th:text="${none}">0</div>
-                <div class="label">Chưa có đơn giao thành công</div>
-            </a>
+            <section class="panel dashboard-metrics" aria-labelledby="dashboard-customers">
+                <h2 id="dashboard-customers">Khách hàng</h2>
+                <div class="cards c4">
+                    <a class="card" th:href="@{/customers(segment=ONE_TIME)}">
+                        <div class="big" th:text="${oneTime}">0</div>
+                        <div class="label">Khách mua 1 lần</div>
+                    </a>
+                    <a class="card" th:href="@{/customers(segment=REPEAT)}">
+                        <div class="big" th:text="${repeat}">0</div>
+                        <div class="label">Khách mua từ 2 lần</div>
+                    </a>
+                    <a class="card" th:classappend="${review > 0} ? 'warn'" th:href="@{/customers(review=true)}">
+                        <div class="big" th:text="${review}">0</div>
+                        <div class="label">Khách cần kiểm tra</div>
+                    </a>
+                    <a class="card" th:href="@{/customers(segment=NO_SUCCESSFUL_PURCHASE)}">
+                        <div class="big" th:text="${none}">0</div>
+                        <div class="label">Chưa có đơn giao thành công</div>
+                    </a>
+                </div>
+            </section>
+
         </div>
-    </section>
+    </div>
 
     <details class="more">
         <summary>Lời mời và nhóm (số liệu)</summary>
     <section>
-        <h2>Lời mời và nhóm</h2>
         <div class="cards c4">
             <a class="card" th:href="@{/campaigns}">
                 <div class="big" th:text="${invites.invitations}">0</div>

@@ -62,6 +62,17 @@ class PagesSmokeTest extends AbstractPostgresTest {
     }
 
     @Test
+    void menuDungChungCoDiemDenBanPhimVaDanhDauMucDangMo() throws Exception {
+        mvc.perform(get("/customers").with(user("admin").roles("OWNER")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("href=\"#noi-dung-chinh\"")))
+                .andExpect(content().string(containsString("id=\"noi-dung-chinh\"")))
+                .andExpect(content().string(containsString("aria-controls=\"nav-body\"")))
+                .andExpect(content().string(containsString("aria-current=\"page\"")))
+                .andExpect(content().string(containsString("id=\"nav-body\"")));
+    }
+
+    @Test
     void chiTietKhachHaiCotCoLoiMoiVaNhatKyBoMe() throws Exception {
         contacts.approveAllCandidates();
         var owner = user("admin").roles("OWNER");

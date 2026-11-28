@@ -69,3 +69,9 @@ Chủ dự án thấy các trang cấu hình rối, không tập trung. Kế ho�
 - **`/campaigns`**: tab "Chiến dịch", "Tạo chiến dịch" (`?tab=moi`), "Đề xuất của AI". Fragment `campaignTabs` và `groupTabs` trong `fragments.html` (đừng dùng thẻ `<nav>` cho fragment mới: `~{fragments :: nav}` khớp cả thẻ `<nav>`, dùng `<div role="navigation">`).
 - **Tổng quan** gọn: khối "Lời mời và nhóm" gấp vào "Xem thêm".
 - **Chưa làm (cố ý):** `/handoffs` chưa chia tab (một hàng đợi duy nhất); fragment "nấc" dùng chung cho ba công tắc ba nấc; thay chữ "mẹ" bằng "người thật" ở mọi chỗ. Làm sau khi chạy thử xong và chủ dự án thấy cần.
+
+## Bố cục vận hành ADH (27/11/2026)
+
+- Menu dùng chung có dấu mục đang mở và liên kết bàn phím tới nội dung. Điện thoại dùng menu thu gọn. Các màn hình quản trị dùng cùng kiểu bảng, nút và trạng thái. Trang in vẫn dùng quy tắc riêng của từng khổ giấy.
+- Tổng quan ưu tiên việc cần làm. Chiến dịch đưa trạng thái gửi, tài khoản gửi, đối chiếu và khách lên trước thiết lập. Zalo giữ lựa chọn tài khoản cạnh các điều khiển dừng. Màn nhóm đưa chủ nhóm và quyền dùng chung lên danh sách.
+- Màn khách giữ tìm kiếm và phân loại ở đầu. Nhập đơn ưu tiên tải file. Đề xuất AI ưu tiên tiến độ và đề xuất đang chờ. Cài đặt trợ lý trả lời đưa chế độ trả lời lên đầu tab bật/tắt.

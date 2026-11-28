@@ -1,6 +1,5 @@
 <section xmlns:th="http://www.thymeleaf.org" th:fragment="accountConfig" class="panel stack" id="zalo-account-config">
     <h2>Cấu hình tài khoản Zalo</h2>
-    <p class="muted" th:text="${accountLabel}">Tài khoản phụ 1</p>
 
     <div class="cards">
         <div class="card">
@@ -16,7 +15,7 @@
             <strong th:text="${multiRunning ? 'Đã bật trong cấu hình máy chủ' : 'Đang tắt trong cấu hình máy chủ'}">Đang tắt trong cấu hình máy chủ</strong>
         </div>
         <div class="card" th:if="${account != 1}">
-            <div class="label">Tài khoản đang xem</div>
+            <div class="label">Xếp lịch tự động</div>
             <strong th:text="${accountEnabled ? 'Đã cho phép xếp lịch' : 'Chưa cho phép xếp lịch'}">Chưa cho phép xếp lịch</strong>
         </div>
     </div>

@@ -3,13 +3,22 @@
 <head th:replace="~{fragments :: head('Chiến dịch')}"></head>
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
-<main>
+<main id="noi-dung-chinh" tabindex="-1">
     <div th:replace="~{fragments :: testModeAlert}"></div>
-    <h1 th:text="${campaign.name}">Chiến dịch</h1>
-    <p class="hint"><a th:href="@{/campaigns}">‹ Tất cả chiến dịch</a> · tạo bởi <span th:text="${@labels.person(campaign.createdBy)}">Bố/Mẹ</span> lúc
-        <span th:text="${#temporals.format(campaign.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</span> · khu vực: <strong th:text="${campaign.scopeLabel}">Miền Nam</strong></p>
+    <a class="small" th:href="@{/campaigns}">‹ Tất cả chiến dịch</a>
+    <header class="page-head">
+        <div class="titles">
+            <h1 th:text="${campaign.name}">Chiến dịch</h1>
+            <p class="hint">
+                Theo khu vực: <strong th:text="${campaign.scopeLabel}">Miền Nam</strong> ·
+                <time th:datetime="${campaign.createdAt}"
+                      th:text="${#temporals.format(campaign.createdAt, 'dd/MM/yyyy HH:mm')}">01/01/2026</time> ·
+                <span th:text="${@labels.person(campaign.createdBy)}">Chủ cửa hàng</span>
+            </p>
+        </div>
+    </header>
 
-    <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã tạo.</div>
+    <div class="notice ok" role="status" th:if="${flash}" th:text="${flash}">Đã tạo.</div>
     <nav class="tabs" aria-label="Các phần của chiến dịch">
         <a th:each="t : ${tabs}" th:href="@{/campaigns/{id}(id=${campaign.id}, tab=${t.key})}" th:text="${t.label}"
            th:classappend="${t.key == tab} ? 'active'" th:attr="aria-current=${t.key == tab} ? 'page'">Tổng quan</a>
@@ -25,36 +34,38 @@
             <strong>Chưa rõ lời mời kết bạn đã gửi chưa</strong>: mở Zalo của tài khoản phụ xem đã có lời mời chưa; nếu chưa, bấm <em>Gửi lại kết bạn</em>
             (chỉ được <strong>một lần</strong> cho mỗi khách, hệ thống gửi ở nhịp kế tiếp theo hạn mức và khoảng nghỉ). Xong việc thì bấm <em>Đã xử lý</em> để ẩn khỏi danh sách; việc này không xóa khách hay số điện thoại.</p>
         <p class="muted" th:if="${#lists.isEmpty(attention)}">Không có khách nào cần xử lý tay.</p>
-        <table th:unless="${#lists.isEmpty(attention)}">
-            <thead><tr><th>Khách</th><th>Tài khoản Zalo</th><th>Vấn đề</th><th></th></tr></thead>
-            <tbody>
-            <tr th:each="a : ${attention}">
-                <td th:text="${a.who}">Khách (số …1234)</td>
-                <td th:text="${a.accountLabel}">Tài khoản phụ 1</td>
-                <td>
-                    <div th:each="p : ${a.problems}" th:text="${p}">Tin 1 không gửi được</div>
-                    <div th:if="${a.observation != null}" class="stack">
-                        <strong th:text="${a.observation.stateLabel}">Trạng thái trên Zalo</strong>
-                        <span class="muted small" th:if="${a.observation.reasonCode != null}"
-                              th:text="${'Mã đọc trạng thái · ' + a.observation.reasonCode}">Mã đọc trạng thái</span>
-                        <span class="muted small" th:text="${'Đã kiểm tra lúc ' + #temporals.format(a.observation.observedAt, 'dd/MM/yyyy HH:mm')}">Đã kiểm tra</span>
-                        <span class="muted small" th:if="${a.observation.previousStateLabel != null and a.observation.previousObservedAt != null}"
-                              th:text="${'Lần đọc thành công gần nhất lúc ' + #temporals.format(a.observation.previousObservedAt, 'dd/MM/yyyy HH:mm') + ' · ' + a.observation.previousStateLabel}">Lần đọc thành công gần nhất</span>
-                    </div>
-                </td>
-                <td>
-                    <div class="actions">
-                        <form th:action="@{/campaigns/{id}/attention/{inv}/resend-friend(id=${campaign.id}, inv=${a.id})}" method="post" th:if="${a.canResendFriend}">
-                            <button type="submit" class="btn secondary">Gửi lại kết bạn</button>
-                        </form>
-                        <form th:action="@{/campaigns/{id}/attention/{inv}/done(id=${campaign.id}, inv=${a.id})}" method="post" th:if="${a.canMarkDone}">
-                            <button type="submit" class="btn secondary">Đã xử lý</button>
-                        </form>
-                    </div>
-                </td>
-            </tr>
-            </tbody>
-        </table>
+        <div class="table-wrap" th:unless="${#lists.isEmpty(attention)}">
+            <table>
+                <thead><tr><th scope="col">Khách</th><th scope="col">Tài khoản Zalo</th><th scope="col">Vấn đề</th><th scope="col">Xử lý</th></tr></thead>
+                <tbody>
+                <tr th:each="a : ${attention}">
+                    <td th:text="${a.who}">Khách (số …1234)</td>
+                    <td th:text="${a.accountLabel}">Tài khoản phụ 1</td>
+                    <td>
+                        <div th:each="p : ${a.problems}" th:text="${p}">Tin 1 không gửi được</div>
+                        <div th:if="${a.observation != null}" class="stack">
+                            <strong th:text="${a.observation.stateLabel}">Trạng thái trên Zalo</strong>
+                            <span class="muted small" th:if="${a.observation.reasonCode != null}"
+                                  th:text="${'Mã đọc trạng thái · ' + a.observation.reasonCode}">Mã đọc trạng thái</span>
+                            <span class="muted small" th:text="${'Đã kiểm tra lúc ' + #temporals.format(a.observation.observedAt, 'dd/MM/yyyy HH:mm')}">Đã kiểm tra</span>
+                            <span class="muted small" th:if="${a.observation.previousStateLabel != null and a.observation.previousObservedAt != null}"
+                                  th:text="${'Lần đọc thành công gần nhất lúc ' + #temporals.format(a.observation.previousObservedAt, 'dd/MM/yyyy HH:mm') + ' · ' + a.observation.previousStateLabel}">Lần đọc thành công gần nhất</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="actions">
+                            <form th:action="@{/campaigns/{id}/attention/{inv}/resend-friend(id=${campaign.id}, inv=${a.id})}" method="post" th:if="${a.canResendFriend}">
+                                <button type="submit" class="btn secondary">Gửi lại kết bạn</button>
+                            </form>
+                            <form th:action="@{/campaigns/{id}/attention/{inv}/done(id=${campaign.id}, inv=${a.id})}" method="post" th:if="${a.canMarkDone}">
+                                <button type="submit" class="btn secondary">Đã xử lý</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
     <div class="panel stack" th:if="${tab == 'tong-quan' and campaign.archived()}">
         <h2>Chiến dịch đã lưu trữ</h2>
@@ -64,40 +75,125 @@
             <button type="submit" class="btn secondary">Khôi phục chiến dịch</button>
         </form>
     </div>
-    <div class="panel stack" th:if="${tab == 'tong-quan'}">
-        <h2>Chiến dịch này mời ai</h2>
-        <ul th:if="${!filterLines.isEmpty()}"><li th:each="l : ${filterLines}" th:text="${l}">Không có đơn đổi</li></ul>
-        <p th:if="${filterLines.isEmpty()}">Không lọc thêm: mọi khách đã duyệt, đủ điều kiện mời<span th:if="${campaign.geoScope != null and !campaign.geoScope.isBlank()}"> trong khu vực của chiến dịch</span>.</p>
-        <p class="muted" th:text="${filterPick}">Khách được duyệt sớm nhất trước</p>
-        <p class="hint">Bộ lọc được đặt lúc tạo chiến dịch và dùng cả cho chế độ tự nhận khách mới. Muốn đổi, hãy hủy các lời mời chưa gửi rồi tạo chiến dịch mới.</p>
-    </div>
-    <div class="panel stack" th:if="${tab == 'tong-quan' and !campaign.archived()}">
-        <h2>Lưu trữ chiến dịch cũ</h2>
-        <p th:if="${campaign.pastEnd()}"><span class="badge warn">HẾT HẠN</span> Chiến dịch đã quá ngày kết thúc nên hệ thống không gửi nữa. Nên lưu trữ để AI không nhầm là còn chạy.</p>
-        <p class="hint">Lưu trữ khi chiến dịch đã xong hoặc không còn dùng. Hệ thống sẽ bỏ duyệt tự gửi, tắt tự nhận khách mới và AI đề xuất không còn coi chiến dịch này là đang chạy
-            (kết quả thật vẫn được giữ để AI học). Không xóa lời mời, khách hay số điện thoại nào, và khôi phục được.</p>
-        <form th:action="@{/campaigns/{id}/archive(id=${campaign.id})}" method="post" class="stack">
-            <label class="check" th:if="${campaign.ready > 0}"><input type="checkbox" name="cancelUnsent" value="true">
-                Hủy luôn <span th:text="${campaign.ready}">3</span> lời mời chưa gửi (các khách này quay về danh sách chưa được mời)</label>
-            <div class="actions"><button type="submit" class="btn secondary">Lưu trữ chiến dịch</button></div>
-        </form>
-    </div>
-    <div class="panel stack" th:if="${tab == 'tong-quan' and !campaign.archived()}">
-        <h2>Tự gửi qua Zalo tài khoản phụ</h2>
-        <p th:if="${autoApproved}"><span class="badge ok">ĐÃ DUYỆT</span> Hệ thống tự gửi Tin 1 cho các khách "Chưa gửi" của chiến dịch này, từng khách <strong>một lần</strong>,
-            theo hạn mức và khoảng nghỉ cố định ở trang <a th:href="@{/zalo}">Zalo tài khoản phụ</a>. Công tắc tự gửi tin hiện
-            <strong th:text="${autoSwitch ? 'BẬT' : 'TẮT (chưa gửi gì)'}">TẮT</strong>.</p>
-        <p th:unless="${autoApproved}"><span class="badge">CHƯA DUYỆT</span> Chiến dịch này <strong>chưa được tự gửi</strong>. Hãy thử trước với số thử ở <a th:href="@{/zalo(tab=thu)}">Chế độ thử</a>,
-            xem lại nội dung tin ở dưới rồi mới duyệt.</p>
-        <div class="actions">
-            <form th:action="@{/campaigns/{id}/auto-send/approve(id=${campaign.id})}" method="post" th:unless="${autoApproved}">
-                <button type="submit" class="btn" th:disabled="${campaign.ready == 0}">Duyệt cho hệ thống tự gửi</button>
-            </form>
-            <form th:action="@{/campaigns/{id}/auto-send/revoke(id=${campaign.id})}" method="post" th:if="${autoApproved}">
-                <button type="submit" class="btn danger">Bỏ duyệt, dừng tự gửi</button>
-            </form>
+    <th:block th:if="${tab == 'tong-quan'}">
+        <div class="panel stack" th:unless="${campaign.archived()}">
+            <h2>Tự gửi qua Zalo tài khoản phụ</h2>
+            <div class="notice bad" th:if="${paused}">
+                <strong>Đã tạm dừng tất cả chiến dịch.</strong>
+                <a th:href="@{/campaigns}">Xem trạng thái tạm dừng</a>
+            </div>
+            <div class="notice bad" th:if="${stoppedReason != null}">
+                <strong>Hệ thống đã tự dừng chiến dịch này</strong>
+                <span th:text="${stoppedReason}">Khách từ chối 2/20</span>
+                <a th:href="@{/campaigns/{id}(id=${campaign.id}, tab='lich')}">Xem điều kiện gửi</a>
+            </div>
+            <div class="notice warn" th:if="${stoppedReason == null and schedBlock != null}">
+                <strong>Đang chờ</strong>
+                <span th:text="${schedBlock}">Chưa tới ngày bắt đầu</span>
+                <a th:href="@{/campaigns/{id}(id=${campaign.id}, tab='lich')}">Xem lịch gửi</a>
+            </div>
+            <p th:if="${autoApproved}"><span class="badge ok">ĐÃ DUYỆT</span> Hệ thống tự gửi Tin 1 cho các khách "Chưa gửi" của chiến dịch này, từng khách <strong>một lần</strong>,
+                theo hạn mức và khoảng nghỉ cố định ở trang <a th:href="@{/zalo}">Zalo tài khoản phụ</a>. Công tắc tự gửi tin hiện
+                <strong th:text="${autoSwitch ? 'BẬT' : 'TẮT (chưa gửi gì)'}">TẮT</strong>.</p>
+            <p th:unless="${autoApproved}"><span class="badge">CHƯA DUYỆT</span> Chiến dịch này <strong>chưa được tự gửi</strong>. Hãy thử trước với số thử ở <a th:href="@{/zalo(tab=thu)}">Chế độ thử</a>,
+                xem lại <a th:href="@{/campaigns/{id}(id=${campaign.id},tab='tin')}">nội dung tin</a> rồi mới duyệt.</p>
+            <div class="actions">
+                <form th:action="@{/campaigns/{id}/auto-send/approve(id=${campaign.id})}" method="post" th:unless="${autoApproved}">
+                    <button type="submit" class="btn" th:disabled="${campaign.ready == 0}">Duyệt cho hệ thống tự gửi</button>
+                </form>
+                <form th:action="@{/campaigns/{id}/auto-send/revoke(id=${campaign.id})}" method="post" th:if="${autoApproved}">
+                    <button type="submit" class="btn danger">Bỏ duyệt, dừng tự gửi</button>
+                </form>
+            </div>
         </div>
-    </div>
+        <section class="stack" aria-labelledby="campaign-progress">
+            <h2 id="campaign-progress">Tiến độ chiến dịch</h2>
+            <div class="cards">
+                <div class="card"><div class="big" th:text="${campaign.total}">0</div><div class="label">Lời mời</div></div>
+                <div class="card"><div class="big" th:text="${campaign.ready}">0</div><div class="label">Chưa gửi</div></div>
+                <div class="card"><div class="big" th:text="${campaign.sent}">0</div><div class="label">Đã gửi</div></div>
+                <div class="card"><div class="big" th:text="${campaign.friended}">0</div><div class="label">Đã kết bạn</div></div>
+                <div class="card"><div class="big" th:text="${campaign.joined}">0</div><div class="label">Đã vào nhóm</div></div>
+                <div class="card"><div class="big" th:text="${campaign.clicked}">0</div><div class="label">Đã bấm link</div></div>
+            </div>
+        </section>
+        <section class="stack" aria-labelledby="campaign-queue">
+            <h2 id="campaign-queue">Hàng chờ gửi của hệ thống</h2>
+            <div th:replace="~{fragments :: nextSend(${queue})}"></div>
+        </section>
+        <section class="stack" aria-labelledby="campaign-invitations">
+            <h2 id="campaign-invitations">Lời mời</h2>
+            <p class="hint" th:with="waiting=${#lists.size(rows.?[tin1Blocked and !tin1Resent and status != 'CANCELLED' and status != 'FAILED'])}"
+               th:if="${waiting > 0}">
+                <strong th:text="${waiting}">0</strong> khách đang trong danh sách <strong>gửi lại Tin 1</strong>: Zalo không cho gửi Tin 1 vì họ không nhận tin người lạ.
+                Hệ thống đã gửi lời mời kết bạn, khách đồng ý kết bạn thì Tin 1 được gửi lại (một lần), rồi mới thêm vào nhóm.</p>
+            <div class="table-wrap">
+                <table data-filter data-sticky>
+                    <thead>
+                        <tr><th scope="col">Khách</th><th scope="col">Tình trạng</th><th scope="col">Nhóm Zalo</th>
+                            <th scope="col" data-nofilter>Bước tiếp theo</th><th scope="col" class="num">Lượt bấm</th><th scope="col">Hết hạn</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="r : ${rows}">
+                            <td class="who">
+                                <a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.name != null ? r.name : 'Khách #' + r.customerId}">Nguyen Van A</a>
+                                <span class="sub-line" th:if="${r.sentChannel == 'ZALO_AUTO'}"
+                                      th:text="|Zalo · Tài khoản phụ ${r.accountId}|">Zalo · Tài khoản phụ 1</span>
+                            </td>
+                            <td th:replace="~{invite-parts :: status(${r})}"></td>
+                            <td th:replace="~{invite-parts :: group(${r})}"></td>
+                            <td th:replace="~{invite-parts :: actions(${r}, null)}"></td>
+                            <td class="num" th:text="${r.clickCount}">0</td>
+                            <td th:text="${#temporals.format(r.expiresAt, 'dd/MM/yyyy')}">15/01/2026</td>
+                        </tr>
+                        <tr th:if="${rows.isEmpty()}"><td colspan="6" class="muted">Không còn lời mời nào.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        <details class="more" th:unless="${rows.isEmpty()}">
+            <summary>Xem trước tin gửi cho từng khách</summary>
+            <details th:each="r : ${rows}">
+                <summary th:text="${r.name != null ? r.name : 'Khách #' + r.customerId}">Nguyen Van A</summary>
+                <p class="mono" th:text="${r.message}">Chào ...</p>
+            </details>
+        </details>
+        <details class="more">
+            <summary>Chiến dịch này mời ai</summary>
+            <ul th:if="${!filterLines.isEmpty()}"><li th:each="l : ${filterLines}" th:text="${l}">Không có đơn đổi</li></ul>
+            <p th:if="${filterLines.isEmpty()}">Không lọc thêm: mọi khách đã duyệt, đủ điều kiện mời<span th:if="${campaign.geoScope != null and !campaign.geoScope.isBlank()}"> trong khu vực của chiến dịch</span>.</p>
+            <p class="muted" th:text="${filterPick}">Khách được duyệt sớm nhất trước</p>
+            <p class="hint">Bộ lọc được đặt lúc tạo chiến dịch và dùng cả cho chế độ tự nhận khách mới. Muốn đổi, hãy hủy các lời mời chưa gửi rồi tạo chiến dịch mới.</p>
+        </details>
+        <details class="more" th:if="${autoApproved}">
+            <summary>Tự nhận khách mới <span class="badge ok" th:if="${intake.active}">Đang bật</span></summary>
+            <p class="hint">Thay cho duyệt từng người: chiến dịch có <strong>tiêu chí duyệt sẵn</strong>. Khi bật, khách <strong>mới nhập về từ lúc bật</strong> (đồng bộ hoặc nhập đơn hằng ngày)
+                mà <strong>mua một lần, không cần kiểm tra, chưa từ chối, chưa bị chặn</strong>, thuộc khu vực <strong th:text="${campaign.scopeLabel}">Miền Nam</strong>, sẽ tự được duyệt và vào chiến dịch này,
+                rồi nhận Tin 1 theo hạn mức, giờ gửi và cầu dao như các khách khác (mỗi khách đúng một lần). Khách đã nhập từ trước không bị tự duyệt.</p>
+            <p th:if="${intake.active}"><span class="badge ok">ĐANG TỰ NHẬN</span> từ <span th:text="${#temporals.format(intake.since.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">01/01/2026</span>:
+                đã tự nhận <strong th:text="${intake.taken}">0</strong> khách, đang chờ gửi <strong th:text="${intake.ready}">0</strong>.</p>
+            <p th:unless="${intake.active}"><span class="badge">TẮT</span> <span th:if="${intake.otherActive}">Một chiến dịch khác đang tự nhận khách mới; mỗi lúc chỉ một chiến dịch.</span></p>
+            <div class="actions">
+                <form th:action="@{/campaigns/{id}/auto-intake/enable(id=${campaign.id})}" method="post" th:unless="${intake.active}">
+                    <button type="submit" class="btn" th:disabled="${intake.otherActive}">Bật tự nhận khách mới</button>
+                </form>
+                <form th:action="@{/campaigns/{id}/auto-intake/disable(id=${campaign.id})}" method="post" th:if="${intake.active}">
+                    <button type="submit" class="btn danger">Tắt tự nhận khách mới</button>
+                </form>
+            </div>
+        </details>
+        <details class="more" th:unless="${campaign.archived()}" th:attr="open=${campaign.pastEnd()} ? 'open' : null">
+            <summary>Lưu trữ chiến dịch cũ</summary>
+            <p th:if="${campaign.pastEnd()}"><span class="badge warn">HẾT HẠN</span> Chiến dịch đã quá ngày kết thúc nên hệ thống không gửi nữa. Nên lưu trữ để AI không nhầm là còn chạy.</p>
+            <p class="hint">Lưu trữ khi chiến dịch đã xong hoặc không còn dùng. Hệ thống sẽ bỏ duyệt tự gửi, tắt tự nhận khách mới và AI đề xuất không còn coi chiến dịch này là đang chạy
+                (kết quả thật vẫn được giữ để AI học). Không xóa lời mời, khách hay số điện thoại nào, và khôi phục được.</p>
+            <form th:action="@{/campaigns/{id}/archive(id=${campaign.id})}" method="post" class="stack">
+                <label class="check" th:if="${campaign.ready > 0}"><input type="checkbox" name="cancelUnsent" value="true">
+                    Hủy luôn <span th:text="${campaign.ready}">3</span> lời mời chưa gửi (các khách này quay về danh sách chưa được mời)</label>
+                <div class="actions"><button type="submit" class="btn secondary">Lưu trữ chiến dịch</button></div>
+            </form>
+        </details>
+    </th:block>
     <div class="panel stack" th:if="${tab == 'lich'}">
         <h2>Lịch và nhịp riêng của chiến dịch</h2>
         <p class="hint">Mặc định chiến dịch theo cài đặt chung ở <a th:href="@{/zalo}">Zalo tài khoản phụ</a>. Ở đây bạn chỉ có thể làm <strong>chặt hơn</strong>
@@ -239,34 +335,6 @@
             <div class="actions"><button type="submit" class="btn">Lưu số lần gửi</button></div>
         </form>
     </div>
-    <div class="panel stack" th:if="${tab == 'tong-quan' and autoApproved}">
-        <h2>Tự nhận khách mới</h2>
-        <p class="hint">Thay cho duyệt từng người: chiến dịch có <strong>tiêu chí duyệt sẵn</strong>. Khi bật, khách <strong>mới nhập về từ lúc bật</strong> (đồng bộ hoặc nhập đơn hằng ngày)
-            mà <strong>mua một lần, không cần kiểm tra, chưa từ chối, chưa bị chặn</strong>, thuộc khu vực <strong th:text="${campaign.scopeLabel}">Miền Nam</strong>, sẽ tự được duyệt và vào chiến dịch này,
-            rồi nhận Tin 1 theo hạn mức, giờ gửi và cầu dao như các khách khác (mỗi khách đúng một lần). Khách đã nhập từ trước không bị tự duyệt.</p>
-        <p th:if="${intake.active}"><span class="badge ok">ĐANG TỰ NHẬN</span> từ <span th:text="${#temporals.format(intake.since.atZone(T(java.time.ZoneId).of('Asia/Ho_Chi_Minh')), 'dd/MM/yyyy HH:mm')}">01/01/2026</span>:
-            đã tự nhận <strong th:text="${intake.taken}">0</strong> khách, đang chờ gửi <strong th:text="${intake.ready}">0</strong>.</p>
-        <p th:unless="${intake.active}"><span class="badge">TẮT</span> <span th:if="${intake.otherActive}">Một chiến dịch khác đang tự nhận khách mới; mỗi lúc chỉ một chiến dịch.</span></p>
-        <div class="actions">
-            <form th:action="@{/campaigns/{id}/auto-intake/enable(id=${campaign.id})}" method="post" th:unless="${intake.active}">
-                <button type="submit" class="btn" th:disabled="${intake.otherActive}">Bật tự nhận khách mới</button>
-            </form>
-            <form th:action="@{/campaigns/{id}/auto-intake/disable(id=${campaign.id})}" method="post" th:if="${intake.active}">
-                <button type="submit" class="btn danger">Tắt tự nhận khách mới</button>
-            </form>
-        </div>
-    </div>
-    <th:block th:if="${tab == 'tong-quan'}">
-    <div class="cards">
-        <div class="card"><div class="big" th:text="${campaign.total}">0</div><div class="label">Lời mời</div></div>
-        <div class="card"><div class="big" th:text="${campaign.ready}">0</div><div class="label">Chưa gửi</div></div>
-        <div class="card"><div class="big" th:text="${campaign.sent}">0</div><div class="label">Đã gửi</div></div>
-        <div class="card"><div class="big" th:text="${campaign.friended}">0</div><div class="label">Đã kết bạn</div></div>
-        <div class="card"><div class="big" th:text="${campaign.joined}">0</div><div class="label">Đã vào nhóm</div></div>
-        <div class="card"><div class="big" th:text="${campaign.clicked}">0</div><div class="label">Đã bấm link</div></div>
-    </div>
-
-    </th:block>
     <th:block th:if="${tab == 'tin'}">
     <h2>Nội dung tin (mẫu)</h2>
     <p th:text="${campaign.template}" class="mono">mẫu</p>
@@ -297,35 +365,6 @@
         Đừng vừa duyệt tự gửi vừa xuất danh sách cho cùng khách: lời mời nào đã "Đã gửi" thì không bị gửi lại.</p>
         <p class="hint" th:if="${campaign.ready > 0}">Xuất danh sách sẽ đánh dấu các lời mời trong file là "đã gửi" (kênh gửi tay).
         Hệ thống không biết tin có tới khách hay chưa. Mỗi ngày chỉ xuất tối đa theo hạn mức ở mục Gửi tin.</p>
-    </details>
-    </th:block>
-    <th:block th:if="${tab == 'tong-quan'}">
-
-    <h2>Lời mời</h2>
-    <div th:replace="~{fragments :: nextSend(${queue})}"></div>
-    <p class="hint" th:with="waiting=${#lists.size(rows.?[tin1Blocked and !tin1Resent and status != 'CANCELLED' and status != 'FAILED'])}"
-       th:if="${waiting > 0}">
-        <strong th:text="${waiting}">0</strong> khách đang trong danh sách <strong>gửi lại Tin 1</strong>: Zalo không cho gửi Tin 1 vì họ không nhận tin người lạ.
-        Hệ thống đã gửi lời mời kết bạn, khách đồng ý kết bạn thì Tin 1 được gửi lại (một lần), rồi mới thêm vào nhóm.</p>
-    <div class="table-wrap">
-        <table data-filter data-sticky>
-            <tr><th>Khách</th><th>Tình trạng</th><th>Nhóm Zalo</th><th>Bước tiếp theo</th><th class="num">Lượt bấm</th><th>Hết hạn</th></tr>
-            <tr th:each="r : ${rows}">
-                <td class="who"><a th:href="@{/customers/{id}(id=${r.customerId})}" th:text="${r.name != null ? r.name : 'Khách #' + r.customerId}">Nguyen Van A</a></td>
-                <td th:replace="~{invite-parts :: status(${r})}"></td>
-                <td th:replace="~{invite-parts :: group(${r})}"></td>
-                <td th:replace="~{invite-parts :: actions(${r}, null)}"></td>
-                <td class="num" th:text="${r.clickCount}">0</td>
-                <td th:text="${#temporals.format(r.expiresAt, 'dd/MM/yyyy')}">15/01/2026</td>
-            </tr>
-            <tr th:if="${rows.isEmpty()}"><td colspan="6" class="muted">Không còn lời mời nào.</td></tr>
-        </table>
-    </div>
-
-    <h2>Xem trước tin gửi cho từng khách</h2>
-    <details th:each="r : ${rows}">
-        <summary th:text="${r.name != null ? r.name : 'Khách #' + r.customerId}">Nguyen Van A</summary>
-        <p class="mono" th:text="${r.message}">Chào ...</p>
     </details>
     </th:block>
 </main>
