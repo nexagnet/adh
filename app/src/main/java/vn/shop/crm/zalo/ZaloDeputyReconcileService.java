@@ -244,7 +244,7 @@ public class ZaloDeputyReconcileService implements ZaloTickHook {
         }
         if (!stillEligible(job) || claimWrite(job) != 1) return;
         auto.log(ZaloGroupSettings.A_GROUP, null, null, "PHO_NHOM_GOI", "GROUP_" + job.group().id(), "system");
-        var result = link.setDeputy(job.group().groupCode(), job.config().uid(), member, job.config().tag(), () -> stillEligible(job));
+        var result = link.reconcileDeputy(job.group().groupCode(), job.config().uid(), member, job.config().tag(), () -> stillEligible(job));
         String fallback = result.outcome() == ZaloGroupMaker.GroupOutcome.OK ? "DEPUTY_FAILED" : result.outcome().name();
         String code = code(result.code(), result.ok() ? null : fallback);
         boolean skipped = result.outcome() == ZaloGroupMaker.GroupOutcome.UNREACHABLE

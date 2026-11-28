@@ -498,20 +498,20 @@ public class ZcaBridgeGateway implements ZaloLink {
 
     @Override
     public DeputyResult setDeputy(String groupId, String deputyUid) {
-        return setDeputy(groupId, deputyUid, null, null, () -> true);
+        return dispatchDeputy(groupId, deputyUid, null, null, () -> true);
     }
 
     @Override
-    public DeputyResult setDeputy(String groupId, String deputyUid, boolean alreadyMember, String accountTag,
-                                  java.util.function.BooleanSupplier stillEligible) {
+    public DeputyResult reconcileDeputy(String groupId, String deputyUid, boolean alreadyMember, String accountTag,
+                                         java.util.function.BooleanSupplier stillEligible) {
         if (accountTag == null || !accountTag.matches("[0-9a-f]{12}")) {
             return DeputyResult.of(GroupOutcome.UNREACHABLE, "ACCOUNT_UNVERIFIED");
         }
-        return setDeputy(groupId, deputyUid, Boolean.valueOf(alreadyMember), accountTag, stillEligible);
+        return dispatchDeputy(groupId, deputyUid, alreadyMember, accountTag, stillEligible);
     }
 
-    private DeputyResult setDeputy(String groupId, String deputyUid, Boolean alreadyMember, String accountTag,
-                                   java.util.function.BooleanSupplier stillEligible) {
+    private DeputyResult dispatchDeputy(String groupId, String deputyUid, Boolean alreadyMember, String accountTag,
+                                        java.util.function.BooleanSupplier stillEligible) {
         if (groupId == null || !ZALO_ID.matcher(groupId).matches() || deputyUid == null || !ZALO_ID.matcher(deputyUid).matches()) {
             return DeputyResult.of(ZaloGroupMaker.GroupOutcome.PERSON_ERROR, "BAD_ID");
         }

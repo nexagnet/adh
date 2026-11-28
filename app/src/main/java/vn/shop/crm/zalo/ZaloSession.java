@@ -80,12 +80,8 @@ public interface ZaloSession {
         }
     }
 
-    default DeputyInspection inspectDeputy(String groupId, String deputyUid) {
-        return DeputyInspection.failed("INSPECTION_UNAVAILABLE");
-    }
-
     default DeputyInspection inspectDeputy(String groupId, String deputyUid, String accountTag) {
-        return inspectDeputy(groupId, deputyUid);
+        return DeputyInspection.failed("INSPECTION_UNAVAILABLE");
     }
 
     enum JoinGroupOutcome { JOINED, PENDING, NOT_DISPATCHED, UNKNOWN }

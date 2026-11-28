@@ -306,14 +306,20 @@ class ZaloDeputyReconcileTest extends AbstractPostgresTest {
         DeputyResult writeResult;
 
         @Override
-        public DeputyInspection inspectDeputy(String groupId, String deputyUid) {
+        public DeputyInspection inspectDeputy(String groupId, String deputyUid, String accountTag) {
+            assertThat(accountTag).isEqualTo(status.accountTag());
             reads.add(new Read(groupId, deputyUid));
             onRead.run();
             return observed.getOrDefault(groupId, evidence(groupId, true, "UNKNOWN"));
         }
 
         @Override
-        public DeputyResult setDeputy(String groupId, String deputyUid, boolean alreadyMember) {
+        public DeputyResult reconcileDeputy(String groupId, String deputyUid, boolean alreadyMember, String accountTag,
+                                             java.util.function.BooleanSupplier stillEligible) {
+            assertThat(accountTag).isEqualTo(status.accountTag());
+            if (!stillEligible.getAsBoolean()) {
+                return DeputyResult.of(GroupOutcome.UNREACHABLE, "STALE_TARGET");
+            }
             writes.add(new Write(groupId, deputyUid, alreadyMember));
             return writeResult;
         }

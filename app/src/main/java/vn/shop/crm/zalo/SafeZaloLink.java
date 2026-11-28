@@ -169,13 +169,13 @@ public final class SafeZaloLink implements ZaloLink {
     }
 
     @Override
-    public DeputyResult setDeputy(String groupId, String deputyUid, boolean alreadyMember, String accountTag,
-                                  java.util.function.BooleanSupplier stillEligible) {
+    public DeputyResult reconcileDeputy(String groupId, String deputyUid, boolean alreadyMember, String accountTag,
+                                         java.util.function.BooleanSupplier stillEligible) {
         if (!mode.live()) {
             mode.noteBlocked("PHO_NHOM");
             return DeputyResult.of(GroupOutcome.UNREACHABLE, CODE);
         }
-        return inner.setDeputy(groupId, deputyUid, alreadyMember, accountTag, stillEligible);
+        return inner.reconcileDeputy(groupId, deputyUid, alreadyMember, accountTag, stillEligible);
     }
 
     // ---------- ZaloPersonFinder ----------

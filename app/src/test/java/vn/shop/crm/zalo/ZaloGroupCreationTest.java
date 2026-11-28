@@ -569,6 +569,7 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
         settingsSet("zalo.deputy.cand_name", "Mẹ");
         settingsSet("zalo.deputy.cand_at", clock.instant().toString());
         settingsSet("zalo.deputy.cand_acct", "bbbbbbbbbbbb");
+        settingsSet("zalo.deputy.cand_revision", "lookup-revision");
         deputies.confirm(deputies.candidate().orElseThrow().revision(), "admin");
         assertThat(deputies.effectiveUid()).isEqualTo("5555");
         assertThat(svc.recent(1).getFirst().deputyTries()).isZero();

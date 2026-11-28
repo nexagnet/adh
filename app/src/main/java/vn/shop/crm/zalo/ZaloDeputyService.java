@@ -153,7 +153,7 @@ public class ZaloDeputyService {
         var keys = Set.of(CAND_UID, CAND_NAME, CAND_AVATAR, CAND_AT, CAND_ACCT, CAND_REVISION);
         var values = jdbc.sql("SELECT key, value FROM app_setting WHERE key IN (:keys)")
                 .param("keys", keys.stream().map(ZaloAccountContext::settingKey).toList())
-                .query((rs, n) -> java.util.Map.entry(rs.getString(1), rs.getString(2))).stream()
+                .query((rs, n) -> java.util.Map.entry(rs.getString(1), rs.getString(2))).list().stream()
                 .collect(java.util.stream.Collectors.toMap(java.util.Map.Entry::getKey, java.util.Map.Entry::getValue));
         java.util.function.Function<String, String> value = k -> values.getOrDefault(ZaloAccountContext.settingKey(k), "");
         String uid = value.apply(CAND_UID);

@@ -29,7 +29,8 @@ class ZaloGatewayShapeTest {
 
     @Test
     void phienChiCoQuanLyDangNhapVaDocDanhSachNhom() {
-        assertThat(names(ZaloSession.class)).containsExactly("inspectGroup", "joinGroupViaLink", "listGroups", "loginStatus", "logout", "resolveGroupInviteLink", "resume", "startLogin", "stop");
+        assertThat(names(ZaloSession.class)).containsExactly("inspectDeputy", "inspectGroup", "joinGroupViaLink", "listGroups",
+                "loginStatus", "logout", "resolveGroupInviteLink", "resume", "startLogin", "stop");
     }
 
     @Test
@@ -108,8 +109,8 @@ class ZaloGatewayShapeTest {
     }
 
     @Test
-    void taoNhomChiCoMotHamVaKhongCoViecNguyHiem() {
-        assertThat(names(ZaloGroupMaker.class)).containsExactly("createGroup", "setDeputy");
+    void chiTaoNhomVaBoNhiemPhoNhom() {
+        assertThat(names(ZaloGroupMaker.class)).containsExactly("createGroup", "reconcileDeputy", "setDeputy");
         for (Class<?> c : List.of(ZaloGroupMaker.class, ZaloGroupCreationService.class, ZcaBridgeGateway.class)) {
             for (Method m : c.getDeclaredMethods()) {
                 String n = m.getName().toLowerCase();

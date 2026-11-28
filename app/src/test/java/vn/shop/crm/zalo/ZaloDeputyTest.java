@@ -102,6 +102,16 @@ class ZaloDeputyTest extends AbstractPostgresTest {
     }
 
     @Test
+    void docNhieuLanTraKetQuaKhongGiuKetNoiCoSoDuLieu() {
+        fake.willFind(MOM);
+        svc.lookup("0912345678", "admin");
+        for (int i = 0; i < 20; i++) {
+            assertThat(svc.candidate()).isPresent();
+        }
+        assertThat(jdbc.sql("SELECT 1").query(Integer.class).single()).isEqualTo(1);
+    }
+
+    @Test
     void khongThayThiBaoRoVaKhongDungCauDao() {
         var r = svc.lookup("0912345678", "admin"); // mặc định của bộ nối giả: không tìm thấy
         assertThat(r.status()).isEqualTo(Status.NOT_FOUND);

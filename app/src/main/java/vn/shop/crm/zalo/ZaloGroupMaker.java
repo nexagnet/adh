@@ -71,14 +71,9 @@ public interface ZaloGroupMaker {
      */
     DeputyResult setDeputy(String groupId, String deputyUid);
 
-    default DeputyResult setDeputy(String groupId, String deputyUid, boolean alreadyMember) {
+    default DeputyResult reconcileDeputy(String groupId, String deputyUid, boolean alreadyMember, String accountTag,
+                                         java.util.function.BooleanSupplier stillEligible) {
         return DeputyResult.of(GroupOutcome.UNREACHABLE, "DEPUTY_UNSUPPORTED");
-    }
-
-    default DeputyResult setDeputy(String groupId, String deputyUid, boolean alreadyMember, String accountTag,
-                                   java.util.function.BooleanSupplier stillEligible) {
-        return stillEligible.getAsBoolean() ? setDeputy(groupId, deputyUid, alreadyMember)
-                : DeputyResult.of(GroupOutcome.UNREACHABLE, "STALE_TARGET");
     }
 
     /**
