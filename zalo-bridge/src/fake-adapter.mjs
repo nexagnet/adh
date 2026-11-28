@@ -143,12 +143,14 @@ export class FakeAdapter {
     return '';
   }
 
-  async inspectGroup(groupId) {
+  async inspectGroup(groupId, deputyUid = null) {
     if (this.groupsError) throw this.groupsError;
     const group = (this.groups ?? []).find((row) => row.id === groupId);
-    return group
-      ? { present: true, adminOnlyAdd: group.adminOnlyAdd, admin: group.isAdmin, inviteLink: group.inviteLink }
-      : { present: false };
+    if (!group) return { present: false };
+    const evidence = { present: true, adminOnlyAdd: group.adminOnlyAdd, admin: group.isAdmin };
+    return deputyUid === null
+      ? { ...evidence, inviteLink: group.inviteLink }
+      : { ...evidence, groupId, owner: group.owner === true, deputyRole: group.deputyRoles?.[deputyUid] ?? 'UNKNOWN' };
   }
   async listGroups() {
     if (this.groupsError) throw this.groupsError;

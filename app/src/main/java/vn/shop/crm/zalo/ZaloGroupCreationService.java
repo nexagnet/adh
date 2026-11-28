@@ -82,6 +82,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
     private final TransactionTemplate tx;
     private final Clock clock;
     private final ZaloDeputyService deputies;
+    private final ZaloDeputyReconcileService deputyReconcile;
     private final ZaloAccountRegistry accounts;
     private final ZaloSharedGroupGrants grants;
     private final vn.shop.crm.safety.TestMode testMode;
@@ -90,8 +91,10 @@ public class ZaloGroupCreationService implements ZaloTickHook {
     public ZaloGroupCreationService(JdbcClient jdbc, ZaloGroupMaker maker, ZaloGateway gateway, ZaloSession session,
                                     ZaloAutoSettings auto, ZaloGroupSettings cfg, GroupService groups, InviteService invites,
                                     ContactService contacts, TransactionTemplate tx, Clock clock, ZaloDeputyService deputies,
-                                    ZaloAccountRegistry accounts, ZaloSharedGroupGrants grants, vn.shop.crm.safety.TestMode testMode) {
+                                    ZaloAccountRegistry accounts, ZaloSharedGroupGrants grants, vn.shop.crm.safety.TestMode testMode,
+                                    ZaloDeputyReconcileService deputyReconcile) {
         this.grants = grants;
+        this.deputyReconcile = deputyReconcile;
         this.testMode = testMode;
         this.jdbc = jdbc;
         this.maker = maker;
@@ -143,13 +146,13 @@ public class ZaloGroupCreationService implements ZaloTickHook {
      * Mẹ chưa kết bạn thì lần nào cũng lỗi, nên có trần; sau đó nút bấm tay còn 2 lần.
      */
     private void autoRetryDeputy() {
-        if (deputies.effectiveUid().isEmpty() || !inWindow() || !deputies.autoRetryDue() || auto.tripped()) {
+        if (deputyReconcile.managesBackfill() || deputies.effectiveUid().isEmpty() || !inWindow() || !deputies.autoRetryDue() || auto.tripped()) {
             return;
         }
         Optional<Long> next = jdbc.sql("""
                         SELECT p.id FROM zalo_group_proposal p JOIN zalo_group g ON g.id = p.group_id AND g.account_id = p.account_id
                         WHERE p.account_id = :acct AND p.state = 'DONE' AND p.deputy_state IN ('FAILED', 'NONE') AND p.deputy_tries < :max
-                          AND g.zalo_group_id IS NOT NULL ORDER BY p.id LIMIT 1""")
+                          AND g.status = 'OPEN' AND g.zalo_group_id IS NOT NULL ORDER BY p.id LIMIT 1""")
                 .param("max", MAX_AUTO_DEPUTY_TRIES).param("acct", ZaloAccountContext.current()).query(Long.class).optional();
         if (next.isEmpty()) {
             return;
@@ -390,6 +393,9 @@ public class ZaloGroupCreationService implements ZaloTickHook {
      * chế độ thử). Ghi mã lỗi thật vào nhật ký. Hạn chế hay mất phiên thì dừng cầu dao như các việc khác.
      */
     public ZaloGroupMaker.DeputyResult retryDeputy(long proposalId, String by) {
+        if (deputyReconcile.managesBackfill()) {
+            throw new ImportException("Tài khoản này dùng cơ chế đối chiếu phó nhóm. Kiểm tra hoặc bật lại ở mục Phó nhóm.");
+        }
         if (!accounts.active().contains(ZaloAccountContext.current())) {
             throw new ImportException("Tài khoản Zalo này đang tạm ngưng.");
         }
@@ -429,7 +435,7 @@ public class ZaloGroupCreationService implements ZaloTickHook {
             throw new ImportException("Hệ thống đang bận tạo nhóm. Thử lại sau ít phút.");
         }
         try {
-            if (gatewayBlocker() != null) {
+            if (deputyReconcile.managesBackfill() || gatewayBlocker() != null) {
                 throw new ImportException("Cầu nối Zalo chưa sẵn sàng (đang ngắt, mất phiên hoặc chưa nối). Mở lại cầu nối rồi thử lại.");
             }
             // Ghi số lần TRƯỚC khi gọi Zalo: sập giữa chừng vẫn tính một lần.

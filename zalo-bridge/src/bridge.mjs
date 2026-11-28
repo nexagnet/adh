@@ -19,6 +19,7 @@ const MAX_GROUP_WELCOME = 1500;
 const MAX_GROUP_MEMBERS = 5;
 /** Số lần thử lại đặt phó nhóm tối đa mỗi ngày (nút "Thử lại phó nhóm"). */
 const MAX_DEPUTY_TRIES_PER_DAY = 10;
+const DEPUTY_ROLES = new Set(['ADMIN', 'MEMBER', 'ABSENT', 'UNKNOWN']);
 const REPLY_WINDOW_MS = 24 * 3600 * 1000; // WELCOME và REPLY chỉ trả lời người vừa nhắn trong khoảng này
 const MAX_REPLYABLE = 500;
 const MAX_FRIEND_TEXT = 150; // lời mời kết bạn của Zalo chỉ nhận câu ngắn
@@ -1100,15 +1101,22 @@ export class Bridge {
    * để ghi nhật ký. Chỉ dùng từ createGroup và setDeputy.
    * @returns {Promise<{deputy: 'OK'|'FAILED', code: string|null}>}
    */
-  async #makeDeputy(groupId, deputy, needAdd, after) {
+  async #makeDeputy(groupId, deputy, needAdd, after, canPromote = null) {
     let addCode = null;
     if (needAdd) {
       try {
-        await withTimeout(this.adapter.addUserToGroup(deputy, groupId), this.config.addTimeoutMs);
+        const added = await withTimeout(this.adapter.addUserToGroup(deputy, groupId), this.config.addTimeoutMs);
+        if (canPromote) {
+          const result = classifyResult(added, deputy, this.config.groupErrorCodes);
+          if (result.outcome !== 'OK') return { deputy: 'FAILED', code: 'ADD-' + result.code, failure: result };
+        }
       } catch (e) {
-        addCode = after(e).code ?? 'UNKNOWN'; // có thể đã ở trong nhóm: vẫn thử đặt phó nhóm
+        addCode = after(e).code ?? 'UNKNOWN';
+        // Khi đối chiếu, đợi lần đọc sau nếu không rõ đã thêm được hay chưa.
+        if (canPromote) return { deputy: 'FAILED', code: `ADD-${addCode}` };
       }
     }
+    if (canPromote && !canPromote()) return { deputy: 'FAILED', code: 'SESSION_CHANGED' };
     try {
       await withTimeout(this.adapter.addGroupDeputy(deputy, groupId), this.config.addTimeoutMs);
       return { deputy: 'OK', code: null };
@@ -1122,38 +1130,80 @@ export class Bridge {
   /**
    * Thử lại đặt phó nhóm cho MỘT nhóm đã tạo (nút "Thử lại phó nhóm"). Chỉ việc đặt phó nhóm (thêm mẹ vào nhóm nếu chưa có), không việc nào khác.
    * Trần cố định mỗi ngày, một lúc một việc, trong khung giờ. Mã nhóm và mã Zalo không vào log.
-   * @param {{groupId: string, uid: string}} m
+   * @param {{groupId: string, uid: string, alreadyMember?: boolean, accountTag?: string}} m
    */
   async setDeputy(m) {
     const groupId = String(m?.groupId ?? '');
     const uid = String(m?.uid ?? '');
     if (!ZALO_ID.test(groupId) || !ZALO_ID.test(uid)) return { outcome: 'PERSON_ERROR', code: 'BAD_ID' };
+    const scoped = m.alreadyMember !== undefined;
+    if (scoped && typeof m.alreadyMember !== 'boolean') return { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' };
     if (this.state === 'LOGIN_REQUIRED') return { outcome: 'SESSION_LOST', code: 'LOGIN_REQUIRED' };
     if (this.state === 'TRIPPED' || this.state === 'STOPPED') return { outcome: 'RESTRICTED', code: 'NOT_ACTIVE' };
     if (this.state !== 'LISTENING') return { outcome: 'SYSTEM_ERROR', code: 'NOT_CONNECTED' };
     if (this.busy) return { outcome: 'SYSTEM_ERROR', code: 'BUSY' };
+    const generation = this.generation;
+    const listen = this.activeListen;
+    const active = () => generation === this.generation && listen !== 0 && listen === this.activeListen
+      && this.accountOk === true && this.state === 'LISTENING'
+      && Boolean(m.accountTag) && m.accountTag === this.status().accountTag;
+    if (scoped && !active()) return { outcome: 'SYSTEM_ERROR', code: 'NOT_ACTIVE' };
     const t = this.now();
     if (!inWindow(t, this.config.windowStartMin, this.config.windowEndMin)) return { outcome: 'RESTRICTED', code: 'WINDOW' };
     this.deputyTries = (this.deputyTries ?? []).filter((x) => x >= vnDayStart(t));
     if (this.deputyTries.length >= MAX_DEPUTY_TRIES_PER_DAY) return { outcome: 'RATE_LIMITED', retryAfterSec: 3600 };
     this.busy = true;
     try {
+      let needAdd = true;
+      if (scoped) {
+        const checked = await this.#checkDeputyTarget(groupId, uid, m.alreadyMember, active);
+        if ('outcome' in checked) return checked;
+        needAdd = checked.needAdd;
+        if (!inWindow(this.now(), this.config.windowStartMin, this.config.windowEndMin)) {
+          return { outcome: 'RESTRICTED', code: 'WINDOW' };
+        }
+      }
       this.deputyTries.push(t);
-      let tripped = false;
+      let stopped = null;
       const after = (e) => {
         const c = classifyError(e, this.config.personErrorCodes);
-        if (c.outcome === 'RESTRICTED' || c.outcome === 'SESSION_LOST') {
-          tripped = true;
+        if (c.outcome === 'RESTRICTED' || c.outcome === 'SESSION_LOST' || (scoped && c.outcome === 'SYSTEM_ERROR')) {
+          stopped = c;
           this.trip(c.code ? `${c.outcome}:${c.code}` : c.outcome);
         }
         return c;
       };
-      const r = await this.#makeDeputy(groupId, uid, true, after);
-      this.log(`đặt phó nhóm lại: ${r.deputy}${r.code ? ` mã ${r.code}` : ''}${tripped ? ' (đã dừng)' : ''}`);
+      const r = await this.#makeDeputy(groupId, uid, needAdd, after, scoped ? active : null);
+      if (scoped && r.failure && ['SYSTEM_ERROR', 'RESTRICTED', 'SESSION_LOST'].includes(r.failure.outcome)) {
+        stopped = r.failure;
+        this.trip(stopped.code ? `${stopped.outcome}:${stopped.code}` : stopped.outcome);
+      }
+      this.log(`đặt phó nhóm lại: ${r.deputy}${r.code ? ` mã ${r.code}` : ''}${stopped ? ' (đã dừng)' : ''}`);
+      if (scoped && stopped) return { outcome: stopped.outcome, code: stopped.code };
       return { outcome: 'OK', deputy: r.deputy, ...(r.code ? { code: r.code } : {}) };
     } finally {
       this.busy = false;
     }
+  }
+
+  async #checkDeputyTarget(groupId, uid, alreadyMember, active) {
+    let observed;
+    try {
+      observed = await withTimeout(this.adapter.inspectGroup(groupId, uid), Math.min(this.config.addTimeoutMs, 8000));
+    } catch {
+      return { outcome: 'SYSTEM_ERROR', code: 'INSPECT_FAILED' };
+    }
+    if (!active()) return { outcome: 'SYSTEM_ERROR', code: 'NOT_ACTIVE' };
+    if (observed?.present === false || (observed?.groupId === groupId && observed.owner === false)) {
+      return { outcome: 'PERSON_ERROR', code: 'NO_OWNER' };
+    }
+    if (observed?.present !== true || observed.groupId !== groupId || observed.owner !== true
+      || !DEPUTY_ROLES.has(observed.deputyRole) || observed.deputyRole === 'UNKNOWN') {
+      return { outcome: 'PERSON_ERROR', code: 'ROLE_UNVERIFIED' };
+    }
+    if (observed.deputyRole === 'ADMIN') return { outcome: 'OK', deputy: 'OK' };
+    if (alreadyMember && observed.deputyRole === 'ABSENT') return { outcome: 'PERSON_ERROR', code: 'MEMBERSHIP_CHANGED' };
+    return { needAdd: observed.deputyRole === 'ABSENT' };
   }
 
   // ---------- đọc danh sách nhóm (chỉ đọc) ----------
@@ -1240,8 +1290,11 @@ export class Bridge {
     }
   }
 
-  async inspectGroup(groupId) {
-    if (typeof groupId !== 'string' || !ZALO_ID.test(groupId)) return { ok: false, code: 'BAD_INPUT' };
+  async inspectGroup(groupId, deputyUid = null) {
+    if (typeof groupId !== 'string' || !ZALO_ID.test(groupId)
+      || (deputyUid !== null && (typeof deputyUid !== 'string' || !ZALO_ID.test(deputyUid)))) {
+      return { ok: false, code: 'BAD_INPUT' };
+    }
     const canRead = () => this.accountOk === true && this.state === 'LISTENING' && this.activeListen !== 0;
     const accountTag = this.status().accountTag;
     if (!canRead() || !accountTag) return { ok: false, code: 'NOT_ACTIVE' };
@@ -1251,7 +1304,7 @@ export class Bridge {
     const listen = this.activeListen;
     this.busy = true;
     try {
-      const evidence = await withTimeout(this.adapter.inspectGroup(groupId), Math.min(this.config.addTimeoutMs, 8000));
+      const evidence = await withTimeout(this.adapter.inspectGroup(groupId, deputyUid), Math.min(this.config.addTimeoutMs, 8000));
       if (generation !== this.generation || listen !== this.activeListen || !canRead()) {
         return { ok: false, code: 'NOT_ACTIVE' };
       }
@@ -1260,8 +1313,15 @@ export class Bridge {
         || typeof evidence.admin !== 'boolean') {
         return { ok: false, code: 'BAD_RESPONSE' };
       }
+      const result = { ok: true, present: true, accountTag, adminOnlyAdd: evidence.adminOnlyAdd, admin: evidence.admin };
+      if (deputyUid !== null) {
+        if (evidence.groupId !== groupId || typeof evidence.owner !== 'boolean' || !DEPUTY_ROLES.has(evidence.deputyRole)) {
+          return { ok: false, code: 'BAD_RESPONSE' };
+        }
+        return { ...result, inviteLink: null, groupId, owner: evidence.owner, deputyRole: evidence.deputyRole };
+      }
       return {
-        ok: true, present: true, accountTag, adminOnlyAdd: evidence.adminOnlyAdd, admin: evidence.admin,
+        ...result,
         inviteLink: typeof evidence.inviteLink === 'string' && evidence.inviteLink.length <= 300
           ? evidence.inviteLink : null,
       };

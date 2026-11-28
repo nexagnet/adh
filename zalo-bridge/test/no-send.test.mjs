@@ -39,7 +39,7 @@ test('findUser và sendMessage (D18) chỉ nằm trong bộ điều hợp thật
 });
 
 test('bộ điều hợp zca-js chỉ dùng các thành phần đã khai báo', () => {
-  const used = new Set([...code('zca-adapter.mjs').matchAll(/this\.api\??\.([A-Za-z]+)/g)].map((m) => m[1]));
+  const used = new Set([...code('zca-adapter.mjs').matchAll(/\bapi\??\.([A-Za-z]+)/g)].map((m) => m[1]));
   assert.deepEqual([...used].sort(), ['acceptFriendRequest', 'addGroupDeputy', 'addReaction', 'addUserToGroup', 'createGroup', 'enableGroupLink', 'findUser', 'getAllFriends', 'getAllGroups', 'getFriendRequestStatus', 'getGroupInfo', 'getGroupLinkDetail', 'getGroupLinkInfo', 'getOwnId', 'getSentFriendRequest', 'getUserInfo', 'joinGroupLink', 'listener', 'logout', 'sendFriendRequest', 'sendMessage', 'undoFriendRequest'].sort());
 });
 

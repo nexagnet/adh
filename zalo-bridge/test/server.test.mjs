@@ -338,3 +338,85 @@ test('kiểm tra đúng một nhóm bằng phiên đã ghim, không đổi dữ 
     await s.close();
   }
 });
+
+test('đối chiếu phó nhóm yêu cầu dấu tài khoản, kiểm lại chủ nhóm và không thêm người đã có mặt', async () => {
+  const s = await boot();
+  try {
+    const tag = (await s.call('GET', '/status')).json.accountTag;
+    const base = '/groups/222';
+    const group = { id: '222', isAdmin: true, adminOnlyAdd: true, owner: true, deputyRoles: { '333': 'MEMBER' } };
+    s.c.adapter.groups = [group];
+    const inspect = base + '/inspect?deputyUid=333';
+    assert.equal((await s.call('GET', inspect)).status, 409);
+    assert.deepEqual((await s.call('GET', inspect, { accountTag: tag })).json, {
+      ok: true, present: true, adminOnlyAdd: true, admin: true, owner: true, groupId: '222',
+      deputyRole: 'MEMBER', inviteLink: null, accountTag: tag,
+    });
+    assert.deepEqual((await s.call('GET', inspect + '&deputyUid=444', { accountTag: tag })).json, { ok: false, code: 'BAD_INPUT' });
+    assert.deepEqual((await s.call('GET', base + '/inspect?deputyUid=', { accountTag: tag })).json, { ok: false, code: 'BAD_INPUT' });
+    assert.equal(s.c.adapter.adds.length, 0);
+    assert.equal(s.c.adapter.deputies?.length ?? 0, 0);
+
+    const body = { uid: '333', alreadyMember: true };
+    const write = base + '/deputy';
+    assert.equal((await s.call('POST', write, { body })).status, 409);
+    assert.equal((await s.call('POST', write, { body, accountTag: '000000000000' })).status, 409);
+    const invalid = await s.call('POST', write, { body: { ...body, alreadyMember: 'true' }, accountTag: tag });
+    assert.deepEqual(invalid.json, { outcome: 'PERSON_ERROR', code: 'BAD_INPUT' });
+    group.owner = false;
+    assert.deepEqual((await s.call('POST', write, { body, accountTag: tag })).json, { outcome: 'PERSON_ERROR', code: 'NO_OWNER' });
+    group.owner = true;
+    group.deputyRoles['333'] = 'UNKNOWN';
+    assert.deepEqual((await s.call('POST', write, { body, accountTag: tag })).json, { outcome: 'PERSON_ERROR', code: 'ROLE_UNVERIFIED' });
+    group.deputyRoles['333'] = 'ABSENT';
+    assert.deepEqual((await s.call('POST', write, { body, accountTag: tag })).json, { outcome: 'PERSON_ERROR', code: 'MEMBERSHIP_CHANGED' });
+    assert.equal(s.c.adapter.adds.length, 0);
+    assert.equal(s.c.adapter.deputies?.length ?? 0, 0);
+    group.deputyRoles['333'] = 'MEMBER';
+    assert.deepEqual((await s.call('POST', write, { body, accountTag: tag })).json, { outcome: 'OK', deputy: 'OK' });
+    assert.deepEqual(s.c.adapter.deputies, [{ uid: '333', groupId: '222' }]);
+    assert.equal(s.c.adapter.adds.length, 0);
+
+    group.deputyRoles['333'] = 'ADMIN';
+    assert.deepEqual((await s.call('POST', write, { body, accountTag: tag })).json, { outcome: 'OK', deputy: 'OK' });
+    assert.equal(s.c.adapter.deputies.length, 1);
+    group.deputyRoles['333'] = 'ABSENT';
+    const absent = { ...body, alreadyMember: false };
+    assert.deepEqual((await s.call('POST', write, { body: absent, accountTag: tag })).json, { outcome: 'OK', deputy: 'OK' });
+    assert.deepEqual(s.c.adapter.adds, [{ uid: '333', groupId: '222' }]);
+    assert.equal(s.c.adapter.deputies.length, 2);
+
+    s.c.adapter.nextAdd = { errorMembers: ['333'], error_data: { '114': ['333'] } };
+    assert.deepEqual((await s.call('POST', write, { body: absent, accountTag: tag })).json,
+      { outcome: 'OK', deputy: 'FAILED', code: 'ADD-Z114' });
+    assert.equal(s.c.adapter.deputies.length, 2, 'không bổ nhiệm tiếp khi Zalo từ chối thêm');
+
+    s.c.adapter.nextAdd = async () => {
+      s.c.bridge.stop();
+      return { errorMembers: [] };
+    };
+    assert.deepEqual((await s.call('POST', write, { body: absent, accountTag: tag })).json,
+      { outcome: 'OK', deputy: 'FAILED', code: 'SESSION_CHANGED' });
+    assert.equal(s.c.adapter.deputies.length, 2, 'không bổ nhiệm khi phiên đổi giữa hai bước');
+    assert.ok(!s.c.logs.join('\n').includes('333'));
+  } finally {
+    await s.close();
+    s.c.cleanup();
+  }
+});
+
+test('đặt phó nhóm theo đối chiếu báo lỗi không rõ kết quả để ADH dừng chung', async () => {
+  const s = await boot();
+  try {
+    const tag = (await s.call('GET', '/status')).json.accountTag;
+    s.c.adapter.groups = [{ id: '222', isAdmin: true, owner: true, deputyRoles: { '333': 'MEMBER' } }];
+    s.c.adapter.deputyError = Object.assign(new Error('quá thời gian'), { name: 'TimeoutError' });
+    const r = await s.call('POST', '/groups/222/deputy', { body: { uid: '333', alreadyMember: true }, accountTag: tag });
+    assert.deepEqual(r.json, { outcome: 'SYSTEM_ERROR', code: 'TIMEOUT' });
+    assert.equal((await s.call('GET', '/status')).json.state, 'TRIPPED');
+    assert.equal(s.c.adapter.adds.length, 0);
+  } finally {
+    await s.close();
+    s.c.cleanup();
+  }
+});

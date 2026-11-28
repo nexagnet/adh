@@ -71,6 +71,11 @@ public interface ZaloGroupMaker {
      */
     DeputyResult setDeputy(String groupId, String deputyUid);
 
+    default DeputyResult reconcileDeputy(String groupId, String deputyUid, boolean alreadyMember, String accountTag,
+                                         java.util.function.BooleanSupplier stillEligible) {
+        return DeputyResult.of(GroupOutcome.UNREACHABLE, "DEPUTY_UNSUPPORTED");
+    }
+
     /**
      * Tạo nhóm. Không bao giờ ném lỗi. {@code deputyUid} có thể null. {@code welcome} (có thể null) là MỘT tin chào gửi vào chính nhóm vừa tạo,
      * đúng một lần ngay sau khi tạo (chủ dự án chốt 24/11/2026: không chịu khoảng nghỉ 2 phút hay hạn mức tin); gửi lỗi không làm hỏng việc tạo.

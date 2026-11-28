@@ -10,6 +10,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import vn.shop.crm.AbstractPostgresTest;
+import vn.shop.crm.common.AppSettings;
+
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -42,6 +45,10 @@ class ZaloMultiAccountPageTest extends AbstractPostgresTest {
     @Autowired ZaloMessageService messages;
     @Autowired ZaloAutoSettings auto;
     @Autowired ZaloAccountRegistry registry;
+    @Autowired ZaloBridgeIdentity identity;
+    @Autowired ZaloDeputyReconcileService deputies;
+    @Autowired AppSettings settings;
+    @Autowired ZaloTestClock clock;
     MockMvc mvc;
 
     @BeforeEach
@@ -78,6 +85,61 @@ class ZaloMultiAccountPageTest extends AbstractPostgresTest {
                 .andExpect(content().string(containsString("id=\"zalo-account-config\"")))
                 .andExpect(content().string(containsString("Có thể gửi cho khách thật")))
                 .andExpect(content().string(not(containsString("/zalo/accounts/1/enabled"))));
+    }
+
+    @Test
+    void hienPhoNhomTheoTaiKhoanChuNhomVaBaoChuaCauHinh() throws Exception {
+        jdbc.sql("""
+                INSERT INTO zalo_group (name, status, account_id, zalo_group_id, geo_scope)
+                VALUES ('Nhóm của tài khoản một', 'OPEN', 1, '1111', 'P:ha-noi'),
+                       ('Tây Ninh - 01', 'OPEN', 2, '2222', 'P:tay-ninh'),
+                       ('Nhóm đã đóng', 'CLOSED', 2, '3333', 'P:tay-ninh')
+                """).update();
+
+        mvc.perform(get("/zalo?tab=cau-hinh&account=2").with(owner())).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Chưa xác nhận mẹ cho tài khoản này")))
+                .andExpect(content().string(containsString("/zalo?tab=nhom&amp;account=2#pho-nhom")));
+        mvc.perform(post("/zalo/deputy/reconcile/switch?account=2").param("on", "true")
+                        .with(owner()).with(csrf())).andExpect(redirectedUrl("/zalo?tab=nhom&account=2#pho-nhom"));
+        mvc.perform(get("/zalo?tab=nhom&account=2").with(owner())).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Tây Ninh - 01")))
+                .andExpect(content().string(containsString(">Chưa xác nhận mẹ</span>")))
+                .andExpect(content().string(not(containsString("Nhóm của tài khoản một"))))
+                .andExpect(content().string(not(containsString("Nhóm đã đóng"))));
+        mvc.perform(get("/zalo?tab=nhom&account=1").with(owner())).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Nhóm của tài khoản một")))
+                .andExpect(content().string(not(containsString("Tây Ninh - 01"))));
+    }
+
+    @Test
+    void hienLanDocGanNhatTheoGioVietNam() throws Exception {
+        clock.set(LocalDateTime.of(2026, 11, 28, 11, 55));
+        jdbc.sql("""
+                INSERT INTO zalo_group (name, status, account_id, zalo_group_id, geo_scope)
+                VALUES ('Tây Ninh - 01', 'OPEN', 2, '2222', 'P:tay-ninh')
+                """).update();
+        ZaloAccountContext.run(2, () -> {
+            settings.set(ZaloDeputyService.UID, "4242", "test");
+            settings.set(ZaloDeputyService.ACCT, identity.pinnedTag(2), "test");
+            deputies.setEnabled(true, "test");
+            deputies.tick();
+        });
+
+        mvc.perform(get("/zalo?tab=nhom&account=2").with(owner())).andExpect(status().isOk())
+                .andExpect(content().string(containsString("Chưa đọc được quyền trên Zalo")))
+                .andExpect(content().string(containsString("28/11/2026 11:55")));
+    }
+
+    @Test
+    void congTacPhoNhomCanChuShopCsrfVaTaiKhoanTuongUng() throws Exception {
+        mvc.perform(post("/zalo/deputy/reconcile/switch?account=2").param("on", "false")
+                        .with(user("nhanvien").roles("STAFF")).with(csrf())).andExpect(status().isForbidden());
+        mvc.perform(post("/zalo/deputy/reconcile/switch?account=2").param("on", "false")
+                        .with(owner())).andExpect(status().isForbidden());
+        mvc.perform(post("/zalo/deputy/reconcile/switch").param("on", "false")
+                        .with(owner()).with(csrf())).andExpect(status().isBadRequest());
+        mvc.perform(post("/zalo/deputy/reconcile/switch?account=2").param("on", "false")
+                        .with(owner()).with(csrf())).andExpect(redirectedUrl("/zalo?tab=nhom&account=2#pho-nhom"));
     }
 
     @Test

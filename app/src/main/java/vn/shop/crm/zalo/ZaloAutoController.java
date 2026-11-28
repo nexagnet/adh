@@ -29,6 +29,7 @@ public class ZaloAutoController {
     private final vn.shop.crm.send.SendService send;
     private final ZaloGroupCreationService groupMaker;
     private final ZaloDeputyService deputy;
+    private final ZaloDeputyReconcileService deputyReconcile;
 
     private final ZaloInboxService inbox;
     private final vn.shop.crm.inbox.ComebackService comebacks;
@@ -40,7 +41,8 @@ public class ZaloAutoController {
     private final ZaloAccountRegistry accounts;
 
     public ZaloAutoController(ZaloAutoService service, ZaloMessageService messages, vn.shop.crm.send.SendService send,
-                              ZaloGroupCreationService groupMaker, ZaloDeputyService deputy, ZaloInboxService inbox,
+                              ZaloGroupCreationService groupMaker, ZaloDeputyService deputy,
+                              ZaloDeputyReconcileService deputyReconcile, ZaloInboxService inbox,
                               vn.shop.crm.inbox.ComebackService comebacks, ZaloHealthService health, ZaloQueueView queueView,
                               ZaloAccountRegistry accounts) {
         this.accounts = accounts;
@@ -50,6 +52,7 @@ public class ZaloAutoController {
         this.comebacks = comebacks;
         this.groupMaker = groupMaker;
         this.deputy = deputy;
+        this.deputyReconcile = deputyReconcile;
         this.service = service;
         this.messages = messages;
         this.send = send;
@@ -90,7 +93,8 @@ public class ZaloAutoController {
         model.addAttribute("totalDaily", messages.totalDaily());
         model.addAttribute("totalMax", ZaloMessageService.TOTAL_HARD_CAP);
         model.addAttribute("totalUsed", messages.usedTodayAllAccounts());
-        model.addAttribute("tab", TABS.stream().anyMatch(t -> t.key().equals(tab)) ? tab : "tinh-trang");
+        String activeTab = TABS.stream().anyMatch(t -> t.key().equals(tab)) ? tab : "tinh-trang";
+        model.addAttribute("tab", activeTab);
         ZaloAutoSettings cfg = service.settings();
         boolean enabled = cfg.props().enabled();
         model.addAttribute("enabled", enabled);
@@ -142,8 +146,17 @@ public class ZaloAutoController {
             model.addAttribute("welcomeTemplate", gs.welcomeTemplate());
             model.addAttribute("welcomeLink", gs.shopLink());
             model.addAttribute("welcomeMax", ZaloGroupSettings.MAX_WELCOME);
-            model.addAttribute("deputyCurrent", deputy.current());
-            model.addAttribute("deputyCandidate", deputy.candidate().orElse(null));
+            if ("nhom".equals(activeTab) || "cau-hinh".equals(activeTab)) {
+                model.addAttribute("deputyCurrent", deputy.current());
+                model.addAttribute("deputyReconcileEnabled", deputyReconcile.enabled());
+                model.addAttribute("deputyConfigBlocker", deputyReconcile.configurationBlocker());
+            }
+            if ("nhom".equals(activeTab)) {
+                model.addAttribute("deputyReconcileManaged", deputyReconcile.managesBackfill());
+                model.addAttribute("deputyCandidate", deputy.candidate().orElse(null));
+                model.addAttribute("deputyGroups", deputyReconcile.groupStatuses());
+                model.addAttribute("deputyTimeZone", cfg.clock().getZone().getId());
+            }
             model.addAttribute("inboxRunning", inbox.running());
             model.addAttribute("groupMayNow", groupMaker.mayCreateNow());
             model.addAttribute("proposals", groupMaker.recent(10));
@@ -223,10 +236,10 @@ public class ZaloAutoController {
     }
 
     @PostMapping("/deputy/confirm")
-    public String deputyConfirm(Principal user, RedirectAttributes redirect) {
+    public String deputyConfirm(@RequestParam String revision, Principal user, RedirectAttributes redirect) {
         requireEnabled();
-        deputy.confirm(by(user));
-        redirect.addFlashAttribute("deputyMsg", "Đã lưu mẹ làm phó nhóm cho các nhóm tạo sau này. Nhớ kết bạn tài khoản phụ với mẹ trên Zalo nếu chưa.");
+        deputy.confirm(revision, by(user));
+        redirect.addFlashAttribute("deputyMsg", "Đã lưu người được bổ nhiệm cho tài khoản này. Xem trạng thái từng nhóm bên dưới.");
         redirect.addFlashAttribute("deputyStatus", "FOUND");
         return "redirect:/zalo?tab=nhom#pho-nhom";
     }
@@ -243,7 +256,17 @@ public class ZaloAutoController {
     public String deputyClear(Principal user, RedirectAttributes redirect) {
         requireEnabled();
         deputy.clear(by(user));
-        redirect.addFlashAttribute("deputyMsg", "Đã bỏ phó nhóm đã lưu. Nhóm tạo sau đó sẽ không có phó nhóm (trừ khi còn khai báo ZALO_DEPUTY_ID ở cấu hình triển khai).");
+        redirect.addFlashAttribute("deputyMsg", "Đã bỏ người được bổ nhiệm đã lưu. Quyền đã cấp trên Zalo vẫn được giữ.");
+        return "redirect:/zalo?tab=nhom#pho-nhom";
+    }
+
+    @PostMapping("/deputy/reconcile/switch")
+    public String switchDeputyReconciliation(@RequestParam boolean on, Principal user, RedirectAttributes redirect) {
+        requireEnabled();
+        deputyReconcile.setEnabled(on, by(user));
+        redirect.addFlashAttribute("deputyMsg", on
+                ? "Đã bật tự đối chiếu phó nhóm cho tài khoản này."
+                : "Đã tắt tự đối chiếu phó nhóm cho tài khoản này.");
         return "redirect:/zalo?tab=nhom#pho-nhom";
     }
 

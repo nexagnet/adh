@@ -1,10 +1,12 @@
 # CLAUDE.md: đọc file này TRƯỚC khi làm việc trong repo `adh`
 
-File này dành cho AI (hoặc người) vào làm tiếp mà **không đọc được lịch sử trò chuyện**. Nó gom các quy tắc và quyết định của chủ dự án vốn chỉ nằm trong trí nhớ của các phiên trước. Cập nhật ngày 24/11/2026 (sau PR #125; mục 0 là bản tóm tắt mới nhất, đọc trước).
+**Cập nhật 28/11/2026.** Đọc [Bàn giao production Zalo và đối chiếu phó nhóm](docs/BAN-GIAO-ZALO-PRODUCTION-2026-11-28.md) trước mục 0. Tài liệu mới ghi mốc production sau PR #190, cách hai cầu nối hoạt động, tiến độ nhóm dùng chung Tây Ninh - 01 và phần còn lại của luồng phó nhóm. Mục 0 bên dưới là ảnh chụp ngày 24/11. Các quyết định nghiệp vụ khác tiếp tục tra theo mục tương ứng.
 
-**Phiên mới: đọc file này, rồi `docs/BAN-GIAO-CHIEN-DICH-THU.md` (cửa vào cho AI làm tiếp: chạy thử trên các số thử, việc cấm, dữ liệu thật và chế độ thử, thứ tự việc, danh sách xóa sau thử), rồi `docs/BAN-GIAO.md` mục 0 ("Bắt đầu nhanh": trạng thái PR, quyết định ngày 23/11, máy chủ, phạm vi giai đoạn 1 và 2, danh sách màn sẽ xóa), rồi `docs/HUONG-DAN-CHAY-THU-TOAN-DIEN.md`.** Nếu file này và tài liệu khác trong repo mâu thuẫn, **ưu tiên file này**, rồi tới `docs/BAN-GIAO.md` mục 0 (các mục 1 đến 10 của nó đã cũ, xem mục 9 ở đây). Nghiệp vụ gốc: `01_DAC_TA_NGHIEP_VU.md`. Quyết định D1 đến D18 và kế hoạch: `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md`. Vận hành: `docs/RUNBOOK.md`.
+File này dành cho AI và người vào làm tiếp khi thiếu lịch sử trò chuyện. Nó gom các quy tắc và quyết định của chủ dự án. Các mục bên dưới chủ yếu ghi theo mốc ngày 24/11/2026 sau PR #125.
 
-## 0. Tóm tắt trạng thái (24/11/2026, sau PR #125; đọc mục này trước, rồi quay lại các mục sau)
+**Phiên mới đọc bản bàn giao production ở đầu file này, rồi tới các quy tắc dự án bên dưới.** Nghiệp vụ gốc ở `01_DAC_TA_NGHIEP_VU.md`, quyết định D1 đến D18 ở `03_DINH_CHINH_KY_THUAT_VA_KE_HOACH.md` và hướng dẫn vận hành ở `docs/RUNBOOK.md`. Khi làm việc trên môi trường thử, đọc `docs/BAN-GIAO-CHIEN-DICH-THU.md` và `docs/HUONG-DAN-CHAY-THU-TOAN-DIEN.md`. Mục 0 của `docs/BAN-GIAO.md` giải thích quyết định và phạm vi giai đoạn 1, 2 vào thời điểm lập tài liệu.
+
+## 0. Mốc lịch sử ngày 24/11/2026 sau PR #125
 
 **Hệ thống là gì:** Adh là hệ thống quản trị cho một cửa hàng bán chủ yếu **áo điều hòa và phụ kiện** (trong đó có pin): nhập đơn J&T/Viettel Post, quản khách, rồi **tài khoản Zalo phụ tự nhắn Tin 1, tự gửi lời mời kết bạn, tự thêm khách đồng ý vào nhóm Zalo theo khu vực**, và AI (DeepSeek) đọc/trả lời tin riêng của khách. Chủ dự án: Phùng Việt (trả lời tiếng Việt, ngắn, dễ hiểu; giao diện 100% tiếng Việt, "trợ lý AI" không "bot"; chưa dùng SMS; mẹ dùng điện thoại).
 

@@ -54,7 +54,7 @@ class ZaloDeputyTest extends AbstractPostgresTest {
         assertThat(svc.candidate()).isPresent();
         assertThat(svc.candidate().orElseThrow().name()).isEqualTo("Mẹ Lan");
         assertThat(svc.effectiveUid()).isEqualTo("99887766"); // chưa xác nhận thì chưa đổi
-        svc.confirm("admin");
+        svc.confirm(svc.candidate().orElseThrow().revision(), "admin");
         assertThat(svc.candidate()).isEmpty();
         assertThat(svc.effectiveUid()).isEqualTo("4242");
         var cur = svc.current();
@@ -69,7 +69,7 @@ class ZaloDeputyTest extends AbstractPostgresTest {
     void soDienThoaiKhongDuocLuuVaMaTenKhongVaoNhatKy() {
         fake.willFind(MOM);
         svc.lookup("0912345678", "admin");
-        svc.confirm("admin");
+        svc.confirm(svc.candidate().orElseThrow().revision(), "admin");
         String settingsDump = String.join("|", jdbc.sql("SELECT key || '=' || value FROM app_setting").query(String.class).list());
         String logDump = String.join("|", jdbc.sql("SELECT action || result || coalesce(code, '') || coalesce(actor, '') FROM zalo_auto_log")
                 .query(String.class).list());
@@ -84,6 +84,31 @@ class ZaloDeputyTest extends AbstractPostgresTest {
             assertThatThrownBy(() -> svc.lookup(bad, "admin")).isInstanceOf(ImportException.class);
         }
         assertThat(fake.finds).isEmpty();
+    }
+
+    @Test
+    void tabCuKhongXacNhanNguoiTuLanTraMoi() {
+        fake.willFind(MOM);
+        svc.lookup("0912345678", "admin");
+        String oldRevision = svc.candidate().orElseThrow().revision();
+        clock.advance(Duration.ofSeconds(61));
+        fake.willFind(new Found(FindResult.OK, null, "4243", "Người thứ hai", AVATAR, 0));
+        svc.lookup("0912345679", "admin");
+
+        assertThatThrownBy(() -> svc.confirm(oldRevision, "admin")).isInstanceOf(ImportException.class);
+        assertThat(svc.effectiveUid()).isEqualTo("99887766");
+        svc.confirm(svc.candidate().orElseThrow().revision(), "admin");
+        assertThat(svc.effectiveUid()).isEqualTo("4243");
+    }
+
+    @Test
+    void docNhieuLanTraKetQuaKhongGiuKetNoiCoSoDuLieu() {
+        fake.willFind(MOM);
+        svc.lookup("0912345678", "admin");
+        for (int i = 0; i < 20; i++) {
+            assertThat(svc.candidate()).isPresent();
+        }
+        assertThat(jdbc.sql("SELECT 1").query(Integer.class).single()).isEqualTo(1);
     }
 
     @Test
@@ -140,12 +165,13 @@ class ZaloDeputyTest extends AbstractPostgresTest {
 
     @Test
     void ketQuaTraHetHanSauBaMuoiPhutVaXacNhanKhongNhanMaTuNgoai() {
-        assertThatThrownBy(() -> svc.confirm("admin")).isInstanceOf(ImportException.class); // chưa tra thì không xác nhận được
+        assertThatThrownBy(() -> svc.confirm("", "admin")).isInstanceOf(ImportException.class); // chưa tra thì không xác nhận được
         fake.willFind(MOM);
         svc.lookup("0912345678", "admin");
+        String expired = svc.candidate().orElseThrow().revision();
         clock.advance(Duration.ofMinutes(31));
         assertThat(svc.candidate()).isEmpty();
-        assertThatThrownBy(() -> svc.confirm("admin")).isInstanceOf(ImportException.class);
+        assertThatThrownBy(() -> svc.confirm(expired, "admin")).isInstanceOf(ImportException.class);
         assertThat(svc.effectiveUid()).isEqualTo("99887766");
     }
 

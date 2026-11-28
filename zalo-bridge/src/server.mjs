@@ -103,7 +103,9 @@ export function createServer({ bridge, config, fake = null }) {
         if (typeof accountTag !== 'string' || !/^[0-9a-f]{12}$/.test(accountTag)) {
           return send(409, { error: 'account_unverified' });
         }
-        return send(200, await bridge.inspectGroup(inspect[1]));
+        const deputyUids = url.searchParams.getAll('deputyUid');
+        if (deputyUids.length > 1) return send(200, { ok: false, code: 'BAD_INPUT' });
+        return send(200, await bridge.inspectGroup(inspect[1], deputyUids[0] ?? null));
       }
       if (route === 'GET /groups/join-target') {
         if (typeof accountTag !== 'string' || !/^[0-9a-f]{12}$/.test(accountTag)) {
@@ -134,7 +136,12 @@ export function createServer({ bridge, config, fake = null }) {
       const dep = /^POST \/groups\/([^/]+)\/deputy$/.exec(route);
       if (dep) {
         const body = await readJson(req);
-        return send(200, await bridge.setDeputy({ groupId: decodeURIComponent(dep[1]), uid: body.uid }));
+        if (body.alreadyMember !== undefined && (typeof accountTag !== 'string' || !/^[0-9a-f]{12}$/.test(accountTag))) {
+          return send(409, { error: 'account_unverified' });
+        }
+        return send(200, await bridge.setDeputy({
+          groupId: decodeURIComponent(dep[1]), uid: body.uid, alreadyMember: body.alreadyMember, accountTag,
+        }));
       }
       if (route === 'POST /messages') {
         const body = await readJson(req);

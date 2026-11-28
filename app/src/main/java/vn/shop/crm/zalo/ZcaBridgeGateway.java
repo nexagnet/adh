@@ -498,11 +498,28 @@ public class ZcaBridgeGateway implements ZaloLink {
 
     @Override
     public DeputyResult setDeputy(String groupId, String deputyUid) {
+        return dispatchDeputy(groupId, deputyUid, null, null, () -> true);
+    }
+
+    @Override
+    public DeputyResult reconcileDeputy(String groupId, String deputyUid, boolean alreadyMember, String accountTag,
+                                         java.util.function.BooleanSupplier stillEligible) {
+        if (accountTag == null || !accountTag.matches("[0-9a-f]{12}")) {
+            return DeputyResult.of(GroupOutcome.UNREACHABLE, "ACCOUNT_UNVERIFIED");
+        }
+        return dispatchDeputy(groupId, deputyUid, alreadyMember, accountTag, stillEligible);
+    }
+
+    private DeputyResult dispatchDeputy(String groupId, String deputyUid, Boolean alreadyMember, String accountTag,
+                                        java.util.function.BooleanSupplier stillEligible) {
         if (groupId == null || !ZALO_ID.matcher(groupId).matches() || deputyUid == null || !ZALO_ID.matcher(deputyUid).matches()) {
             return DeputyResult.of(ZaloGroupMaker.GroupOutcome.PERSON_ERROR, "BAD_ID");
         }
         try {
-            JsonNode n = call("POST", "/groups/" + groupId + "/deputy", JSON.writeValueAsString(java.util.Map.of("uid", deputyUid)), 60);
+            var body = alreadyMember == null ? java.util.Map.of("uid", deputyUid)
+                    : java.util.Map.of("uid", deputyUid, "alreadyMember", alreadyMember);
+            JsonNode n = call("POST", "/groups/" + groupId + "/deputy", JSON.writeValueAsString(body),
+                    alreadyMember == null ? 60 : 75, stillEligible, accountTag);
             ZaloGroupMaker.GroupOutcome outcome;
             try {
                 outcome = ZaloGroupMaker.GroupOutcome.valueOf(n.path("outcome").asString(""));
@@ -517,6 +534,8 @@ public class ZcaBridgeGateway implements ZaloLink {
                 return DeputyResult.of(outcome, code);
             }
             return new DeputyResult(outcome, code, "OK".equals(text(n, "deputy")) ? "OK" : "FAILED");
+        } catch (ReplyNoLongerEligible e) {
+            return DeputyResult.of(GroupOutcome.UNREACHABLE, "STALE_TARGET");
         } catch (Unreachable e) {
             return DeputyResult.of(ZaloGroupMaker.GroupOutcome.UNREACHABLE, "BRIDGE_DOWN");
         } catch (TimedOut e) {
@@ -644,6 +663,36 @@ public class ZcaBridgeGateway implements ZaloLink {
         } catch (Exception e) {
             log.warn("Không kiểm tra được nhóm từ cầu nối: {}", e.getClass().getSimpleName());
             return GroupInspection.failed("INSPECT_FAILED");
+        }
+    }
+
+    @Override
+    public DeputyInspection inspectDeputy(String groupId, String deputyUid, String accountTag) {
+        if (groupId == null || !ZALO_ID.matcher(groupId).matches() || deputyUid == null || !ZALO_ID.matcher(deputyUid).matches()
+                || accountTag == null || !accountTag.matches("[0-9a-f]{12}")) {
+            return DeputyInspection.failed("BAD_INPUT");
+        }
+        try {
+            JsonNode n = call("GET", "/groups/" + groupId + "/inspect?deputyUid=" + deputyUid,
+                    null, 12, () -> true, accountTag);
+            if (!n.path("ok").asBoolean(false)) {
+                return DeputyInspection.failed(safeCode(text(n, "code")));
+            }
+            if (accountTag.equals(text(n, "accountTag")) && n.path("present").isBoolean()
+                    && !n.path("present").asBoolean()) {
+                return DeputyInspection.failed("NOT_IN_GROUP");
+            }
+            String role = text(n, "deputyRole");
+            if (!accountTag.equals(text(n, "accountTag")) || !groupId.equals(text(n, "groupId"))
+                    || !n.path("present").asBoolean(false) || !n.path("owner").isBoolean()
+                    || role == null || !java.util.Set.of("ADMIN", "MEMBER", "ABSENT", "UNKNOWN").contains(role)) {
+                return DeputyInspection.failed("BAD_RESPONSE");
+            }
+            return new DeputyInspection("OK", null, groupId, n.path("owner").asBoolean(), role);
+        } catch (Unreachable e) {
+            return DeputyInspection.failed("BRIDGE_DOWN");
+        } catch (Exception e) {
+            return DeputyInspection.failed("INSPECT_FAILED");
         }
     }
 
