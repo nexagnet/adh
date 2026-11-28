@@ -168,6 +168,16 @@ public final class SafeZaloLink implements ZaloLink {
         return inner.setDeputy(groupId, deputyUid);
     }
 
+    @Override
+    public DeputyResult setDeputy(String groupId, String deputyUid, boolean alreadyMember, String accountTag,
+                                  java.util.function.BooleanSupplier stillEligible) {
+        if (!mode.live()) {
+            mode.noteBlocked("PHO_NHOM");
+            return DeputyResult.of(GroupOutcome.UNREACHABLE, CODE);
+        }
+        return inner.setDeputy(groupId, deputyUid, alreadyMember, accountTag, stillEligible);
+    }
+
     // ---------- ZaloPersonFinder ----------
 
     @Override
@@ -220,6 +230,11 @@ public final class SafeZaloLink implements ZaloLink {
     @Override
     public GroupInspection inspectGroup(String bridgeGroupId) {
         return inner.inspectGroup(bridgeGroupId);
+    }
+
+    @Override
+    public DeputyInspection inspectDeputy(String groupId, String deputyUid, String accountTag) {
+        return inner.inspectDeputy(groupId, deputyUid, accountTag);
     }
 
     @Override

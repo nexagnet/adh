@@ -340,9 +340,12 @@ class ZaloAdminPageTest extends AbstractPostgresTest {
                 .andExpect(content().string(containsString("kết bạn tài khoản phụ với mẹ")))
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         assertThat(html).doesNotContain("4242").doesNotContain("912345678"); // không lộ mã Zalo hay số điện thoại
-        mvc.perform(post("/zalo/deputy/confirm").with(owner()).with(csrf())).andExpect(status().is3xxRedirection());
+        var revision = java.util.regex.Pattern.compile("name=\"revision\" value=\"([^\"]+)\"").matcher(html);
+        assertThat(revision.find()).isTrue();
+        mvc.perform(post("/zalo/deputy/confirm").param("revision", revision.group(1)).with(owner()).with(csrf()))
+                .andExpect(status().is3xxRedirection());
         mvc.perform(get("/zalo").param("tab", "nhom").with(owner())).andExpect(status().isOk())
-                .andExpect(content().string(containsString("Đã xác nhận. Là phó nhóm của các nhóm tạo từ nay.")))
+                .andExpect(content().string(containsString("Đã xác nhận người sẽ được bổ nhiệm.")))
                 .andExpect(content().string(not(containsString("Có đúng là mẹ không?"))));
         mvc.perform(post("/zalo/deputy/clear").with(owner()).with(csrf())).andExpect(status().is3xxRedirection());
         mvc.perform(post("/zalo/deputy/confirm").with(owner()).with(csrf())).andExpect(status().isBadRequest()); // không còn ai chờ

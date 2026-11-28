@@ -13,6 +13,22 @@
 
 import { Zalo, AvatarSize, FriendEventType, LoginQRCallbackEventType, Reactions, ThreadType } from 'zca-js';
 
+const validZaloId = (id) => typeof id === 'string' && /^\d{1,32}$/.test(id);
+
+function deputyRole(group, uid) {
+  if (group.creatorId === uid || group.adminIds.includes(uid)) return 'ADMIN';
+  const lists = [group.memberIds, Array.isArray(group.currentMems) ? group.currentMems.map((member) => member?.id) : null];
+  if (lists.some((ids) => Array.isArray(ids) && ids.includes(uid))) return 'MEMBER';
+  const pending = group.pendingApprove?.uids;
+  if (Array.isArray(pending) && pending.includes(uid)) return 'UNKNOWN';
+  // Zalo có thể chỉ trả về một phần danh sách; thiếu UID tự nó không phải bằng chứng vắng mặt.
+  const complete = group.hasMoreMember === 0 && Number.isSafeInteger(group.totalMember) && group.totalMember > 0
+    && lists.some((ids) => Array.isArray(ids) && ids.length === group.totalMember
+      && ids.every(validZaloId) && new Set(ids).size === ids.length
+      && ids.includes(group.creatorId) && group.adminIds.every((id) => ids.includes(id)));
+  return complete ? 'ABSENT' : 'UNKNOWN';
+}
+
 export class ZcaAdapter {
   constructor() {
     // checkUpdate: false để không gọi ra ngoài chỉ để kiểm phiên bản gói; logging: false để thư viện không in dữ liệu.
@@ -180,22 +196,29 @@ export class ZcaAdapter {
     return this.api.joinGroupLink(link);
   }
 
-  async inspectGroup(groupId) {
-    const membership = (await this.api.getAllGroups())?.gridVerMap;
+  async inspectGroup(groupId, deputyUid = null) {
+    const api = this.api;
+    const membership = (await api.getAllGroups())?.gridVerMap;
     if (!membership || typeof membership !== 'object' || Array.isArray(membership)) return null;
     if (!Object.hasOwn(membership, groupId)) return { present: false };
 
-    const group = (await this.api.getGroupInfo(groupId))?.gridInfoMap?.[groupId];
+    const group = (await api.getGroupInfo(groupId))?.gridInfoMap?.[groupId];
     const adminOnlyAdd = group?.setting?.addMemberOnly;
     if (String(group?.groupId) !== groupId || ![0, 1].includes(adminOnlyAdd)
       || typeof group.creatorId !== 'string' || !Array.isArray(group.adminIds)) return null;
-    const own = String(this.api.getOwnId());
-    const admin = group.creatorId === own || group.adminIds.includes(own);
+    const own = String(api.getOwnId());
+    const owner = group.creatorId === own;
+    const admin = owner || group.adminIds.includes(own);
     const evidence = { present: true, adminOnlyAdd: adminOnlyAdd === 1, admin, inviteLink: null };
+    if (deputyUid !== null) {
+      if (!validZaloId(group.groupId) || !validZaloId(own) || !validZaloId(group.creatorId)
+        || !group.adminIds.every(validZaloId)) return null;
+      return { ...evidence, groupId, owner, deputyRole: deputyRole(group, deputyUid) };
+    }
     if (evidence.adminOnlyAdd && !admin) return evidence;
 
     try {
-      const detail = await this.api.getGroupLinkDetail(groupId);
+      const detail = await api.getGroupLinkDetail(groupId);
       return { ...evidence, inviteLink: detail?.enabled === 1 ? detail.link : null };
     } catch {
       // Đọc được vai trò, nhưng chưa đủ bằng chứng để cấp quyền dùng chung.

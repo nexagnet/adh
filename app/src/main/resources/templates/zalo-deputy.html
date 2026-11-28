@@ -1,0 +1,90 @@
+<section xmlns:th="http://www.thymeleaf.org" th:fragment="deputyPanel" class="panel stack" id="pho-nhom">
+    <h2>Mẹ làm phó nhóm</h2>
+    <p class="hint">Nhập số điện thoại để xem tên và ảnh đại diện trên Zalo, rồi xác nhận đúng người.
+        Số điện thoại không được lưu. Mẹ cần cho phép tìm bằng số điện thoại và kết bạn tài khoản phụ với mẹ trên Zalo nếu chưa kết bạn.</p>
+    <div class="notice" th:if="${deputyMsg}" th:classappend="${deputyStatus == 'FOUND'} ? 'ok' : (${deputyStatus == 'STOPPED'} ? 'bad')"
+         th:text="${deputyMsg}" role="status">Đã tìm thấy.</div>
+    <div class="person" th:if="${deputyCurrent.person != null}">
+        <img class="avatar" th:if="${deputyCurrent.person.avatar != null}" th:src="${deputyCurrent.person.avatar}" alt="Ảnh đại diện của mẹ" width="64" height="64">
+        <span class="avatar ph" th:unless="${deputyCurrent.person.avatar != null}" aria-hidden="true">Mẹ</span>
+        <div>
+            <strong th:text="${deputyCurrent.source == 'SETTING' ? deputyCurrent.person.name : 'Người được khai báo khi triển khai'}">Tên của mẹ</strong>
+            <span class="sub-line notice bad" th:if="${deputyCurrent.stale or deputyConfigBlocker == 'STALE_CONFIG'}">Tài khoản Zalo đã đổi. Hãy tra và xác nhận lại mẹ.</span>
+            <span class="sub-line notice warn" th:if="${!deputyCurrent.stale and deputyConfigBlocker == 'UNVERIFIED_CONFIG'}">Cần tra và xác nhận lại mẹ để tự bổ sung.</span>
+            <span class="sub-line" th:if="${deputyCurrent.source == 'SETTING' and !deputyCurrent.stale and deputyConfigBlocker != 'STALE_CONFIG'}">Đã xác nhận người sẽ được bổ nhiệm.</span>
+            <span class="sub-line" th:if="${deputyCurrent.source == 'ENV'}">Hãy tra và xác nhận mẹ theo tài khoản này để tự bổ sung vào nhóm đang mở.</span>
+        </div>
+        <form th:if="${deputyCurrent.source == 'SETTING'}" th:action="@{/zalo/deputy/clear(account=${account})}" method="post">
+            <button type="submit" class="btn secondary sm">Bỏ người đã chọn</button>
+        </form>
+    </div>
+    <p class="notice info" th:if="${deputyCurrent.person == null}">Chưa xác nhận mẹ cho tài khoản này. Hãy tra số điện thoại bên dưới.</p>
+    <div class="person cand" th:if="${deputyCandidate != null}">
+        <img class="avatar" th:if="${deputyCandidate.avatar != null}" th:src="${deputyCandidate.avatar}" alt="Ảnh đại diện vừa tra được" width="64" height="64">
+        <span class="avatar ph" th:unless="${deputyCandidate.avatar != null}" aria-hidden="true">?</span>
+        <div>
+            <strong th:text="${deputyCandidate.name}">Tên hiển thị</strong>
+            <span class="sub-line">Có đúng là mẹ không?</span>
+        </div>
+        <form th:action="@{/zalo/deputy/confirm(account=${account})}" method="post">
+            <input type="hidden" name="revision" th:value="${deputyCandidate.revision}">
+            <button type="submit" class="btn sm">Đúng, chọn người này</button>
+        </form>
+        <form th:action="@{/zalo/deputy/cancel(account=${account})}" method="post"><button type="submit" class="btn secondary sm">Không phải</button></form>
+    </div>
+    <form class="inline" th:action="@{/zalo/deputy/lookup(account=${account})}" method="post" autocomplete="off">
+        <input type="tel" name="phone" inputmode="tel" maxlength="20" placeholder="Số điện thoại của mẹ" aria-label="Số điện thoại của mẹ" required>
+        <button type="submit" class="btn secondary">Tra tên và ảnh</button>
+    </form>
+
+    <h3>Tự đối chiếu các nhóm đang mở</h3>
+    <p class="hint">ADH kiểm tra quyền của mẹ trên Zalo rồi bổ sung nếu còn thiếu. Việc này chạy theo từng tài khoản, kể cả khi đã tắt tự tạo nhóm.</p>
+    <form class="inline" th:action="@{/zalo/deputy/reconcile/switch(account=${account})}" method="post">
+        <input type="hidden" name="on" th:value="${!deputyReconcileEnabled}">
+        <span th:text="${deputyReconcileEnabled ? 'Đang bật' : 'Đang tắt'}">Đang tắt</span>
+        <button type="submit" class="btn secondary"
+                th:text="${deputyReconcileEnabled ? 'Tắt tự đối chiếu' : 'Bật tự đối chiếu và bổ sung'}">Bật tự đối chiếu và bổ sung</button>
+    </form>
+    <p class="notice info" th:if="${deputyReconcileEnabled and (tripped or !accountEnabled or (account != 1 and !multiRunning))}">
+        Tự đối chiếu đang chờ tài khoản hoạt động trở lại.
+    </p>
+    <div class="table-wrap">
+        <table aria-label="Trạng thái phó nhóm của các nhóm đang mở">
+            <thead>
+                <tr><th scope="col">Nhóm đang mở</th><th scope="col">Trạng thái trên Zalo</th><th scope="col">Lần đối chiếu gần nhất (giờ Việt Nam)</th></tr>
+            </thead>
+            <tbody>
+                <tr th:each="g : ${deputyGroups}" th:id="${'deputy-group-' + g.groupId}">
+                    <th scope="row" th:text="${g.name}">Tây Ninh - 01</th>
+                    <td>
+                        <strong th:switch="${g.status}">
+                            <span th:case="'VERIFIED'">Đã xác minh mẹ có quyền quản trị</span>
+                            <span th:case="'PENDING_VERIFY'">Đã yêu cầu bổ sung, chờ đọc lại</span>
+                            <span th:case="'BLOCKED'">Đang bị chặn bổ sung</span>
+                            <span th:case="'NO_CONFIG'">Chưa xác nhận mẹ</span>
+                            <span th:case="'UNVERIFIED_CONFIG'">Cần tra và xác nhận lại mẹ</span>
+                            <span th:case="'STALE_CONFIG'">Cấu hình thuộc phiên Zalo cũ</span>
+                            <span th:case="'DISABLED'">Đang tắt tự đối chiếu</span>
+                            <span th:case="'PENDING'">Đang chờ đối chiếu</span>
+                            <span th:case="'CHECK_FAILED'">Chưa đọc được quyền trên Zalo</span>
+                            <span th:case="'MISSING'">Zalo ghi nhận mẹ chưa có quyền</span>
+                            <span th:case="'NO_GROUP_ID'">Chưa gán mã nhóm Zalo</span>
+                            <span th:case="'LIMIT_REACHED'">Đã hết số lượt tự bổ sung, cần kiểm tra trên Zalo</span>
+                            <span th:case="*">Chưa rõ kết quả</span>
+                        </strong>
+                        <span class="sub-line muted" th:switch="${g.code}">
+                            <span th:case="'NO_OWNER'">Tài khoản này không phải trưởng nhóm trên Zalo.</span>
+                            <span th:case="'DUPLICATE_GROUP'">Nhiều bản ghi ADH đang gán cùng một nhóm Zalo.</span>
+                            <span th:case="'ACCOUNT_DISABLED'">Tài khoản phụ đang tạm ngưng.</span>
+                            <span th:case="'TEST_MODE'">Tài khoản phụ chưa bật chạy thật.</span>
+                            <span th:case="'BRIDGE_NOT_READY'">Cầu nối chưa xác minh được phiên Zalo.</span>
+                            <span th:case="*" th:if="${g.code != null and !g.code.isBlank()}" th:text="${'Mã kết quả ' + g.code}">Mã kết quả</span>
+                        </span>
+                    </td>
+                    <td th:text="${g.checkedAt == null ? 'Chưa đọc' : #temporals.format(g.checkedAt, 'dd/MM/yyyy HH:mm', deputyTimeZone)}">Chưa đọc</td>
+                </tr>
+                <tr th:if="${deputyGroups.isEmpty()}"><td colspan="3" class="muted">Tài khoản này chưa có nhóm đang mở trong ADH.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>

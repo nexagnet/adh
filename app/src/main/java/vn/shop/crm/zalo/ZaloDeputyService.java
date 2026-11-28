@@ -2,6 +2,8 @@ package vn.shop.crm.zalo;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import vn.shop.crm.common.AppSettings;
 import vn.shop.crm.common.ImportException;
 import vn.shop.crm.common.PhoneNormalizer;
@@ -13,6 +15,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Chọn mẹ làm phó nhóm bằng SỐ ĐIỆN THOẠI thay vì mã Zalo (D19). Chủ shop nhập số của mẹ ở trang Zalo; bộ nối tra tên và ảnh đại diện (qua
@@ -36,6 +39,7 @@ public class ZaloDeputyService {
     /** Dấu tài khoản phụ lúc tra mã của mẹ (mã Zalo của một người khác nhau theo từng tài khoản đang hỏi). */
     static final String ACCT = "zalo.deputy.acct";
     static final String CAND_ACCT = "zalo.deputy.cand_acct";
+    static final String CAND_REVISION = "zalo.deputy.cand_revision";
     static final String LAST_LOOKUP = "zalo.deputy.last_lookup_at";
 
     /** Khoảng nghỉ cố định giữa hai lần tra (không ngẫu nhiên hóa). */
@@ -50,6 +54,9 @@ public class ZaloDeputyService {
     private static final Set<String> NO_TRIP_CODES = Set.of("WINDOW", "NOT_ACTIVE", "BUSY", "NOT_CONNECTED", "LOGIN_REQUIRED", "BAD_PHONE");
 
     public record Person(String uid, String name, String avatar) {
+    }
+
+    public record Candidate(String uid, String name, String avatar, String accountTag, String revision) {
     }
 
     /** {@code source}: SETTING (đã xác nhận ở trang này), ENV (biến môi trường cũ) hoặc NONE. */
@@ -72,9 +79,10 @@ public class ZaloDeputyService {
     private final JdbcClient jdbc;
     private final Clock clock;
     private final ZaloGateway gateway;
+    private final TransactionTemplate tx;
 
     public ZaloDeputyService(AppSettings settings, ZaloGroupProperties props, ZaloAutoSettings auto, ZaloPersonFinder finder,
-                             ZaloSession session, JdbcClient jdbc, Clock clock, ZaloGateway gateway) {
+                             ZaloSession session, JdbcClient jdbc, Clock clock, ZaloGateway gateway, TransactionTemplate tx) {
         this.gateway = gateway;
         this.settings = settings;
         this.props = props;
@@ -83,6 +91,7 @@ public class ZaloDeputyService {
         this.session = session;
         this.jdbc = jdbc;
         this.clock = clock;
+        this.tx = tx;
     }
 
     // ---------- đọc ----------
@@ -140,19 +149,27 @@ public class ZaloDeputyService {
     }
 
     /** Người vừa tra được, đang chờ chủ shop xác nhận (hết hạn thì coi như không có). */
-    public Optional<Person> candidate() {
-        String uid = settings.get(CAND_UID).orElse("").strip();
-        Instant at = settings.get(CAND_AT).filter(v -> !v.isBlank()).map(v -> {
+    public Optional<Candidate> candidate() {
+        var keys = Set.of(CAND_UID, CAND_NAME, CAND_AVATAR, CAND_AT, CAND_ACCT, CAND_REVISION);
+        var values = jdbc.sql("SELECT key, value FROM app_setting WHERE key IN (:keys)")
+                .param("keys", keys.stream().map(ZaloAccountContext::settingKey).toList())
+                .query((rs, n) -> java.util.Map.entry(rs.getString(1), rs.getString(2))).stream()
+                .collect(java.util.stream.Collectors.toMap(java.util.Map.Entry::getKey, java.util.Map.Entry::getValue));
+        java.util.function.Function<String, String> value = k -> values.getOrDefault(ZaloAccountContext.settingKey(k), "");
+        String uid = value.apply(CAND_UID);
+        String revision = value.apply(CAND_REVISION);
+        Instant at = Optional.of(value.apply(CAND_AT)).map(v -> {
             try {
                 return Instant.parse(v.strip());
             } catch (RuntimeException e) {
                 return null;
             }
         }).orElse(null);
-        if (!uid.matches("\\d{1,32}") || at == null || clock.instant().isAfter(at.plus(CANDIDATE_TTL))) {
+        if (!uid.matches("\\d{1,32}") || revision.isBlank() || at == null || clock.instant().isAfter(at.plus(CANDIDATE_TTL))) {
             return Optional.empty();
         }
-        return Optional.of(new Person(uid, settings.get(CAND_NAME).orElse(""), validAvatar(settings.get(CAND_AVATAR).orElse(null))));
+        return Optional.of(new Candidate(uid, value.apply(CAND_NAME), validAvatar(value.apply(CAND_AVATAR)),
+                value.apply(CAND_ACCT), revision));
     }
 
     // ---------- tra, xác nhận, bỏ ----------
@@ -186,17 +203,25 @@ public class ZaloDeputyService {
         // Ghi TRƯỚC khi gọi, tính cả lần lỗi.
         settings.set(LAST_LOOKUP, now.toString(), "system");
         auto.log(ZaloAutoSettings.A_CONFIG, null, null, A_LOOKUP, "GOI", by);
+        String before = currentTag();
         ZaloPersonFinder.Found f = finder.findByPhone(digits);
         String code = f.code() == null ? "" : f.code();
         auto.log(ZaloAutoSettings.A_CONFIG, null, null, A_LOOKUP + "_KQ", f.result().name() + (code.isEmpty() ? "" : ":" + code), by);
         switch (f.result()) {
             case OK -> {
-                settings.set(CAND_UID, f.uid(), by);
-                settings.set(CAND_NAME, f.name() == null ? "" : f.name(), by);
-                settings.set(CAND_AVATAR, validAvatar(f.avatar()) == null ? "" : f.avatar(), by);
-                settings.set(CAND_AT, now.toString(), by);
-                String tag = currentTag();
-                settings.set(CAND_ACCT, tag == null ? "" : tag, by);
+                String after = currentTag();
+                if (!java.util.Objects.equals(before, after)) {
+                    return new LookupOutcome(Status.UNAVAILABLE, "Phiên tài khoản Zalo đã thay đổi. Hãy tra lại từ tài khoản phụ đang chọn.");
+                }
+                tx.executeWithoutResult(status -> {
+                    lockAccount();
+                    settings.set(CAND_UID, f.uid(), by);
+                    settings.set(CAND_NAME, f.name() == null ? "" : f.name(), by);
+                    settings.set(CAND_AVATAR, validAvatar(f.avatar()) == null ? "" : f.avatar(), by);
+                    settings.set(CAND_AT, now.toString(), by);
+                    settings.set(CAND_ACCT, after == null ? "" : after, by);
+                    settings.set(CAND_REVISION, UUID.randomUUID().toString(), by);
+                });
                 return new LookupOutcome(Status.FOUND, "Đã tìm thấy. Hãy xem tên và ảnh bên dưới có đúng mẹ không rồi bấm xác nhận.");
             }
             case PERSON_ERROR -> {
@@ -224,15 +249,23 @@ public class ZaloDeputyService {
     }
 
     /** Lưu người đã tra được làm phó nhóm. Lấy ở phía máy chủ, không nhận mã từ trình duyệt. */
-    public void confirm(String by) {
-        Person p = candidate().orElseThrow(() -> new ImportException("Chưa có người nào chờ xác nhận hoặc đã hết hạn. Hãy tra lại bằng số điện thoại."));
+    @Transactional
+    public void confirm(String revision, String by) {
+        String current = currentTag();
+        lockAccount();
+        Candidate p = candidate().filter(c -> c.revision().equals(revision)).orElseThrow(
+                () -> new ImportException("Kết quả tra đã đổi hoặc hết hạn. Hãy mở lại mục Phó nhóm và kiểm tra người đang chờ xác nhận."));
+        if (!p.accountTag().isEmpty() && !p.accountTag().equals(current)) {
+            throw new ImportException("Phiên tài khoản đã đổi hoặc chưa kết nối. Hãy tra số của mẹ lại trên tài khoản phụ này.");
+        }
         settings.set(UID, p.uid(), by);
         settings.set(NAME, p.name() == null ? "" : p.name(), by);
         settings.set(AVATAR, p.avatar() == null ? "" : p.avatar(), by);
-        settings.set(ACCT, settings.get(CAND_ACCT).orElse("").strip(), by);
+        settings.set(ACCT, p.accountTag(), by);
         clearCandidate(by);
         // Mã mẹ mới thì các nhóm chưa có phó nhóm được thử lại từ đầu (số lần đã tính cho mã cũ không còn ý nghĩa).
-        jdbc.sql("UPDATE zalo_group_proposal SET deputy_tries = 0 WHERE state = 'DONE' AND deputy_state IN ('FAILED', 'NONE')").update();
+        jdbc.sql("UPDATE zalo_group_proposal SET deputy_tries = 0 WHERE " + ZaloAccountContext.sql()
+                + " AND state = 'DONE' AND deputy_state IN ('FAILED', 'NONE')").update();
         auto.log(ZaloAutoSettings.A_CONFIG, null, null, "PHO_NHOM_XAC_NHAN", "OK", by);
     }
 
@@ -256,12 +289,16 @@ public class ZaloDeputyService {
         settings.set(LAST_AUTO, clock.instant().toString(), "system");
     }
 
+    @Transactional
     public void cancelCandidate(String by) {
+        lockAccount();
         clearCandidate(by);
     }
 
     /** Bỏ người đã xác nhận (nhóm mới tạo sau đó sẽ không có phó nhóm, trừ khi còn biến môi trường). */
+    @Transactional
     public void clear(String by) {
+        lockAccount();
         settings.set(UID, "", by);
         settings.set(NAME, "", by);
         settings.set(AVATAR, "", by);
@@ -276,6 +313,12 @@ public class ZaloDeputyService {
         settings.set(CAND_AVATAR, "", by);
         settings.set(CAND_AT, "", by);
         settings.set(CAND_ACCT, "", by);
+        settings.set(CAND_REVISION, "", by);
+    }
+
+    private void lockAccount() {
+        jdbc.sql("SELECT id FROM zalo_account WHERE id = :id FOR UPDATE")
+                .param("id", ZaloAccountContext.current()).query(Long.class).single();
     }
 
     private long usedToday(Instant now) {

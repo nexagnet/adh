@@ -152,7 +152,7 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
     void phoNhomLaNguoiDaXacNhanBangSoDienThoaiUuTienHonBienMoiTruong() {
         fake.willFind(new ZaloPersonFinder.Found(ZaloPersonFinder.FindResult.OK, null, "4242", "Mẹ Lan", null, 0));
         deputies.lookup("0912345678", "admin");
-        deputies.confirm("admin");
+        deputies.confirm(deputies.candidate().orElseThrow().revision(), "admin");
         mode(ZaloGroupMode.CONFIRM);
         friended(1, 2, 3);
         svc.step();
@@ -569,7 +569,7 @@ class ZaloGroupCreationTest extends AbstractPostgresTest {
         settingsSet("zalo.deputy.cand_name", "Mẹ");
         settingsSet("zalo.deputy.cand_at", clock.instant().toString());
         settingsSet("zalo.deputy.cand_acct", "bbbbbbbbbbbb");
-        deputies.confirm("admin");
+        deputies.confirm(deputies.candidate().orElseThrow().revision(), "admin");
         assertThat(deputies.effectiveUid()).isEqualTo("5555");
         assertThat(svc.recent(1).getFirst().deputyTries()).isZero();
     }

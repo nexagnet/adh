@@ -43,9 +43,19 @@
     <p class="muted" th:if="${enabled and account != 1 and !accountEnabled}">
         Cần đăng nhập đúng tài khoản ở cả hai cầu nối để xác minh.
     </p>
+    <div class="stack" th:if="${enabled}">
+        <h3>Mẹ làm phó nhóm</h3>
+        <p th:if="${deputyCurrent.person == null}">Chưa xác nhận mẹ cho tài khoản này.</p>
+        <p class="notice warn" th:if="${deputyCurrent.stale or deputyConfigBlocker == 'STALE_CONFIG'}">Tài khoản Zalo đã đổi. Hãy tra và xác nhận lại mẹ.</p>
+        <p class="notice warn" th:if="${!deputyCurrent.stale and deputyConfigBlocker == 'UNVERIFIED_CONFIG'}">Cần tra và xác nhận lại mẹ trên tài khoản này.</p>
+        <p class="notice info" th:if="${deputyCurrent.source == 'ENV'}">Hãy xác nhận mẹ để tự bổ sung vào các nhóm đang mở.</p>
+        <p th:if="${deputyConfigBlocker == null and !deputyCurrent.stale}">Đã chọn người được bổ nhiệm.</p>
+        <p class="muted" th:text="${deputyReconcileEnabled ? 'Đã bật tự đối chiếu các nhóm đang mở.' : 'Đang tắt tự đối chiếu các nhóm đang mở.'}">Đang tắt tự đối chiếu các nhóm đang mở.</p>
+    </div>
+
     <div class="actions">
         <a class="btn secondary" th:href="@{/zalo(tab='thu', account=${account})}">Danh sách số thử</a>
         <a class="btn secondary" th:if="${enabled}" th:href="@{/zalo(tab='gioi-han', account=${account})}">Chỉnh giới hạn gửi</a>
-        <a class="btn secondary" th:if="${enabled}" th:href="@{/zalo(tab='nhom', account=${account})} + '#pho-nhom'">Cấu hình phó nhóm</a>
+        <a class="btn secondary" th:if="${enabled}" th:href="@{/zalo(tab='nhom', account=${account})} + '#pho-nhom'">Cấu hình và xem từng nhóm</a>
     </div>
 </section>

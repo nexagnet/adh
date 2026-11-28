@@ -74,6 +74,20 @@ public interface ZaloSession {
         return GroupInspection.failed("INSPECTION_UNAVAILABLE");
     }
 
+    record DeputyInspection(String outcome, String code, String groupId, boolean owner, String role) {
+        static DeputyInspection failed(String code) {
+            return new DeputyInspection("FAILED", code, null, false, "UNKNOWN");
+        }
+    }
+
+    default DeputyInspection inspectDeputy(String groupId, String deputyUid) {
+        return DeputyInspection.failed("INSPECTION_UNAVAILABLE");
+    }
+
+    default DeputyInspection inspectDeputy(String groupId, String deputyUid, String accountTag) {
+        return inspectDeputy(groupId, deputyUid);
+    }
+
     enum JoinGroupOutcome { JOINED, PENDING, NOT_DISPATCHED, UNKNOWN }
 
     record JoinGroupResult(JoinGroupOutcome outcome, String code, String groupId) {

@@ -142,7 +142,7 @@ class ZaloMultiAccountGroupTest extends AbstractPostgresTest {
         fake.willFind(new ZaloPersonFinder.Found(ZaloPersonFinder.FindResult.OK, null, "5151", "Mẹ Lan", null, 0));
         ZaloAccountContext.run(2, () -> {
             deputies.lookup("0912345678", "admin");
-            deputies.confirm("admin");
+            deputies.confirm(deputies.candidate().orElseThrow().revision(), "admin");
         });
         assertThat(ZaloAccountContext.call(2, deputies::effectiveUid)).isEqualTo("5151");
         assertThat(deputies.effectiveUid()).isEqualTo("99887766");
