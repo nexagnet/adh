@@ -197,16 +197,15 @@ class ImportAcceptanceTest extends AbstractPostgresTest {
     }
 
     @Test
-    void khongCoMaDonGocThiGanCoCanKiemTraKhongTuGop() {
+    void khongCoMaDonGocThiKhongTuGopVaKhongGanCo() {
         importCsv(Carrier.VIETTEL_POST, vtp(
                 "VTP1,,05/01/2026 09:00:00,Do Van K,0944555666,44 Duong K,Giao thành công",
                 "VTP2,,05/01/2026 09:00:00,Do Van K,0944555666,44 Duong K,Giao thành công"));
 
         CustomerRow customer = only();
         assertThat(customer.segment()).isEqualTo(Segment.REPEAT);
-        assertThat(customer.needsReview()).isTrue();
-        assertThat(customer.reviewReasons()).contains(ReviewReason.REPEAT_WITHOUT_ORDER_REF.name());
-        assertThat(customers.search(null, true, null, 1, 50).total()).isEqualTo(1);
+        assertThat(customer.needsReview()).isFalse();
+        assertThat(customers.search(null, true, null, 1, 50).total()).isZero();
     }
 
     @Test

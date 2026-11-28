@@ -19,8 +19,8 @@ import java.util.Set;
  *
  * <ul>
  *   <li>Mọi vận đơn có cùng mã đơn bán hàng (và cùng SĐT) là MỘT lần mua.</li>
- *   <li>Vận đơn không có mã đơn bán hàng thì mỗi vận đơn là một lần mua riêng (không gộp bằng phỏng đoán)
- *       và khách bị gắn cờ cần kiểm tra nếu kết quả có thể bị đếm dư.</li>
+ *   <li>Vận đơn không có mã đơn bán hàng thì mỗi vận đơn là một lần mua riêng (không gộp bằng phỏng đoán). Thiếu mã đơn
+ *       KHÔNG làm khách bị gắn cờ cần kiểm tra (chủ shop chốt 28/11/2026).</li>
  *   <li>Một lần mua chỉ thành công khi có ít nhất một vận đơn DELIVERED. Trạng thái chưa xác định không bao giờ
  *       được coi là thành công.</li>
  *   <li>Đơn "đã lấy hàng/đang giao" quá lâu ({@link StaleOrders#AFTER_DAYS} ngày) là đơn kẹt: không thành công,
@@ -33,8 +33,7 @@ public final class CustomerClassifier {
     public enum ReviewReason {
         UNKNOWN_STATUS("Có vận đơn chưa xác định được trạng thái"),
         STALE_OPEN_ORDER("Có đơn \"đã lấy hàng/đang giao\" quá " + StaleOrders.AFTER_DAYS
-                + " ngày mà hãng không cập nhật thêm (chưa xác định giao được hay chưa)"),
-        REPEAT_WITHOUT_ORDER_REF("Từ 2 lần mua nhưng có đơn không có mã đơn bán hàng (có thể là một đơn tách kiện)");
+                + " ngày mà hãng không cập nhật thêm (chưa xác định giao được hay chưa)");
 
         private final String label;
 
@@ -89,10 +88,6 @@ public final class CustomerClassifier {
         Set<ReviewReason> reasons = EnumSet.noneOf(ReviewReason.class);
         if (shipments.stream().anyMatch(s -> s.status() == CanonicalStatus.UNKNOWN)) {
             reasons.add(ReviewReason.UNKNOWN_STATUS);
-        }
-        if (successfulCount >= 2
-                && purchases.stream().anyMatch(p -> p.successful() && !p.hasOrderRef())) {
-            reasons.add(ReviewReason.REPEAT_WITHOUT_ORDER_REF);
         }
         Set<Long> stale = new java.util.LinkedHashSet<>();
         for (ShipmentFact s : ordered) {

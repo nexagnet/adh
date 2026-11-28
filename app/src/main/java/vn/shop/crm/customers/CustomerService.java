@@ -189,7 +189,7 @@ public class CustomerService {
      * Phiên bản cách tính khách (cột "Mua gần nhất", đơn kẹt...). Tăng số này khi đổi cách tính để khi khởi động
      * hệ thống tính lại các khách còn ở phiên bản cũ.
      */
-    public static final int CALC_VERSION = 3; // 3: V24 gán nghĩa J&T + nâng đơn theo file đối soát
+    public static final int CALC_VERSION = 4; // 4: thiếu mã đơn bán hàng không còn gắn cờ cần kiểm tra; 3: V24 gán nghĩa J&T + nâng đơn theo file đối soát
 
     /**
      * Tính lại khách cần tính lại vì: (1) còn ở phiên bản cách tính cũ, (2) có đơn "đang chạy" vừa quá ngưỡng kẹt

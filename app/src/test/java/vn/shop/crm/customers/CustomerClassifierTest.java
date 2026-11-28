@@ -88,14 +88,15 @@ class CustomerClassifierTest {
         assertThat(c.purchases().getFirst().shipments()).hasSize(2);
     }
 
-    /** Không có mã đơn gốc thì không gộp bằng phỏng đoán, nhưng gắn cờ cần kiểm tra. */
+    /** Không có mã đơn gốc thì không gộp bằng phỏng đoán, và cũng KHÔNG gắn cờ cần kiểm tra. */
     @Test
-    void khongCoMaDonKhongGopNhungGanCo() {
+    void khongCoMaDonKhongGopVaKhongGanCo() {
         Classification c = classify(List.of(
                 fact(1, Carrier.VIETTEL_POST, "VTP1", null, CanonicalStatus.DELIVERED),
                 fact(2, Carrier.VIETTEL_POST, "VTP2", "  ", CanonicalStatus.DELIVERED)));
         assertThat(c.segment()).isEqualTo(Segment.REPEAT);
-        assertThat(c.reasons()).containsExactly(ReviewReason.REPEAT_WITHOUT_ORDER_REF);
+        assertThat(c.reasons()).isEmpty();
+        assertThat(c.needsReview()).isFalse();
     }
 
     @Test
