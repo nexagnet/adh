@@ -145,6 +145,26 @@ class StaleOrderAcceptanceTest extends AbstractPostgresTest {
         assertThat(customers.refreshStale()).isZero();
     }
 
+    /** Chủ shop duyệt 28/11/2026: chỉ thiếu mã đơn thì hết "cần kiểm tra"; dòng cũ còn cờ được gỡ khi khởi động, số lần mua giữ nguyên. */
+    @Test
+    void khachConCoThieuMaDonCuDuocGoCoKhiKhoiDong() {
+        shipment("N1", "+84955555555", "DELIVERED", ago(80));
+        shipment("N2", "+84955555555", "DELIVERED", ago(40));
+        jdbc.sql("UPDATE shipment SET order_ref = NULL WHERE receiver_phone = '+84955555555'").update();
+        jdbc.sql("""
+                INSERT INTO customer (phone, segment, successful_purchases, last_order_on, needs_review, review_reasons, calc_version)
+                VALUES ('+84955555555', 'REPEAT', 2, :t, TRUE, 'REPEAT_WITHOUT_ORDER_REF', 3)""")
+                .param("t", Timestamp.valueOf(ago(40))).update();
+
+        refresh.refresh();
+
+        var c = customer("+84955555555");
+        assertThat(c.needsReview()).isFalse();
+        assertThat(c.reviewReasons()).isEmpty();
+        assertThat(c.segment()).isEqualTo(Segment.REPEAT);
+        assertThat(c.successfulPurchases()).isEqualTo(2);
+    }
+
     @Test
     void trangTrangThaiVaChiTietKhachHienRoDonKet() throws Exception {
         shipment("W1", "+84988888888", "IN_TRANSIT", ago(StaleOrders.AFTER_DAYS + 50));

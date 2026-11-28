@@ -38,7 +38,7 @@
         <div class="notice" th:if="${selected.get(T(vn.shop.crm.imports.FieldKey).ORDER_REF) == null}">
             <strong>Chưa chọn cột mã đơn hàng của shop</strong>
             Khi không có mã đơn, mỗi vận đơn được tính là một lần mua riêng, nên đơn tách thành nhiều kiện có thể bị đếm dư.
-            Hệ thống không đoán theo ngày hay giá: những khách có thể bị đếm dư sẽ vào mục «cần kiểm tra».
+            Hệ thống không đoán theo ngày hay giá, và không còn đưa khách vào mục «cần kiểm tra» chỉ vì thiếu mã đơn: bạn tự xem số lần mua ở chi tiết khách nếu cần.
         </div>
         <div class="actions">
             <button type="submit" class="btn">Xem trước</button>
