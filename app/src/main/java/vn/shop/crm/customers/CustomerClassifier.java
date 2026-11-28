@@ -19,8 +19,9 @@ import java.util.Set;
  *
  * <ul>
  *   <li>Mọi vận đơn có cùng mã đơn bán hàng (và cùng SĐT) là MỘT lần mua.</li>
- *   <li>Vận đơn không có mã đơn bán hàng thì mỗi vận đơn là một lần mua riêng (không gộp bằng phỏng đoán)
- *       và khách bị gắn cờ cần kiểm tra nếu kết quả có thể bị đếm dư.</li>
+ *   <li>Vận đơn không có mã đơn bán hàng thì mỗi vận đơn là một lần mua riêng (không gộp bằng phỏng đoán).
+ *       Từ 28/11/2026 chủ shop duyệt: chỉ thiếu mã đơn thì KHÔNG còn gắn cờ cần kiểm tra (khách mua nhiều lần
+ *       vẫn là mua nhiều lần, chỉ bỏ cờ).</li>
  *   <li>Một lần mua chỉ thành công khi có ít nhất một vận đơn DELIVERED. Trạng thái chưa xác định không bao giờ
  *       được coi là thành công.</li>
  *   <li>Đơn "đã lấy hàng/đang giao" quá lâu ({@link StaleOrders#AFTER_DAYS} ngày) là đơn kẹt: không thành công,
@@ -34,6 +35,10 @@ public final class CustomerClassifier {
         UNKNOWN_STATUS("Có vận đơn chưa xác định được trạng thái"),
         STALE_OPEN_ORDER("Có đơn \"đã lấy hàng/đang giao\" quá " + StaleOrders.AFTER_DAYS
                 + " ngày mà hãng không cập nhật thêm (chưa xác định giao được hay chưa)"),
+        /**
+         * Không còn được gắn từ 28/11/2026 (chủ shop duyệt bỏ). Giữ lại để đọc được các dòng cũ chưa tính lại.
+         */
+        @Deprecated
         REPEAT_WITHOUT_ORDER_REF("Từ 2 lần mua nhưng có đơn không có mã đơn bán hàng (có thể là một đơn tách kiện)");
 
         private final String label;
@@ -89,10 +94,6 @@ public final class CustomerClassifier {
         Set<ReviewReason> reasons = EnumSet.noneOf(ReviewReason.class);
         if (shipments.stream().anyMatch(s -> s.status() == CanonicalStatus.UNKNOWN)) {
             reasons.add(ReviewReason.UNKNOWN_STATUS);
-        }
-        if (successfulCount >= 2
-                && purchases.stream().anyMatch(p -> p.successful() && !p.hasOrderRef())) {
-            reasons.add(ReviewReason.REPEAT_WITHOUT_ORDER_REF);
         }
         Set<Long> stale = new java.util.LinkedHashSet<>();
         for (ShipmentFact s : ordered) {
