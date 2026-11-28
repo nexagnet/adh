@@ -3,8 +3,15 @@
 <body>
 <th:block th:fragment="report">
     <section class="panel stack">
-        <h2>Đối chiếu lời mời kết bạn</h2>
-        <p class="hint">Chọn tài khoản phụ đã gửi lời mời trong chiến dịch này. ADH chạy nền và chỉ đọc trạng thái từ Zalo.</p>
+        <header class="page-head">
+            <div class="titles">
+                <h2>Đối chiếu lời mời kết bạn</h2>
+                <p class="hint">ADH chạy nền và chỉ đọc trạng thái từ Zalo trên tài khoản bạn chọn.</p>
+            </div>
+            <div class="actions" th:unless="${#lists.isEmpty(reconcileAccounts)}">
+                <a class="btn secondary" th:href="@{/campaigns/{id}(id=${campaign.id},tab='doi-chieu',reconciliationPage=${reconcileRows.number})}">Cập nhật tiến độ và kết quả</a>
+            </div>
+        </header>
         <p class="muted" th:if="${#lists.isEmpty(reconcileAccounts)}">Chưa có tài khoản Zalo để đối chiếu trong chiến dịch này.</p>
         <ul class="reconciliation-accounts" th:unless="${#lists.isEmpty(reconcileAccounts)}">
             <li class="stack" th:each="account : ${reconcileAccounts}"
@@ -15,7 +22,7 @@
                 <div class="actions">
                     <h3 th:text="${account.label}">Tài khoản phụ</h3>
                     <form data-reconciliation-start th:action="@{/campaigns/{id}/reconcile/{account}(id=${campaign.id},account=${account.id})}" method="post">
-                        <button type="submit" class="btn secondary"
+                        <button type="submit" class="btn"
                                 th:disabled="${running or job.blockingCampaignId != null or !account.active or account.eligible == 0}"
                                 th:aria-label="${'Đối chiếu ngay · ' + account.label}"
                                 th:text="${running ? 'Đang đối chiếu…' : 'Đối chiếu ngay'}">Đối chiếu ngay</button>
@@ -58,9 +65,6 @@
                 </div>
             </li>
         </ul>
-        <div class="actions" th:unless="${#lists.isEmpty(reconcileAccounts)}">
-            <a th:href="@{/campaigns/{id}(id=${campaign.id},tab='doi-chieu',reconciliationPage=${reconcileRows.number})}">Cập nhật tiến độ và kết quả</a>
-        </div>
     </section>
     <section class="panel stack">
         <h2>Kết quả đối chiếu</h2>

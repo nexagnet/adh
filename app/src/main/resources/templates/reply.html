@@ -3,7 +3,7 @@
 <head th:replace="~{fragments :: head('Trợ lý AI trả lời khách')}"></head>
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
-<main>
+<main id="noi-dung-chinh" tabindex="-1">
     <div th:replace="~{fragments :: testModeAlert}"></div>
     <header class="page-head">
         <div class="titles">
@@ -38,6 +38,21 @@
                 số điện thoại, địa chỉ, mã vận đơn, thanh toán, mã Zalo, tên khách hay link nhóm. Khách từng từ chối không bao giờ được trả lời ở đây.</li>
             <li>Khách nhắn trước thì không giới hạn số câu trả lời (mỗi tin đến một câu trả lời); vẫn theo giờ gửi, khoảng nghỉ cố định, cầu dao và phanh khẩn cấp của bộ nối.</li>
         </ul>
+    </section>
+
+    <section class="panel stack" id="nac" th:if="${tab == 'bat-tat'}">
+        <h2>Chế độ trả lời tin nhắn</h2>
+        <form class="stack" th:action="@{/zalo/reply/mode(account=${account})}" method="post">
+            <label class="field" th:each="m : ${modes}">
+                <input type="radio" name="mode" th:value="${m.name()}" th:checked="${m == chosen}">
+                <span th:text="${m.label()}">Tắt</span>
+                <span class="sub-line" th:text="${m.hint()}">Mô tả</span>
+            </label>
+            <label class="field"><input type="checkbox" name="confirmedTested" value="true">
+                Tôi đã chạy nấc "Chỉ soạn nháp" một thời gian và thấy các nháp là đúng, an toàn (bắt buộc để bật nấc Tự động).</label>
+            <p class="sub-line" th:unless="${tried}">Hãy chọn "Chỉ soạn nháp" trước; nấc Tự động chỉ mở sau khi đã chạy nấc đó.</p>
+            <div><button type="submit" class="btn">Lưu nấc</button></div>
+        </form>
     </section>
 
     <section class="panel stack" id="tin-rieng" th:if="${tab == 'bat-tat'}">
@@ -96,21 +111,6 @@
             <label class="field"><input type="radio" name="enabled" value="true" th:checked="${reactOn}"> <span>Bật thả tim</span></label>
             <label class="field"><input type="radio" name="enabled" value="false" th:checked="${!reactOn}"> <span>Tắt</span></label>
             <div><button type="submit" class="btn">Lưu</button></div>
-        </form>
-    </section>
-
-    <section class="panel stack" id="nac" th:if="${tab == 'bat-tat'}">
-        <h2>Nấc</h2>
-        <form class="stack" th:action="@{/zalo/reply/mode(account=${account})}" method="post">
-            <label class="field" th:each="m : ${modes}">
-                <input type="radio" name="mode" th:value="${m.name()}" th:checked="${m == chosen}">
-                <span th:text="${m.label()}">Tắt</span>
-                <span class="sub-line" th:text="${m.hint()}">Mô tả</span>
-            </label>
-            <label class="field"><input type="checkbox" name="confirmedTested" value="true">
-                Tôi đã chạy nấc "Chỉ soạn nháp" một thời gian và thấy các nháp là đúng, an toàn (bắt buộc để bật nấc Tự động).</label>
-            <p class="sub-line" th:unless="${tried}">Hãy chọn "Chỉ soạn nháp" trước; nấc Tự động chỉ mở sau khi đã chạy nấc đó.</p>
-            <div><button type="submit" class="btn">Lưu nấc</button></div>
         </form>
     </section>
 

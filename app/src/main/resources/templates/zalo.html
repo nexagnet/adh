@@ -3,18 +3,32 @@
 <head th:replace="~{fragments :: head('Zalo tài khoản phụ')}"></head>
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
-<main>
-    <div th:replace="~{fragments :: testModeAlert}"></div>
+<main id="noi-dung-chinh" tabindex="-1">
     <header class="page-head">
         <div class="titles">
             <h1>Zalo tài khoản phụ</h1>
-            <p class="hint">Mỗi tài khoản phụ có hạn mức riêng. Khi Zalo báo hạn chế, hệ thống dừng gửi trên mọi tài khoản.</p>
+            <p class="hint">Đang xem và chỉnh <strong th:text="${accountLabel}">Tài khoản phụ 1</strong></p>
         </div>
     </header>
 
+    <div th:if="${tab != 'thu'}"><div th:replace="~{fragments :: testModeAlert}"></div></div>
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã lưu.</div>
 
-    <div class="safety-bar" th:if="${enabled}">
+    <nav class="tabs" aria-label="Chọn tài khoản Zalo phụ" th:if="${multi}">
+        <a th:each="a : ${accounts}" th:href="@{/zalo(account=${a.id}, tab=${tab})}"
+           th:text="${a.label} + (${a.enabled} ? '' : ' (tạm ngưng)')" th:classappend="${a.id == account} ? 'active'"
+           th:attr="aria-current=${a.id == account} ? 'page'">Tài khoản phụ 1</a>
+    </nav>
+    <div class="notice warn" th:if="${multi and !multiRunning}">
+        Chế độ nhiều tài khoản đang tắt trên máy chủ. Chỉ tài khoản phụ 1 có thể gửi tin.
+    </div>
+    <div class="actions" th:if="${multi and tab != 'cau-hinh' and account != 1}">
+        <form th:action="@{/zalo/accounts/{id}/enabled(id=${account}, account=${account})}" method="post" class="formrow">
+            <input type="hidden" name="on" th:value="${!accountEnabled}">
+            <button type="submit" class="btn secondary sm" th:text="${accountEnabled} ? 'Tạm ngưng tài khoản này' : 'Bật tài khoản này'">Tạm ngưng</button>
+        </form>
+    </div>
+    <div id="dieu-khien-zalo" class="safety-bar" th:if="${enabled}">
         <span>Tự gửi tin: <strong th:text="${msg.enabled ? 'đang bật' : 'đang tắt'}">đang tắt</strong></span>
         <form th:action="@{/zalo/stop(account=${account})}" method="post" th:unless="${tripped}"><button type="submit" class="btn secondary danger sm" th:text="${multi} ? 'Dừng tài khoản này' : 'Dừng ngay'">Dừng ngay</button></form>
         <form th:action="@{/campaigns/pause-all}" method="post" th:unless="${send.paused}"><button type="submit" class="btn secondary danger sm">Tạm dừng tất cả chiến dịch</button></form>
@@ -24,20 +38,27 @@
         <strong>Đang TẠM DỪNG tất cả chiến dịch</strong>
         <span th:if="${!send.pausedReason.isEmpty()}" th:text="'Lý do: ' + ${send.pausedReason}">Lý do</span>
     </div>
-    <nav class="tabs" aria-label="Chọn tài khoản Zalo phụ" th:if="${multi}">
-        <a th:each="a : ${accounts}" th:href="@{/zalo(account=${a.id}, tab=${tab})}"
-           th:text="${a.label} + (${a.enabled} ? '' : ' (tạm ngưng)')" th:classappend="${a.id == account} ? 'active'"
-           th:attr="aria-current=${a.id == account} ? 'page'">Tài khoản phụ 1</a>
-    </nav>
-    <div class="notice info" th:if="${multi and tab != 'cau-hinh'}">
-        Đang xem và chỉnh <strong th:text="${accountLabel}">Tài khoản phụ 1</strong>.
-        Đăng nhập, hạn mức riêng, nhóm và phó nhóm áp dụng cho tài khoản đang xem. Mỗi khách gắn cố định một tài khoản từ lúc nhắn Tin 1.
-        <span th:unless="${multiRunning}">Việc chạy nhiều tài khoản <strong>chưa bật</strong> ở cấu hình triển khai nên chỉ tài khoản 1 đang gửi tin.</span>
-        <form th:if="${account != 1}" th:action="@{/zalo/accounts/{id}/enabled(id=${account}, account=${account})}" method="post" class="formrow">
-            <input type="hidden" name="on" th:value="${!accountEnabled}">
-            <button type="submit" class="btn secondary sm" th:text="${accountEnabled} ? 'Tạm ngưng tài khoản này' : 'Bật tài khoản này'">Tạm ngưng</button>
+    <div class="notice bad" th:if="${enabled and tripped}">
+        <strong>Bộ nối Zalo đang dừng</strong>
+        <span th:text="${@zaloLabels.reason(trippedReason)}">Có người bấm dừng</span>
+        <span th:if="${trippedAt != null}">(từ <span th:text="${#temporals.format(trippedAt, 'dd/MM/yyyy HH:mm')}">22/11/2026 10:00</span>)</span>.
+        <p th:if="${sharedHaltSource != null and sharedHaltSource != account}">
+            Tất cả tài khoản đang dừng. Kiểm tra cảnh báo ở <a th:href="@{/zalo(account=${sharedHaltSource})}"
+                th:text="'tài khoản phụ ' + ${sharedHaltSource}">tài khoản báo lỗi</a> để mở lại.
+        </p>
+        <form class="stack" th:if="${sharedHaltSource == null or sharedHaltSource == account}" th:action="@{/zalo/reopen(account=${account})}" method="post">
+            <p>Hãy đọc nhật ký ở tab "Thử và nhật ký" rồi bấm <em>Mở lại</em> khi đã hiểu vì sao dừng.</p>
+            <label class="field"><input type="checkbox" name="checked" value="true">
+                Tôi đã đọc nhật ký và đã kiểm tra nhóm trên Zalo bằng mắt (bắt buộc nếu bộ nối dừng vì Zalo cảnh báo, lỗi lạ hoặc không biết kết quả).</label>
+            <div><button type="submit" class="btn sm">Mở lại</button></div>
         </form>
     </div>
+
+    <div class="notice bad" th:if="${enabled and bridge.accountOk != null and !bridge.accountOk}">
+        <strong>Đăng nhập nhầm tài khoản</strong>
+        Tài khoản vừa đăng nhập không phải tài khoản phụ đã khai báo. Bộ nối từ chối và đăng xuất tài khoản đó.
+    </div>
+
     <nav class="tabs" aria-label="Các phần của trang Zalo">
         <a th:each="t : ${tabs}" th:href="@{/zalo(tab=${t.key}, account=${account})}" th:text="${t.label}"
            th:classappend="${t.key == tab} ? 'active'" th:attr="aria-current=${t.key == tab} ? 'page'">Tình trạng</a>
@@ -125,22 +146,6 @@
         </details>
     </section>
 
-    <div class="notice bad" th:if="${tripped}">
-        <strong>Bộ nối Zalo đang dừng</strong>
-        <span th:text="${@zaloLabels.reason(trippedReason)}">Có người bấm dừng</span>
-        <span th:if="${trippedAt != null}">(từ <span th:text="${#temporals.format(trippedAt, 'dd/MM/yyyy HH:mm')}">22/11/2026 10:00</span>)</span>.
-        <p th:if="${sharedHaltSource != null and sharedHaltSource != account}">
-            Tất cả tài khoản đang dừng. Kiểm tra cảnh báo ở <a th:href="@{/zalo(account=${sharedHaltSource})}"
-                th:text="'tài khoản phụ ' + ${sharedHaltSource}">tài khoản báo lỗi</a> để mở lại.
-        </p>
-        <form class="stack" th:if="${sharedHaltSource == null or sharedHaltSource == account}" th:action="@{/zalo/reopen(account=${account})}" method="post">
-            <p>Hãy đọc nhật ký ở tab "Thử và nhật ký" rồi bấm <em>Mở lại</em> khi đã hiểu vì sao dừng.</p>
-            <label class="field"><input type="checkbox" name="checked" value="true">
-                Tôi đã đọc nhật ký và đã kiểm tra nhóm trên Zalo bằng mắt (bắt buộc nếu bộ nối dừng vì Zalo cảnh báo, lỗi lạ hoặc không biết kết quả).</label>
-            <div><button type="submit" class="btn sm">Mở lại</button></div>
-        </form>
-    </div>
-
     <th:block th:if="${tab == 'tinh-trang'}">
     <div class="cards c4">
         <div class="card"><div class="big" th:text="${@zaloLabels.bridgeState(bridge.state.name())}">Đang nghe</div><div class="label">Cầu nối</div></div>
@@ -150,11 +155,6 @@
     </div>
     <p class="muted" th:unless="${quota.inWindow}">Ngoài khung giờ thêm người (<span th:text="${props.windowStart}">07:00</span> đến <span th:text="${props.windowEnd}">22:00</span>): bộ nối sẽ không thêm ai lúc này.</p>
     </th:block>
-    <div class="notice bad" th:if="${bridge.accountOk != null and !bridge.accountOk}">
-        <strong>Đăng nhập nhầm tài khoản</strong>
-        Tài khoản vừa đăng nhập không phải tài khoản phụ đã khai báo. Bộ nối từ chối và đăng xuất tài khoản đó.
-    </div>
-
     <section th:if="${tab == 'tinh-trang'}" class="panel stack">
         <h2>Đăng nhập tài khoản phụ</h2>
         <p th:if="${bridge.state.name() == 'LOGIN_REQUIRED'}">Chưa có phiên Zalo hoặc phiên đã hết hạn. Bấm nút dưới, rồi dùng
@@ -164,6 +164,37 @@
             <form th:action="@{/zalo/login/start(account=${account})}" method="post"><button type="submit" class="btn"
                   th:classappend="${bridge.state.name() != 'LOGIN_REQUIRED'} ? 'secondary'">Quét mã QR</button></form>
             <form th:action="@{/zalo/logout(account=${account})}" method="post"><button type="submit" class="btn secondary danger">Đăng xuất tài khoản phụ</button></form>
+        </div>
+    </section>
+
+    <section th:if="${tab == 'nhom'}" id="cho-vao-nhom">
+        <h2>Khách chờ vào nhóm</h2>
+        <p><a th:href="@{/zalo/group-add-preview(account=${account})}">Mô phỏng xếp nhóm</a>
+            · <a th:href="@{/zalo/group-add-review}">Đối chiếu thêm nhóm</a></p>
+        <p class="muted" th:if="${waiting.isEmpty()}">Chưa có khách nào chờ.</p>
+        <div class="table-wrap" th:if="${!waiting.isEmpty()}">
+            <table data-filter data-sticky>
+                <tr><th>Khách</th><th>Khu vực</th><th>Nhóm dự kiến</th><th>Trạng thái</th><th>Thao tác</th></tr>
+                <tr th:each="w : ${waiting}">
+                    <td th:text="${w.customerName}">Nguyễn Văn A</td>
+                    <td th:text="${w.provinceName}">Cần Thơ</td>
+                    <td><span th:if="${w.groupReady}" th:text="${w.groupName}">Nhóm 1</span>
+                        <span class="warn-text" th:unless="${w.groupReady}">Chưa có nhóm hợp (cần mã nhóm Zalo ở trang Nhóm Zalo)</span></td>
+                    <td><span class="badge" th:classappend="${w.state == 'FAILED'} ? 'bad' : (${w.state == 'QUEUED'} ? 'info' : 'warn')"
+                              th:text="${@zaloLabels.addState(w.state)}">Chờ mẹ duyệt</span>
+                        <span class="sub-line" th:if="${w.code != null}" th:text="${@zaloLabels.addCode(w.code)}">lỗi</span></td>
+                    <td>
+                        <div class="formrow">
+                        <form th:action="@{/zalo/invitations/{id}/approve(id=${w.invitationId}, account=${account})}" method="post" th:if="${w.mayApprove and w.groupReady}">
+                            <button type="submit" class="btn sm">Duyệt thêm vào nhóm</button></form>
+                        <form th:action="@{/zalo/invitations/{id}/retry(id=${w.invitationId}, account=${account})}" method="post" th:if="${w.state == 'FAILED'}">
+                            <button type="submit" class="btn secondary sm">Cho thử lại</button></form>
+                        <form th:action="@{/zalo/invitations/{id}/release(id=${w.invitationId}, account=${account})}" method="post">
+                            <button type="submit" class="btn secondary sm">Mẹ tự thêm tay</button></form>
+                        </div>
+                    </td>
+                </tr>
+            </table>
         </div>
     </section>
 
@@ -205,14 +236,7 @@
 
     <section th:if="${tab == 'tinh-trang'}" class="panel stack" id="tu-gui">
         <h2>Tự gửi tin cho khách</h2>
-        <p class="hint">Hệ thống tự gửi <strong>Tin 1</strong> cho khách của chiến dịch <strong>đã được bạn duyệt</strong>, mỗi khách <strong>đúng một lần</strong>,
-            từng tin một, nghỉ <strong>cố định</strong> giữa hai tin, chỉ trong khung giờ <span th:text="${msg.windowStart}">08:00</span>–<span th:text="${msg.windowEnd}">20:00</span>,
-            không bao giờ gửi cho người đã từ chối. Zalo cảnh báo hoặc có lỗi lạ thì <strong>tự dừng</strong> (cầu dao) và chờ bạn bấm Mở lại.
-            Hạn mức ngày tính theo <strong>số khách được nhắn chủ động</strong> (Tin 1 và các tin nhắc lần 2, 3), trần cứng <span th:text="${msg.maxDaily}">50</span> khách mỗi ngày.
-            Tin trả lời khách đã nhắn mình không tính vào số này nhưng vẫn theo giờ gửi, khoảng nghỉ và cầu dao.
-            Mỗi chiến dịch có thể đặt chặt hơn ở trang của nó, không bao giờ nới được.</p>
-        <p>Công tắc: <strong th:text="${msg.enabled ? 'ĐANG BẬT' : 'ĐANG TẮT'}">ĐANG TẮT</strong>
-            · hôm nay đã nhắn <strong th:text="${msg.usedToday}">0</strong>/<strong th:text="${msg.limits.daily}">10</strong> khách
+        <p>Hôm nay đã nhắn <strong th:text="${msg.usedToday}">0</strong>/<strong th:text="${msg.limits.daily}">10</strong> khách
             · khoảng nghỉ <strong th:text="${msg.limits.gapSeconds}">120</strong> giây
             · <span th:text="${msg.inWindow ? 'đang trong giờ gửi' : 'đang ngoài giờ gửi'}">trong giờ</span></p>
         <div class="notice bad" id="loi-moi-day" th:if="${friendPausedUntil != null}">
@@ -232,6 +256,15 @@
                 <input type="hidden" name="on" value="false"><button type="submit" class="btn danger">Tắt tự gửi tin</button>
             </form>
         </div>
+        <details class="more">
+            <summary>Điều kiện và khung giờ gửi</summary>
+            <p class="hint">Hệ thống tự gửi <strong>Tin 1</strong> cho khách của chiến dịch <strong>đã được bạn duyệt</strong>, mỗi khách <strong>đúng một lần</strong>,
+            từng tin một, nghỉ <strong>cố định</strong> giữa hai tin, chỉ trong khung giờ <span th:text="${msg.windowStart}">08:00</span>–<span th:text="${msg.windowEnd}">20:00</span>,
+            không bao giờ gửi cho người đã từ chối. Zalo cảnh báo hoặc có lỗi lạ thì <strong>tự dừng</strong> (cầu dao) và chờ bạn bấm Mở lại.
+            Hạn mức ngày tính theo <strong>số khách được nhắn chủ động</strong> (Tin 1 và các tin nhắc lần 2, 3), trần cứng <span th:text="${msg.maxDaily}">50</span> khách mỗi ngày.
+            Tin trả lời khách đã nhắn mình không tính vào số này nhưng vẫn theo giờ gửi, khoảng nghỉ và cầu dao.
+            Mỗi chiến dịch có thể đặt chặt hơn ở trang của nó, không bao giờ nới được.</p>
+        </details>
     </section>
 
     <section class="panel stack" th:if="${tab == 'gioi-han'}" id="gioi-han-tin">
@@ -373,37 +406,6 @@
         </div>
     </section>
 
-
-    <section th:if="${tab == 'nhom'}" id="cho-vao-nhom">
-        <h2>Khách chờ vào nhóm</h2>
-        <p><a th:href="@{/zalo/group-add-preview(account=${account})}">Mô phỏng xếp nhóm</a>
-            · <a th:href="@{/zalo/group-add-review}">Đối chiếu thêm nhóm</a></p>
-        <p class="muted" th:if="${waiting.isEmpty()}">Chưa có khách nào chờ.</p>
-        <div class="table-wrap" th:if="${!waiting.isEmpty()}">
-            <table data-filter data-sticky>
-                <tr><th>Khách</th><th>Khu vực</th><th>Nhóm dự kiến</th><th>Trạng thái</th><th>Thao tác</th></tr>
-                <tr th:each="w : ${waiting}">
-                    <td th:text="${w.customerName}">Nguyễn Văn A</td>
-                    <td th:text="${w.provinceName}">Cần Thơ</td>
-                    <td><span th:if="${w.groupReady}" th:text="${w.groupName}">Nhóm 1</span>
-                        <span class="warn-text" th:unless="${w.groupReady}">Chưa có nhóm hợp (cần mã nhóm Zalo ở trang Nhóm Zalo)</span></td>
-                    <td><span class="badge" th:classappend="${w.state == 'FAILED'} ? 'bad' : (${w.state == 'QUEUED'} ? 'info' : 'warn')"
-                              th:text="${@zaloLabels.addState(w.state)}">Chờ mẹ duyệt</span>
-                        <span class="sub-line" th:if="${w.code != null}" th:text="${@zaloLabels.addCode(w.code)}">lỗi</span></td>
-                    <td>
-                        <div class="formrow">
-                        <form th:action="@{/zalo/invitations/{id}/approve(id=${w.invitationId}, account=${account})}" method="post" th:if="${w.mayApprove and w.groupReady}">
-                            <button type="submit" class="btn sm">Duyệt thêm vào nhóm</button></form>
-                        <form th:action="@{/zalo/invitations/{id}/retry(id=${w.invitationId}, account=${account})}" method="post" th:if="${w.state == 'FAILED'}">
-                            <button type="submit" class="btn secondary sm">Cho thử lại</button></form>
-                        <form th:action="@{/zalo/invitations/{id}/release(id=${w.invitationId}, account=${account})}" method="post">
-                            <button type="submit" class="btn secondary sm">Mẹ tự thêm tay</button></form>
-                        </div>
-                    </td>
-                </tr>
-            </table>
-        </div>
-    </section>
 
     <section th:if="${tab == 'nhom'}">
         <h2>Kết bạn nhưng không biết là khách nào</h2>

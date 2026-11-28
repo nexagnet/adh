@@ -3,14 +3,14 @@
 <head th:replace="~{fragments :: head('Nhóm Zalo')}"></head>
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
-<main>
+<main id="noi-dung-chinh" tabindex="-1">
     <div th:replace="~{fragments :: testModeAlert}"></div>
     <header class="page-head">
         <div class="titles">
             <h1>Nhóm Zalo</h1>
-            <p class="hint">Mục tiêu khoảng 5 khách mỗi nhóm, lệch một chút cũng được. Số khách không tính tài khoản của mẹ và trợ lý AI
-                (mỗi nhóm thường khoảng <span th:text="${5 + storeAccounts}">7</span> tài khoản).</p>
+            <p class="hint">Theo dõi chỗ trống, khu vực nhận khách và quyền dùng chung.</p>
         </div>
+        <div class="actions"><a class="btn" href="#them-nhom">Thêm nhóm mới</a></div>
     </header>
     <nav th:replace="~{fragments :: groupTabs('groups')}"></nav>
 
@@ -21,12 +21,6 @@
         <div class="card"><div class="big" th:text="${spotsLeft}">0</div><div class="label">Chỗ trống trong các nhóm</div></div>
         <div class="card"><div class="big" th:text="${groups.isEmpty()} ? 0 : ${#aggregates.sum(groups.![actual])}">0</div><div class="label">Khách ước tính trong các nhóm</div></div>
         <div class="card"><div class="big" th:text="${groups.?[status.name() != 'OPEN' or full()].size()}">0</div><div class="label">Nhóm đã đầy hoặc tạm đóng</div></div>
-    </div>
-
-    <div class="notice">
-        <strong>Nhóm tự thêm và nhóm của link mời là MỘT nhóm</strong>
-        Mỗi nhóm cần cả link mời (cho khách tự bấm) và mã nhóm Zalo (cho bộ nối tự thêm). Để khỏi tự đi tìm mã, vào
-        <a th:href="@{/zalo/groups}">danh sách nhóm của tài khoản phụ</a> rồi bấm Gán vào đúng nhóm ở bảng dưới; hoặc bấm <em>Sửa</em> và nhập mã tay.
     </div>
 
     <div class="notice info" th:if="${next != null}">
@@ -50,11 +44,12 @@
             <tr>
                 <td><strong th:text="${g.name}">Nhóm 1</strong>
                     <a class="sub-line" th:href="@{/zalo/shared-groups/{id}(id=${g.id})}">Quyền dùng chung</a>
-                    <span class="sub-line">Khu vực: <span th:text="${g.scopeLabel()}">Chung</span></span>
+                    <span class="sub-line">Khu vực: <span th:text="${g.scopeLabel()}">Chung</span>
+                        · Chủ nhóm: tài khoản phụ <span th:text="${g.accountId}">1</span></span>
                     <span class="sub-line" th:if="${g.note != null}" th:text="${g.note}">ghi chú</span></td>
                 <td><span th:if="${g.hasLink()}" th:text="${g.inviteLink}">https://zalo.me/g/x</span><span class="muted" th:unless="${g.hasLink()}">Chưa có link</span>
-                    <span class="sub-line" th:if="${g.hasZaloId()}">Đã có mã nhóm Zalo (bộ nối thêm được khách vào nhóm này)</span>
-                    <span class="sub-line warn-text" th:unless="${g.hasZaloId()}">Chưa có mã nhóm Zalo (bộ nối chưa thêm khách vào nhóm này được)</span></td>
+                    <span class="sub-line" th:if="${g.hasZaloId()}">Đã gán mã Zalo</span>
+                    <span class="sub-line warn-text" th:unless="${g.hasZaloId()}">Chưa có mã nhóm Zalo để tự thêm khách</span></td>
                 <td><span th:text="${g.actual}">0</span> / <span th:text="${g.target}">5</span>
                     <span class="sub-line" th:if="${g.pendingClicks > 0}" th:text="${g.pendingClicks} + ' lượt bấm chờ'">2 lượt bấm chờ</span>
                     <span class="sub-line" th:if="${g.reserved > 0}" th:text="${g.reserved} + ' chỗ đang giữ cho khách đã kết bạn'">1 chỗ đang giữ</span>
@@ -108,7 +103,7 @@
     </div>
     <p class="muted" th:if="${groups.isEmpty()}">Chưa có nhóm nào. Nên bắt đầu với 2–3 nhóm nhỏ, không tạo sẵn hàng chục nhóm.</p>
 
-    <form class="panel stack" th:action="@{/groups}" method="post">
+    <form id="them-nhom" class="panel stack" th:action="@{/groups}" method="post">
         <h2>Thêm nhóm mới</h2>
         <div class="formrow">
             <label class="field grow">Tên nhóm <input type="text" name="name" placeholder="Nhóm 5" required maxlength="100"></label>
@@ -125,14 +120,12 @@
         <div class="actions"><button type="submit" class="btn">Thêm nhóm</button></div>
     </form>
 
-    <div class="notice info">
-        <strong>Số khách thật do bố mẹ tự đếm và nhập</strong>
-        Hệ thống không đọc được ai đã vào nhóm. Lượt bấm link chỉ là lượt bấm, không phải số người đã vào.
-        Khách được xếp ưu tiên: cùng tỉnh, rồi cùng vùng, rồi cùng miền, rồi nhóm chung.
-    </div>
-
     <details class="more">
-        <summary>Cách đóng nhóm đã đầy và mở nhóm mới</summary>
+        <summary>Cách quản lý nhóm và số chỗ</summary>
+        <p>Mỗi nhóm cần link mời cho khách tự vào và mã nhóm cho ADH tự thêm. Bạn có thể gán mã từ
+            <a th:href="@{/zalo/groups}">danh sách nhóm của tài khoản phụ</a> hoặc nhập mã qua nút <em>Sửa</em>.</p>
+        <p>Số khách không tính tài khoản của mẹ và trợ lý AI. Khách được xếp theo thứ tự cùng tỉnh,
+            cùng vùng, cùng miền rồi nhóm chung. ADH ghi nhận lượt bấm link riêng với số khách đã vào nhóm.</p>
         <ol>
             <li><strong>Mỗi tuần</strong> (hoặc khi thấy nhóm gần đủ), mẹ mở nhóm trên Zalo, đếm số khách thật (không tính mẹ và trợ lý AI),
                 rồi bấm <em>Sửa</em> và nhập vào ô "Số khách thật". Hệ thống tự tính nhóm nào còn chỗ.</li>

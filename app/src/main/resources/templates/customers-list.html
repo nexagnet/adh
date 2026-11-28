@@ -3,7 +3,7 @@
 <head th:replace="~{fragments :: head('Danh sách khách')}"></head>
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
-<main>
+<main id="noi-dung-chinh" tabindex="-1">
     <header class="page-head">
         <div class="titles">
             <h1>
@@ -11,8 +11,8 @@
                 <span th:if="${segment != null}" th:text="${segment.label()}">Mua 1 lần</span>
                 <span th:if="${review}" th:text="${segment == null} ? 'Khách cần kiểm tra' : '— cần kiểm tra'">Khách cần kiểm tra</span>
             </h1>
-            <p class="hint" th:if="${segment != null and segment.name() == 'REPEAT'}">Danh sách để bố mẹ chủ động tư vấn riêng.</p>
-            <p class="hint" th:unless="${segment != null and segment.name() == 'REPEAT'}">Gộp theo số điện thoại nhận hàng, chỉ tính đơn giao thành công.</p>
+            <p class="hint" th:if="${segment != null and segment.name() == 'REPEAT'}">Xem lịch sử mua và tư vấn riêng cho khách.</p>
+            <p class="hint" th:unless="${segment != null and segment.name() == 'REPEAT'}">Danh sách gộp theo số điện thoại nhận hàng.</p>
         </div>
         <div class="actions">
             <a class="btn secondary" th:href="@{${links.export()}}">Tải bảng tính Excel</a>
@@ -22,10 +22,9 @@
     <div class="notice ok" th:if="${flash}" th:text="${flash}">Đã xóa.</div>
 
 
-    <div class="notice info" th:if="${segment != null and segment.name() == 'REPEAT'}">
-        <strong>Không có nút mời vào nhóm</strong>
-        Khách ở đây không được đưa vào chiến dịch mời hay quảng cáo hàng loạt. Bố mẹ gọi điện hoặc nhắn theo cách khách đồng ý.
-    </div>
+    <p class="notice info" th:if="${segment != null and segment.name() == 'REPEAT'}">
+        <strong>Không có nút mời vào nhóm</strong> Liên hệ riêng theo cách khách đã đồng ý.
+    </p>
 
     <section class="filterbar" aria-label="Lọc khách">
         <form class="fb-search" th:action="@{/customers}" method="get" role="search">
@@ -41,39 +40,42 @@
                 <a class="chip" th:classappend="${segment != null and segment.name() == 'REPEAT'} ? 'on'" th:href="@{${links.with('segment', 'REPEAT')}}">Mua từ 2 lần</a>
             </div>
         </div>
-        <div class="fb-group">
-            <span class="fb-label" id="fb-review">Tình trạng</span>
-            <div class="chips" aria-labelledby="fb-review">
-                <a class="chip" th:classappend="${!review} ? 'on'" th:href="@{${links.with('review', null)}}">Tất cả
-                    <span class="n" th:text="${allCount}">0</span></a>
-                <a class="chip" th:classappend="${review} ? 'on'" th:href="@{${links.with('review', 'true')}}">Cần kiểm tra
-                    <span class="n" th:text="${reviewCount}">0</span></a>
+        <details class="more" th:attr="open=${review or area != ''} ? 'open'">
+            <summary>Lọc theo tình trạng và khu vực</summary>
+            <div class="fb-group">
+                <span class="fb-label" id="fb-review">Tình trạng</span>
+                <div class="chips" aria-labelledby="fb-review">
+                    <a class="chip" th:classappend="${!review} ? 'on'" th:href="@{${links.with('review', null)}}">Tất cả
+                        <span class="n" th:text="${allCount}">0</span></a>
+                    <a class="chip" th:classappend="${review} ? 'on'" th:href="@{${links.with('review', 'true')}}">Cần kiểm tra
+                        <span class="n" th:text="${reviewCount}">0</span></a>
+                </div>
             </div>
-        </div>
-        <div class="fb-group">
-            <span class="fb-label" id="fb-area">Khu vực</span>
-            <div class="chips" aria-labelledby="fb-area">
-                <a class="chip" th:classappend="${area == ''} ? 'on'" th:href="@{${links.with('area', null)}}">Tất cả</a>
-                <a class="chip" th:each="r : ${regions}" th:classappend="${area == r.code} ? 'on'" th:href="@{${links.with('area', r.code)}}">
-                    <span th:text="${r.label}">Miền Nam</span> <span class="n" th:text="${r.count}">0</span></a>
-                <a class="chip" th:classappend="${area == 'U'} ? 'on'" th:href="@{${links.with('area', 'U')}}">Chưa rõ khu vực
-                    <span class="n" th:text="${unknownCount}">0</span></a>
+            <div class="fb-group">
+                <span class="fb-label" id="fb-area">Khu vực</span>
+                <div class="chips" aria-labelledby="fb-area">
+                    <a class="chip" th:classappend="${area == ''} ? 'on'" th:href="@{${links.with('area', null)}}">Tất cả</a>
+                    <a class="chip" th:each="r : ${regions}" th:classappend="${area == r.code} ? 'on'" th:href="@{${links.with('area', r.code)}}">
+                        <span th:text="${r.label}">Miền Nam</span> <span class="n" th:text="${r.count}">0</span></a>
+                    <a class="chip" th:classappend="${area == 'U'} ? 'on'" th:href="@{${links.with('area', 'U')}}">Chưa rõ khu vực
+                        <span class="n" th:text="${unknownCount}">0</span></a>
+                </div>
+                <form class="fb-area-pick" th:action="@{/customers}" method="get">
+                    <input type="hidden" th:each="h : ${moreHidden}" th:name="${h.name}" th:value="${h.value}">
+                    <input type="hidden" name="segment" th:value="${segment != null} ? ${segment.name()} : ''" th:disabled="${segment == null}">
+                    <input type="hidden" name="review" value="true" th:disabled="${!review}">
+                    <input type="hidden" name="q" th:value="${q}" th:disabled="${q == ''}">
+                    <select name="area" aria-label="Chọn vùng hoặc tỉnh cụ thể" data-autosubmit>
+                        <option value="">Hoặc chọn vùng, tỉnh cụ thể…</option>
+                        <optgroup th:each="g : ${areaGroups}" th:label="${g.label}">
+                            <option th:each="o : ${g.options}" th:value="${o.code}" th:text="${o.label}" th:selected="${area == o.code}">Hà Nội</option>
+                        </optgroup>
+                    </select>
+                    <noscript><button type="submit" class="btn secondary sm">Lọc</button></noscript>
+                </form>
+                <p class="hint">Khu vực suy ra từ địa chỉ trên vận đơn. Địa chỉ không ghi rõ tỉnh thì để "Chưa rõ", hệ thống không đoán bừa.</p>
             </div>
-            <form class="fb-area-pick" th:action="@{/customers}" method="get">
-                <input type="hidden" th:each="h : ${moreHidden}" th:name="${h.name}" th:value="${h.value}">
-                <input type="hidden" name="segment" th:value="${segment != null} ? ${segment.name()} : ''" th:disabled="${segment == null}">
-                <input type="hidden" name="review" value="true" th:disabled="${!review}">
-                <input type="hidden" name="q" th:value="${q}" th:disabled="${q == ''}">
-                <select name="area" aria-label="Chọn vùng hoặc tỉnh cụ thể" data-autosubmit>
-                    <option value="">Hoặc chọn vùng, tỉnh cụ thể…</option>
-                    <optgroup th:each="g : ${areaGroups}" th:label="${g.label}">
-                        <option th:each="o : ${g.options}" th:value="${o.code}" th:text="${o.label}" th:selected="${area == o.code}">Hà Nội</option>
-                    </optgroup>
-                </select>
-                <noscript><button type="submit" class="btn secondary sm">Lọc</button></noscript>
-            </form>
-            <p class="hint">Khu vực suy ra từ địa chỉ trên vận đơn. Địa chỉ không ghi rõ tỉnh thì để "Chưa rõ", hệ thống không đoán bừa.</p>
-        </div>
+        </details>
     </section>
 
     <div class="activebar" th:if="${!chips.isEmpty()}" aria-label="Điều kiện đang lọc">
@@ -87,7 +89,7 @@
         <input type="hidden" th:each="h : ${hiddenFields}" th:name="${h.name}" th:value="${h.value}">
     </form>
     <div class="table-tools">
-        <span class="muted">Bấm tên cột để sắp xếp. Bấm biểu tượng phễu ở tên cột để lọc cột đó.</span>
+        <span class="muted">Sắp xếp và lọc theo cột</span>
         <button type="submit" form="colfilters" class="btn sm" id="applyfilters">Lọc</button>
     </div>
 
@@ -181,7 +183,7 @@
                     </th:block>
                 </td>
             </tr>
-            <tr th:if="${page.items.isEmpty()}"><td th:colspan="${columns.size()}" class="muted">Không có khách nào.</td></tr>
+            <tr th:if="${page.items.isEmpty()}"><td th:colspan="${columns.size()}" class="muted">Không tìm thấy khách phù hợp.</td></tr>
             </tbody>
         </table>
     </div>

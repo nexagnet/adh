@@ -3,7 +3,7 @@
 <head th:replace="~{fragments :: head('Đối chiếu thêm nhóm')}"></head>
 <body>
 <nav th:replace="~{fragments :: nav}"></nav>
-<main>
+<main id="noi-dung-chinh" tabindex="-1">
     <h1>Đối chiếu thêm nhóm</h1>
     <p><a th:href="@{/groups}">Nhóm Zalo</a></p>
     <p class="notice ok" th:if="${flash}" th:text="${flash}"></p>
