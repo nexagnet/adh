@@ -57,7 +57,7 @@ class MultiPurchaseCampaignTest extends AbstractPostgresTest {
         return t + "," + ref + ",05/01/2026 09:00:00," + name + "," + phone + ",1 Duong A Xa B Hà Nội," + status + ",Áo điều hòa";
     }
 
-    /** P: 1 lần (đã duyệt). R2, R3, R4: 2, 3, 4 lần (không được duyệt trước). X: 2 lần nhưng có đơn không mã đơn (cần kiểm tra). */
+    /** P: 1 lần (đã duyệt). R2, R3, R4: 2, 3, 4 lần (không được duyệt trước). X: 2 lần nhưng có thêm một đơn trạng thái chưa rõ (cần kiểm tra; thiếu mã đơn một mình không còn gắn cờ). */
     @BeforeEach
     void setUp() {
         importRows(
@@ -67,7 +67,8 @@ class MultiPurchaseCampaignTest extends AbstractPostgresTest {
                 row("B3", "DHB3", "R3", "0900000003", "Giao thành công"),
                 row("C1", "DHC1", "R4", "0900000004", "Giao thành công"), row("C2", "DHC2", "R4", "0900000004", "Giao thành công"),
                 row("C3", "DHC3", "R4", "0900000004", "Giao thành công"), row("C4", "DHC4", "R4", "0900000004", "Giao thành công"),
-                row("X1", "DHX1", "X", "0900000005", "Giao thành công"), row("X2", "", "X", "0900000005", "Giao thành công"));
+                row("X1", "DHX1", "X", "0900000005", "Giao thành công"), row("X2", "DHX2", "X", "0900000005", "Giao thành công"),
+                row("X3", "DHX3", "X", "0900000005", "Chờ xử lý"));
         contacts.approveAllCandidates();
     }
 
