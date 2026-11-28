@@ -88,14 +88,26 @@ class CustomerClassifierTest {
         assertThat(c.purchases().getFirst().shipments()).hasSize(2);
     }
 
-    /** Không có mã đơn gốc thì không gộp bằng phỏng đoán, nhưng gắn cờ cần kiểm tra. */
+    /** Không có mã đơn gốc thì không gộp bằng phỏng đoán; chỉ thiếu mã đơn thì không gắn cờ cần kiểm tra (chủ shop duyệt 28/11/2026). */
     @Test
-    void khongCoMaDonKhongGopNhungGanCo() {
+    void khongCoMaDonKhongGopVaKhongGanCo() {
         Classification c = classify(List.of(
                 fact(1, Carrier.VIETTEL_POST, "VTP1", null, CanonicalStatus.DELIVERED),
                 fact(2, Carrier.VIETTEL_POST, "VTP2", "  ", CanonicalStatus.DELIVERED)));
         assertThat(c.segment()).isEqualTo(Segment.REPEAT);
-        assertThat(c.reasons()).containsExactly(ReviewReason.REPEAT_WITHOUT_ORDER_REF);
+        assertThat(c.successfulPurchases()).isEqualTo(2);
+        assertThat(c.reasons()).isEmpty();
+        assertThat(c.needsReview()).isFalse();
+    }
+
+    /** Thiếu mã đơn nhưng có lý do khác (trạng thái lạ) thì chỉ giữ lý do khác. */
+    @Test
+    void thieuMaDonVaTrangThaiLaChiGiuLyDoTrangThai() {
+        Classification c = classify(List.of(
+                fact(1, Carrier.JT_EXPRESS, "JT1", null, CanonicalStatus.DELIVERED),
+                fact(2, Carrier.JT_EXPRESS, "JT2", null, CanonicalStatus.DELIVERED),
+                fact(3, Carrier.JT_EXPRESS, "JT3", "DH3", CanonicalStatus.UNKNOWN)));
+        assertThat(c.reasons()).containsExactly(ReviewReason.UNKNOWN_STATUS);
     }
 
     @Test

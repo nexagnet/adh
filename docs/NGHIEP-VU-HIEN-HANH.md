@@ -89,7 +89,7 @@ Adh **không** lấy đơn TikTok. Adh chỉ biết khách qua **vận đơn c�
 ### 4.2 Phân loại khách **[CHẠY ĐƯỢC]**
 
 - Chỉ đơn **giao thành công** mới tính là một lần mua. Đơn hủy, hoàn, đang giao, **trạng thái chưa rõ** đều không tính.
-- Nhiều vận đơn cùng một mã đơn bán hàng là **một** lần mua. Vận đơn không có mã đơn thì mỗi vận đơn tính một lần, và nếu có thể bị đếm dư thì khách bị gắn cờ **"cần kiểm tra"**.
+- Nhiều vận đơn cùng một mã đơn bán hàng là **một** lần mua. Vận đơn không có mã đơn thì mỗi vận đơn tính một lần (không đoán gộp). **Từ 28/11/2026 (chủ dự án duyệt) chỉ thiếu mã đơn thì khách KHÔNG còn bị gắn cờ "cần kiểm tra"**; các lý do khác (trạng thái chưa rõ, đơn kẹt) giữ nguyên.
 - Đúng 1 lần mua thành công là **ONE_TIME** ("mua một lần"): đây là danh sách để mời. Từ 2 lần là **REPEAT**: chỉ có danh sách riêng cho bố mẹ tự tư vấn, **mặc định không được mời**, kể cả có duyệt. **Ngoại lệ đã duyệt (25/11/2026):** một chiến dịch có thể đặt "số lần mua từ ... đến ..." lớn hơn 1 để mời cả khách mua nhiều lần; khi đó họ được duyệt riêng cho chiến dịch đó và ngừng nhắn nếu mua thêm vượt mức (xem `docs/THIET-KE-CAU-HINH-CHIEN-DICH-LINH-DONG.md` mục 7).
 - Đơn "đã lấy hàng / đang giao" quá 30 ngày hãng không cập nhật là **đơn kẹt**: không tính thành công, không tính hủy, khách bị gắn cờ kiểm tra.
 - Màn *Trạng thái đơn*: những trạng thái lạ của hãng (ví dụ "Kiện vấn đề", "Kết thúc") mặc định **chưa gán nghĩa** nên không tính là thành công. Bạn gán nghĩa tay ở đó.
